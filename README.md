@@ -1,0 +1,2 @@
+# EDRobot
+ED trading robot
