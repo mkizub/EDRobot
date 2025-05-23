@@ -1,0 +1,16 @@
+# ignore dot files/directories
+.*
+!.gitignore
+!.idea
+
+*.autosave
+*.log
+*.pyc
+*.user
+*~
+Thumbs.db
+tags
+/cmake-build-debug/
+/cmake-build-release/
+/dist/
+CMakeSettings.json
