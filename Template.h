@@ -16,28 +16,43 @@ public:
     Template() = default;
     virtual ~Template() = default;
 
-    virtual bool match(Master* master) = 0;
+    virtual double evaluate(Master* master) = 0;
+    virtual double match(Master* master) = 0;
 };
 
-struct ImagePlace {
-    cv::Rect screenRect;
-    const char* filename;
-    ImagePlace(int x, int y, const char* filename) : screenRect(x, y, 0, 0), filename(filename) {}
-    ImagePlace(int x, int y, int w, const char* filename) : screenRect(x, y, w, 0), filename(filename) {}
-    ImagePlace(int x, int y, int w, int h, const char* filename) : screenRect(x, y, w, h), filename(filename) {}
+class SequenceTemplate : public Template {
+public:
+    SequenceTemplate(std::vector<std::unique_ptr<Template>>&& oracles)
+        : oracles(std::move(oracles))
+    {}
+    ~SequenceTemplate() override = default;
+
+    double evaluate(Master* master) override;
+    double match(Master* master) override;
+private:
+    std::vector<std::unique_ptr<Template>> oracles;
 };
 
 class ImageTemplate : public Template {
 public:
-    ImageTemplate(ImagePlace place, double threshold = 0.8);
+    ImageTemplate(const std::string& filename, int x, int y, int l, int t, int r, int b, double tmin, double tmax);
     ~ImageTemplate() override = default;
 
-    bool match(Master* master) override;
+    double evaluate(Master* master) override;
+    double match(Master* master) override;
 private:
-    const double threshold;
-    const ImagePlace place;
+    const std::string filename;
+    cv::Point screenPoint;
+    cv::Size extLT;
+    cv::Size extRB;
+    const double threshold_min;
+    const double threshold_max;
     cv::Rect screenRect;
-    cv::Mat templ;
+    cv::Mat templGray;
+    cv::Mat templMask;
+    cv::Rect screenRectScaled;
+    cv::Mat templGrayScaled;
+    cv::Mat templMaskScaled;
 };
 
 

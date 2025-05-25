@@ -24,11 +24,13 @@ protected:
     };
 
     void sleep(int milliseconds);
-    void sendKey(const char* name, int delay_ms = 35, int pause_ms = 50);
+    bool sendKey(const std::string& name, int delay_ms = 35, int pause_ms = 50);
     void check_completed() {
         if (done)
             throw completed_error("aborted");
     }
+    bool executeAction(const std::string& actionName, const json5pp::value& args, std::string& expect_goto);
+    bool executeStep(const json5pp::value& step, const json5pp::value& args);
 
     std::atomic<bool> done;
 };

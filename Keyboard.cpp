@@ -286,72 +286,50 @@ void stop() {
     }
 }
 
-void sendDown(const char* name) {
-    std::string nm(name);
+bool sendDown(const std::string& nm) {
     auto it = US_QWERTY_MAPPING.find(nm);
     if (it == US_QWERTY_MAPPING.end()) {
         LOG(ERROR) << "Scancode for " << nm << " not found";
-        return;
+        return false;
     }
     unsigned code = it->second & 0xFFFF;
     bool extended = (code & OFFSET_EXTENDEDKEY) != 0;
-    LOG(ERROR) << "SendInput   key down '" << nm << "' " << (code & 0xFF) << " success";
-    //if (extended) {
-    //    flags |= KEYEVENTF_EXTENDEDKEY;
-    //    INPUT input[2]{};
-    //    input[0].type = INPUT_KEYBOARD;
-    //    input[0].ki.wScan = 0xe0;
-    //    input[1].type = INPUT_KEYBOARD;
-    //    input[1].ki.wScan = code;
-    //    input[1].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_EXTENDEDKEY;
-    //    unsigned sent = SendInput(2, input, sizeof(input));
-    //    if (sent != 2)
-    //        LOG(ERROR) << "SendInput extended keydown " << code << " failed: " << getErrorMessage();
-    //} else {
-        INPUT input[1]{};
-        input[0].type = INPUT_KEYBOARD;
-        input[0].ki.wScan = code;
-        input[0].ki.dwFlags = KEYEVENTF_SCANCODE;
-        if (extended)
-            input[0].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-        unsigned sent = SendInput(1, input, sizeof(input));
-        if (!sent)
-            LOG(ERROR) << "SendInput keydown '" << nm << "' " << code << " failed: " << getErrorMessage();
-    //}
+    LOG(INFO) << "SendInput   key down '" << nm << "' " << (code & 0xFF) << " success";
+    INPUT input[1]{};
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wScan = code;
+    input[0].ki.dwFlags = KEYEVENTF_SCANCODE;
+    if (extended)
+        input[0].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+    unsigned sent = SendInput(1, input, sizeof(input));
+    if (!sent) {
+        LOG(ERROR) << "SendInput keydown '" << nm << "' " << code << " failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
 }
 
-void sendUp(const char* name) {
-    std::string nm(name);
+bool sendUp(const std::string& nm) {
     auto it = US_QWERTY_MAPPING.find(nm);
     if (it == US_QWERTY_MAPPING.end()) {
         LOG(ERROR) << "Scancode for " << nm << " not found";
-        return;
+        return false;
     }
     unsigned code = it->second & 0xFFFF;
     bool extended = (code & OFFSET_EXTENDEDKEY) >= OFFSET_EXTENDEDKEY;
-    LOG(ERROR) << "SendInput   key up   '" << nm << "' " << (code & 0xFF) << " success";
-    //if (extended) {
-    //    flags |= KEYEVENTF_EXTENDEDKEY;
-    //    INPUT input[2]{};
-    //    input[0].type = INPUT_KEYBOARD;
-    //    input[0].ki.wScan = 0xe0;
-    //    input[1].type = INPUT_KEYBOARD;
-    //    input[1].ki.wScan = code;
-    //    input[1].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_EXTENDEDKEY;
-    //    unsigned sent = SendInput(2, input, sizeof(input));
-    //    if (sent != 2)
-    //        LOG(ERROR) << "SendInput extended keydown " << code << " failed: " << getErrorMessage();
-    //} else {
-        INPUT input[1]{};
-        input[0].type = INPUT_KEYBOARD;
-        input[0].ki.wScan = code;
-        input[0].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-        if (extended)
-            input[0].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-        unsigned sent = SendInput(1, input, sizeof(input));
-        if (!sent)
-            LOG(ERROR) << "SendInput keyup   '" << nm << "' " << code << " failed: " << getErrorMessage();
-    //}
+    LOG(INFO) << "SendInput   key up   '" << nm << "' " << (code & 0xFF) << " success";
+    INPUT input[1]{};
+    input[0].type = INPUT_KEYBOARD;
+    input[0].ki.wScan = code;
+    input[0].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+    if (extended)
+        input[0].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+    unsigned sent = SendInput(1, input, sizeof(input));
+    if (!sent) {
+        LOG(ERROR) << "SendInput keyup   '" << nm << "' " << code << " failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
 }
 
 
@@ -359,15 +337,18 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         auto* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
         if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-            LOG(DEBUG) << "intercepted key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
+            //LOG(DEBUG) << "intercepted key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
         } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
-            LOG(DEBUG) << "intercepted key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
-            int flags = 0;
-            if (GetKeyState(VK_SHIFT) & 0x8000) flags |= SHIFT;
-            if (GetKeyState(VK_CONTROL) & 0x8000) flags |= CTRL;
-            if (GetKeyState(VK_MENU) & 0x8000) flags |= ALT;
-            if ((GetKeyState(VK_LWIN)| GetKeyState(VK_RWIN)) & 0x8000) flags |= WIN;
-            keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags);
+            auto code = pKeyBoard->vkCode;
+            if (code == VK_ESCAPE || code == VK_SNAPSHOT || code == VK_PAUSE) {
+                //LOG(DEBUG) << "intercepted key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
+                int flags = 0;
+                if (GetKeyState(VK_SHIFT) & 0x8000) flags |= SHIFT;
+                if (GetKeyState(VK_CONTROL) & 0x8000) flags |= CTRL;
+                if (GetKeyState(VK_MENU) & 0x8000) flags |= ALT;
+                if ((GetKeyState(VK_LWIN)| GetKeyState(VK_RWIN)) & 0x8000) flags |= WIN;
+                keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags);
+            }
         }
     }
     return CallNextHookEx(keyboardHook, nCode, wParam, lParam);

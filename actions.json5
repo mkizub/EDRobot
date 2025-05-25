@@ -1,0 +1,39 @@
+[
+  {
+    name: "sell-start",
+    from: "scr-market:mode-sell",
+    goto: "scr-market:mode-sell:dlg-trade",
+    exec: { key: "space" }
+  },
+  {
+    name: "sell-recover",
+    from: "scr-market:mode-sell:dlg-trade",
+    goto: "scr-market:mode-sell",
+    exec: [
+      { loop: 3, action: [{ check: "scr-market:mode-sell:dlg-trade" },{ key: "down" },{ key: "left" }] },
+      { key: "space", hold: 35, after: 1500 }
+    ]
+  },
+  {
+    name: "sell-restart",
+    from: "scr-market:mode-sell",
+    goto: "scr-market:mode-sell:dlg-trade",
+    exec: [
+      [{ key: "left" },{ key: "left" },{ key: "up" },{ key: "up" },{ key: "down" },{ key: "right" }],
+      { key: "space", hold: 35, after: 1500 }
+    ]
+  },
+  {
+    name: "sell-some",
+    from: "scr-market:mode-sell:dlg-trade",
+    goto: "scr-market:mode-sell",
+    exec: [
+      { loop: 3, action: { key: "up", after: 100 } },
+      { key: "left", hold: 2300 },
+      { loop: "$items", action: {key: "right"} },
+      { key: "down", hold: 35, after: 100 },
+      { check: "scr-market:mode-sell:dlg-trade" },
+      { key: "space", hold: 35, after: 1500 },
+    ]
+  }
+]

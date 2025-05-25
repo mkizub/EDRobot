@@ -22,8 +22,8 @@ const int WIN   = 0x8;
 void start(KeyboardCollbackFn callback);
 void stop();
 
-void sendDown(const char* vk);
-void sendUp(const char* vk);
+bool sendDown(const std::string& key_name);
+bool sendUp(const std::string& key_name);
 
 }
 
