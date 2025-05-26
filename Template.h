@@ -16,8 +16,9 @@ public:
     Template() = default;
     virtual ~Template() = default;
 
-    virtual double evaluate(Master* master) = 0;
-    virtual double match(Master* master) = 0;
+    virtual double evaluate() = 0;
+    virtual double match() = 0;
+    virtual double debugMatch(cv::Mat drawToImage) = 0;
 };
 
 class SequenceTemplate : public Template {
@@ -27,8 +28,9 @@ public:
     {}
     ~SequenceTemplate() override = default;
 
-    double evaluate(Master* master) override;
-    double match(Master* master) override;
+    double evaluate() override;
+    double match() override;
+    double debugMatch(cv::Mat drawToImage) override;
 private:
     std::vector<std::unique_ptr<Template>> oracles;
 };
@@ -38,8 +40,9 @@ public:
     ImageTemplate(const std::string& filename, int x, int y, int l, int t, int r, int b, double tmin, double tmax);
     ~ImageTemplate() override = default;
 
-    double evaluate(Master* master) override;
-    double match(Master* master) override;
+    double evaluate() override;
+    double match() override;
+    double debugMatch(cv::Mat drawToImage) override;
 private:
     const std::string filename;
     cv::Point screenPoint;

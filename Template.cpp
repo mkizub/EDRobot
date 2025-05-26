@@ -9,10 +9,10 @@
 #include <iomanip>
 #include <opencv2/opencv.hpp>
 
-double SequenceTemplate::evaluate(Master* master) {
+double SequenceTemplate::evaluate() {
     double sum = 0;
     for (auto& oracle : oracles) {
-        double value = oracle->match(master);
+        double value = oracle->match();
         if (value <= 0)
             return 0;
         sum += value;
@@ -22,8 +22,21 @@ double SequenceTemplate::evaluate(Master* master) {
     return sum;
 }
 
-double SequenceTemplate::match(Master* master) {
-    return evaluate(master) >= 0.8 ? 1 : 0;
+double SequenceTemplate::match() {
+    return evaluate() >= 0.8 ? 1 : 0;
+}
+
+double SequenceTemplate::debugMatch(cv::Mat drawToImage) {
+    double sum = 0;
+    for (auto& oracle : oracles) {
+        double value = oracle->debugMatch(drawToImage);
+        if (value <= 0)
+            sum = 0;
+        sum += value;
+        if (sum >= 1)
+            sum = 1;
+    }
+    return sum > 1 ? 1 : sum < 0 ? 0 : sum;
 }
 
 const int SCREEN_WIDTH = 1920;
@@ -66,8 +79,8 @@ ImageTemplate::ImageTemplate(const std::string& filename, int x, int y, int l, i
     templMaskScaled = templMask;
 }
 
-double ImageTemplate::evaluate(Master* master) {
-    cv::Mat image = master->getGrayScreenshot();
+double ImageTemplate::evaluate() {
+    cv::Mat image = Master::getInstance().getGrayScreenshot();
     if (image.empty() || templGray.empty())
         return 0;
     if (image.cols != SCREEN_WIDTH || image.rows != SCREEN_HEIGHT) {
@@ -86,7 +99,6 @@ double ImageTemplate::evaluate(Master* master) {
         screenRectScaled.y = int(screenRect.y * y_scale + 0.5);
         screenRectScaled.width = int(screenRect.width * x_scale + 0.5);
         screenRectScaled.height = int(screenRect.height * y_scale + 0.5);
-        screenRectScaled = screenRectScaled + cv::Point(-4,-4) + cv::Size(8, 8);
         screenRectScaled &= cv::Rect(0, 0, image.cols, image.rows);
     }
     int result_cols = screenRectScaled.width - templGrayScaled.cols + 1;
@@ -101,11 +113,39 @@ double ImageTemplate::evaluate(Master* master) {
     return maxVal;
 }
 
-double ImageTemplate::match(Master* master) {
-    double value = evaluate(master);
+double ImageTemplate::match() {
+    double value = evaluate();
     if (value >= threshold_max)
         return 1;
     if (value < threshold_min)
         return 0;
     return (value - threshold_min) * (threshold_max - threshold_min);
+}
+
+double ImageTemplate::debugMatch(cv::Mat drawToImage) {
+    double value = evaluate();
+    if (value >= threshold_max) {
+        cv::Scalar color(255, 255, 255);
+        cv::rectangle(drawToImage, screenRectScaled.tl(), screenRectScaled.br(), color, 2);
+        return 1;
+    }
+    if (value < threshold_min) {
+        cv::Scalar color(127, 127, 127);
+        cv::rectangle(drawToImage, screenRectScaled.tl(), screenRectScaled.br(), color, 2);
+        cv::Point p1 = screenRectScaled.tl();
+        cv::Point p2 = screenRectScaled.br();
+        cv::line(drawToImage, p1, p2, color, 1);
+        p1 = cv::Point(screenRectScaled.tl().x, screenRectScaled.br().y);
+        p2 = cv::Point(screenRectScaled.br().x, screenRectScaled.tl().y);
+        cv::line(drawToImage, p1, p2, color, 1);
+        return 0;
+    }
+    double result = (value - threshold_min) * (threshold_max - threshold_min);
+    int g = 127 + int(127*result);
+    cv::Scalar color(g, g, g);
+    cv::rectangle(drawToImage, screenRectScaled.tl(), screenRectScaled.br(), color, 2);
+    cv::Point p1 = screenRectScaled.tl();
+    cv::Point p2 = screenRectScaled.br();
+    cv::line(drawToImage, p1, p2, color, 1);
+    return result;
 }

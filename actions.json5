@@ -3,7 +3,7 @@
     name: "sell-start",
     from: "scr-market:mode-sell",
     goto: "scr-market:mode-sell:dlg-trade",
-    exec: { key: "space" }
+    exec: { key: "space", after: 500 }
   },
   {
     name: "sell-recover",

@@ -1,4 +1,5 @@
 {
   "default-key-hold-time": 35,
   "default-key-after-time": 50,
+  "search-region-extent": 20,
 }

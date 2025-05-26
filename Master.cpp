@@ -10,6 +10,7 @@
 #include "Capturer.h"
 #include "Utils.h"
 #include "UI.h"
+#include "CLI11.hpp"
 #include <opencv2/opencv.hpp>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -80,10 +81,10 @@ static void from_json(const json5pp::value& j, Template*& o) {
             std::string filename = "templates/"+j["img"].as_string();
             int x = jo.at("at").as_array()[0].as_integer();
             int y = jo.at("at").as_array()[1].as_integer();
-            int l = 4;
-            int t = 4;
-            int r = 4;
-            int b = 4;
+            int l = 0;
+            int t = 0;
+            int r = 0;
+            int b = 0;
             if (jo.contains("ext")) {
                 if (jo.at("ext").is_number())
                     l = t = r = b = jo.at("ext").as_integer();
@@ -99,6 +100,11 @@ static void from_json(const json5pp::value& j, Template*& o) {
                         b = jext[3].as_integer();
                 }
             }
+            int ext = Master::getInstance().getSearchRegionExtent();
+            l += ext;
+            r += ext;
+            t += ext;
+            b += ext;
             double tmin = 0.8;
             double tmax = 0.8;
             if (jo.contains("t")) {
@@ -199,11 +205,32 @@ static void from_json(const json5pp::value& j, Tree& t) {
 } // namespace cfg
 
 
-Master::Master() {
-    mSells = 3;
-    mItems = 5;
-    hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
-    keyboard::start([this](int code, int scancode, int flags) { tradingKbHook(code, scancode, flags); });
+Master& Master::getInstance() {
+    static Master master;
+    return master;
+}
+
+int Master::initialize(int argc, char* argv[]) {
+    CLI::App options;
+    options.allow_windows_style_options();
+
+    bool kwd = false;
+    options.add_flag("--kwd,--keep-working-dir", kwd, "Keep working directory (do not change on start)");
+
+    CLI11_PARSE(options, argc, argv);
+
+    if (!kwd) {
+        char buffer[MAX_PATH] = {0};
+        GetModuleFileName(nullptr, buffer, MAX_PATH);
+        std::string fullPath(buffer);
+        size_t lastSlash = fullPath.find_last_of("\\");
+        if (lastSlash != std::string::npos) {
+            std::string cwd = fullPath.substr(0, lastSlash);
+            SetCurrentDirectory(cwd.c_str());
+            LOG(INFO) << "Working Directory: " << cwd;
+        }
+    }
+
     {
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
@@ -211,6 +238,8 @@ Master::Master() {
             defaultKeyHoldTime = tm.as_integer();
         if (auto tm = j_config.at("default-key-after-time"); tm.is_integer())
             defaultKeyAfterTime = tm.as_integer();
+        if (auto tm = j_config.at("search-region-extent"); tm.is_integer())
+            searchRegionExtent = tm.as_integer();
     }
     {
         std::ifstream ifs_config("actions.json5");
@@ -229,6 +258,15 @@ Master::Master() {
                 mScreens.emplace_back((cfg::Screen *) t.child);
         }
     }
+
+    keyboard::start([this](int code, int scancode, int flags) { tradingKbHook(code, scancode, flags); });
+    return 0;
+}
+
+Master::Master() {
+    mSells = 3;
+    mItems = 5;
+    hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
 }
 
 Master::~Master() {
@@ -254,6 +292,9 @@ void Master::loop() {
             case Command::Stop:
                 stopTrade();
                 break;
+            case Command::DebugTemplates:
+                debugTemplates(nullptr, cv::Mat());
+                break;
             case Command::Shutdown:
                 clearCurrentTask();
                 return;
@@ -275,8 +316,14 @@ void Master::tradingKbHook(int code, int scancode, int flags) {
             pushCommand(Command::Stop);
             return;
         case VK_SNAPSHOT:
-            LOG(INFO) << "PrintScreen pressed";
-            pushCommand(Command::Start);
+            if (flags == 0) {
+                LOG(INFO) << "PrintScreen pressed";
+                pushCommand(Command::Start);
+            }
+            else if (flags == (keyboard::CTRL|keyboard::ALT)) {
+                LOG(INFO) << "Ctrl+Alt+PrintScreen pressed";
+                pushCommand(Command::DebugTemplates);
+            }
             return;
         case VK_PAUSE:
             LOG(INFO) << "Pause pressed";
@@ -439,8 +486,47 @@ cfg::Item* Master::matchWithSubItems(cfg::Item* item) {
 bool Master::matchItem(cfg::Item* item) {
     if (!item || !item->oracle)
         return false;
-    return item->oracle->match(this) >= 0.8;
+    return item->oracle->match() >= 0.8;
 }
+
+bool Master::debugMatchItem(cfg::Item* item, cv::Mat debugImage) {
+    if (!item || !item->oracle)
+        return false;
+    return item->oracle->debugMatch(debugImage) >= 0.8;
+}
+
+bool Master::debugTemplates(cfg::Item* item, cv::Mat debugImage) {
+    if (item == nullptr && debugImage.empty()) {
+        if (!captureWindow()) {
+            LOG(ERROR) << "Cannot capture screen for debug match";
+            return false;
+        }
+        for (auto &screen: mScreens) {
+            if (screen->oracle) {
+                debugImage = grayED.clone();
+                debugTemplates(screen.get(), debugImage);
+                std::string fname = "debug-match-"+screen->name+".png";
+                cv::imwrite(fname, debugImage);
+                cv::imshow(fname, debugImage);
+                cv::waitKey();
+            }
+        }
+        cv::destroyAllWindows();
+        debugImage.release();
+        return true;
+    } else {
+        if (item->oracle && debugMatchItem(item, debugImage)) {
+            for (cfg::Item* i : item->have) {
+                bool ok = debugTemplates(i, debugImage);
+                if (ok)
+                    return ok;
+            }
+            return true;
+        }
+        return false;
+    }
+}
+
 
 const std::string& Master::getEDState(const std::string& expectedState) {
     static std::string unknownState;

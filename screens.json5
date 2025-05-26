@@ -1,7 +1,7 @@
 [
   {
     name: 'scr-market',
-    detect: { img: "at_market.png", t: 0.8, at:[92, 57], ext: 4 },
+    detect: { img: "at_market.png", t: 0.8, at:[92, 57], ext:1 },
     have: [
       { name: 'btn-exit', action: 'close' },
       { name: 'btn-help', action: 'help' },
@@ -11,13 +11,13 @@
       { name: 'btn-filter', action: 'dlg-filter' },
       { name: 'lst-goods', action: 'dlg-trade' },
       { name: 'mode-sell',
-        detect: { img: "at_market_sell.png", t: 0.8, at:[245, 172], ext: 4 },
+        detect: { img: "at_market_sell.png", t: 0.8, at:[245, 172] },
         have: [
           {
             name: 'dlg-trade',
             detect: [
-              { img: "at_market_sell_dialog.png", t: [0.5, 0.9], at:[500, 170], ext: [4,4,214,4] },
-              { img: "at_market_dialog.png",      t: 0.8,        at:[507, 714], ext: [4,4,214,4] }
+              { img: "at_market_sell_dialog.png", t: [0.5, 0.9], at:[500, 170], ext: [0,0,210,0] },
+              { img: "at_market_dialog.png",      t: 0.8,        at:[500, 715], ext: [0,0,210,0] }
             ],
             have: [
               {
@@ -45,13 +45,13 @@
         ]
       },
       { name: 'mode-buy',
-        detect: { img: "at_market_buy.png", t: 0.8, at:[245, 172], ext: 4 },
+        detect: { img: "at_market_buy.png", t: 0.8, at:[245, 172] },
         have: [
           {
             name: 'dlg-trade',
             detect: [
-              { img: "at_market_buy_dialog.png", t: [0.5, 0.9], at:[500, 185], ext: [4,4,214,4] },
-              { img: "at_market_dialog.png",     t: 0.8,        at:[507, 714], ext: [4,4,214,4] }
+              { img: "at_market_buy_dialog.png", t: [0.5, 0.9], at:[500, 170], ext: [0,0,210,0] },
+              { img: "at_market_dialog.png",     t: 0.8,        at:[505, 717], ext: [0,0,210,0] }
             ],
             have: [
               {

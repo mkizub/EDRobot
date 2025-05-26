@@ -29,6 +29,7 @@ enum class Command {
     Start,
     Pause,
     Stop,
+    DebugTemplates,
     Shutdown,
 };
 
@@ -39,19 +40,21 @@ class Screen;
 
 class Master {
 public:
-    Master();
-    ~Master();
-    void showStartDialog(int argc, char *argv[]);
+    static Master& getInstance();
 
+    int initialize(int argc, char* argv[]);
     void loop();
     const std::string& getEDState(const std::string& expectedState);
     const json5pp::value& getAction(const std::string& action);
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
+    int getSearchRegionExtent() const { return searchRegionExtent; }
 
     cv::Mat getGrayScreenshot();
 
 private:
+    Master();
+    ~Master();
     void tradingKbHook(int code, int scancode, int flags);
     void pushCommand(Command cmd);
     Command popCommand();
@@ -67,9 +70,12 @@ private:
     cfg::Item* getCfgItem(std::string state);
     cfg::Item* matchWithSubItems(cfg::Item* item);
     bool matchItem(cfg::Item* item);
+    bool debugTemplates(cfg::Item* item, cv::Mat debugImage);
+    bool debugMatchItem(cfg::Item* item, cv::Mat debugImage);
 
     int defaultKeyHoldTime = 35;
     int defaultKeyAfterTime = 50;
+    int searchRegionExtent = 10;
     std::vector<std::unique_ptr<cfg::Screen>> mScreens;
     std::map<std::string,json5pp::value> mActions;
     HWND hWndED;
