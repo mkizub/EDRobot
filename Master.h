@@ -55,9 +55,10 @@ public:
 private:
     Master();
     ~Master();
-    void tradingKbHook(int code, int scancode, int flags);
+    static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
     void pushCommand(Command cmd);
     Command popCommand();
+    void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
 
     bool captureWindow();
 
@@ -65,6 +66,7 @@ private:
     bool stopTrade();
     void clearCurrentTask();
     bool isForeground();
+    static void runCurrentTask();
 
     bool askSellInput();
     cfg::Item* getCfgItem(std::string state);
@@ -76,6 +78,7 @@ private:
     int defaultKeyHoldTime = 35;
     int defaultKeyAfterTime = 50;
     int searchRegionExtent = 10;
+    std::map<std::pair<std::string,unsigned>, Command> keyMapping;
     std::vector<std::unique_ptr<cfg::Screen>> mScreens;
     std::map<std::string,json5pp::value> mActions;
     HWND hWndED;

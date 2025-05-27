@@ -27,7 +27,7 @@ const unsigned int OFFSET_SHIFTKEY    = 0x10000;
 const unsigned int SHIFT_SCANCODE = 0x2A;  // Used in auto-shifting
 // should be keyboard MAKE scancodes ( <0x80 )
 // some keys require the use of EXTENDEDKEY flags, they
-static std::map<std::string, unsigned int> US_QWERTY_MAPPING = {
+static std::unordered_map<std::string, unsigned int> US_QWERTY_MAPPING = {
         { "escape", 0x01 },
         { "esc", 0x01 },
         { "f1", 0x3B },
@@ -271,6 +271,18 @@ static std::map<std::string, unsigned int> US_QWERTY_MAPPING = {
         { "f24", 0x76}
 };
 
+static std::map<unsigned int, std::string> reverseKeyMap() {
+    std::map<unsigned int, std::string> reversedMap;
+    for (const auto& pair : US_QWERTY_MAPPING) {
+        if (!reversedMap.contains(pair.second))
+            reversedMap[pair.second] = pair.first;
+    }
+    return reversedMap;
+}
+static std::map<unsigned int, std::string> US_QWERTY_REVERSED = reverseKeyMap();
+static std::string unknownKeyName = "unknown";
+
+
 void start(KeyboardCollbackFn callback) {
     keyboardCallback = callback;
     interceptor_thread = std::thread(&loop);
@@ -294,7 +306,7 @@ bool sendDown(const std::string& nm) {
     }
     unsigned code = it->second & 0xFFFF;
     bool extended = (code & OFFSET_EXTENDEDKEY) != 0;
-    LOG(INFO) << "SendInput   key down '" << nm << "' " << (code & 0xFF) << " success";
+    LOG(DEBUG) << "SendInput   key down '" << nm << "' " << (code & 0xFF) << " success";
     INPUT input[1]{};
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wScan = code;
@@ -317,7 +329,7 @@ bool sendUp(const std::string& nm) {
     }
     unsigned code = it->second & 0xFFFF;
     bool extended = (code & OFFSET_EXTENDEDKEY) >= OFFSET_EXTENDEDKEY;
-    LOG(INFO) << "SendInput   key up   '" << nm << "' " << (code & 0xFF) << " success";
+    LOG(DEBUG) << "SendInput   key up   '" << nm << "' " << (code & 0xFF) << " success";
     INPUT input[1]{};
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wScan = code;
@@ -340,14 +352,30 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             //LOG(DEBUG) << "intercepted key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
         } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
             auto code = pKeyBoard->vkCode;
-            if (code == VK_ESCAPE || code == VK_SNAPSHOT || code == VK_PAUSE) {
+            {
                 //LOG(DEBUG) << "intercepted key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
                 int flags = 0;
                 if (GetKeyState(VK_SHIFT) & 0x8000) flags |= SHIFT;
                 if (GetKeyState(VK_CONTROL) & 0x8000) flags |= CTRL;
                 if (GetKeyState(VK_MENU) & 0x8000) flags |= ALT;
                 if ((GetKeyState(VK_LWIN)| GetKeyState(VK_RWIN)) & 0x8000) flags |= WIN;
-                keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags);
+                auto scancode = pKeyBoard->scanCode;
+                std::string keyName;
+                if (code == VK_SNAPSHOT) {
+                    keyName = "printscreen";
+                    pKeyBoard->flags &= ~LLKHF_EXTENDED;
+                } else {
+                    const auto& it = US_QWERTY_REVERSED.find(scancode);
+                    if (it != US_QWERTY_REVERSED.end())
+                        keyName = it->second;
+                    else
+                        keyName = unknownKeyName;
+                }
+                if (pKeyBoard->flags & LLKHF_EXTENDED) {
+                    scancode += OFFSET_EXTENDEDKEY;
+                    flags |= EXT;
+                }
+                keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags, keyName);
             }
         }
     }

@@ -4,6 +4,7 @@
 
 #include "Master.h"
 #include "easylogging++.h"
+#include <cpptrace/from_current.hpp>
 #include "Keyboard.h"
 #include "Task.h"
 #include "Template.h"
@@ -12,6 +13,7 @@
 #include "UI.h"
 #include "CLI11.hpp"
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/utils/logger.hpp>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 //#include <gdiplus.h>
@@ -81,30 +83,28 @@ static void from_json(const json5pp::value& j, Template*& o) {
             std::string filename = "templates/"+j["img"].as_string();
             int x = jo.at("at").as_array()[0].as_integer();
             int y = jo.at("at").as_array()[1].as_integer();
-            int l = 0;
-            int t = 0;
-            int r = 0;
-            int b = 0;
+            cv::Point screenLT(x, y);
+            int extL = 0;
+            int extT = 0;
+            int extR = 0;
+            int extB = 0;
             if (jo.contains("ext")) {
                 if (jo.at("ext").is_number())
-                    l = t = r = b = jo.at("ext").as_integer();
+                    extL = extT = extR = extB = jo.at("ext").as_integer();
                 else if (jo.at("ext").is_array()) {
                     auto& jext = jo.at("ext").as_array();
                     if (!jext.empty())
-                        l = t = r = b = jext[0].as_integer();
+                        extL = extT = extR = extB = jext[0].as_integer();
                     if (jext.size() > 1)
-                        t = b = jext[1].as_integer();
+                        extT = extB = jext[1].as_integer();
                     if (jext.size() > 2)
-                        r = jext[2].as_integer();
+                        extR = jext[2].as_integer();
                     if (jext.size() > 3)
-                        b = jext[3].as_integer();
+                        extB = jext[3].as_integer();
                 }
             }
-            int ext = Master::getInstance().getSearchRegionExtent();
-            l += ext;
-            r += ext;
-            t += ext;
-            b += ext;
+            cv::Point extLT(extL, extT);
+            cv::Point extRB(extR, extB);
             double tmin = 0.8;
             double tmax = 0.8;
             if (jo.contains("t")) {
@@ -122,7 +122,7 @@ static void from_json(const json5pp::value& j, Template*& o) {
                 if (tmax < tmin)
                     std::swap(tmin, tmax);
             }
-            o = new ImageTemplate(filename, x, y, l, t, r, b, tmin, tmax);
+            o = new ImageTemplate(filename, screenLT, extLT, extRB, tmin, tmax);
 
             //t: [0.5, 0.9], rect:[500, 170], ext: [4,4,300,4]
         }
@@ -204,6 +204,51 @@ static void from_json(const json5pp::value& j, Tree& t) {
 
 } // namespace cfg
 
+namespace {
+void writeOpenCVLogMessageFunc(cv::utils::logging::LogLevel cvLevel, const char* msg) {
+    if (!msg || !*msg)
+        return;
+    static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
+    switch (cvLevel) {
+        default: return;
+        case cv::utils::logging::LOG_LEVEL_FATAL:
+            cvLogger->fatal(msg);
+            break;
+        case cv::utils::logging::LOG_LEVEL_ERROR:
+            cvLogger->error(msg);
+            break;
+        case cv::utils::logging::LOG_LEVEL_WARNING:
+            if (cvLogger->enabled(el::Level::Warning))
+                cvLogger->warn(msg); break;
+            break;
+        case cv::utils::logging::LOG_LEVEL_INFO:
+            if (cvLogger->enabled(el::Level::Info))
+                cvLogger->info(msg); break;
+            break;
+        case cv::utils::logging::LOG_LEVEL_DEBUG:
+            if (cvLogger->enabled(el::Level::Debug))
+                cvLogger->debug(msg);
+            break;
+        //case cv::utils::logging::LOG_LEVEL_VERBOSE: cvLogger->verbose(0, msg); break;
+    }
+}
+void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const char* tag, const char* file, int line, const char* func, const char* msg) {
+    if (!msg || !*msg)
+        return;
+    el::Level elLevel = el::Level::Unknown;
+    switch (cvLevel) {
+        default: return;
+        case cv::utils::logging::LOG_LEVEL_FATAL:   elLevel = el::Level::Fatal; break;
+        case cv::utils::logging::LOG_LEVEL_ERROR:   elLevel = el::Level::Error; break;
+        case cv::utils::logging::LOG_LEVEL_WARNING: elLevel = el::Level::Warning; break;
+        case cv::utils::logging::LOG_LEVEL_INFO:    elLevel = el::Level::Info; break;
+        case cv::utils::logging::LOG_LEVEL_DEBUG:   elLevel = el::Level::Debug; break;
+        //case cv::utils::logging::LOG_LEVEL_VERBOSE:  elLevel = el::Level::Verbose; break;
+    }
+    static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
+    el::base::Writer(elLevel, file, line, func).construct(cvLogger) << msg;
+}
+}
 
 Master& Master::getInstance() {
     static Master master;
@@ -231,6 +276,15 @@ int Master::initialize(int argc, char* argv[]) {
         }
     }
 
+    cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
+    cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
+
+    keyMapping = {
+            {{"esc",0}, Command::Stop},
+            {{"printscreen",0}, Command::Start},
+            {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
+    };
+
     {
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
@@ -240,6 +294,14 @@ int Master::initialize(int argc, char* argv[]) {
             defaultKeyAfterTime = tm.as_integer();
         if (auto tm = j_config.at("search-region-extent"); tm.is_integer())
             searchRegionExtent = tm.as_integer();
+        if (j_config.at("shortcuts").is_object()) {
+            auto obj = j_config.at("shortcuts");
+            parseShortcutConfig(Command::Start, "start", obj);
+            parseShortcutConfig(Command::Pause, "pause", obj);
+            parseShortcutConfig(Command::Stop,  "stop",  obj);
+            parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
+            parseShortcutConfig(Command::Shutdown,  "shutdown",  obj);
+        }
     }
     {
         std::ifstream ifs_config("actions.json5");
@@ -259,8 +321,67 @@ int Master::initialize(int argc, char* argv[]) {
         }
     }
 
-    keyboard::start([this](int code, int scancode, int flags) { tradingKbHook(code, scancode, flags); });
+    keyboard::start(tradingKbHook);
     return 0;
+}
+
+static std::pair<std::string,unsigned> decodeShortcut(std::string key) {
+    unsigned flags = 0;
+    for (;;) {
+        size_t pos = key.find_first_of('+');
+        if (pos == std::string::npos)
+            break;
+        std::string mod = key.substr(0, pos);
+        std::transform(mod.begin(), mod.end(), mod.begin(),[](unsigned char c){ return std::tolower(c); });
+        if (mod == "ctrl")
+            flags |= keyboard::CTRL;
+        else if (mod == "alt")
+            flags |= keyboard::ALT;
+        else if (mod == "shift")
+            flags |= keyboard::SHIFT;
+        else if (mod == "win" || mod == "meta")
+            flags |= keyboard::WIN;
+        else if (mod == "ext")
+            flags |= keyboard::EXT;
+        else
+            LOG(ERROR) << "Unknown key modifier " << mod;
+        key = key.substr(pos+1);
+    }
+    std::transform(key.begin(), key.end(), key.begin(),[](unsigned char c){ return std::tolower(c); });
+    return std::make_pair(key, flags);
+}
+
+static std::string encodeShortcut(const std::string& name, unsigned flags) {
+    std::string res;
+    if (flags & keyboard::CTRL) res += "Ctrl+";
+    if (flags & keyboard::ALT) res += "Alt+";
+    if (flags & keyboard::SHIFT) res += "Shift+";
+    if (flags & keyboard::WIN) res += "Win+";
+    if (flags & keyboard::EXT) res += "Ext+";
+    res += name;
+    return res;
+}
+
+
+void Master::parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg) {
+    if (cfg.as_object().contains((name))) {
+        for (auto it = keyMapping.begin(); it != keyMapping.end();)  {
+            if (it->second == command)
+                it = keyMapping.erase(it);
+            else
+                ++it;
+        }
+        json5pp::value jcmd = cfg.at(name);
+        if (jcmd.is_string())
+            keyMapping[decodeShortcut(jcmd.as_string())] = command;
+        if (jcmd.is_array()) {
+            for (auto& jc : jcmd.as_array()) {
+                if (jc.is_string())
+                    keyMapping[decodeShortcut(jc.as_string())] = command;
+            }
+        }
+
+    }
 }
 
 Master::Master() {
@@ -276,29 +397,35 @@ Master::~Master() {
 
 
 void Master::loop() {
-    while (true) {
-        switch (popCommand()) {
-            case Command::NoOp:
-                break;
-            case Command::TaskFinished:
-                clearCurrentTask();
-                break;
-            case Command::Start:
-                startTrade();
-                break;
-            case Command::Pause:
-                stopTrade();
-                break;
-            case Command::Stop:
-                stopTrade();
-                break;
-            case Command::DebugTemplates:
-                debugTemplates(nullptr, cv::Mat());
-                break;
-            case Command::Shutdown:
-                clearCurrentTask();
-                return;
+    CPPTRACE_TRY {
+        while (true) {
+            switch (popCommand()) {
+                case Command::NoOp:
+                    break;
+                case Command::TaskFinished:
+                    clearCurrentTask();
+                    break;
+                case Command::Start:
+                    startTrade();
+                    break;
+                case Command::Pause:
+                    stopTrade();
+                    break;
+                case Command::Stop:
+                    stopTrade();
+                    break;
+                case Command::DebugTemplates:
+                    debugTemplates(nullptr, cv::Mat());
+                    break;
+                case Command::Shutdown:
+                    clearCurrentTask();
+                    return;
+            }
         }
+    }
+    CPPTRACE_CATCH(const std::exception& e) {
+        LOG(ERROR) << "Exception in main loop: " << cpptrace::from_current_exception();
+        clearCurrentTask();
     }
 }
 
@@ -306,31 +433,15 @@ bool Master::isForeground() {
     return hWndED && hWndED == GetForegroundWindow();
 }
 
-void Master::tradingKbHook(int code, int scancode, int flags) {
+void Master::tradingKbHook(int code, int scancode, int flags, const std::string& name) {
+    (void)code;
     (void)scancode;
-    (void)flags;
-
-    switch(code) {
-        case VK_ESCAPE:
-            LOG(INFO) << "ESC pressed";
-            pushCommand(Command::Stop);
-            return;
-        case VK_SNAPSHOT:
-            if (flags == 0) {
-                LOG(INFO) << "PrintScreen pressed";
-                pushCommand(Command::Start);
-            }
-            else if (flags == (keyboard::CTRL|keyboard::ALT)) {
-                LOG(INFO) << "Ctrl+Alt+PrintScreen pressed";
-                pushCommand(Command::DebugTemplates);
-            }
-            return;
-        case VK_PAUSE:
-            LOG(INFO) << "Pause pressed";
-            pushCommand(Command::Pause);
-            return;
-        default:
-            LOG(DEBUG) << "Unknown command";
+    LOG(INFO) << "Key '"+encodeShortcut(name,flags)+"' pressed";
+    Master& self = getInstance();
+    auto cmd = self.keyMapping.find(std::make_pair(name,flags));
+    if (cmd != self.keyMapping.end()) {
+        LOG(INFO) << "Key '"+encodeShortcut(name,flags)+"' pressed";
+        self.pushCommand(cmd->second);
     }
 }
 
@@ -372,7 +483,7 @@ bool Master::startTrade() {
     Sleep(200); // wait for dialog to dissappear
     hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
     if (!hWndED) {
-        LOG(INFO) << "Window [class " << ED_WINDOW_CLASS << "; name " << ED_WINDOW_NAME << "] not found" ;
+        LOG(ERROR) << "Window [class " << ED_WINDOW_CLASS << "; name " << ED_WINDOW_NAME << "] not found" ;
         return false;
     }
     if (!isForeground()) {
@@ -385,17 +496,25 @@ bool Master::startTrade() {
     }
     LOG(ERROR) << "Staring new trade task";
     currentTask.reset(new TaskSell(*this, mSells, mItems));
-    currentTaskThread = std::thread([this](){
-        bool ok = currentTask->run();
-        pushCommand(Command::TaskFinished);
-    });
+    currentTaskThread = std::thread(Master::runCurrentTask);
     return true;
 }
 
 bool Master::stopTrade() {
-    LOG(INFO) << "Stop trading";
+    LOG_IF(currentTask, INFO) << "Stop trading";
     clearCurrentTask();
     return false;
+}
+
+void Master::runCurrentTask() {
+    Master& self = getInstance();
+    CPPTRACE_TRY {
+        bool ok = self.currentTask->run();
+        self.pushCommand(Command::TaskFinished);
+    } CPPTRACE_CATCH (const std::exception& e) {
+        LOG(ERROR) << "Exception in current task: " << cpptrace::from_current_exception();
+        self.clearCurrentTask();
+    }
 }
 
 void Master::clearCurrentTask() {
@@ -486,7 +605,7 @@ cfg::Item* Master::matchWithSubItems(cfg::Item* item) {
 bool Master::matchItem(cfg::Item* item) {
     if (!item || !item->oracle)
         return false;
-    return item->oracle->match() >= 0.8;
+    return item->oracle->classify() >= 0.8;
 }
 
 bool Master::debugMatchItem(cfg::Item* item, cv::Mat debugImage) {
@@ -505,6 +624,7 @@ bool Master::debugTemplates(cfg::Item* item, cv::Mat debugImage) {
             if (screen->oracle) {
                 debugImage = grayED.clone();
                 debugTemplates(screen.get(), debugImage);
+                el::Loggers::flushAll();
                 std::string fname = "debug-match-"+screen->name+".png";
                 cv::imwrite(fname, debugImage);
                 cv::imshow(fname, debugImage);
@@ -513,15 +633,15 @@ bool Master::debugTemplates(cfg::Item* item, cv::Mat debugImage) {
         }
         cv::destroyAllWindows();
         debugImage.release();
+        el::Loggers::flushAll();
         return true;
     } else {
         if (item->oracle && debugMatchItem(item, debugImage)) {
+            bool ok = false;
             for (cfg::Item* i : item->have) {
-                bool ok = debugTemplates(i, debugImage);
-                if (ok)
-                    return ok;
+                ok |= debugTemplates(i, debugImage);
             }
-            return true;
+            return ok;
         }
         return false;
     }
@@ -553,68 +673,13 @@ const std::string& Master::getEDState(const std::string& expectedState) {
     }
     LOG(ERROR) << "Unknown state";
     return unknownState; // nothing found
-
-//    cfg::Screen* screen;
-//    switch (expectedState) {
-//        case EDState::Unknown: break;           // full detection
-//        case EDState::DockedStationL: break;    // not implemented
-//        case EDState::DockedStationM: break;    // not implemented
-//        case EDState::MarketBuy:
-//            screen = getScreen("market:buy");
-//            if (match(screen))
-//                return EDState::MarketBuy;
-//            if (ED_TEMPLATE_AT_MARKET_BUY.match(this) &&
-//                !(ED_TEMPLATE_AT_MARKET_DIALOG.match(this) || ED_TEMPLATE_AT_MARKET_BUY_DIALOG.match(this)))
-//                return EDState::MarketBuy;
-//            break;
-//        case EDState::MarketBuyDialog:
-//            if (ED_TEMPLATE_AT_MARKET_BUY_DIALOG.match(this))
-//                return EDState::MarketBuyDialog;
-//            break;
-//        case EDState::MarketSell:
-//            if (ED_TEMPLATE_AT_MARKET_SELL.match(this) &&
-//                !(ED_TEMPLATE_AT_MARKET_DIALOG.match(this) || ED_TEMPLATE_AT_MARKET_SELL_DIALOG.match(this)))
-//                return EDState::MarketSell;
-//            break;
-//        case EDState::MarketSellDialog:
-//            if (ED_TEMPLATE_AT_MARKET_SELL_DIALOG.match(this))
-//                return EDState::MarketSellDialog;
-//            break;
-//    }
-//    // check market
-//    for (auto& screen : mScreens) {
-//        if (match_)
-//    }
-//    if (ED_TEMPLATE_AT_MARKET.match(this)) {
-//        LOG(ERROR) << "At market";
-//        if (ED_TEMPLATE_AT_MARKET_SELL.match(this)) {
-//            LOG(ERROR) << "At market sell";
-//            if (ED_TEMPLATE_AT_MARKET_SELL_DIALOG.match(this) || ED_TEMPLATE_AT_MARKET_DIALOG.match(this)) {
-//                LOG(ERROR) << "At market sell dialog";
-//                return EDState::MarketSellDialog;
-//            } else {
-//                return EDState::MarketSell;
-//            }
-//        }
-//        if (ED_TEMPLATE_AT_MARKET_BUY.match(this)) {
-//            LOG(ERROR) << "At market buy";
-//            if (ED_TEMPLATE_AT_MARKET_BUY_DIALOG.match(this) || ED_TEMPLATE_AT_MARKET_DIALOG.match(this)) {
-//                LOG(ERROR) << "At market buy dialog";
-//                return EDState::MarketBuyDialog;
-//            } else {
-//                return EDState::MarketBuy;
-//            }
-//        }
-//    } else {
-//        LOG(ERROR) << "Unknown screen";
-//    }
-//
-//    return EDState::Unknown;
 }
 
 bool Master::captureWindow() {
-    if (!isForeground())
+    if (!isForeground()) {
+        LOG(ERROR) << "Cannot capture screen - not foreground; hWndED=0x" << std::hex << std::setw(16) << std::setfill('0') << hWndED;
         return false;
+    }
     Capturer *capturer = Capturer::getEDCapturer(hWndED);
     if (!capturer)
         return false;
@@ -628,97 +693,3 @@ bool Master::captureWindow() {
 cv::Mat Master::getGrayScreenshot() {
     return grayED;
 }
-
-//#include <FL/Fl.H>
-//#include <FL/Fl_Window.H>
-//#include <FL/Fl_Button.H>
-//#include <FL/Fl_Input.H>
-//#include <FL/Fl_Int_Input.H>
-//#include <FL/Fl_Output.H>
-//#include <FL/Fl_Text_Buffer.H>
-//#include <FL/Fl_Text_Display.H>
-//#include <FL/fl_message.H>
-//
-//void get_input_cb(Fl_Widget* btn, void* data) {
-//    Fl_Output* output = (Fl_Output*)data;
-//    const char* input_value = fl_input("Enter some text:", "");
-//
-//    if (input_value != nullptr) {
-//        output->value(input_value);
-//    }
-//}
-//
-//static int dialogResult;
-//struct CloseData {
-//    Fl_Window* window;
-//    int code;
-//};
-//
-//static void close_window_cb(Fl_Widget* widget, void* data) {
-//    CloseData* cd = (CloseData*)data;
-//    dialogResult = cd->code;
-//    cd->window->hide();
-//}
-//
-//void Master::showStartDialog(int argc, char *argv[]) {
-//    Fl_Window window(250, 130, "ED Robot");
-//    CloseData cd{ &window, 0 };
-//    Fl_Text_Buffer*  buff = new Fl_Text_Buffer();
-//    Fl_Text_Display* disp = new Fl_Text_Display(10, 10, 230, 80);
-//    Fl_Button*       btn  = new Fl_Button      (20, 90,  60, 30, "Ok");
-//    btn->callback(close_window_cb, &cd);
-//    btn->shortcut(FL_Enter);
-//    disp->buffer(buff);
-//    buff->text("Press 'Print Screen' key to start selling\nPress 'Esc' to stop");
-//    window.end();
-//    window.show(argc, argv);
-//    Fl::run();
-//}
-//
-//bool Master::askSellInput() {
-//    dialogResult = 1;
-//    Fl_Window window(250, 160, "Sell Items");
-//    Fl_Int_Input* in_times = new Fl_Int_Input(100,  10, 100, 30, "Sell times: ");
-//    in_times->value(mSells);
-//    in_times->insert_position(0, in_times->value() ? strlen(in_times->value()) : 0);
-//    in_times->selection_color(0xDDDDDD00);
-//    Fl_Int_Input* in_items = new Fl_Int_Input(100,  50, 100, 30, "By N items: ");
-//    in_items->value(mItems);
-//    in_items->insert_position(0, in_items->value() ? strlen(in_items->value()) : 0);
-//    in_times->selection_color(0xDDDDDD00);
-//    Fl_Button* btn_ok      = new Fl_Button   (20,   80,  60, 30, "Ok");
-//    Fl_Button* btn_cancel  = new Fl_Button   (100,  80, 100, 30, "Cancel");
-//    Fl_Button* btn_exit    = new Fl_Button   (20,  120, 100, 30, "Exit EDRobot");
-//    CloseData cd_ok{ &window, 0 };
-//    CloseData cd_cancel{ &window, 1 };
-//    CloseData cd_exit{ &window, 2 };
-//    btn_ok->callback(close_window_cb, &cd_ok);
-//    btn_cancel->callback(close_window_cb, &cd_cancel);
-//    btn_exit->callback(close_window_cb, &cd_exit);
-//    btn_ok->shortcut(FL_Enter);
-//    btn_cancel->shortcut(FL_Escape);
-//    window.end();
-//    window.position(1800, 200);
-//    window.show();
-//    while (Fl::check()) {
-//        // check exit
-//    }
-//    if (dialogResult == 1)
-//        return false;
-//    if (dialogResult == 2) {
-//        pushCommand(Command::Shutdown);
-//        return false;
-//    }
-//
-//    int n_times = in_times->ivalue();
-//    if (n_times <= 0)
-//        return false;
-//    mSells = n_times;
-//
-//    int n_items = in_items->ivalue();
-//    if (n_items <= 0)
-//        return false;
-//    mItems = n_items;
-//
-//    return true;
-//}

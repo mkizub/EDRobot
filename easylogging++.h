@@ -754,7 +754,7 @@ static const char* kSysLogLoggerId                         =      "syslog";
 #endif  // defined(ELPP_SYSLOG)
 
 #if ELPP_OS_WINDOWS
-static const char* kFilePathSeparator                      =      "\\";
+static const char* kFilePathSeparator                      =      "/\\";
 #else
 static const char* kFilePathSeparator                      =      "/";
 #endif  // ELPP_OS_WINDOWS

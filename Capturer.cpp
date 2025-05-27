@@ -150,6 +150,12 @@ cv::Mat Capturer::getCapturedImage() {
     int y = captureRect.top;
     int w = captureRect.right - x;
     int h = captureRect.bottom -y;
+    cv::Rect crop(x,y,w,h);
+    if (crop.x < 0 || crop.y < 0 || crop.br().x > screenWidth || crop.br().y > screenHeight) {
+        LOG(ERROR) << "Window is out of screen borders: " << crop << " on " << cv::Size(screenWidth, screenHeight)
+                   << " screen";
+        return cv::Mat();
+    }
     return cv::Mat(capturedImage, cv::Rect(x,y,w,h));
 }
 
@@ -161,7 +167,21 @@ cv::Mat Capturer::getGrayImage() {
     int y = captureRect.top;
     int w = captureRect.right - x;
     int h = captureRect.bottom -y;
-    return cv::Mat(grayImage, cv::Rect(x,y,w,h));
+    cv::Rect crop(x,y,w,h);
+    if (crop.x < 0 || crop.y < 0 || crop.br().x > screenWidth || crop.br().y > screenHeight) {
+        LOG(ERROR) << "Window is out of screen borders: " << crop << " on " << cv::Size(screenWidth, screenHeight) << " screen";
+        cv::Mat tmp(h, w, grayImage.type());
+        cv::Rect is = crop & cv::Rect(cv::Point(), grayImage.size());
+        int dr = (y < 0) ? -y : 0;
+        for(int r = 0; r < is.height; r++) {
+            int dc = (x < 0) ? -x : 0;
+            //for(int c = 0; c < is.width; c++)
+            //    tmp.at<char>(r, c+dc) = grayImage.at<char>(r+is.y,c+is.x);
+            memcpy(tmp.ptr<char>(dr, dc), grayImage.ptr<char>(r+is.y, is.x), is.width);
+        }
+        return tmp;
+    }
+    return cv::Mat(grayImage, crop);
 }
 
 bool Capturer::captureDisplay() {

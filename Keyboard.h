@@ -12,12 +12,13 @@
 
 namespace keyboard {
 
-typedef std::function<void(int code, int scancode, int flags)> KeyboardCollbackFn;
+typedef std::function<void(int code, int scancode, int flags, const std::string& name)> KeyboardCollbackFn;
 
-const int SHIFT = 0x1;
-const int CTRL  = 0x2;
-const int ALT   = 0x4;
-const int WIN   = 0x8;
+const int SHIFT = 0x01;
+const int CTRL  = 0x02;
+const int ALT   = 0x04;
+const int WIN   = 0x08;
+const int EXT   = 0x10;
 
 void start(KeyboardCollbackFn callback);
 void stop();

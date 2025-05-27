@@ -2,4 +2,11 @@
   "default-key-hold-time": 35,
   "default-key-after-time": 50,
   "search-region-extent": 20,
+  shortcuts: {
+    start: "PrintScreen", // defaults to "printscreen"
+    stop: "Esc", // defaults to "esc"
+    //pause: "Pause", // not used
+    "debug-templates": "Ctrl+Alt+PrintScreen", // defaults to "ctrl+alt+printscreen"
+    //shutdown: "...", // no default, can exit from 'start trade' dialog
+  }
 }

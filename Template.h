@@ -16,8 +16,12 @@ public:
     Template() = default;
     virtual ~Template() = default;
 
-    virtual double evaluate() = 0;
+    // return matching value, i.e. how much a template image is similar to given image
     virtual double match() = 0;
+    // classifies evaluated matching value, i.e. classifies by returning probability of being the same class
+    // returns value in range [0..1]
+    virtual double classify() = 0;
+
     virtual double debugMatch(cv::Mat drawToImage) = 0;
 };
 
@@ -28,8 +32,8 @@ public:
     {}
     ~SequenceTemplate() override = default;
 
-    double evaluate() override;
     double match() override;
+    double classify() override;
     double debugMatch(cv::Mat drawToImage) override;
 private:
     std::vector<std::unique_ptr<Template>> oracles;
@@ -37,25 +41,30 @@ private:
 
 class ImageTemplate : public Template {
 public:
-    ImageTemplate(const std::string& filename, int x, int y, int l, int t, int r, int b, double tmin, double tmax);
+    ImageTemplate(const std::string& filename, cv::Point lt, cv::Point extLT, cv::Point extRB, double tmin, double tmax);
     ~ImageTemplate() override = default;
 
-    double evaluate() override;
     double match() override;
+    double classify() override;
     double debugMatch(cv::Mat drawToImage) override;
 private:
+    cv::Rect getMatchRect(int imageWidth, int imageHeight);
+    double toResult(double matchValue); // something like logistic regression, S-curve
     const std::string filename;
-    cv::Point screenPoint;
-    cv::Size extLT;
-    cv::Size extRB;
+    cv::Point screenLT;
+    cv::Point screenRB;
+    cv::Point extendLT;
+    cv::Point extendRB;
     const double threshold_min;
     const double threshold_max;
-    cv::Rect screenRect;
     cv::Mat templGray;
     cv::Mat templMask;
-    cv::Rect screenRectScaled;
     cv::Mat templGrayScaled;
     cv::Mat templMaskScaled;
+    cv::Point scaledScreenLT; // for debug
+    cv::Point scaledScreenRB; // for debug
+    cv::Point matchedLoc;     // for debug
+    double lastScale;
 };
 
 

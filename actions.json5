@@ -11,7 +11,10 @@
     goto: "scr-market:mode-sell",
     exec: [
       { loop: 3, action: [{ check: "scr-market:mode-sell:dlg-trade" },{ key: "down" },{ key: "left" }] },
-      { key: "space", hold: 35, after: 1500 }
+      { sleep: 1000 },
+      { check: "scr-market:mode-sell:dlg-trade" },
+      { key: "space", hold: 35, after: 1000 },
+      { check: "scr-market:mode-sell" }
     ]
   },
   {
@@ -20,7 +23,10 @@
     goto: "scr-market:mode-sell:dlg-trade",
     exec: [
       [{ key: "left" },{ key: "left" },{ key: "up" },{ key: "up" },{ key: "down" },{ key: "right" }],
-      { key: "space", hold: 35, after: 1500 }
+      { sleep: 1000 },
+      { check: "scr-market:mode-sell" },
+      { key: "space", hold: 35, after: 1000 },
+      { check: "scr-market:mode-sell:dlg-trade" }
     ]
   },
   {
