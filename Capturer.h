@@ -4,13 +4,10 @@
 
 #pragma once
 
+#include "pch.h"
+
 #ifndef EDROBOT_CAPTURER_H
 #define EDROBOT_CAPTURER_H
-
-#include <windef.h>
-#include <winuser.h>
-#include <wingdi.h>
-#include <opencv2/opencv.hpp>
 
 class Capturer {
 public:
@@ -19,8 +16,9 @@ public:
 
     ~Capturer();
     bool captureDisplay();
-    cv::Mat getCapturedImage();
+    cv::Mat getColorImage();
     cv::Mat getGrayImage();
+    cv::Rect getCaptureRect();
 
 private:
     static void InitCapturers();

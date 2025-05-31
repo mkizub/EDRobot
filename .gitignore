@@ -8,9 +8,12 @@
 *.pyc
 *.user
 *~
+*.png
 Thumbs.db
 tags
 /cmake-build-debug/
 /cmake-build-release/
+/vs-build/
 /dist/
 CMakeSettings.json
+

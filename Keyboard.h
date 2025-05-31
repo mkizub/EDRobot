@@ -18,13 +18,21 @@ const int SHIFT = 0x01;
 const int CTRL  = 0x02;
 const int ALT   = 0x04;
 const int WIN   = 0x08;
-const int EXT   = 0x10;
 
+const int MOUSE_L_BUTTON = 0x1;
+const int MOUSE_R_BUTTON = 0x2;
+const int MOUSE_M_BUTTON = 0x4;
+
+void intercept(const std::vector<std::string>& keys);
 void start(KeyboardCollbackFn callback);
 void stop();
 
-bool sendDown(const std::string& key_name);
-bool sendUp(const std::string& key_name);
+bool sendKeyDown(const std::string& key_name);
+bool sendKeyUp(const std::string& key_name);
+bool sendMouseMoveTo(int x, int y, bool absolute=true);
+bool sendMouseDown(int buttons);
+bool sendMouseUp(int buttons);
+bool sendMouseWheel(int count); // positive - forward, away from the user; negative - backward, toward the user
 
 }
 

@@ -2,49 +2,130 @@
 // Created by mkizub on 23.05.2025.
 //
 
+#include "pch.h"
+
 #include "Task.h"
 #include "Keyboard.h"
-#include "easylogging++.h"
+#include "Template.h"
 #include <synchapi.h>
+#include <timeapi.h>
+#include "magic_enum/magic_enum.hpp"
+
+void Task::preciseSleep(double seconds) {
+    using namespace std;
+    using namespace std::chrono;
+
+    static double estimate = 5e-3;
+    static double mean = 5e-3;
+    static double m2 = 0;
+    static int64_t count = 1;
+
+    while (seconds > estimate) {
+        auto start = high_resolution_clock::now();
+        this_thread::sleep_for(milliseconds(1));
+        auto end = high_resolution_clock::now();
+
+        double observed = (end - start).count() / 1e9;
+        seconds -= observed;
+
+        ++count;
+        double delta = observed - mean;
+        mean += delta / count;
+        m2   += delta * (observed - mean);
+        double stddev = sqrt(m2 / (count - 1));
+        estimate = mean + stddev;
+        check_completed();
+    }
+
+    // spin lock
+    auto start = high_resolution_clock::now();
+    while ((high_resolution_clock::now() - start).count() / 1e9 < seconds)
+        check_completed();
+}
 
 void Task::sleep(int milliseconds) {
     check_completed();
     if (milliseconds <= 0)
         return;
-
-    LARGE_INTEGER frequency, start, end;
-    QueryPerformanceFrequency(&frequency);
-    QueryPerformanceCounter(&start);
-
-    double seconds = milliseconds * 0.001;
-    while (true) {
-        QueryPerformanceCounter(&end);
-        double elapsed_seconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart;
-        if (elapsed_seconds >= seconds)
-            break;
+    if (milliseconds > 100) {
+        Sleep(milliseconds);
         check_completed();
+        return;
     }
+    try {
+        timeBeginPeriod(1);
+        preciseSleep(milliseconds * 0.001);
+        timeEndPeriod(1);
+    } catch (...) {
+        timeEndPeriod(1);
+        throw;
+    }
+
+//    LARGE_INTEGER frequency, start, end;
+//    QueryPerformanceFrequency(&frequency);
+//    QueryPerformanceCounter(&start);
+//
+//    double seconds = milliseconds * 0.001;
+//    while (true) {
+//        QueryPerformanceCounter(&end);
+//        double elapsed_seconds = static_cast<double>(end.QuadPart - start.QuadPart) / frequency.QuadPart;
+//        if (elapsed_seconds >= seconds)
+//            break;
+//        check_completed();
+//    }
 }
 
 bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms) {
     try {
-        if (!keyboard::sendDown(name))
+        if (!keyboard::sendKeyDown(name))
             return false;
         sleep(delay_ms > 0 ? delay_ms : master.getDefaultKeyHoldTime());
-        bool ok = keyboard::sendUp(name);
+        bool ok = keyboard::sendKeyUp(name);
         sleep(pause_ms > 0 ? pause_ms : master.getDefaultKeyAfterTime());
         return ok;
     } catch (...) {
-        keyboard::sendUp(name);
+        keyboard::sendKeyUp(name);
         throw;
     }
 }
 
-bool Task::executeAction(const std::string& actionName, const json5pp::value& args, std::string& expect_goto) {
-    const json5pp::value& action = master.getAction(actionName);
-    std::string fromState = action.at("from").as_string();
-    std::string gotoState = action.at("goto").as_string();
-    expect_goto = gotoState;
+bool Task::sendMouseMove(int x, int y, int pause_ms) {
+    if (!keyboard::sendMouseMoveTo(x, y))
+        return false;
+    sleep(pause_ms > 0 ? pause_ms : master.getDefaultKeyAfterTime());
+    return true;
+}
+
+bool Task::sendMouseClick(int x, int y, int delay_ms, int pause_ms) {
+    if (!keyboard::sendMouseMoveTo(x, y))
+        return false;
+    try {
+        if (!keyboard::sendMouseDown(keyboard::MOUSE_L_BUTTON))
+            return false;
+        sleep(delay_ms > 0 ? delay_ms : master.getDefaultKeyHoldTime());
+        bool ok = keyboard::sendMouseUp(keyboard::MOUSE_L_BUTTON);
+        sleep(pause_ms > 0 ? pause_ms : master.getDefaultKeyAfterTime());
+        return ok;
+    } catch (...) {
+        keyboard::sendMouseUp(keyboard::MOUSE_L_BUTTON);
+        throw;
+    }
+    return true;
+}
+
+bool Task::executeAction(const std::string& actionName, const json5pp::value& args = json5pp::value()) {
+    const json5pp::value& action = taskActions.at(actionName);
+    if (!action.is_object()) {
+        LOG(ERROR) << "Action '" << actionName << "' not found";
+        return false;
+    }
+    if (!action.at("from").is_string() || !action.at("dest").is_string()) {
+        LOG(ERROR) << "Action '" << actionName << "' has no 'from' or 'dest' states declarations";
+        return false;
+    }
+    this->actionName = actionName;
+    this->fromState = action.at("from").as_string();
+    this->destState = action.at("dest").as_string();
     const json5pp::value& execute = action.at("exec");
 
     return executeStep(execute, args);
@@ -79,7 +160,42 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
             const json5pp::value& key = step.at("key");
             int hold = get_int(step.at("hold"), args, master.getDefaultKeyHoldTime());
             int after = get_int(step.at("after"), args, master.getDefaultKeyAfterTime());
-            return sendKey(key.as_string(), hold, after);
+            bool ok = sendKey(key.as_string(), hold, after);
+            LOG_IF(!ok,ERROR) << "Step " << step << " failed";
+            return ok;
+        }
+        if (step.as_object().contains("goto")) {
+            LOG(DEBUG) << "action goto: " << step;
+            const json5pp::value& widget = step.at("goto");
+            cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+widget.as_string());
+            if (rect.empty()) {
+                LOG(ERROR) << "Step " << step << " failed";
+                return false;
+            }
+            cv::Point p = (rect.tl()+rect.br()) * 0.5;
+            int x = p.x; // + (std::rand() % 11 - 6);
+            int y = p.y; // + (std::rand() % 11 - 6);
+            int after = get_int(step.at("after"), args, master.getDefaultKeyAfterTime());
+            bool ok = sendMouseMove(x, y, after);
+            LOG_IF(!ok,ERROR) << "Step " << step << " failed";
+            return ok;
+        }
+        if (step.as_object().contains("click")) {
+            LOG(DEBUG) << "action click: " << step;
+            const json5pp::value& widget = step.at("click");
+            cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+widget.as_string());
+            if (rect.empty()) {
+                LOG(ERROR) << "Step " << step << " failed";
+                return false;
+            }
+            cv::Point p = (rect.tl()+rect.br()) * 0.5;
+            int x = p.x; // + (std::rand() % 11 - 6);
+            int y = p.y; // + (std::rand() % 11 - 6);
+            int hold = get_int(step.at("hold"), args, master.getDefaultKeyHoldTime());
+            int after = get_int(step.at("after"), args, master.getDefaultKeyAfterTime());
+            bool ok = sendMouseClick(x, y, hold, after);
+            LOG_IF(!ok,ERROR) << "Step " << step << " failed";
+            return ok;
         }
         if (step.as_object().contains("loop")) {
             LOG(DEBUG) << "action step loop: " << step;
@@ -88,10 +204,12 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
             int count = get_int(loop, args);
             if (count < 0) {
                 LOG(ERROR) << "bad loop counter value: " << step << " with args: " << args;
+                LOG(ERROR) << "Step " << step << " failed";
                 return false;
             }
             for (int i=0; i < count; i++) {
                 bool ok = executeStep(action, args);
+                LOG_IF(!ok,ERROR) << "Step " << step << " failed";
                 if (!ok)
                     return false;
             }
@@ -106,8 +224,18 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         if (step.as_object().contains("check")) {
             LOG(DEBUG) << "action step check: " << step;
             const json5pp::value& state = step.at("check");
-            bool ok = master.getEDState("") == state.as_string();
-            LOG(DEBUG) << "check " << (ok ? "passed" : "failed") << " for state " << state;
+            master.detectEDState();
+            bool ok = master.isEDStateMatch(state.as_string());
+            if (ok) {
+                const json5pp::value &focus = step.at("focus");
+                if (focus) {
+                    widget::Widget* fw = master.lastEDState().focused;
+                    std::string fn = fw ? fw->name : "";
+                    ok = focus.is_string() && fn == focus.as_string();
+                    LOG_IF(!ok,ERROR) << "Step failed, current focus at '" << fn << "', but '" << focus << "' required";
+                }
+            }
+            LOG_IF(!ok,ERROR) << "Step " << step << " failed, current state is " << master.lastEDState();
             return ok;
         }
         // fall through
@@ -116,60 +244,205 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
     return false;
 }
 
-bool TaskSell::run() {
+TaskCalibrate::TaskCalibrate()
+    : detector(cv::Rect(), 0, false)
+{
+}
+
+cv::Vec3b TaskCalibrate::getLuv(const char* button, TaskCalibrate::BS bs) {
+    cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+button);
+    if (rect.empty()) {
+        LOG(ERROR) << "Cannot get rect of button '" << button << "'";
+        return {};
+    }
+    detector.match(rect);
+    mLuvColors[int(bs)].push_back(detector.mLastColorLuv);
+    mRGBColors[int(bs)].push_back(detector.mLastColorRGB);
+    imageCounter += 1;
+    const char* names[] = {"Normal   ", "Focused  ", "Activated", "Disabled "};
+    LOG(INFO) << names[int(bs)] << " button: luv=" << detector.mLastColorLuv
+              << " rgb=" << detector.mLastColorRGB << std::format(" 0x{:06x}", decodeRGB(detector.mLastColorRGB));
+    //cv::Mat m(master.getColorScreenshot(),rect);
+    //std::string bname = master.lastEDState()+"-"+button;
+    //std::transform(bname.begin(), bname.end(), bname.begin(),[](unsigned char c){ return c==':' ? '~' : c; });
+    //std::string fname = "calibration-"+std::format("{:02d}", imageCounter)+"-"+toLower(trim(names[int(bs)]))+"-"+bname+".png";
+    //cv::imwrite(fname, m);
+    return detector.mLastColorLuv;
+}
+
+void TaskCalibrate::hardcodedStep(const char* step) {
+    json5pp::value parsed, args;
+    try {
+        std::stringstream in(step);
+        in >> json5pp::rule::json5() >> parsed;
+    } catch (...) {
+        LOG(ERROR) << "Failed to parse json " << step;
+        throw completed_error("hardcoded step failed");
+    }
+    if (!executeStep(parsed, args)) {
+        LOG(ERROR) << "Failed to execute " << step;
+        throw completed_error("hardcoded step failed");
+    }
+    master.detectEDState();
+}
+
+bool TaskCalibrate::calculateAverage() {
+    bool success = true;
+    for (int i=0; i < 4; i++) {
+        BS bs = static_cast<BS>(i);
+        auto& luvState = mLuvColors[i];
+        auto& rgbState = mRGBColors[i];
+        int len = (int)luvState.size();
+        if (!len) {
+            LOG(INFO) << "No samples for " << magic_enum::enum_name(bs) << " button color";
+            return false;
+        }
+        cv::Mat colorsMatrix(len, 1, CV_8UC3);
+        for (int j=0; j < len; j++)
+            colorsMatrix.at<cv::Vec3b>(j) = luvState[j];
+        cv::Scalar meanS;
+        cv::Scalar stddevS;
+        cv::meanStdDev(colorsMatrix, meanS, stddevS);
+        cv::Vec3b mean(meanS[0], meanS[1], meanS[2]);
+        cv::Vec3d stddev(stddevS[0], stddevS[1], stddevS[2]);
+        LOG(INFO) << "Luv color for " << magic_enum::enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
+        mLuvAverage[i] = mean;
+        if (stddevS[0] > 3 || stddevS[1] > 3 || stddevS[2] > 3) {
+            success = false;
+            LOG(ERROR) << "Luv color for " << magic_enum::enum_name(bs) << ", has too high deviation " << stddev;
+        }
+    }
+    if (success) {
+        auto c = std::make_unique<Calibrarion>();
+        c->normalButtonLuv = mLuvAverage[int(BS::Normal)];
+        c->focusedButtonLuv = mLuvAverage[int(BS::Focused)];
+        c->disabledButtonLuv = mLuvAverage[int(BS::Disabled)];
+        c->activatedToggleLuv = mLuvAverage[int(BS::Activated)];
+        master.setCalibrationResult(c, true);
+    }
+    return success;
+}
+
+bool TaskCalibrate::run() {
     if (done) {
         LOG(WARNING) << "done at start";
         return false;
     }
     try {
-        std::string expected;
-        std::string edState = master.getEDState(expected);
-        expected = edState;
+        if (!master.isEDStateMatch("scr-market:*", true)) {
+            LOG(ERROR) << "Not at market sell, calibration fails";
+            return false;
+        }
+
+        hardcodedStep("{goto:'btn-exit', after: 500}");
+        LOG(INFO) << "State " << master.lastEDState() << " activated 'btn-exit'";
+
+        getLuv("btn-help", BS::Normal);
+        getLuv("btn-exit", BS::Focused);
+        getLuv("btn-to-sell", BS::Activated);
+
+        hardcodedStep("[{goto:'lst-goods', after:500},"
+                      "{key:'space', after:1000},"
+                      "{check:'scr-market:mod-sell:dlg-trade:*'},"
+                      "{goto:'btn-more', after:500}]");
+        LOG(INFO) << "State " << master.lastEDState();
+
+        getLuv("btn-exit", BS::Normal);
+        getLuv("btn-more", BS::Focused);
+        getLuv("btn-commit", BS::Disabled);
+
+        hardcodedStep("[{key:'left'},"
+                      "{key:'space', after:1000},"
+                      "{check:'scr-market:mod-sell'},"
+                      "{click:'btn-to-buy', after:1000},"
+                      "{check:'scr-market:mod-buy'},"
+                      "{goto:'btn-help', after:500}]");
+        LOG(INFO) << "State " << master.lastEDState() << " activated 'btn-help'";
+
+        getLuv("btn-exit", BS::Normal);
+        getLuv("btn-help", BS::Focused);
+        getLuv("btn-to-buy", BS::Activated);
+
+        hardcodedStep("[{goto:'lst-goods', after:500},"
+                      "{key:'space', after:1000},"
+                      "{check:'scr-market:mod-buy:dlg-trade:*'},"
+                      "{goto:'btn-more', after:1000}]");
+        LOG(INFO) << "State " << master.lastEDState();
+
+        getLuv("btn-exit", BS::Normal);
+        getLuv("btn-more", BS::Focused);
+        getLuv("btn-commit", BS::Disabled);
+
+        hardcodedStep("[{key:'left'},"
+                      "{key:'space', after:500},"
+                      "{check:'scr-market:mod-buy'},"
+                      "{click:'btn-to-sell', after:500},"
+                      "{check:'scr-market:mod-sell'},"
+                      "{goto:'btn-exit', after:500}]");
+
+        LOG(INFO) << "State " << master.lastEDState();
+
+        if (calculateAverage())
+            LOG(INFO) << "TaskCalibrate completed successfully";
+        else
+            LOG(INFO) << "TaskCalibrate failed to calibrate button state detector";
+    } catch (completed_error& e) {
+        return false;
+    }
+    done = true;
+    return true;
+}
+
+bool TaskSell::run() {
+    if (done) {
+        LOG(WARNING) << "done at start";
+        return false;
+    }
+    taskActions = master.getTaskActions("TaskSell");
+    try {
         auto actionArgs = json5pp::object({{"$items", mItems}});
         while (mSells > 0) {
-            edState = master.getEDState(expected);
-            if (edState.empty() && expected != edState) {
-                LOG(ERROR) << "Unknown state, aborting trade task";
-                done = true;
-                return false;
-            }
-            if (edState == "scr-market:mode-sell:dlg-trade" && expected != edState) {
-                LOG(INFO) << "At market sell dialog, execute action 'sell-recover'";
-                executeAction("sell-recover", actionArgs, expected);
-                bool ok = expected == master.getEDState(expected);
+            auto edState = master.detectEDState();
+            if (master.isEDStateMatch("scr-market:mod-sell")) {
+                LOG(INFO) << "At market sell, execute action 'start'";
+                bool ok = executeAction("start");
                 if (!ok) {
-                    LOG(ERROR) << "Failed to recover to state '" << expected << "'; aborting trade task";
-                    return false;
+                    LOG(ERROR) << "Step 'sell-start' failed, aborting";
+                    break;
                 }
-                LOG(INFO) << "Successfully recovered to state '" << expected << "'; continue trade task";
                 continue;
             }
-            if (edState == "scr-market:mode-sell" && expected != edState) {
-                LOG(INFO) << "At market sell, execute action 'sell-restart'";
-                executeAction("sell-restart", actionArgs, expected);
-                bool ok = expected == master.getEDState(expected);
-                if (!ok) {
-                    LOG(ERROR) << "Failed to recover to state '" << expected << "'; aborting trade task";
-                    return false;
-                }
-                LOG(INFO) << "Successfully recovered to state '" << expected << "'; continue trade task";
-                continue;
-            }
-            if (edState == "scr-market:mode-sell" && (expected.empty() || expected == edState)) {
-                LOG(INFO) << "At market sell, execute action 'sell-start'";
-                 executeAction("sell-start", actionArgs, expected);
-                continue;
-            }
-            if (edState == "scr-market:mode-sell:dlg-trade" && (expected.empty() || expected == edState)) {
+            else if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
                 LOG(INFO) << "At market sell dialog, execute action 'sell-some'";
-                bool ok = executeAction("sell-some", actionArgs, expected);
+                bool ok = executeAction("sell-some", actionArgs);
+                if (!ok) {
+                    LOG(WARNING) << "Step 'sell-some' not successful, recovering";
+                    for (int i=0; i < 3; i++) {
+                        edState = master.detectEDState();
+                        if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
+                            LOG(WARNING) << "Step 'sell-some' not successful, retrying";
+                            executeAction("restart");
+                        }
+                        else if (master.isEDStateMatch("scr-market:mod-sell")) {
+                            LOG(INFO) << "Recovered to state 'scr-market:mod-sell'";
+                            ok = true;
+                            break;
+                        }
+                    }
+                    if (!ok) {
+                        LOG(ERROR) << "Step 'sell-some' not successful, cannot recover";
+                        break;
+                    }
+                }
                 if (ok)
                     mSells -= 1;
                 continue;
             }
-            LOG(ERROR) << "Unknown state, aborting trade task";
-            done = true;
-            return false;
+            else {
+                LOG(ERROR) << "Unknown state '" << edState << "', aborting trade task";
+                done = true;
+                return false;
+            }
         }
     } catch (completed_error& e) {
         return false;

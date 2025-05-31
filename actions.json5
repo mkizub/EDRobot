@@ -1,45 +1,43 @@
-[
-  {
-    name: "sell-start",
-    from: "scr-market:mode-sell",
-    goto: "scr-market:mode-sell:dlg-trade",
-    exec: { key: "space", after: 500 }
-  },
-  {
-    name: "sell-recover",
-    from: "scr-market:mode-sell:dlg-trade",
-    goto: "scr-market:mode-sell",
-    exec: [
-      { loop: 3, action: [{ check: "scr-market:mode-sell:dlg-trade" },{ key: "down" },{ key: "left" }] },
-      { sleep: 1000 },
-      { check: "scr-market:mode-sell:dlg-trade" },
-      { key: "space", hold: 35, after: 1000 },
-      { check: "scr-market:mode-sell" }
-    ]
-  },
-  {
-    name: "sell-restart",
-    from: "scr-market:mode-sell",
-    goto: "scr-market:mode-sell:dlg-trade",
-    exec: [
-      [{ key: "left" },{ key: "left" },{ key: "up" },{ key: "up" },{ key: "down" },{ key: "right" }],
-      { sleep: 1000 },
-      { check: "scr-market:mode-sell" },
-      { key: "space", hold: 35, after: 1000 },
-      { check: "scr-market:mode-sell:dlg-trade" }
-    ]
-  },
-  {
-    name: "sell-some",
-    from: "scr-market:mode-sell:dlg-trade",
-    goto: "scr-market:mode-sell",
-    exec: [
-      { loop: 3, action: { key: "up", after: 100 } },
-      { key: "left", hold: 2300 },
-      { loop: "$items", action: {key: "right"} },
-      { key: "down", hold: 35, after: 100 },
-      { check: "scr-market:mode-sell:dlg-trade" },
-      { key: "space", hold: 35, after: 1500 },
-    ]
+{
+    "TaskSell": {
+    start: {
+      from: "scr-market:mod-sell",
+      dest: "scr-market:mod-sell:dlg-trade:*",
+      exec: { key: "space", after: 500 }
+    },
+    "sell-some": {
+      from: "scr-market:mod-sell:dlg-trade:*",
+      dest: "scr-market:mod-sell",
+      exec: [
+        { loop: 3, action: { key: "up", after: 100 } }, //{ goto: "btn-amount", after: 100 },
+        { key: "left", hold: 2300 },
+        { loop: "$items", action: {key: "right"} },
+        { key: "down", hold: 35, after: 100 },
+        { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-commit" },
+        { key: "space", hold: 35, after: 1500 }, // { goto: "btn-commit" },
+        { check: "scr-market:mod-sell:dlg-trade:*" },
+        { key: "space", after: 1500 },
+      ]
+    },
+    "sell-all": {
+      from: "scr-market:mod-sell:dlg-trade:*",
+      dest: "scr-market:mod-sell",
+      exec: [
+        { loop: 3, action: { key: "up", after: 100 } }, //{ goto: "btn-amount", after: 100 },
+        { key: "right", hold: 1000 },
+        { key: "space", hold: 35, after: 1500, focus: "btn-commit" }, // { goto: "btn-commit" },
+        { check: "scr-market:mod-sell:dlg-trade:*" },
+        { key: "space", after: 1500 },
+      ]
+    },
+    restart: {
+      from: "scr-market:mod-sell:dlg-trade:*",
+      dest: "scr-market:mod-sell",
+      exec: [
+        { goto: "btn-exit", after: 100 },
+        { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-exit" },
+        { key: "space", after: 1000 }
+      ]
+    }
   }
-]
+}

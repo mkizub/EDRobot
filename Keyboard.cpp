@@ -2,10 +2,9 @@
 // Created by mkizub on 22.05.2025.
 //
 
+#include "pch.h"
+
 #include "Keyboard.h"
-#include "Utils.h"
-#include "easylogging++.h"
-#include <map>
 
 namespace keyboard
 {
@@ -18,270 +17,270 @@ void loop();
 
 
 //----- Offsets for values in KEYBOARD_MAPPING ---------------------------------
-const unsigned int OFFSET_EXTENDEDKEY = 0xE000;
-const unsigned int OFFSET_SHIFTKEY    = 0x10000;
+const unsigned int EXT_KEY   = 0xE000;
+const unsigned int SHIFT_KEY = 0x10000;
 //------------------------------------------------------------------------------
 
 
 // ----- KEYBOARD_MAPPING -------------------------------------------------------
 const unsigned int SHIFT_SCANCODE = 0x2A;  // Used in auto-shifting
-// should be keyboard MAKE scancodes ( <0x80 )
-// some keys require the use of EXTENDEDKEY flags, they
-static std::unordered_map<std::string, unsigned int> US_QWERTY_MAPPING = {
-        { "escape", 0x01 },
-        { "esc", 0x01 },
-        { "f1", 0x3B },
-        { "f2", 0x3C },
-        { "f3", 0x3D },
-        { "f4", 0x3E },
-        { "f5", 0x3F },
-        { "f6", 0x40 },
-        { "f7", 0x41 },
-        { "f8", 0x42 },
-        { "f9", 0x43 },
-        { "f10", 0x44 },
-        { "f11", 0x57 },
-        { "f12", 0x58 },
-        { "printscreen", 0x54 },  // same result as ScancodeSequence([0xE02A, 0xE037])
-        { "prntscrn", 0x54 },     // same result as ScancodeSequence([0xE02A, 0xE037])
-        { "prtsc", 0x54 },        // same result as ScancodeSequence([0xE02A, 0xE037])
-        { "prtscr", 0x54 },       // same result as ScancodeSequence([0xE02A, 0xE037])
-        { "scrolllock", 0x46 },
-        { "ctrlbreak", 0x46 + OFFSET_EXTENDEDKEY },
-        //{ "pause", ScancodeSequence([0xE11D, 0x45, 0xE19D, 0xC5]) },
-        { "`", 0x29 },
-        { "1", 0x02 },
-        { "2", 0x03 },
-        { "3", 0x04 },
-        { "4", 0x05 },
-        { "5", 0x06 },
-        { "6", 0x07 },
-        { "7", 0x08 },
-        { "8", 0x09 },
-        { "9", 0x0A },
-        { "0", 0x0B },
-        { "-", 0x0C },
-        { "=", 0x0D },
-        { "~", 0x29 + OFFSET_SHIFTKEY },
-        { "!", 0x02 + OFFSET_SHIFTKEY },
-        { "@", 0x03 + OFFSET_SHIFTKEY },
-        { "#", 0x04 + OFFSET_SHIFTKEY },
-        { "$", 0x05 + OFFSET_SHIFTKEY },
-        { "%", 0x06 + OFFSET_SHIFTKEY },
-        { "^", 0x07 + OFFSET_SHIFTKEY },
-        { "&", 0x08 + OFFSET_SHIFTKEY },
-        { "*", 0x09 + OFFSET_SHIFTKEY },
-        { "(", 0x0A + OFFSET_SHIFTKEY },
-        { ")", 0x0B + OFFSET_SHIFTKEY },
-        { "_", 0x0C + OFFSET_SHIFTKEY },
-        { "+", 0x0D + OFFSET_SHIFTKEY },
-        { "backspace", 0x0E },
-        { "\b", 0x0E },
-        { "insert", 0x52 + OFFSET_EXTENDEDKEY },
-        { "home", 0x47 + OFFSET_EXTENDEDKEY },
-        { "pageup", 0x49 + OFFSET_EXTENDEDKEY },
-        { "pgup", 0x49 + OFFSET_EXTENDEDKEY },
-        { "pagedown", 0x51 + OFFSET_EXTENDEDKEY },
-        { "pgdn", 0x51 + OFFSET_EXTENDEDKEY },
+
+struct Key {
+    DWORD vkCode;
+    DWORD scanCode;
+    std::vector<std::string> names;
+    Key(char ch, DWORD sc) {
+        vkCode = ch & 0xFFU;
+        scanCode = sc;
+        char buf[]{ch,0};
+        names.emplace_back(buf);
+    }
+    Key(DWORD vk, DWORD sc, const char* name) {
+        vkCode = vk;
+        scanCode = sc;
+        names.emplace_back(name);
+    }
+    Key(DWORD vk, DWORD sc, std::vector<std::string> aliases) {
+        vkCode = vk;
+        scanCode = sc;
+        names = aliases;
+    }
+};
+static Key US_QWERTY_KEYBOARD_TABLE[] = {
+        { VK_ESCAPE, 0x01, {"Esc", "Escape", "\033"} },
+        { VK_F1,     0x3b, "F1" },
+        { VK_F2,     0x3C, "F2" },
+        { VK_F3,     0x3D, "F3" },
+        { VK_F4,     0x3E, "F4" },
+        { VK_F5,     0x3F, "F5" },
+        { VK_F6,     0x40, "F6" },
+        { VK_F7,     0x41, "F7" },
+        { VK_F8,     0x42, "F8" },
+        { VK_F9,     0x43, "F9" },
+        { VK_F10,    0x44, "F10" },
+        { VK_F11,    0x57, "F11" },
+        { VK_F12,            0x58,           "F12" },
+        { VK_SNAPSHOT,       0x54,           {"PrintScreen", "PrntScrn", "PrtScr", "PrtSc", "Snapshot"} },
+        { VK_SCROLL,         0x46,           {"ScrollLock", "Scroll"} },
+        { VK_F1,             0x46 | EXT_KEY, "CtrlBreak" },
+        //{ VK_PAUSE,          0    | EXT_KEY, "Pause"     }, //ScancodeSequence([0xE11D, 0x45, 0xE19D, 0xC5])
+        { VK_OEM_3,          0x29,           "`" },
+        { '1',               0x02 },
+        { '2',               0x03 },
+        { '3',               0x04 },
+        { '4',               0x05 },
+        { '5',               0x06 },
+        { '6',               0x07 },
+        { '7',               0x08 },
+        { '8',               0x09 },
+        { '9',               0x0A },
+        { '0',               0x0B },
+        { '-',               0x0C },
+        { '=',               0x02 },
+        { '~',               0x29 | EXT_KEY },
+        { '!',               0x02 | EXT_KEY },
+        { '@',               0x03 | EXT_KEY },
+        { '#',               0x04 | EXT_KEY },
+        { '$',               0x05 | EXT_KEY },
+        { '%',               0x06 | EXT_KEY },
+        { '^',               0x07 | EXT_KEY },
+        { '&',               0x08 | EXT_KEY },
+        { '*',               0x09 | EXT_KEY },
+        { '(',               0x0A | EXT_KEY },
+        { ')',               0x0B | EXT_KEY },
+        { '_',               0x0C | EXT_KEY },
+        { '+',               0x0D | EXT_KEY },
+        { VK_BACK,           0x0E,           {"BackSpace", "\b" } },
+        { VK_INSERT,         0x52 | EXT_KEY, "Insert" },
+        { VK_HOME,           0x47 | EXT_KEY, "Home" },
+        { VK_PRIOR,          0x49 | EXT_KEY, {"PgUp", "PageUp" } },
+        { VK_NEXT,           0x51 | EXT_KEY, {"PgDn", "PageDown" } },
         // numpad
-        { "numlock", 0x45 },
-        { "divide", 0x35 + OFFSET_EXTENDEDKEY },
-        { "multiply", 0x37 },
-        { "subtract", 0x4A },
-        { "add", 0x4E },
-        { "decimal", 0x53 },
-        { "numperiod", 0x53 },
-        { "numpadenter", 0x1C + OFFSET_EXTENDEDKEY },
-        { "numpad1", 0x4F },
-        { "numpad2", 0x50 },
-        { "numpad3", 0x51 },
-        { "numpad4", 0x4B },
-        { "numpad5", 0x4C },
-        { "numpad6", 0x4D },
-        { "numpad7", 0x47 },
-        { "numpad8", 0x48 },
-        { "numpad9", 0x49 },
-        { "num0", 0x52 },
-        { "num1", 0x4F },
-        { "num2", 0x50 },
-        { "num3", 0x51 },
-        { "num4", 0x4B },
-        { "num5", 0x4C },
-        { "num6", 0x4D },
-        { "num7", 0x47 },
-        { "num8", 0x48 },
-        { "num9", 0x49 },
-        { "num0", 0x52 },
-        { "clear", 0x4C},  // name from pyautogui
+        { VK_NUMLOCK,        0x45,           "NumLock" },
+        { VK_DIVIDE,         0x35 | EXT_KEY, "Divide" },
+        { VK_MULTIPLY,       0x37,           "Multiply" },
+        { VK_SUBTRACT,       0x4A,           "Subtract" },
+        { VK_ADD,            0x4E,           "Add" },
+        { VK_DECIMAL,        0x53,           {"Decimal","NumPeriod", "NumDel"} },
+        { VK_RETURN,         0x53 | EXT_KEY, {"NumpadEnter", "\r"} },
+        { VK_NUMPAD1,        0x4F,           {"Num1","Numpad1", "NumEnd"} },
+        { VK_NUMPAD2,        0x50,           {"Num2","Numpad3", "NumDown"} },
+        { VK_NUMPAD3,        0x51,           {"Num3","Numpad4", "NumPgDn"} },
+        { VK_NUMPAD4,        0x4B,           {"Num4","Numpad5", "NumLeft"} },
+        { VK_NUMPAD5,        0x4C,           {"Num5","Numpad6"} },
+        { VK_NUMPAD6,        0x4D,           {"Num6","Numpad7", "NumRight"} },
+        { VK_NUMPAD7,        0x47,           {"Num7","Numpad8", "NumHome"} },
+        { VK_NUMPAD8,        0x48,           {"Num8","Numpad9", "NumUp"} },
+        { VK_NUMPAD9,        0x49,           {"Num9","Numpad1", "NumPgUp"} },
+        { VK_NUMPAD0,        0x52,           {"Num0","Numpad0", "NumIns"} },
         // end numpad
-        { "tab", 0x0F },
-        { "\t", 0x0F },
-        { "q", 0x10 },
-        { "w", 0x11 },
-        { "e", 0x12 },
-        { "r", 0x13 },
-        { "t", 0x14 },
-        { "y", 0x15 },
-        { "u", 0x16 },
-        { "i", 0x17 },
-        { "o", 0x18 },
-        { "p", 0x19 },
-        { "[", 0x1A },
-        { "]", 0x1B },
-        { "\\", 0x2B },
-        { "Q", 0x10 + OFFSET_SHIFTKEY },
-        { "W", 0x11 + OFFSET_SHIFTKEY },
-        { "E", 0x12 + OFFSET_SHIFTKEY },
-        { "R", 0x13 + OFFSET_SHIFTKEY },
-        { "T", 0x14 + OFFSET_SHIFTKEY },
-        { "Y", 0x15 + OFFSET_SHIFTKEY },
-        { "U", 0x16 + OFFSET_SHIFTKEY },
-        { "I", 0x17 + OFFSET_SHIFTKEY },
-        { "O", 0x18 + OFFSET_SHIFTKEY },
-        { "P", 0x19 + OFFSET_SHIFTKEY },
-        { "{", 0x1A + OFFSET_SHIFTKEY },
-        { "}", 0x1B + OFFSET_SHIFTKEY },
-        { "|", 0x2B + OFFSET_SHIFTKEY },
-        { "del", 0x53 + OFFSET_EXTENDEDKEY },
-        { "delete", 0x53 + OFFSET_EXTENDEDKEY },
-        { "end", 0x4F + OFFSET_EXTENDEDKEY },
-        { "capslock", 0x3A },
-        { "a", 0x1E },
-        { "s", 0x1F },
-        { "d", 0x20 },
-        { "f", 0x21 },
-        { "g", 0x22 },
-        { "h", 0x23 },
-        { "j", 0x24 },
-        { "k", 0x25 },
-        { "l", 0x26 },
-        { ";", 0x27 },
-        { "'", 0x28 },
-        { "A", 0x1E + OFFSET_SHIFTKEY },
-        { "S", 0x1F + OFFSET_SHIFTKEY },
-        { "D", 0x20 + OFFSET_SHIFTKEY },
-        { "F", 0x21 + OFFSET_SHIFTKEY },
-        { "G", 0x22 + OFFSET_SHIFTKEY },
-        { "H", 0x23 + OFFSET_SHIFTKEY },
-        { "J", 0x24 + OFFSET_SHIFTKEY },
-        { "K", 0x25 + OFFSET_SHIFTKEY },
-        { "L", 0x26 + OFFSET_SHIFTKEY },
-        { ",", 0x27 + OFFSET_SHIFTKEY },
-        { "\"", 0x28 + OFFSET_SHIFTKEY },
-        { "enter", 0x1C },
-        { "return", 0x1C },
-        { "\n", 0x1C },
-        { "shift", SHIFT_SCANCODE },
-        { "shiftleft", SHIFT_SCANCODE },
-        { "z", 0x2C },
-        { "x", 0x2D },
-        { "c", 0x2E },
-        { "v", 0x2F },
-        { "b", 0x30 },
-        { "n", 0x31 },
-        { "m", 0x32 },
-        { ",", 0x33 },
-        { ".", 0x34 },
-        { "/", 0x35 },
-        { "Z", 0x2C + OFFSET_SHIFTKEY },
-        { "X", 0x2D + OFFSET_SHIFTKEY },
-        { "C", 0x2E + OFFSET_SHIFTKEY },
-        { "V", 0x2F + OFFSET_SHIFTKEY },
-        { "B", 0x30 + OFFSET_SHIFTKEY },
-        { "N", 0x31 + OFFSET_SHIFTKEY },
-        { "M", 0x32 + OFFSET_SHIFTKEY },
-        { "<", 0x33 + OFFSET_SHIFTKEY },
-        { ">", 0x34 + OFFSET_SHIFTKEY },
-        { "?", 0x35 + OFFSET_SHIFTKEY },
-        { "shiftright", 0x36 },
-        { "ctrl", 0x1D },
-        { "ctrlleft", 0x1D },
-        { "win", 0x5B + OFFSET_EXTENDEDKEY },
-        { "super", 0x5B + OFFSET_EXTENDEDKEY},  // name from pyautogui
-        { "winleft", 0x5B + OFFSET_EXTENDEDKEY },
-        { "alt", 0x38 },
-        { "altleft", 0x38 },
-        { " ", 0x39 },
-        { "space", 0x39 },
-        { "altright", 0x38 + OFFSET_EXTENDEDKEY },
-        { "winright", 0x5C + OFFSET_EXTENDEDKEY },
-        { "apps", 0x5D + OFFSET_EXTENDEDKEY },
-        { "context", 0x5D + OFFSET_EXTENDEDKEY },
-        { "contextmenu", 0x5D + OFFSET_EXTENDEDKEY },
-        { "ctrlright", 0x1D + OFFSET_EXTENDEDKEY },
-        // Originally from learncodebygaming/pydirectinput:
-        // arrow key scancodes can be different depending on the hardware,
-        // so I think the best solution is to look it up based on the virtual key
-        // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-mapvirtualkeya
-        { "up",    MapVirtualKey(VK_UP,    MAPVK_VK_TO_VSC_EX) | OFFSET_EXTENDEDKEY },
-        { "left",  MapVirtualKey(VK_LEFT,  MAPVK_VK_TO_VSC_EX) | OFFSET_EXTENDEDKEY },
-        { "down",  MapVirtualKey(VK_DOWN,  MAPVK_VK_TO_VSC_EX) | OFFSET_EXTENDEDKEY },
-        { "right", MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC_EX) |  OFFSET_EXTENDEDKEY },
-        // While forking the original repository and working on the code },
-        // I'm starting to doubt this still holds true.
-        // As far as I can see, arrow keys are just the Numpad scancodes for Num
-        // 2, 4, 6, and 8 with EXTENDEDKEY flag.
-        // In fact, looking up the virtual key codes will just return the very same
-        // scancodes the Numpad keys occupy.
-        { "help", 0x63 },
-        { "sleep", 0x5F + OFFSET_EXTENDEDKEY },
-        { "medianext", 0x19 + OFFSET_EXTENDEDKEY },
-        { "nexttrack", 0x19 + OFFSET_EXTENDEDKEY },
-        { "mediaprevious", 0x10 + OFFSET_EXTENDEDKEY },
-        { "prevtrack", 0x10 + OFFSET_EXTENDEDKEY },
-        { "mediastop", 0x24 + OFFSET_EXTENDEDKEY },
-        { "stop", 0x24 + OFFSET_EXTENDEDKEY },
-        { "mediaplay", 0x22 + OFFSET_EXTENDEDKEY },
-        { "mediapause", 0x22 + OFFSET_EXTENDEDKEY },
-        { "playpause", 0x22 + OFFSET_EXTENDEDKEY },
-        { "mute", 0x20 + OFFSET_EXTENDEDKEY },
-        { "volumemute", 0x20 + OFFSET_EXTENDEDKEY },
-        { "volumeup", 0x30 + OFFSET_EXTENDEDKEY },
-        { "volup", 0x30 + OFFSET_EXTENDEDKEY },
-        { "volumedown", 0x2E + OFFSET_EXTENDEDKEY },
-        { "voldown", 0x2E + OFFSET_EXTENDEDKEY },
-        { "media", 0x6D + OFFSET_EXTENDEDKEY },
-        { "launchmediaselect", 0x6D + OFFSET_EXTENDEDKEY },
-        { "email", 0x6C + OFFSET_EXTENDEDKEY },
-        { "launchmail", 0x6C + OFFSET_EXTENDEDKEY },
-        { "calculator", 0x21 + OFFSET_EXTENDEDKEY },
-        { "calc", 0x21 + OFFSET_EXTENDEDKEY },
-        { "launch1", 0x6B + OFFSET_EXTENDEDKEY },
-        { "launchapp1", 0x6B + OFFSET_EXTENDEDKEY },
-        { "launch2", 0x21 + OFFSET_EXTENDEDKEY },
-        { "launchapp2", 0x21 + OFFSET_EXTENDEDKEY },
-        { "browsersearch", 0x65 + OFFSET_EXTENDEDKEY },
-        { "browserhome", 0x32 + OFFSET_EXTENDEDKEY },
-        { "browserforward", 0x69 + OFFSET_EXTENDEDKEY },
-        { "browserback", 0x6A + OFFSET_EXTENDEDKEY },
-        { "browserstop", 0x68 + OFFSET_EXTENDEDKEY },
-        { "browserrefresh", 0x67 + OFFSET_EXTENDEDKEY },
-        { "browserfavorites", 0x66 + OFFSET_EXTENDEDKEY },
-        { "f13", 0x64 },
-        { "f14", 0x65 },
-        { "f15", 0x66 },
-        { "f16", 0x67 },
-        { "f17", 0x68 },
-        { "f18", 0x69 },
-        { "f19", 0x6A },
-        { "f20", 0x6B },
-        { "f21", 0x6C },
-        { "f22", 0x6D },
-        { "f23", 0x6E },
-        { "f24", 0x76}
+        { VK_TAB,            0x0F,           {"Tab","\t"} },
+        { 'q',               0x10 },
+        { 'w',               0x11 },
+        { 'e',               0x12 },
+        { 'r',               0x13 },
+        { 't',               0x14 },
+        { 'y',               0x15 },
+        { 'u',               0x16 },
+        { 'i',               0x17 },
+        { 'o',               0x18 },
+        { 'p',               0x19 },
+        { '[',               0x1A },
+        { ']',               0x1B },
+        { '\\',              0x2B },
+        { 'Q',               0x10 | SHIFT_KEY },
+        { 'W',               0x11 | SHIFT_KEY },
+        { 'E',               0x12 | SHIFT_KEY },
+        { 'R',               0x13 | SHIFT_KEY },
+        { 'T',               0x14 | SHIFT_KEY },
+        { 'Y',               0x15 | SHIFT_KEY },
+        { 'U',               0x16 | SHIFT_KEY },
+        { 'I',               0x17 | SHIFT_KEY },
+        { 'O',               0x18 | SHIFT_KEY },
+        { 'P',               0x19 | SHIFT_KEY },
+        { '{',               0x1A | SHIFT_KEY },
+        { '}',               0x1B | SHIFT_KEY },
+        { '|',               0x2B | SHIFT_KEY },
+        { VK_DELETE,         0x53 | EXT_KEY,  { "Del", "Delete", "\127" } },
+        { VK_END,            0x4F | EXT_KEY,  "End" },
+        { VK_CAPITAL,        0x3A,            "CapsLock" },
+        { 'a',               0x1E },
+        { 's',               0x1F },
+        { 'd',               0x20 },
+        { 'f',               0x21 },
+        { 'g',               0x22 },
+        { 'h',               0x23 },
+        { 'j',               0x24 },
+        { 'k',               0x25 },
+        { 'l',               0x26 },
+        { ';',               0x27 },
+        { '\'',              0x28 },
+        { 'A',               0x1E | SHIFT_KEY },
+        { 'S',               0x1F | SHIFT_KEY },
+        { 'D',               0x20 | SHIFT_KEY },
+        { 'F',               0x21 | SHIFT_KEY },
+        { 'G',               0x22 | SHIFT_KEY },
+        { 'H',               0x23 | SHIFT_KEY },
+        { 'J',               0x24 | SHIFT_KEY },
+        { 'K',               0x25 | SHIFT_KEY },
+        { 'L',               0x26 | SHIFT_KEY },
+        { ',',               0x27 | SHIFT_KEY },
+        { '\"',              0x28 | SHIFT_KEY },
+        { VK_RETURN,         0x1C,            { "Enter", "Return", "\n" } },
+        { VK_SHIFT,          0x2A,            { "ShiftLeft", "Shift" } },
+        { 'z',               0x2C },
+        { 'x',               0x2D },
+        { 'c',               0x2E },
+        { 'v',               0x2F },
+        { 'b',               0x30 },
+        { 'n',               0x31 },
+        { 'm',               0x32 },
+        { ',',               0x33 },
+        { '.',               0x34 },
+        { '/',               0x35 },
+        { 'Z',               0x2C | SHIFT_KEY },
+        { 'X',               0x2D | SHIFT_KEY },
+        { 'C',               0x2E | SHIFT_KEY },
+        { 'V',               0x2F | SHIFT_KEY },
+        { 'B',               0x30 | SHIFT_KEY },
+        { 'N',               0x31 | SHIFT_KEY },
+        { 'M',               0x32 | SHIFT_KEY },
+        { '<',               0x33 | SHIFT_KEY },
+        { '>',               0x34 | SHIFT_KEY },
+        { '?',               0x35 | SHIFT_KEY },
+        { VK_SHIFT,          0x36,            { "ShiftRight", "Shift" } },
+        { VK_CONTROL,        0x1D,            { "CtrlLeft", "Ctrl" } },
+        { VK_LWIN,           0x5B | EXT_KEY,  { "LWin", "WinLeft", "Win", "Meta" } },
+        { VK_MENU,           0x38,            { "AltLeft", "Alt"} },
+        { ' ',               0x39,            { "Space", " "} },
+        { VK_MENU,           0x38 | EXT_KEY,  { "AltRight", "Alt"} },
+        { VK_RWIN,           0x5C | EXT_KEY,  { "RWin", "WinRight", "Win", "Meta" } },
+        { VK_APPS,           0x5D | EXT_KEY,  { "Apps", "ContextMenu", "Context"} },
+        { VK_CONTROL,        0x1D | EXT_KEY,  { "CtrlRight", "Ctrl" } },
+        { VK_UP,             0x47 | EXT_KEY, "Up"   },
+        { VK_LEFT,           0x4B | EXT_KEY, "Left" },
+        { VK_DOWN,           0x50 | EXT_KEY, "Down" },
+        { VK_RIGHT,          0x4D | EXT_KEY, "Right"},
+        { VK_HELP,           0x63,           "Help" },
+        { VK_SLEEP,          0x5F | EXT_KEY, "Sleep" },
+        { VK_MEDIA_NEXT_TRACK,    0x19 | EXT_KEY, {"MediaNext","NextTrack"} },
+        { VK_MEDIA_PREV_TRACK,    0x10 | EXT_KEY, {"MediaPrev","PrevTrack"} },
+        { VK_MEDIA_STOP,          0x24 | EXT_KEY, {"MediaStop","Stop"} },
+        { VK_MEDIA_PLAY_PAUSE,    0x22 | EXT_KEY, {"MediaPlay","MediaPause","PlayPause"} },
+        { VK_VOLUME_MUTE,         0x20 | EXT_KEY, {"VolumeMute","Mute"} },
+        { VK_VOLUME_UP,           0x30 | EXT_KEY, {"VolumeUp","VolUp"} },
+        { VK_VOLUME_DOWN,         0x2E | EXT_KEY, {"VolumeDown","VolDown"} },
+        { VK_LAUNCH_MEDIA_SELECT, 0x6D | EXT_KEY, {"LaunchMediaSelect","Media"} },
+        { VK_LAUNCH_MAIL,         0x6C | EXT_KEY, {"LaunchMail","EMail"} },
+        //{ "calculator",         0x21 + EXT_KEY },
+        { VK_LAUNCH_APP1,         0x6B | EXT_KEY, {"LaunchApp1","Launch1"} },
+        { VK_LAUNCH_APP2,         0x21 | EXT_KEY, {"LaunchApp2","Launch2"} },
+        { VK_BROWSER_SEARCH,      0x65 | EXT_KEY, "BrowserSearch" },
+        { VK_BROWSER_HOME,        0x32 | EXT_KEY, "BrowserHome" },
+        { VK_BROWSER_FORWARD,     0x69 | EXT_KEY, "BrowserForward" },
+        { VK_BROWSER_BACK,        0x6A | EXT_KEY, "BrowserBack" },
+        { VK_BROWSER_STOP,        0x68 | EXT_KEY, "BrowserStop" },
+        { VK_BROWSER_REFRESH,     0x67 | EXT_KEY, "BrowserRefresh" },
+        { VK_BROWSER_FAVORITES,   0x66 | EXT_KEY, "BrowserFavorites" },
+        { VK_F13,     0x64, "F13" },
+        { VK_F14,     0x65, "F14" },
+        { VK_F15,     0x66, "F15" },
+        { VK_F16,     0x67, "F16" },
+        { VK_F17,     0x68, "F17" },
+        { VK_F18,     0x69, "F18" },
+        { VK_F19,     0x6A, "F19" },
+        { VK_F20,     0x6B, "F20" },
+        { VK_F21,     0x6C, "F21" },
+        { VK_F22,     0x6D, "F22" },
+        { VK_F23,     0x6E, "F23" },
+        { VK_F24,     0x76, "F24" },
 };
 
-static std::map<unsigned int, std::string> reverseKeyMap() {
-    std::map<unsigned int, std::string> reversedMap;
-    for (const auto& pair : US_QWERTY_MAPPING) {
-        if (!reversedMap.contains(pair.second))
-            reversedMap[pair.second] = pair.first;
-    }
-    return reversedMap;
-}
-static std::map<unsigned int, std::string> US_QWERTY_REVERSED = reverseKeyMap();
-static std::string unknownKeyName = "unknown";
+static std::unordered_map<unsigned int, const Key&> US_QWERTY_MAPPING_SC_TO_KEY;
+static std::unordered_map<unsigned int, const Key&> US_QWERTY_MAPPING_VK_TO_NAME;
+static std::unordered_map<std::string, const Key&> US_QWERTY_MAPPING_NAME_TO_KEY;
 
+static std::string makeKeyboardMapping() {
+    for (const Key& key :  US_QWERTY_KEYBOARD_TABLE) {
+        US_QWERTY_MAPPING_SC_TO_KEY.try_emplace(key.scanCode, key);
+        US_QWERTY_MAPPING_VK_TO_NAME.try_emplace(key.vkCode, key);
+        for (std::string alias : key.names) {
+            if (alias.size() == 1) {
+                US_QWERTY_MAPPING_NAME_TO_KEY.try_emplace(alias, key);
+            } else {
+                US_QWERTY_MAPPING_NAME_TO_KEY.try_emplace(toLower(alias), key);
+            }
+        }
+    }
+    return "unknown";
+}
+
+static std::string unknownKeyName = makeKeyboardMapping();
+
+static std::unordered_map<unsigned int, const Key&> INTERCEPT_VK_KEY_SET;
+
+static void addInterceptKey(const std::string name) {
+    auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(name);
+    if (it == US_QWERTY_MAPPING_NAME_TO_KEY.end()) {
+        LOG(ERROR) << "Key '" << name << "' (requested to be intercepted) not found";
+        return;
+    }
+    const Key& k = it->second;
+    INTERCEPT_VK_KEY_SET.try_emplace(k.vkCode, k);
+}
+
+void intercept(const std::vector<std::string>& keys) {
+    INTERCEPT_VK_KEY_SET.clear();
+    for (const std::string& nm : keys) {
+        std::string name = toLower(nm);
+        if (name.size() == 1 && isLatinLetter(name[0])) {
+            addInterceptKey(name);
+            addInterceptKey(toUpper(name));
+            continue;
+        }
+        addInterceptKey(name);
+    }
+}
 
 void start(KeyboardCollbackFn callback) {
     keyboardCallback = callback;
@@ -298,15 +297,16 @@ void stop() {
     }
 }
 
-bool sendDown(const std::string& nm) {
-    auto it = US_QWERTY_MAPPING.find(nm);
-    if (it == US_QWERTY_MAPPING.end()) {
+bool sendKeyDown(const std::string& nm) {
+    auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(toLower(nm));
+    if (it == US_QWERTY_MAPPING_NAME_TO_KEY.end()) {
         LOG(ERROR) << "Scancode for " << nm << " not found";
         return false;
     }
-    unsigned code = it->second & 0xFFFF;
-    bool extended = (code & OFFSET_EXTENDEDKEY) != 0;
-    LOG(DEBUG) << "SendInput   key down '" << nm << "' " << (code & 0xFF) << " success";
+    const Key& key = it->second;
+    unsigned code = key.scanCode & 0xFFFF;
+    bool extended = (code & EXT_KEY) != 0;
+    LOG(DEBUG) << "SendInput   key down '" << nm << "' " << (code & 0xFF);
     INPUT input[1]{};
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wScan = code;
@@ -321,15 +321,16 @@ bool sendDown(const std::string& nm) {
     return true;
 }
 
-bool sendUp(const std::string& nm) {
-    auto it = US_QWERTY_MAPPING.find(nm);
-    if (it == US_QWERTY_MAPPING.end()) {
+bool sendKeyUp(const std::string& nm) {
+    auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(toLower(nm));
+    if (it == US_QWERTY_MAPPING_NAME_TO_KEY.end()) {
         LOG(ERROR) << "Scancode for " << nm << " not found";
         return false;
     }
-    unsigned code = it->second & 0xFFFF;
-    bool extended = (code & OFFSET_EXTENDEDKEY) >= OFFSET_EXTENDEDKEY;
-    LOG(DEBUG) << "SendInput   key up   '" << nm << "' " << (code & 0xFF) << " success";
+    const Key& key = it->second;
+    unsigned code = key.scanCode & 0xFFFF;
+    bool extended = (code & EXT_KEY) >= EXT_KEY;
+    LOG(DEBUG) << "SendInput   key up   '" << nm << "' " << (code & 0xFF);
     INPUT input[1]{};
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wScan = code;
@@ -344,6 +345,78 @@ bool sendUp(const std::string& nm) {
     return true;
 }
 
+bool sendMouseMoveTo(int x, int y, bool absolute) {
+    DWORD flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;
+    if (absolute) {
+        flags |= MOUSEEVENTF_ABSOLUTE;
+        // TODO: fix this for windowed mode and multiple monitors, see https://stackoverflow.com/questions/62759122/calculate-normalized-coordinates-for-sendinput-in-a-multi-monitor-environment
+        x = MulDiv(x, 65536, GetSystemMetrics(SM_CXSCREEN));
+        y = MulDiv(y, 65536, GetSystemMetrics(SM_CYSCREEN));
+    }
+    INPUT input[1]{};
+    input[0].type = INPUT_MOUSE;
+    input[0].mi.dx = x;
+    input[0].mi.dy = y;
+    input[0].mi.dwFlags = flags;
+    unsigned sent = SendInput(1, input, sizeof(input));
+    if (!sent) {
+        LOG(ERROR) << "SendInput mouse move dx:" << x << ", dy:" << y << " failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
+}
+
+bool sendMouseDown(int buttons) {
+    DWORD flags = 0;
+    if (buttons & MOUSE_L_BUTTON)
+        flags |= MOUSEEVENTF_LEFTDOWN;
+    if (buttons & MOUSE_R_BUTTON)
+        flags |= MOUSEEVENTF_RIGHTDOWN;
+    if (buttons & MOUSE_M_BUTTON)
+        flags |= MOUSEEVENTF_MIDDLEDOWN;
+    INPUT input[1]{};
+    input[0].type = INPUT_MOUSE;
+    input[0].mi.dwFlags = flags;
+    unsigned sent = SendInput(1, input, sizeof(input));
+    if (!sent) {
+        LOG(ERROR) << "SendInput mouse down " << flags << " failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
+}
+bool sendMouseUp(int buttons) {
+    DWORD flags = 0;
+    if (buttons & MOUSE_L_BUTTON)
+        flags |= MOUSEEVENTF_LEFTUP;
+    if (buttons & MOUSE_R_BUTTON)
+        flags |= MOUSEEVENTF_RIGHTUP;
+    if (buttons & MOUSE_M_BUTTON)
+        flags |= MOUSEEVENTF_MIDDLEUP;
+    INPUT input[1]{};
+    input[0].type = INPUT_MOUSE;
+    input[0].mi.dwFlags = flags;
+    unsigned sent = SendInput(1, input, sizeof(input));
+    if (!sent) {
+        LOG(ERROR) << "SendInput mouse up " << flags << " failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
+}
+bool sendMouseWheel(int count) {
+    DWORD flags = MOUSEEVENTF_WHEEL;
+    INPUT input[1]{};
+    input[0].type = INPUT_MOUSE;
+    input[0].mi.mouseData = count * WHEEL_DELTA;
+    input[0].mi.dwFlags = flags;
+    unsigned sent = SendInput(1, input, sizeof(input));
+    if (!sent) {
+        LOG(ERROR) << "SendInput mouse wheel " << count << " failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
+}
+
+
 
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
@@ -351,30 +424,20 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
             //LOG(DEBUG) << "intercepted key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
         } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
-            auto code = pKeyBoard->vkCode;
-            {
+            auto vkCode = pKeyBoard->vkCode;
+            if (INTERCEPT_VK_KEY_SET.contains(vkCode)) {
                 //LOG(DEBUG) << "intercepted key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
                 int flags = 0;
                 if (GetKeyState(VK_SHIFT) & 0x8000) flags |= SHIFT;
                 if (GetKeyState(VK_CONTROL) & 0x8000) flags |= CTRL;
                 if (GetKeyState(VK_MENU) & 0x8000) flags |= ALT;
                 if ((GetKeyState(VK_LWIN)| GetKeyState(VK_RWIN)) & 0x8000) flags |= WIN;
-                auto scancode = pKeyBoard->scanCode;
                 std::string keyName;
-                if (code == VK_SNAPSHOT) {
-                    keyName = "printscreen";
-                    pKeyBoard->flags &= ~LLKHF_EXTENDED;
-                } else {
-                    const auto& it = US_QWERTY_REVERSED.find(scancode);
-                    if (it != US_QWERTY_REVERSED.end())
-                        keyName = it->second;
-                    else
-                        keyName = unknownKeyName;
-                }
-                if (pKeyBoard->flags & LLKHF_EXTENDED) {
-                    scancode += OFFSET_EXTENDEDKEY;
-                    flags |= EXT;
-                }
+                const auto& it = US_QWERTY_MAPPING_VK_TO_NAME.find(vkCode);
+                if (it != US_QWERTY_MAPPING_SC_TO_KEY.end())
+                    keyName = it->second.names[0];
+                else
+                    keyName = unknownKeyName;
                 keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags, keyName);
             }
         }

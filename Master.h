@@ -8,16 +8,15 @@
 #define EDROBOT_MASTER_H
 
 #include <queue>
-#include <mutex>
 #include <condition_variable>
-#include <windef.h>
+#include <thread>
 #include <opencv2/core/mat.hpp>
-#include <unordered_map>
-//#define JSON_HAS_CPP_17 1
-//#include "json.hpp"
-#include "json5pp.hpp"
+#include "EDWidget.h"
 
 class Task;
+
+const int REFERENCE_SCREEN_WIDTH = 1920;
+const int REFERENCE_SCREEN_HEIGHT = 1080;
 
 namespace Gdiplus {
     class Bitmap;
@@ -29,14 +28,37 @@ enum class Command {
     Start,
     Pause,
     Stop,
+    Calibrate,
     DebugTemplates,
+    DevRectSelect,
+    DevRectScreenshot,
     Shutdown,
 };
 
-namespace cfg {
-class Item;
-class Screen;
-}
+struct Calibrarion {
+    Calibrarion() = default;
+    // key values
+    double dashboardGUIBrightness; // Options/Player/Custom.?.misc: <DashboardGUIBrightness Value="0.49999991" />
+    double gammaOffset; // Options/Graphics/Settings.xml: <GammaOffset>1.200000</GammaOffset>
+    int ScreenWidth;    // Options\Graphics\DisplaySettings.xml: <ScreenWidth>1920</ScreenWidth>
+    int ScreenHeight;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
+    // end of key values
+
+    cv::Vec3b normalButtonLuv;
+    cv::Vec3b focusedButtonLuv;
+    cv::Vec3b disabledButtonLuv;
+    cv::Vec3b activatedToggleLuv;
+    friend std::ostream& operator<<(std::ostream& os, const Calibrarion& obj);
+};
+
+struct UIState {
+    UIState() = default;
+    void clear();
+    const std::string& path() const;
+    widget::Widget* widget;
+    widget::Widget* focused;
+    friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
+};
 
 class Master {
 public:
@@ -44,45 +66,67 @@ public:
 
     int initialize(int argc, char* argv[]);
     void loop();
-    const std::string& getEDState(const std::string& expectedState);
-    const json5pp::value& getAction(const std::string& action);
+    const UIState& detectEDState();
+    const UIState& lastEDState() { return mLastEDState; }
+    bool isEDStateMatch(const std::string& state, bool detect = false);
+    const json5pp::value& getTaskActions(const std::string& action);
+    cv::Rect resolveWidgetRect(const std::string& name);
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return searchRegionExtent; }
 
-    cv::Mat getGrayScreenshot();
+    cv::Mat getGrayScreenshot() { return grayED; }
+    cv::Mat getColorScreenshot() { return colorED; }
+    void setDevScreenRect(cv::Rect rect) { mDevScreenRect = rect; mDevScaledRect = {}; }
+    void setDevScaledRect(cv::Rect rect) { mDevScaledRect = rect; mDevScreenRect = {}; }
+    void pushCommand(Command cmd);
+
+    void setCalibrationResult(std::unique_ptr<Calibrarion>& calibration, bool save);
 
 private:
     Master();
     ~Master();
     static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
-    void pushCommand(Command cmd);
     Command popCommand();
     void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
 
-    bool captureWindow();
+    bool captureWindow(cv::Mat* grayImg, cv::Mat* colorImg = nullptr);
 
+    bool preInitTask();
+    bool startCalibration();
     bool startTrade();
     bool stopTrade();
     void clearCurrentTask();
     bool isForeground();
     static void runCurrentTask();
 
-    bool askSellInput();
-    cfg::Item* getCfgItem(std::string state);
-    cfg::Item* matchWithSubItems(cfg::Item* item);
-    bool matchItem(cfg::Item* item);
-    bool debugTemplates(cfg::Item* item, cv::Mat debugImage);
-    bool debugMatchItem(cfg::Item* item, cv::Mat debugImage);
+    std::vector<std::string> parseState(const std::string& name);
+    widget::Widget* detectFocused(const widget::Widget* parent) const;
+    widget::Widget* getCfgItem(std::string state);
+    widget::Widget* matchWithSubItems(widget::Widget* item);
+    bool matchItem(widget::Widget* item);
+    bool debugTemplates(widget::Widget* item, cv::Mat debugImage);
+    bool debugMatchItem(widget::Widget* item, cv::Mat debugImage);
+    cv::Rect calcScaledRect(cv::Rect screenRect);
+    bool debugRectScreenshot(std::string name);
+    void saveCalibration() const;
+    bool loadCalibration();
 
     int defaultKeyHoldTime = 35;
     int defaultKeyAfterTime = 50;
     int searchRegionExtent = 10;
     std::map<std::pair<std::string,unsigned>, Command> keyMapping;
-    std::vector<std::unique_ptr<cfg::Screen>> mScreens;
+    std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
     HWND hWndED;
+    cv::Mat colorED;
     cv::Mat grayED;
+    cv::Rect mCaptureRect;
+    cv::Rect mDevScreenRect;
+    cv::Rect mDevScaledRect;
+    UIState mLastEDState;
+    std::unique_ptr<Calibrarion> mCalibration;
+    std::unique_ptr<HistogramTemplate> mFocusedButtonDetector;
 
     std::queue<Command> mCommandQueue;
     std::mutex mCommandMutex;

@@ -2,12 +2,11 @@
 // Created by mkizub on 23.05.2025.
 //
 
+#include "pch.h"
+
 #include "Template.h"
-#include "Master.h"
-#include "easylogging++.h"
 #include <format>
 #include <iomanip>
-#include <opencv2/opencv.hpp>
 
 double SequenceTemplate::match() {
     double sum = 0;
@@ -43,8 +42,78 @@ double SequenceTemplate::debugMatch(cv::Mat drawToImage) {
     return sum;
 }
 
-const int SCREEN_WIDTH = 1920;
-const int SCREEN_HEIGHT = 1080;
+HistogramTemplate::HistogramTemplate(cv::Rect rect, unsigned value, bool gray)
+    : mRect(rect), mGray(gray)
+{
+    if (mGray) {
+        mValueGray = value & 0xFF;
+        mValueRGB = gray2rgb(mValueGray);
+        mValueLuv = rgb2luv(mValueRGB);
+    } else {
+        mValueRGB = encodeRGB(value);
+        mValueGray = rgb2gray(mValueRGB);
+        mValueLuv = rgb2luv(mValueRGB);
+    }
+}
+
+HistogramTemplate::HistogramTemplate(cv::Vec3b luv)
+    : mRect{}, mGray(false)
+{
+    mValueLuv = luv;
+    mValueRGB = luv2rgb(luv);
+    mValueGray = rgb2gray(mValueRGB);
+}
+
+double HistogramTemplate::match() {
+    return match(mRect);
+}
+
+double HistogramTemplate::classify() {
+    return classify(mRect);
+}
+
+double HistogramTemplate::match(cv::Rect& rect) {
+    if (rect.empty())
+        return 0;
+    cv::Mat image;
+    std::vector<cv::Mat> imagePlanes;
+    if (mGray) {
+        image = Master::getInstance().getGrayScreenshot();
+        if (image.empty())
+            return 0;
+        imagePlanes.push_back(image);
+    } else {
+        image = Master::getInstance().getColorScreenshot();
+        if (image.empty())
+            return 0;
+        cv::split(image, imagePlanes);
+    }
+    unsigned resultColor = 0;
+    for (auto i=0; i < imagePlanes.size(); i++) {
+        int histSize = 256;
+        float range[]{0, 256}; //the upper boundary is exclusive
+        const float* histRange[]{range};
+        cv::Mat subImage(imagePlanes[i], rect);
+        cv::Mat hist;
+        cv::calcHist(&subImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+        int maxLoc = -1;
+        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, &maxLoc);
+        resultColor |= maxLoc << (i*8);
+    }
+    mLastColorRGB = mGray ? gray2rgb(resultColor) : encodeRGB(resultColor);
+    mLastColorLuv = rgb2luv(mLastColorRGB);
+    LOG(DEBUG) << "Colors: result RGB:" << mLastColorRGB << " Luv:" << mLastColorLuv << "; expected Luv:" << mValueLuv;
+    double dist = cv::norm(mLastColorLuv - mValueLuv);
+    LOG(DEBUG) << "Distance: " << dist;
+    mLastValue = 1.0 - std::erf(dist);
+    return mLastValue;
+}
+double HistogramTemplate::classify(cv::Rect& rect) {
+    return match(rect) >= 0.8;
+}
+double HistogramTemplate::debugMatch(cv::Mat drawToImage) {
+    return match();
+}
 
 ImageTemplate::ImageTemplate(const std::string& filename, cv::Point lt, cv::Point extLT, cv::Point extRB, double tmin, double tmax)
     : filename(filename)
@@ -84,9 +153,9 @@ double ImageTemplate::match() {
     cv::Mat image = Master::getInstance().getGrayScreenshot();
     if (image.empty() || templGray.empty())
         return 0;
-    if (image.cols != SCREEN_WIDTH || image.rows != SCREEN_HEIGHT) {
-        double x_scale = double(image.cols) / SCREEN_WIDTH;
-        double y_scale = double(image.rows) / SCREEN_HEIGHT;
+    if (image.cols != REFERENCE_SCREEN_WIDTH || image.rows != REFERENCE_SCREEN_HEIGHT) {
+        double x_scale = double(image.cols) / REFERENCE_SCREEN_WIDTH;
+        double y_scale = double(image.rows) / REFERENCE_SCREEN_HEIGHT;
         double scale = std::min(x_scale, y_scale);
         cv::resize(templGray, templGrayScaled, cv::Size(), scale, scale);
         if (!templMask.empty()) {
@@ -125,14 +194,14 @@ cv::Rect ImageTemplate::getMatchRect(int imageWidth, int imageHeight) {
     cv::Point ext_lt = extendLT + cv::Point(ext,ext);
     cv::Point ext_rb = extendRB + cv::Point(ext,ext);
     cv::Rect screenRect(screenLT - ext_lt, screenRB + ext_rb);
-    if (imageWidth != SCREEN_WIDTH || imageHeight != SCREEN_HEIGHT) {
-        double x_scale = double(imageWidth) / SCREEN_WIDTH;
-        double y_scale = double(imageHeight) / SCREEN_HEIGHT;
+    if (imageWidth != REFERENCE_SCREEN_WIDTH || imageHeight != REFERENCE_SCREEN_HEIGHT) {
+        double x_scale = double(imageWidth) / REFERENCE_SCREEN_WIDTH;
+        double y_scale = double(imageHeight) / REFERENCE_SCREEN_HEIGHT;
         lastScale = std::min(x_scale, y_scale);
         ext_lt *= lastScale;
         ext_rb *= lastScale;
-        cv::Point lt_rel = screenLT - cv::Point(SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
-        cv::Point rb_rel = screenRB - cv::Point(SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
+        cv::Point lt_rel = screenLT - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
+        cv::Point rb_rel = screenRB - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
         lt_rel *= lastScale;
         rb_rel *= lastScale;
         scaledScreenLT = lt_rel + cv::Point(imageWidth/2, imageHeight/2);

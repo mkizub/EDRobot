@@ -8,17 +8,14 @@
 #define EDROBOT_UI_H
 
 
-class UI {
-public:
-    static const int RES_OK     = 0;
-    static const int RES_CANCEL = 1;
-    static const int RES_EXIT   = 2;
+namespace UI {
 
-    static int showStartupDialog();
-    static int askSellInput(int& sells, int& items);
-
-};
+bool showStartupDialog();
+bool askSellInput(int& sells, int& items);
+bool showSceneEditorDialog();
+void selectRectDialog(HWND = nullptr);
 
 
+}
 
 #endif //EDROBOT_UI_H

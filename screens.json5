@@ -3,14 +3,14 @@
     name: 'scr-market',
     detect: { img: "at_market.png", t: 0.7, at:[92, 57], ext:1 },
     have: [
-      { name: 'btn-exit', action: 'close' },
-      { name: 'btn-help', action: 'help' },
-      { name: 'btn-sell', action: 'mode-sell' },
-      { name: 'btn-buy',  action: 'mode-buy' },
-      { name: 'btn-compare', action: 'dlg-compare' },
-      { name: 'btn-filter', action: 'dlg-filter' },
-      { name: 'lst-goods', action: 'dlg-trade' },
-      { name: 'mode-sell',
+      { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
+      { name: 'btn-help', action: 'help', rect: [295,980,195,40] },
+      { name: 'btn-filter', action: 'dlg-filter', rect: [97,633,134,73] },
+      { name: 'btn-compare', action: 'dlg-compare', rect: [97,509,134,79] },
+      { name: 'btn-to-sell', action: 'mod-sell', rect: [96,316,133,129] },
+      { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
+      { name: 'lst-goods', action: 'dlg-trade', rect: [249,253,1020,714] },
+      { name: 'mod-sell',
         detect: [
           { img: "at_market_sell.png",        t: [0.6, 0.8], at:[245, 172] },
           { img: "at_market_sell_dialog.png", t: [0.7, 0.9], at:[500, 170], ext: [0,0,210,0] }
@@ -18,36 +18,40 @@
         have: [
           {
             name: 'dlg-trade',
-            detect: [
-              { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[500, 170], ext: [0,0,210,0] },
-              { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[500, 714], ext: [0,0,210,0] }
-            ],
             have: [
               {
-                name: 'mode-less',
+                name: 'mod-less',
+                detect: [
+                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[700, 170] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[700, 714] }
+                ],
                 have: [
-                  { name: 'btn-exit', action: 'close' },
-                  { name: 'btn-more', action: 'mode-more' },
-                  { name: 'btn-sell', action: ['commit', 'close'] },
-                  { name: 'btn-amount' },
+                  { name: 'btn-exit', action: 'close', rect: [714,848,241,36] },
+                  { name: 'btn-more', action: 'mod-more', rect: [965,847,242,38] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [714,575,490,60] },
+                  { name: 'btn-amount', rect: [715,348,490,61] },
                 ]
               },
               {
-                name: 'mode-more',
+                name: 'mod-more',
+                detect: [
+                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[500, 170] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[500, 714] }
+                ],
                 have: [
-                  { name: 'btn-exit', action: 'close'  },
-                  { name: 'btn-less', action: 'mode-less' },
-                  { name: 'btn-sell', action: ['commit', 'close'] },
-                  { name: 'btn-amount' },
-                  { name: 'btn-galaxy', action: ['galaxy-map'] },
-                  { name: 'lst-markets', action: ['galaxy-map'] }
+                  { name: 'btn-exit', action: 'close', rect: [509,847,243,38] },
+                  { name: 'btn-more', action: 'mod-less', rect: [762,847,239,38] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [512,575,490,60] },
+                  { name: 'btn-amount', rect: [510,349,493,59] },
+                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,809,382,76] },
+                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,340,482] }
                 ]
               }
             ],
           }
         ]
       },
-      { name: 'mode-buy',
+      { name: 'mod-buy',
         detect: [
           { img: "at_market_buy.png",        t: [0.6, 0.8], at:[245, 172] },
           { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[500, 172], ext: [0,0,210,0] }
@@ -55,29 +59,33 @@
         have: [
           {
             name: 'dlg-trade',
-            detect: [
-              { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[500, 172], ext: [0,0,210,0] },
-              { img: "at_market_dialog.png",     t: [0.6, 0.8], at:[505, 714], ext: [0,0,210,0] }
-            ],
             have: [
               {
-                name: 'mode-less',
+                name: 'mod-less',
+                detect: [
+                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[700, 172] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[505, 714] }
+                ],
                 have: [
-                  { name: 'btn-exit', action: 'close' },
-                  { name: 'btn-more', action: 'mode-more' },
-                  { name: 'btn-sell', action: ['commit', 'close'] },
-                  { name: 'btn-amount' },
+                  { name: 'btn-exit', action: 'close', rect: [712,840,244,41] },
+                  { name: 'btn-more', action: 'mod-more', rect: [964,840,244,41] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [713,568,494,60] },
+                  { name: 'btn-amount', rect: [714,361,494,63] },
                 ]
               },
               {
-                name: 'mode-more',
+                name: 'mod-more',
+                detect: [
+                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[500, 172] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[505, 714] }
+                ],
                 have: [
-                  { name: 'btn-exit', action: 'close'  },
-                  { name: 'btn-less', action: 'mode-less' },
-                  { name: 'btn-sell', action: ['commit', 'close'] },
-                  { name: 'btn-amount' },
-                  { name: 'btn-galaxy', action: ['galaxy-map'] },
-                  { name: 'lst-markets', action: ['galaxy-map'] }
+                  { name: 'btn-exit', action: 'close', rect: [508,840,244,42] },
+                  { name: 'btn-more', action: 'mod-less', rect: [509,840,244,42] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [508,568,496,64] },
+                  { name: 'btn-amount', rect: [510,361,494,62] },
+                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1027,796,384,76] },
+                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,352,343,434] }
                 ]
               }
             ],

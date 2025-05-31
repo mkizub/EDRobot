@@ -100,7 +100,7 @@ Capturer::Capturer(LPMONITORINFOEX monitor, HDC hdcMonitor)
         screenHeight = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
         hdcScreen = hdcMonitor;
         if (!hdcScreen) {
-            hdcScreen = CreateDCA(monitorInfo.szDevice, nullptr, nullptr, nullptr);
+            hdcScreen = CreateDC(monitorInfo.szDevice, nullptr, nullptr, nullptr);
         }
     } else {
         screenWidth = GetSystemMetrics(SM_CXSCREEN);
@@ -142,7 +142,7 @@ void Capturer::initBuffers() {
 }
 
 
-cv::Mat Capturer::getCapturedImage() {
+cv::Mat Capturer::getColorImage() {
     RECT screenRect{0, 0, screenWidth, screenHeight};
     if (captureRect == screenRect)
         return capturedImage;
@@ -182,6 +182,12 @@ cv::Mat Capturer::getGrayImage() {
         return tmp;
     }
     return cv::Mat(grayImage, crop);
+}
+
+cv::Rect Capturer::getCaptureRect() {
+    cv::Point lt {captureRect.left, captureRect.top};
+    cv::Point rb {captureRect.right, captureRect.bottom};
+    return cv::Rect(lt, rb);
 }
 
 bool Capturer::captureDisplay() {

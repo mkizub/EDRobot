@@ -4,12 +4,10 @@
 
 #pragma once
 
+#include "pch.h"
+
 #ifndef EDROBOT_TEMPLATE_H
 #define EDROBOT_TEMPLATE_H
-
-#include <opencv2/core/mat.hpp>
-
-class Master;
 
 class Template {
 public:
@@ -37,6 +35,31 @@ public:
     double debugMatch(cv::Mat drawToImage) override;
 private:
     std::vector<std::unique_ptr<Template>> oracles;
+};
+
+class HistogramTemplate : public Template {
+public:
+    HistogramTemplate(cv::Rect rect, unsigned value, bool gray);
+    HistogramTemplate(cv::Vec3b luv);
+    ~HistogramTemplate() override = default;
+
+    double match() override;
+    double classify() override;
+    double debugMatch(cv::Mat drawToImage) override;
+
+    double classify(cv::Rect& r);
+    double match(cv::Rect& r);
+
+    cv::Vec3b mLastColorRGB;
+    cv::Vec3b mLastColorLuv;
+    double mLastValue;
+
+private:
+    cv::Rect mRect;
+    unsigned mValueGray;
+    cv::Vec3b mValueRGB;
+    cv::Vec3b mValueLuv;
+    bool mGray;
 };
 
 class ImageTemplate : public Template {
