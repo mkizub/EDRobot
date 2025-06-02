@@ -12,9 +12,11 @@ int main(int argc, char *argv[]) {
     el::Loggers::configureFromGlobal("logging.conf");
 
     UI::showStartupDialog();
-    Master::getInstance().initialize(argc, argv);
-    Master::getInstance().loop();
+    int err = Master::getInstance().initialize(argc, argv);
+    if (!err) {
+        Master::getInstance().loop();
+    }
     el::Loggers::flushAll();
-    return 0;
+    return err;
 }
 

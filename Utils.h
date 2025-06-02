@@ -15,6 +15,7 @@ extern std::string toString(char* buffer, size_t size);
 extern std::string toString(wchar_t* buffer, size_t size);
 extern std::string toLower(const std::string& str);
 extern std::string toUpper(const std::string& str);
+extern bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2);
 inline bool isLatinLetter(char ch) { return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z'; }
 
 extern cv::Vec3b encodeRGB(unsigned rgb);

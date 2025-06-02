@@ -59,7 +59,8 @@ private:
     void hardcodedStep(const char* step);
     bool calculateAverage();
     std::array<cv::Vec3b,4> mLuvAverage;
-    HistogramTemplate detector;
+    std::shared_ptr<ConstRect> mRect;
+    HistogramTemplate mDetector;
 };
 
 class TaskSell final : public Task {

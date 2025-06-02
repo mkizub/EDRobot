@@ -197,7 +197,7 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { VK_RWIN,           0x5C | EXT_KEY,  { "RWin", "WinRight", "Win", "Meta" } },
         { VK_APPS,           0x5D | EXT_KEY,  { "Apps", "ContextMenu", "Context"} },
         { VK_CONTROL,        0x1D | EXT_KEY,  { "CtrlRight", "Ctrl" } },
-        { VK_UP,             0x47 | EXT_KEY, "Up"   },
+        { VK_UP,             0x48 | EXT_KEY, "Up"   },
         { VK_LEFT,           0x4B | EXT_KEY, "Left" },
         { VK_DOWN,           0x50 | EXT_KEY, "Down" },
         { VK_RIGHT,          0x4D | EXT_KEY, "Right"},
@@ -241,6 +241,10 @@ static std::unordered_map<unsigned int, const Key&> US_QWERTY_MAPPING_VK_TO_NAME
 static std::unordered_map<std::string, const Key&> US_QWERTY_MAPPING_NAME_TO_KEY;
 
 static std::string makeKeyboardMapping() {
+    //unsigned up_scancode = MapVirtualKeyA(VK_UP,    MAPVK_VK_TO_VSC_EX);
+    //unsigned left_scancode = MapVirtualKey(VK_LEFT,  MAPVK_VK_TO_VSC_EX);
+    //unsigned down_scancode = MapVirtualKey(VK_DOWN,  MAPVK_VK_TO_VSC_EX);
+    //unsigned right_scancode = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC_EX);
     for (const Key& key :  US_QWERTY_KEYBOARD_TABLE) {
         US_QWERTY_MAPPING_SC_TO_KEY.try_emplace(key.scanCode, key);
         US_QWERTY_MAPPING_VK_TO_NAME.try_emplace(key.vkCode, key);

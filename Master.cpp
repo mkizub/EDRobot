@@ -52,20 +52,24 @@ static void from_json(const json5pp::value& j, Template*& o) {
     if (j.is_object()) {
         Template* oracle = nullptr;
         if (j.as_object().contains("img")) {
-            auto& jo = j.as_object();
-            std::string filename = "templates/"+j["img"].as_string();
-            int x = jo.at("at").as_array()[0].as_integer();
-            int y = jo.at("at").as_array()[1].as_integer();
-            cv::Point screenLT(x, y);
+            std::string filename = "templates/"+j.at("img").as_string();
+            auto image = cv::imread(filename, cv::IMREAD_UNCHANGED);
+            if (image.empty()) {
+                LOG(ERROR) << "Template image " << filename << " not found";
+                return;
+            }
+            json5pp::value atX = j.at("at").as_array()[0];
+            json5pp::value atY = j.at("at").as_array()[1];
+            spEvalRect screenRect = makeEvalRect(j.at("at"), image.cols, image.rows);
             int extL = 0;
             int extT = 0;
             int extR = 0;
             int extB = 0;
-            if (jo.contains("ext")) {
-                if (jo.at("ext").is_number())
-                    extL = extT = extR = extB = jo.at("ext").as_integer();
-                else if (jo.at("ext").is_array()) {
-                    auto& jext = jo.at("ext").as_array();
+            if (j.at("ext")) {
+                if (j.at("ext").is_number())
+                    extL = extT = extR = extB = j.at("ext").as_integer();
+                else if (j.at("ext").is_array()) {
+                    auto& jext = j.at("ext").as_array();
                     if (!jext.empty())
                         extL = extT = extR = extB = jext[0].as_integer();
                     if (jext.size() > 1)
@@ -80,11 +84,11 @@ static void from_json(const json5pp::value& j, Template*& o) {
             cv::Point extRB(extR, extB);
             double tmin = 0.8;
             double tmax = 0.8;
-            if (jo.contains("t")) {
-                if (jo.at("t").is_number())
-                    tmax = tmin = jo.at("t").as_number();
-                else if (jo.at("t").is_array()) {
-                    auto& jt = jo.at("t").as_array();
+            if (j.at("t")) {
+                if (j.at("t").is_number())
+                    tmax = tmin = j.at("t").as_number();
+                else if (j.at("t").is_array()) {
+                    auto& jt = j.at("t").as_array();
                     if (!jt.empty())
                         tmin = jt[0].as_number();
                     if (jt.size() > 1)
@@ -95,7 +99,10 @@ static void from_json(const json5pp::value& j, Template*& o) {
                 if (tmax < tmin)
                     std::swap(tmin, tmax);
             }
-            o = new ImageTemplate(filename, screenLT, extLT, extRB, tmin, tmax);
+            std::string name;
+            if (j.at("name").is_string())
+                name = j.at("name").as_string();
+            o = new ImageTemplate(name, filename, image, screenRect, extLT, extRB, tmin, tmax);
 
             //t: [0.5, 0.9], rect:[500, 170], ext: [4,4,300,4]
         }
@@ -156,17 +163,17 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
     else if (name.starts_with("btn-")) {
         auto btn = new Button(name, parent);
         child = btn;
-        from_json(jo.at("rect"), btn->rect);
+        child->setRect(jo.at("rect"));
     }
     else if (name.starts_with("spn-")) {
         auto btn = new Spinner(name, parent);
         child = btn;
-        from_json(jo.at("rect"), btn->rect);
+        child->setRect(jo.at("rect"));
     }
     else if (name.starts_with("lst-")) {
         auto btn = new List(name, parent);
         child = btn;
-        from_json(jo.at("rect"), btn->rect);
+        child->setRect(jo.at("rect"));
     }
     else {
         LOG(ERROR) << "Unknown widget type: " << name;
@@ -311,6 +318,7 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
 void UIState::clear() {
     widget = nullptr;
     focused = nullptr;
+    cEnv.clear();
 }
 
 const std::string& UIState::path() const {
@@ -352,6 +360,7 @@ int Master::initialize(int argc, char* argv[]) {
 
     CLI11_PARSE(options, argc, argv);
 
+    TRY {
     if (!kwd) {
         char buffer[MAX_PATH] = {0};
         GetModuleFileName(nullptr, buffer, MAX_PATH);
@@ -371,6 +380,7 @@ int Master::initialize(int argc, char* argv[]) {
             {{"esc",0}, Command::Stop},
             {{"printscreen",0}, Command::Start},
             {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
+            {{"printscreen",keyboard::CTRL|keyboard::WIN}, Command::DebugButtons},
             {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect}
     };
 
@@ -389,6 +399,7 @@ int Master::initialize(int argc, char* argv[]) {
             parseShortcutConfig(Command::Pause, "pause", obj);
             parseShortcutConfig(Command::Stop,  "stop",  obj);
             parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
+            parseShortcutConfig(Command::DebugButtons,    "debug-buttons",  obj);
             parseShortcutConfig(Command::DevRectSelect,   "dev-rect-select",  obj);
             parseShortcutConfig(Command::Shutdown,  "shutdown",  obj);
         }
@@ -410,6 +421,10 @@ int Master::initialize(int argc, char* argv[]) {
     }
 
     loadCalibration();
+    } CATCH(const std::exception& e) {
+    LOG(ERROR) << "Exception in initializaton: " << GET_EXCEPTION_STACK_TRACE;
+    return 1;
+    }
 
     std::vector<std::string> keys;
     for (auto& m : keyMapping)
@@ -423,10 +438,11 @@ void Master::setCalibrationResult(std::unique_ptr<Calibrarion>& calibration, boo
     mCalibration.swap(calibration);
     if (!mCalibration.get()) {
         LOG(INFO) << "setCalibrationResult: reset";
-        this->mFocusedButtonDetector.reset();
+        mFocusedButtonDetector.reset();
     } else {
         LOG(INFO) << "setCalibrationResult: " << mCalibration.get();
-        this->mFocusedButtonDetector.reset(new HistogramTemplate(mCalibration->focusedButtonLuv));
+        mFocusedDetectorRect = std::make_shared<ConstRect>(cv::Rect());
+        mFocusedButtonDetector.reset(new HistogramTemplate(mCalibration->focusedButtonLuv, mFocusedDetectorRect));
         LOG(INFO) << "Button state detector installed";
         if (save)
             saveCalibration();
@@ -521,7 +537,13 @@ void Master::loop() {
                 startCalibration();
                 break;
             case Command::DebugTemplates:
-                debugTemplates(nullptr, cv::Mat());
+                {
+                    ClassifyEnv env;
+                    debugTemplates(nullptr, env);
+                }
+                break;
+            case Command::DebugButtons:
+                debugButtons();
                 break;
             case Command::DevRectScreenshot:
                 debugRectScreenshot("rect");
@@ -666,14 +688,24 @@ cv::Rect Master::resolveWidgetRect(const std::string& name) {
         LOG(ERROR) << "Widget '" << name << "' not found";
         return {};
     }
-    auto r = item->getRect();
-    if (!r) {
+    auto r = item->calcRect(mLastEDState.cEnv);
+    if (r.empty()) {
         LOG(ERROR) << "Widget has no rect";
         return {};
     }
-    return *r;
+    return r;
 }
 
+void Master::initializeClassifyEnv(ClassifyEnv& env) {
+    // actual window size and position on image (screenshot)
+    env.captureRect = mCaptureRect;
+    // RGB color window image
+    env.imageColor = colorED;
+    // grayscale window image
+    env.imageGray = grayED;
+    // image for debug drawing
+    //env.debugImage;
+}
 
 std::vector<std::string> Master::parseState(const std::string& state) {
     std::vector<std::string> tokens;
@@ -752,46 +784,90 @@ Widget* Master::matchWithSubItems(Widget* item) {
 bool Master::matchItem(Widget* item) {
     if (!item || !item->oracle)
         return false;
-    return item->oracle->classify() >= 0.8;
+    return item->oracle->classify(mLastEDState.cEnv);
 }
 
-bool Master::debugMatchItem(Widget* item, cv::Mat debugImage) {
-    if (!item || !item->oracle)
+bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
+    if (!item)
         return false;
-    return item->oracle->debugMatch(debugImage) >= 0.8;
+    if (!item->oracle) {
+        for (Widget* m : item->have) {
+            if (m->tp == WidgetType::Mode && m->oracle) {
+                if (m->oracle->debugMatch(env) >= 0.8)
+                    return true;
+            }
+        }
+        return false;
+    }
+    return item->oracle->debugMatch(env) >= 0.8;
 }
 
-bool Master::debugTemplates(Widget* item, cv::Mat debugImage) {
-    if (item == nullptr && debugImage.empty()) {
-        if (!captureWindow(&grayED, &colorED)) {
+bool Master::debugTemplates(Widget* item,ClassifyEnv& env) {
+    if (item == nullptr && env.debugImage.empty()) {
+        if (!captureWindow(env.captureRect, &env.imageGray, &env.imageColor)) {
             LOG(ERROR) << "Cannot capture screen for debug match";
             return false;
         }
         for (auto &screen: mScreensRoot->have) {
             if (screen->oracle) {
-                debugImage = grayED.clone();
-                debugTemplates(screen, debugImage);
+                env.debugImage = env.imageColor.clone();
+                debugTemplates(screen, env);
                 el::Loggers::flushAll();
                 std::string fname = "debug-match-"+screen->name+".png";
-                cv::imwrite(fname, debugImage);
-                cv::imshow(fname, debugImage);
+                cv::imwrite(fname, env.debugImage);
+                cv::imshow(fname, env.debugImage);
                 cv::waitKey();
+                env.debugImage.release();
             }
         }
         cv::destroyAllWindows();
-        debugImage.release();
+        env.imageGray.release();
+        env.imageColor.release();
+        env.debugImage.release();
         el::Loggers::flushAll();
         return true;
     } else {
-        if (item->oracle && debugMatchItem(item, debugImage)) {
+        if (debugMatchItem(item, env)) {
             bool ok = false;
             for (Widget* i : item->have) {
-                ok |= debugTemplates(i, debugImage);
+                ok |= debugTemplates(i, env);
             }
             return ok;
         }
         return false;
     }
+}
+
+static void drawButton(Widget* i, cv::Mat& debugImage, const UIState& uiState) {
+    if (!(i->tp == WidgetType::Button || i->tp == WidgetType::Spinner || i->tp == WidgetType::List))
+        return;
+    cv::Rect rect = i->calcRect(uiState.cEnv);
+    if (rect.empty())
+        return;
+    cv::Scalar color(127, 127, 255);
+    int size = (i == uiState.focused) ? 4 : 2;
+    cv::rectangle(debugImage, rect.tl(), rect.br(), color, size);
+    if (i == uiState.focused) {
+        cv::Point center = (rect.tl() + rect.br()) / 2;
+        cv::drawMarker(debugImage,center,color,cv::MARKER_STAR);
+    }
+}
+bool Master::debugButtons() {
+    detectEDState();
+    widget::Widget* widget = mLastEDState.widget;
+    cv::Mat debugImage = colorED.clone();
+    if (widget) {
+        for (Widget* i : widget->have)
+            drawButton(i, debugImage, mLastEDState);
+        if (widget->tp == WidgetType::Mode) {
+            for (Widget *i: widget->parent->have)
+                drawButton(i, debugImage, mLastEDState);
+        }
+    }
+    cv::imshow(mLastEDState.path(), debugImage);
+    cv::waitKey();
+    cv::destroyAllWindows();
+    return true;
 }
 
 cv::Rect Master::calcScaledRect(cv::Rect screenRect) {
@@ -822,34 +898,37 @@ bool Master::debugRectScreenshot(std::string name) {
             return false;
         }
     }
+    cv::Rect captureRect;
     cv::Mat imgGray;
     cv::Mat imgColor;
-    if (!captureWindow(&imgGray, &imgColor)) {
+    if (!captureWindow(captureRect, &imgGray, &imgColor)) {
         LOG(ERROR) << "Cannot capture screen";
         return false;
     }
     cv::Rect rect = mDevScreenRect;
-    if ((rect & mCaptureRect) != rect) {
+    if ((rect & captureRect) != rect) {
         LOG(ERROR) << "Cannot make screenshot because dev rect is beyond of game client area";
         return false;
     }
-    rect -= mCaptureRect.tl();
+    rect -= captureRect.tl();
     cv::imwrite("debug-" + name + "-gray.png", cv::Mat(imgGray, rect));
     cv::imwrite("debug-" + name + "-color.png", cv::Mat(imgColor, rect));
     return true;
 }
 
-Widget* Master::detectFocused(const Widget* parent) const {
+Widget* Master::detectFocused(const Widget* parent) {
     for (Widget* item : parent->have) {
-        const cv::Rect* r = item->getRect();
-        if (!r)
+        const cv::Rect r = item->calcRect(mLastEDState.cEnv);
+        if (r.empty())
             continue;
         if (item->tp == WidgetType::Button || item->tp == WidgetType::Spinner) {
             // check it's focused
-            int x = r->x + r->width - 26;
-            int y = r->y + r->height / 2 - 8;
-            cv::Rect sr(cv::Point(x,y), cv::Size(16,16));
-            double value = mFocusedButtonDetector->classify(sr);
+            int x = r.x + r.width - 36;
+            int y = r.y + r.height / 2 - 8;
+            if (item->tp == WidgetType::Spinner)
+                x -= r.height + 10;
+            mFocusedDetectorRect->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
+            double value = mFocusedButtonDetector->classify(mLastEDState.cEnv);
             if (value >= 0.96)
                 return item;
         }
@@ -859,10 +938,11 @@ Widget* Master::detectFocused(const Widget* parent) const {
 const UIState& Master::detectEDState() {
     mLastEDState.clear();
     // make screenshot
-    if (!captureWindow(&grayED, &colorED)) {
+    if (!captureWindow(mCaptureRect, &grayED, &colorED)) {
         LOG(ERROR) << "Cannot capture screen";
         return mLastEDState;
     }
+    initializeClassifyEnv(mLastEDState.cEnv);
 
     // detect screen and widget
     for (auto& screen : mScreensRoot->have) {
@@ -898,9 +978,7 @@ const UIState& Master::detectEDState() {
     return mLastEDState;
 }
 
-bool Master::isEDStateMatch(const std::string& state, bool detect) {
-    if (detect)
-        detectEDState();
+bool Master::isEDStateMatch(const std::string& state) {
     if (mLastEDState.path() == state)
         return true;
     auto names1 = parseState(mLastEDState.path());
@@ -957,7 +1035,7 @@ bool Master::isEDStateMatch(const std::string& state, bool detect) {
     return true;
 }
 
-bool Master::captureWindow(cv::Mat* grayImg, cv::Mat* colorImg) {
+bool Master::captureWindow(cv::Rect& captureRect, cv::Mat* grayImg, cv::Mat* colorImg) {
     if (!isForeground()) {
         LOG(ERROR) << "Cannot capture screen - not foreground; hWndED=0x" << std::hex << std::setw(16) << std::setfill('0') << hWndED;
         return false;
@@ -967,7 +1045,7 @@ bool Master::captureWindow(cv::Mat* grayImg, cv::Mat* colorImg) {
         return false;
     if (!capturer->captureDisplay())
         return false;
-    mCaptureRect = capturer->getCaptureRect();
+    captureRect = capturer->getCaptureRect();
     *grayImg = capturer->getGrayImage();
     //cv::imwrite("captured-window-gray.png", grayED);
     if (colorImg)

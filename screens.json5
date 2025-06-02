@@ -11,10 +11,7 @@
       { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
       { name: 'lst-goods', action: 'dlg-trade', rect: [249,253,1020,714] },
       { name: 'mod-sell',
-        detect: [
-          { img: "at_market_sell.png",        t: [0.6, 0.8], at:[245, 172] },
-          { img: "at_market_sell_dialog.png", t: [0.7, 0.9], at:[500, 170], ext: [0,0,210,0] }
-        ],
+        detect: { img: "at_market_sell.png", t: [0.6, 0.8], at:[245, 172] },
         have: [
           {
             name: 'dlg-trade',
@@ -22,29 +19,29 @@
               {
                 name: 'mod-less',
                 detect: [
-                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[700, 170] },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[700, 714] }
+                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[700, 170], ext: [0,20] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[700, 714], ext: [0,30,10], name: "sdil" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [714,848,241,36] },
-                  { name: 'btn-more', action: 'mod-more', rect: [965,847,242,38] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [714,575,490,60] },
-                  { name: 'btn-amount', rect: [715,348,490,61] },
+                  { name: 'btn-exit', action: 'close', rect: [714,"848+sdil.oy",241,38] },
+                  { name: 'btn-more', action: 'mod-more', rect: [965,"848+sdil.oy",242,38] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [714,"575+sdil.oy",490,60] },
+                  { name: 'spn-amount', rect: [715,"348+sdil.oy",490,61] },
                 ]
               },
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[500, 170] },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[500, 714] }
+                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[500, 170], ext: [0,20] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[500, 714], ext: [0,30,10], name: "sdim" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [509,847,243,38] },
-                  { name: 'btn-more', action: 'mod-less', rect: [762,847,239,38] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [512,575,490,60] },
-                  { name: 'btn-amount', rect: [510,349,493,59] },
-                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,809,382,76] },
-                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,340,482] }
+                  { name: 'btn-exit', action: 'close', rect: [509,"848+sdim.oy",241,38] },
+                  { name: 'btn-more', action: 'mod-less', rect: [762,"848+sdim.oy",240,38] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"575+sdim.oy",490,60] },
+                  { name: 'spn-amount', rect: [510,"349+sdim.oy",493,59] },
+                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"809+sdim.oy",382,76] },
+                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,350,"482+sdim.oy"] }
                 ]
               }
             ],
@@ -52,10 +49,7 @@
         ]
       },
       { name: 'mod-buy',
-        detect: [
-          { img: "at_market_buy.png",        t: [0.6, 0.8], at:[245, 172] },
-          { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[500, 172], ext: [0,0,210,0] }
-        ],
+        detect: { img: "at_market_buy.png", t: [0.6, 0.8], at:[245, 172] },
         have: [
           {
             name: 'dlg-trade',
@@ -63,29 +57,29 @@
               {
                 name: 'mod-less',
                 detect: [
-                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[700, 172] },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[505, 714] }
+                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[700, 172], ext: [0,20] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[707, 701], ext: [0,30], name: "bdil" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [712,840,244,41] },
-                  { name: 'btn-more', action: 'mod-more', rect: [964,840,244,41] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [713,568,494,60] },
-                  { name: 'btn-amount', rect: [714,361,494,63] },
+                  { name: 'btn-exit', action: 'close', rect: [712,"831+bdil.oy",244,41] },
+                  { name: 'btn-more', action: 'mod-more', rect: [964,"831+bdil.oy",244,41] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [712,"560+bdil.oy",496,64] },
+                  { name: 'spn-amount', rect: [712,"360+bdil.oy",496,64]},
                 ]
               },
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[500, 172] },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[505, 714] }
+                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[500, 172], ext: [0,20] },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[505, 710], ext: [0,30], name: "bdim" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [508,840,244,42] },
-                  { name: 'btn-more', action: 'mod-less', rect: [509,840,244,42] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [508,568,496,64] },
-                  { name: 'btn-amount', rect: [510,361,494,62] },
-                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1027,796,384,76] },
-                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,352,343,434] }
+                  { name: 'btn-exit', action: 'close', rect: [509,"842+bdim.oy",244,38] },
+                  { name: 'btn-more', action: 'mod-less', rect: [761,"842+bdim.oy",244,38] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [508,"568+bdim.oy",496,64] },
+                  { name: 'spn-amount', rect: [510,"371+bdim.oy",494,62] },
+                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1027,"804+bdim.oy",384,76] },
+                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,310,350,"486+bdim.oy"] }
                 ]
               }
             ],

@@ -37,6 +37,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "Utils.h"
+#include "Template.h"
 #include "EDWidget.h"
 #include "Master.h"
 

@@ -66,6 +66,18 @@ std::string toUpper(const std::string& str) {
     return upper;
 }
 
+bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2) {
+    if (str1.length() != str2.length())
+        return false;
+
+    for (int i = 0; i < str1.length(); ++i) {
+        if (tolower(str1[i]) != tolower(str2[i]))
+            return false;
+    }
+
+    return true;
+}
+
 cv::Vec3b encodeRGB(unsigned rgb) {
     return cv::Vec3b(rgb & 0xFF, (rgb>>8) & 0xFF, (rgb>>16)&0xFF);
 }

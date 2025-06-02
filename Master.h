@@ -30,6 +30,7 @@ enum class Command {
     Stop,
     Calibrate,
     DebugTemplates,
+    DebugButtons,
     DevRectSelect,
     DevRectScreenshot,
     Shutdown,
@@ -57,6 +58,7 @@ struct UIState {
     const std::string& path() const;
     widget::Widget* widget;
     widget::Widget* focused;
+    ClassifyEnv cEnv;
     friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
 };
 
@@ -68,15 +70,13 @@ public:
     void loop();
     const UIState& detectEDState();
     const UIState& lastEDState() { return mLastEDState; }
-    bool isEDStateMatch(const std::string& state, bool detect = false);
+    bool isEDStateMatch(const std::string& state);
     const json5pp::value& getTaskActions(const std::string& action);
     cv::Rect resolveWidgetRect(const std::string& name);
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return searchRegionExtent; }
 
-    cv::Mat getGrayScreenshot() { return grayED; }
-    cv::Mat getColorScreenshot() { return colorED; }
     void setDevScreenRect(cv::Rect rect) { mDevScreenRect = rect; mDevScaledRect = {}; }
     void setDevScaledRect(cv::Rect rect) { mDevScaledRect = rect; mDevScreenRect = {}; }
     void pushCommand(Command cmd);
@@ -90,7 +90,7 @@ private:
     Command popCommand();
     void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
 
-    bool captureWindow(cv::Mat* grayImg, cv::Mat* colorImg = nullptr);
+    bool captureWindow(cv::Rect& captureRect, cv::Mat* grayImg, cv::Mat* colorImg = nullptr);
 
     bool preInitTask();
     bool startCalibration();
@@ -100,13 +100,15 @@ private:
     bool isForeground();
     static void runCurrentTask();
 
+    void initializeClassifyEnv(ClassifyEnv& env);
     std::vector<std::string> parseState(const std::string& name);
-    widget::Widget* detectFocused(const widget::Widget* parent) const;
+    widget::Widget* detectFocused(const widget::Widget* parent);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
     bool matchItem(widget::Widget* item);
-    bool debugTemplates(widget::Widget* item, cv::Mat debugImage);
-    bool debugMatchItem(widget::Widget* item, cv::Mat debugImage);
+    bool debugTemplates(widget::Widget* item, ClassifyEnv& env);
+    bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
+    bool debugButtons();
     cv::Rect calcScaledRect(cv::Rect screenRect);
     bool debugRectScreenshot(std::string name);
     void saveCalibration() const;
@@ -127,6 +129,7 @@ private:
     UIState mLastEDState;
     std::unique_ptr<Calibrarion> mCalibration;
     std::unique_ptr<HistogramTemplate> mFocusedButtonDetector;
+    std::shared_ptr<ConstRect> mFocusedDetectorRect;
 
     std::queue<Command> mCommandQueue;
     std::mutex mCommandMutex;
