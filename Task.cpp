@@ -11,7 +11,7 @@
 #include <timeapi.h>
 #include "magic_enum/magic_enum.hpp"
 
-void Task::preciseSleep(double seconds) {
+void Task::preciseSleep(double seconds)const {
     using namespace std;
     using namespace std::chrono;
 
@@ -43,7 +43,7 @@ void Task::preciseSleep(double seconds) {
         check_completed();
 }
 
-void Task::sleep(int milliseconds) {
+void Task::sleep(int milliseconds) const {
     check_completed();
     if (milliseconds <= 0)
         return;
@@ -75,7 +75,7 @@ void Task::sleep(int milliseconds) {
     }
 }
 
-bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms) {
+bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms) const {
     try {
         if (!keyboard::sendKeyDown(name))
             return false;
@@ -89,17 +89,25 @@ bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms) {
     }
 }
 
-bool Task::sendMouseMove(int x, int y, int pause_ms) {
-    if (!keyboard::sendMouseMoveTo(x, y))
+bool Task::sendMouseMove(const cv::Point& point, int pause_ms) const {
+    cv::Point screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+    bool virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
+    screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+    //LOG(INFO) << "sendMouseMove recalculated from reference " << point << " to screen " << screen;
+    if (!keyboard::sendMouseMoveTo(screen.x, screen.y, true, virtualDesktop))
         return false;
     sleep(pause_ms > 0 ? pause_ms : master.getDefaultKeyAfterTime());
     return true;
 }
 
-bool Task::sendMouseClick(int x, int y, int delay_ms, int pause_ms) {
-    if (!keyboard::sendMouseMoveTo(x, y))
+bool Task::sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) const {
+    cv::Point screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+    bool virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
+    //LOG(INFO) << "sendMouseClick recalculated from reference " << point << " to screen " << screen;
+    if (!keyboard::sendMouseMoveTo(screen.x, screen.y, true, virtualDesktop))
         return false;
     try {
+        sleep(delay_ms > 0 ? delay_ms : master.getDefaultKeyHoldTime());
         if (!keyboard::sendMouseDown(keyboard::MOUSE_L_BUTTON))
             return false;
         sleep(delay_ms > 0 ? delay_ms : master.getDefaultKeyHoldTime());
@@ -111,6 +119,44 @@ bool Task::sendMouseClick(int x, int y, int delay_ms, int pause_ms) {
         throw;
     }
     return true;
+}
+
+static int get_int(const json5pp::value& val, const json5pp::value& args, int dflt = -1) {
+    if (val.is_null() && dflt >= 0)
+        return dflt;
+    if (val.is_integer())
+        return val.as_integer();
+    if (val.is_string()) {
+        const json5pp::value& resolved = args.at(val.as_string());
+        if (resolved.is_integer())
+            return resolved.as_integer();
+    }
+    LOG(ERROR) << "integer value expected, but got: " << val << " with args: " << args;
+    return 0;
+}
+
+bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const {
+    if (pos.is_string()) {
+        cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path() + ":" + pos.as_string());
+        if (rect.empty()) {
+            LOG(ERROR) << "Widget '" << pos << "' not found in current state";
+            return false;
+        }
+        point = (rect.tl() + rect.br()) * 0.5;
+        return true;
+    }
+    else if (pos.is_array()) {
+        int x = get_int(pos.at(0), args);
+        int y = get_int(pos.at(1), args);
+        point = {x, y};
+        if (x < 0 || y < 0) {
+            LOG(ERROR) << "Bad position " << point;
+            return false;
+        }
+        return true;
+    }
+    LOG(ERROR) << "Expected button name or [x,y]";
+    return false;
 }
 
 bool Task::executeAction(const std::string& actionName, const json5pp::value& args = json5pp::value()) {
@@ -129,20 +175,6 @@ bool Task::executeAction(const std::string& actionName, const json5pp::value& ar
     const json5pp::value& execute = action.at("exec");
 
     return executeStep(execute, args);
-}
-
-int get_int(const json5pp::value& val, const json5pp::value& args, int dflt = -1) {
-    if (val.is_null() && dflt >= 0)
-        return dflt;
-    if (val.is_integer())
-        return val.as_integer();
-    if (val.is_string()) {
-        const json5pp::value& resolved = args.at(val.as_string());
-        if (resolved.is_integer())
-            return resolved.as_integer();
-    }
-    LOG(ERROR) << "integer value expected, but got: " << val << " with args: " << args;
-    return 0;
 }
 
 bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
@@ -167,33 +199,27 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         if (step.as_object().contains("goto")) {
             LOG(DEBUG) << "action goto: " << step;
             const json5pp::value& widget = step.at("goto");
-            cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+widget.as_string());
-            if (rect.empty()) {
+            cv::Point pos;
+            if (!decodePosition(widget, pos, args)) {
                 LOG(ERROR) << "Step " << step << " failed";
                 return false;
             }
-            cv::Point p = (rect.tl()+rect.br()) * 0.5;
-            int x = p.x; // + (std::rand() % 11 - 6);
-            int y = p.y; // + (std::rand() % 11 - 6);
             int after = get_int(step.at("after"), args, master.getDefaultKeyAfterTime());
-            bool ok = sendMouseMove(x, y, after);
+            bool ok = sendMouseMove(pos, after);
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }
         if (step.as_object().contains("click")) {
             LOG(DEBUG) << "action click: " << step;
             const json5pp::value& widget = step.at("click");
-            cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+widget.as_string());
-            if (rect.empty()) {
+            cv::Point pos;
+            if (!decodePosition(widget, pos, args)) {
                 LOG(ERROR) << "Step " << step << " failed";
                 return false;
             }
-            cv::Point p = (rect.tl()+rect.br()) * 0.5;
-            int x = p.x; // + (std::rand() % 11 - 6);
-            int y = p.y; // + (std::rand() % 11 - 6);
             int hold = get_int(step.at("hold"), args, master.getDefaultKeyHoldTime());
             int after = get_int(step.at("after"), args, master.getDefaultKeyAfterTime());
-            bool ok = sendMouseClick(x, y, hold, after);
+            bool ok = sendMouseClick(pos, hold, after);
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }
@@ -358,6 +384,7 @@ bool TaskCalibrate::run() {
         hardcodedStep("[{key:'left'},"
                       "{key:'space', after:1000},"
                       "{check:'scr-market:mod-sell'},"
+                      /*"{goto:[0,0], after:1000},"*/
                       "{click:'btn-to-buy', after:1000},"
                       "{check:'scr-market:mod-buy'},"
                       "{goto:'btn-help', after:500}]");

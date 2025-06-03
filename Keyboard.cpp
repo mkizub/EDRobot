@@ -349,13 +349,19 @@ bool sendKeyUp(const std::string& nm) {
     return true;
 }
 
-bool sendMouseMoveTo(int x, int y, bool absolute) {
+bool sendMouseMoveTo(int x, int y, bool absolute, bool virtualDesk) {
     DWORD flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;
     if (absolute) {
         flags |= MOUSEEVENTF_ABSOLUTE;
-        // TODO: fix this for windowed mode and multiple monitors, see https://stackoverflow.com/questions/62759122/calculate-normalized-coordinates-for-sendinput-in-a-multi-monitor-environment
-        x = MulDiv(x, 65536, GetSystemMetrics(SM_CXSCREEN));
-        y = MulDiv(y, 65536, GetSystemMetrics(SM_CYSCREEN));
+        if (virtualDesk) {
+            // see https://stackoverflow.com/questions/62759122/calculate-normalized-coordinates-for-sendinput-in-a-multi-monitor-environment
+            flags |= MOUSEEVENTF_VIRTUALDESK;
+            x = MulDiv(x, 65536, GetSystemMetrics(SM_CXVIRTUALSCREEN));
+            y = MulDiv(y, 65536, GetSystemMetrics(SM_CYVIRTUALSCREEN));
+        } else {
+            x = MulDiv(x, 65536, GetSystemMetrics(SM_CXSCREEN));
+            y = MulDiv(y, 65536, GetSystemMetrics(SM_CYSCREEN));
+        }
     }
     INPUT input[1]{};
     input[0].type = INPUT_MOUSE;
@@ -438,7 +444,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                 if ((GetKeyState(VK_LWIN)| GetKeyState(VK_RWIN)) & 0x8000) flags |= WIN;
                 std::string keyName;
                 const auto& it = US_QWERTY_MAPPING_VK_TO_NAME.find(vkCode);
-                if (it != US_QWERTY_MAPPING_SC_TO_KEY.end())
+                if (it != US_QWERTY_MAPPING_VK_TO_NAME.end())
                     keyName = it->second.names[0];
                 else
                     keyName = unknownKeyName;

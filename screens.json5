@@ -9,7 +9,7 @@
       { name: 'btn-compare', action: 'dlg-compare', rect: [97,509,134,79] },
       { name: 'btn-to-sell', action: 'mod-sell', rect: [96,316,133,129] },
       { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
-      { name: 'lst-goods', action: 'dlg-trade', rect: [249,253,1020,714] },
+      { name: 'lst-goods', action: 'dlg-trade', rect: [369,256,428,712] },
       { name: 'mod-sell',
         detect: { img: "at_market_sell.png", t: [0.6, 0.8], at:[245, 172] },
         have: [

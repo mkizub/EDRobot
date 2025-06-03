@@ -8,94 +8,84 @@
 #include <format>
 #include <iomanip>
 
+void ClassifyEnv::init(const cv::Rect& captRect, const cv::Mat& imgColor, const cv::Mat& imgGray) {
+    ClassifyEnv* self = const_cast<ClassifyEnv*>(this);
+    const_cast<cv::Rect&>(captureRect) = captRect;
+    const_cast<cv::Rect&>(captureCrop) = cv::Rect(cv::Point(), captureRect.size());
+    const_cast<cv::Mat&>(imageColor) = imgColor;
+    const_cast<cv::Mat&>(imageGray) = imgGray;
+    if (captureRect.size() != ReferenceScreenSize) {
+        double x_scale = double(captureRect.width) / ReferenceScreenSize.width;
+        double y_scale = double(captureRect.height) / ReferenceScreenSize.height;
+        scaleToCaptured_ = std::min(x_scale, y_scale);
+        needScaling_ = true;
+    } else {
+        needScaling_ = false;
+        scaleToCaptured_ = 1;
+    }
+    captureCenter = cv::Point(captureRect.size()) / 2;
+}
 
-cv::Point ClassifyEnv::cvtReferenceToImage(const cv::Point& point) {
+void ClassifyEnv::clear() {
+    const_cast<cv::Rect&>(captureRect) = cv::Rect();
+    const_cast<cv::Rect&>(captureCrop) = cv::Rect();
+    const_cast<cv::Mat&>(imageColor) = cv::Mat();
+    const_cast<cv::Mat&>(imageGray) = cv::Mat();
+    const_cast<cv::Mat&>(debugImage) = cv::Mat();
+    needScaling_ = false;
+    scaleToCaptured_ = 1;
+    captureCenter = ReferenceScreenCenter;
+    classifiedRects.clear();
+}
+
+cv::Point ClassifyEnv::cvtReferenceToDesktop(const cv::Point& point) const {
+    return cvtReferenceToCaptured(point) + captureRect.tl();
+}
+
+cv::Point ClassifyEnv::cvtReferenceToCaptured(const cv::Point& point) const {
     cv::Point screenPoint(point);
-    screenPoint.x -= captureRect.x;
-    screenPoint.y -= captureRect.y;
-    if (captureRect.width != REFERENCE_SCREEN_WIDTH || captureRect.height != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(captureRect.width) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(captureRect.height) / REFERENCE_SCREEN_HEIGHT;
-        double scale = std::min(x_scale, y_scale);
-        cv::Point lt_rel = screenPoint - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        lt_rel *= scale;
-        cv::Point lt = lt_rel + cv::Point(captureRect.width/2, captureRect.height/2);
-        screenPoint = lt;
+    if (needScaling_) {
+        cv::Point relative = screenPoint - ReferenceScreenCenter;
+        relative *= scaleToCaptured_;
+        screenPoint = relative + captureCenter;
     }
     return screenPoint;
 }
-cv::Size  ClassifyEnv::cvtReferenceToImage(const cv::Size& size) {
-    cv::Size screenSize(size);
-    if (captureRect.width != REFERENCE_SCREEN_WIDTH || captureRect.height != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(captureRect.width) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(captureRect.height) / REFERENCE_SCREEN_HEIGHT;
-        double scale = std::min(x_scale, y_scale);
-        screenSize.width *= scale;
-        screenSize.height *= scale;
-    }
-    return screenSize;
-}
-cv::Rect  ClassifyEnv::cvtReferenceToImage(const cv::Rect& rect) {
+cv::Rect  ClassifyEnv::cvtReferenceToCaptured(const cv::Rect& rect) const {
     cv::Rect screenRect(rect);
-    screenRect.x -= captureRect.x;
-    screenRect.y -= captureRect.y;
-    if (captureRect.width != REFERENCE_SCREEN_WIDTH || captureRect.height != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(captureRect.width) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(captureRect.height) / REFERENCE_SCREEN_HEIGHT;
-        double scale = std::min(x_scale, y_scale);
-        cv::Point lt_rel = screenRect.tl() - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        cv::Point rb_rel = screenRect.br() - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        lt_rel *= scale;
-        rb_rel *= scale;
-        cv::Point lt = lt_rel + cv::Point(captureRect.width/2, captureRect.height/2);
-        cv::Point rb = rb_rel + cv::Point(captureRect.width/2, captureRect.height/2);
+    if (needScaling_) {
+        cv::Point lt_rel = screenRect.tl() - ReferenceScreenCenter;
+        cv::Point rb_rel = screenRect.br() - ReferenceScreenCenter;
+        lt_rel *= scaleToCaptured_;
+        rb_rel *= scaleToCaptured_;
+        cv::Point lt = lt_rel + captureCenter;
+        cv::Point rb = rb_rel + captureCenter;
         screenRect = cv::Rect(lt, rb);
     }
     return screenRect;
 }
 
-cv::Point ClassifyEnv::cvtImageToReference(const cv::Point& point) {
+cv::Point ClassifyEnv::cvtCapturedToReference(const cv::Point& point) const {
     cv::Point referencePoint(point);
-    if (captureRect.width != REFERENCE_SCREEN_WIDTH || captureRect.height != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(captureRect.width) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(captureRect.height) / REFERENCE_SCREEN_HEIGHT;
-        double scale = std::min(x_scale, y_scale);
-        cv::Point lt_rel = referencePoint - cv::Point(captureRect.width/2, captureRect.height/2);
-        lt_rel /= scale;
-        cv::Point lt = lt_rel + cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
+    if (needScaling_) {
+        cv::Point lt_rel = referencePoint - captureCenter;
+        lt_rel /= scaleToCaptured_;
+        cv::Point lt = lt_rel + ReferenceScreenCenter;
         referencePoint = lt;
     }
-    referencePoint.x += captureRect.x;
-    referencePoint.y += captureRect.y;
     return referencePoint;
 }
-cv::Size  ClassifyEnv::cvtImageToReference(const cv::Size& size) {
-    cv::Size referenceSize(size);
-    if (captureRect.width != REFERENCE_SCREEN_WIDTH || captureRect.height != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(captureRect.width) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(captureRect.height) / REFERENCE_SCREEN_HEIGHT;
-        double scale = std::min(x_scale, y_scale);
-        referenceSize.width /= scale;
-        referenceSize.height /= scale;
-    }
-    return referenceSize;
-}
-cv::Rect  ClassifyEnv::cvtImageToReference(const cv::Rect& rect) {
+cv::Rect  ClassifyEnv::cvtCapturedToReference(const cv::Rect& rect) const {
     cv::Rect referenceRect(rect);
-    if (captureRect.width != REFERENCE_SCREEN_WIDTH || captureRect.height != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(captureRect.width) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(captureRect.height) / REFERENCE_SCREEN_HEIGHT;
-        double scale = std::min(x_scale, y_scale);
-        cv::Point lt_rel = referenceRect.tl() - cv::Point(captureRect.width/2, captureRect.height/2);
-        cv::Point rb_rel = referenceRect.br() - cv::Point(captureRect.width/2, captureRect.height/2);
-        lt_rel /= scale;
-        rb_rel /= scale;
-        cv::Point lt = lt_rel + cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        cv::Point rb = rb_rel + cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
+    if (needScaling_) {
+        cv::Point lt_rel = referenceRect.tl() - captureCenter;
+        cv::Point rb_rel = referenceRect.br() - captureCenter;
+        lt_rel /= scaleToCaptured_;
+        rb_rel /= scaleToCaptured_;
+        cv::Point lt = lt_rel + ReferenceScreenCenter;
+        cv::Point rb = rb_rel + ReferenceScreenCenter;
         referenceRect = cv::Rect(lt,rb);
     }
-    referenceRect.x += captureRect.x;
-    referenceRect.y += captureRect.y;
     return referenceRect;
 }
 
@@ -167,32 +157,34 @@ double HistogramTemplate::match(ClassifyEnv& env) {
     if (!mRect)
         return 0;
     cv::Rect rect = mRect->calcRect(env);
+    rect = env.cvtReferenceToCaptured(rect);
+    rect &= env.captureCrop;
     if (rect.empty())
         return 0;
-    cv::Mat image;
+    int colorPlanes;
     std::vector<cv::Mat> imagePlanes;
     if (mGray) {
-        image = env.imageGray;
-        if (image.empty())
+        colorPlanes = 1;
+        if (env.imageGray.empty())
             return 0;
-        imagePlanes.push_back(image);
+        imagePlanes.push_back(env.imageGray);
     } else {
-        image = env.imageColor;
-        if (image.empty())
+        colorPlanes = 3;
+        if (env.imageColor.empty())
             return 0;
-        cv::split(image, imagePlanes);
+        cv::split(env.imageColor, imagePlanes);
     }
     unsigned resultColor = 0;
-    for (auto i=0; i < imagePlanes.size(); i++) {
+    for (auto i=0; i < colorPlanes; i++) {
         int histSize = 256;
         float range[]{0, 256}; //the upper boundary is exclusive
         const float* histRange[]{range};
         cv::Mat subImage(imagePlanes[i], rect);
         cv::Mat hist;
         cv::calcHist(&subImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
-        int maxLoc = -1;
-        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, &maxLoc);
-        resultColor |= maxLoc << (i*8);
+        int maxLoc[4]{};
+        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+        resultColor |= maxLoc[0] << (i*8);
     }
     mLastColorRGB = mGray ? gray2rgb(resultColor) : encodeRGB(resultColor);
     mLastColorLuv = rgb2luv(mLastColorRGB);
@@ -200,6 +192,7 @@ double HistogramTemplate::match(ClassifyEnv& env) {
     double dist = cv::norm(mLastColorLuv - mValueLuv);
     LOG(DEBUG) << "Distance: " << dist;
     mLastValue = 1.0 - std::erf(dist);
+    imagePlanes.clear();
     return mLastValue;
 }
 double HistogramTemplate::classify(ClassifyEnv& env) {
@@ -247,17 +240,17 @@ ImageTemplate::ImageTemplate(const std::string& name, const std::string& filenam
 }
 
 double ImageTemplate::match(ClassifyEnv& env) {
-    if (!referenceRect)
+    if (!this->referenceRect)
         return 0;
-    cv::Rect screenRect = referenceRect->calcRect(env);
-    if (screenRect.empty())
+    cv::Rect referenceRect = this->referenceRect->calcRect(env);
+    if (referenceRect.empty())
         return 0;
     cv::Mat image = env.imageGray;
     if (image.empty() || templGray.empty())
         return 0;
-    if (image.cols != REFERENCE_SCREEN_WIDTH || image.rows != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(image.cols) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(image.rows) / REFERENCE_SCREEN_HEIGHT;
+    if (image.cols != env.ReferenceScreenSize.width || image.rows != env.ReferenceScreenSize.height) {
+        double x_scale = double(image.cols) / env.ReferenceScreenSize.width;
+        double y_scale = double(image.rows) / env.ReferenceScreenSize.height;
         double scale = std::min(x_scale, y_scale);
         cv::resize(templGray, templGrayScaled, cv::Size(), scale, scale);
         if (!templMask.empty()) {
@@ -271,10 +264,10 @@ double ImageTemplate::match(ClassifyEnv& env) {
     }
     //cv::Rect matchRect = getMatchRect(env, image.cols, image.rows);
     int ext = Master::getInstance().getSearchRegionExtent();
-    scaledScreenLT = env.cvtReferenceToImage(screenRect.tl()-extendLT-cv::Point(ext,ext));
-    scaledScreenRB = env.cvtReferenceToImage(screenRect.br()+extendRB+cv::Point(ext,ext));
-    cv::Rect matchRect(scaledScreenLT, scaledScreenRB);
-    cv::Rect xMatchRect = getMatchRect(env, image.cols, image.rows);
+    captureRect = env.cvtReferenceToCaptured(referenceRect);
+    matchRect = cv::Rect(captureRect.tl()-env.scaleToCaptured(extendLT+cv::Point(ext,ext)),
+                         captureRect.br()+env.scaleToCaptured(extendRB+cv::Point(ext,ext)));
+    matchRect &= env.captureCrop;
     int result_cols = matchRect.width - templGrayScaled.cols + 1;
     int result_rows = matchRect.height - templGrayScaled.rows + 1;
     cv::Mat result(result_rows, result_cols, CV_32FC1);
@@ -288,52 +281,15 @@ double ImageTemplate::match(ClassifyEnv& env) {
     }
     //LOG(ERROR) << "match result: " << result;
     double minVal, maxVal;
-    cv::Point minLoc;
-    cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &matchedLoc);
+    cv::Point minLoc, maxLoc;
+    cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
     LOG(DEBUG) << "match result: " << std::setprecision(3) << maxVal << " for " << filename;
     if (!name.empty() && maxVal >= threshold_min) {
-        cv::Point offset = matchedLoc + matchRect.tl() - scaledScreenLT;
-        offset = env.cvtImageToReference(offset);
-        env.classifiedRects.emplace_back(maxVal, name, screenRect, screenRect + offset);
+        matchedCaptureOffset = maxLoc - (captureRect.tl() - matchRect.tl());
+        env.classifiedRects.emplace_back(maxVal, name, referenceRect, referenceRect + env.scaleToReference(matchedCaptureOffset));
     }
     return maxVal;
 }
-
-cv::Rect ImageTemplate::getMatchRect(ClassifyEnv& env, int imageWidth, int imageHeight) {
-    int ext = Master::getInstance().getSearchRegionExtent();
-    cv::Point ext_lt = extendLT + cv::Point(ext,ext);
-    cv::Point ext_rb = extendRB + cv::Point(ext,ext);
-    cv::Rect screenRect = referenceRect->calcRect(env);
-    if (screenRect.empty())
-        return screenRect;
-    cv::Point screenLT = screenRect.tl();
-    cv::Point screenRB = screenRect.br();
-    screenRect.x -= ext_lt.x;
-    screenRect.y -= ext_lt.y;
-    screenRect.width = templGray.cols + ext_lt.x + ext_rb.x;
-    screenRect.height = templGray.rows + ext_lt.y + ext_rb.y;
-    if (imageWidth != REFERENCE_SCREEN_WIDTH || imageHeight != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(imageWidth) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(imageHeight) / REFERENCE_SCREEN_HEIGHT;
-        lastScale = std::min(x_scale, y_scale);
-        ext_lt *= lastScale;
-        ext_rb *= lastScale;
-        cv::Point lt_rel = screenLT - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        cv::Point rb_rel = screenRB - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        lt_rel *= lastScale;
-        rb_rel *= lastScale;
-        scaledScreenLT = lt_rel + cv::Point(imageWidth/2, imageHeight/2);
-        scaledScreenRB = rb_rel + cv::Point(imageWidth/2, imageHeight/2);
-        screenRect = cv::Rect(scaledScreenLT - ext_lt, scaledScreenRB + ext_rb);
-    } else {
-        lastScale = 1;
-        scaledScreenLT = screenLT;
-        scaledScreenRB = screenRB;
-    }
-    screenRect &= cv::Rect(0, 0, imageWidth, imageHeight);
-    return screenRect;
-}
-
 
 double ImageTemplate::classify(ClassifyEnv& env) {
     double value = match(env);
@@ -352,21 +308,18 @@ double ImageTemplate::toResult(double matchValue) {
 
 double ImageTemplate::debugMatch(ClassifyEnv& env) {
     double value = match(env);
-    cv::Rect matchRect = getMatchRect(env, env.debugImage.cols, env.debugImage.rows);
-    cv::Point offset = matchedLoc + matchRect.tl() - scaledScreenLT;
     LOG(INFO) << "match result: " << std::setprecision(3) << value <<
                "[" << threshold_min << ":" << threshold_max << "] >> " << toResult(value) << " for " << filename <<
-               "; offset: " << offset << "; scale: " << lastScale;
+               "; offset: " << env.scaleToReference(matchedCaptureOffset) << "; scale: " << lastScale;
     if (value >= threshold_max) {
-        cv::Scalar color(255, 255, 255);
-        cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 4);
-        cv::rectangle(env.debugImage, scaledScreenLT+offset, scaledScreenRB+offset, color, 2);
+        cv::Scalar color(96, 255, 96);
+        cv::rectangle(env.debugImage, captureRect.tl()+matchedCaptureOffset, captureRect.br()+matchedCaptureOffset, color, 3);
+        cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 1);
         return 1;
     }
     if (value < threshold_min) {
-        cv::Scalar color(127, 127, 127);
-        cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 2);
-        cv::rectangle(env.debugImage, scaledScreenLT+offset, scaledScreenRB+offset, color, 1);
+        cv::Scalar color(96, 96, 255);
+        cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 1);
         cv::Point lt = matchRect.tl();
         cv::Point rb = matchRect.br();
         cv::line(env.debugImage, lt, rb, color, 1);
@@ -376,10 +329,9 @@ double ImageTemplate::debugMatch(ClassifyEnv& env) {
         return 0;
     }
     double result = toResult(value);
-    int g = 127 + int(127*result);
-    cv::Scalar color(g, g, g);
-    cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 2);
-    cv::rectangle(env.debugImage, scaledScreenLT, scaledScreenRB, color, 1);
+    cv::Scalar color(96, 210, 210);
+    cv::rectangle(env.debugImage, captureRect.tl()+matchedCaptureOffset, captureRect.br()+matchedCaptureOffset, color, 2);
+    cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 1);
     cv::Point lt = matchRect.tl();
     cv::Point rb = matchRect.br();
     cv::line(env.debugImage, lt, rb, color, 1);

@@ -1,0 +1,4 @@
+@echo OFF
+set EDRobotPath=%~dp0
+cd /D "%EDRobotPath%"
+"%EDRobotPath%\bin\EDRobot.exe" /kwd

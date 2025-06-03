@@ -13,8 +13,10 @@
 #include <opencv2/core/utils/logger.hpp>
 #include "CLI11.hpp"
 
-//#include <cpptrace/cpptrace.hpp>
+#ifndef NDEBUG
+#include <cpptrace/cpptrace.hpp>
 #include <cpptrace/from_current.hpp>
+#endif
 
 #ifdef CPPTRACE_TRY
 # define TRY CPPTRACE_TRY
@@ -22,8 +24,8 @@
 # define TRYZ CPPTRACE_TRYZ
 # define CATCHZ(param) CPPTRACE_CATCHZ(param)
 # define CATCH_ALT(param) CPPTRACE_CATCH_ALT(param)
-# define GET_STACK_TRACE std::stacktrace::current()
-# define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception()
+# define GET_STACK_TRACE std::stacktrace::current().to_string()
+# define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
 #else
 # define TRY try
 # define CATCH(param) catch(param)
@@ -368,13 +370,15 @@ int Master::initialize(int argc, char* argv[]) {
         size_t lastSlash = fullPath.find_last_of("\\");
         if (lastSlash != std::string::npos) {
             std::string cwd = fullPath.substr(0, lastSlash);
+            if (cwd.ends_with("\\bin"))
+                cwd = cwd.substr(0,cwd.size()-4);
             SetCurrentDirectory(cwd.c_str());
             LOG(INFO) << "Working Directory: " << cwd;
         }
     }
 
-    cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
-    cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
+    //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
+    //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
     keyMapping = {
             {{"esc",0}, Command::Stop},
@@ -696,17 +700,6 @@ cv::Rect Master::resolveWidgetRect(const std::string& name) {
     return r;
 }
 
-void Master::initializeClassifyEnv(ClassifyEnv& env) {
-    // actual window size and position on image (screenshot)
-    env.captureRect = mCaptureRect;
-    // RGB color window image
-    env.imageColor = colorED;
-    // grayscale window image
-    env.imageGray = grayED;
-    // image for debug drawing
-    //env.debugImage;
-}
-
 std::vector<std::string> Master::parseState(const std::string& state) {
     std::vector<std::string> tokens;
     size_t start = 0;
@@ -802,28 +795,29 @@ bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
     return item->oracle->debugMatch(env) >= 0.8;
 }
 
-bool Master::debugTemplates(Widget* item,ClassifyEnv& env) {
+bool Master::debugTemplates(Widget* item, ClassifyEnv& env) {
     if (item == nullptr && env.debugImage.empty()) {
-        if (!captureWindow(env.captureRect, &env.imageGray, &env.imageColor)) {
+        cv::Rect captureRect;
+        cv::Mat imageColor, imageGray;
+        if (!captureWindow(captureRect, imageColor, imageGray)) {
             LOG(ERROR) << "Cannot capture screen for debug match";
             return false;
         }
+        env.init(captureRect, imageColor, imageGray);
         for (auto &screen: mScreensRoot->have) {
             if (screen->oracle) {
-                env.debugImage = env.imageColor.clone();
+                env.imageColor.copyTo(env.debugImage);
                 debugTemplates(screen, env);
                 el::Loggers::flushAll();
                 std::string fname = "debug-match-"+screen->name+".png";
-                cv::imwrite(fname, env.debugImage);
+                //cv::imwrite(fname, env.debugImage);
                 cv::imshow(fname, env.debugImage);
                 cv::waitKey();
                 env.debugImage.release();
             }
         }
         cv::destroyAllWindows();
-        env.imageGray.release();
-        env.imageColor.release();
-        env.debugImage.release();
+        env.clear();
         el::Loggers::flushAll();
         return true;
     } else {
@@ -838,54 +832,86 @@ bool Master::debugTemplates(Widget* item,ClassifyEnv& env) {
     }
 }
 
-static void drawButton(Widget* i, cv::Mat& debugImage, const UIState& uiState) {
-    if (!(i->tp == WidgetType::Button || i->tp == WidgetType::Spinner || i->tp == WidgetType::List))
+void Master::drawButton(widget::Widget* item) {
+    if (!(item->tp == WidgetType::Button || item->tp == WidgetType::Spinner || item->tp == WidgetType::List))
         return;
-    cv::Rect rect = i->calcRect(uiState.cEnv);
+    cv::Rect rect = item->calcRect(mLastEDState.cEnv);
     if (rect.empty())
         return;
-    cv::Scalar color(127, 127, 255);
-    int size = (i == uiState.focused) ? 4 : 2;
+    rect = mLastEDState.cEnv.cvtReferenceToCaptured(rect);
+    cv::Mat& debugImage = mLastEDState.cEnv.debugImage;
+    cv::Scalar color(200, 80, 80);
+    int size = (item == mLastEDState.focused) ? 2 : 1;
     cv::rectangle(debugImage, rect.tl(), rect.br(), color, size);
-    if (i == uiState.focused) {
-        cv::Point center = (rect.tl() + rect.br()) / 2;
-        cv::drawMarker(debugImage,center,color,cv::MARKER_STAR);
+    if ( item->tp == WidgetType::Button)
+        return;
+    if ( item->tp == WidgetType::Spinner) {
+        cv::Point p1 = rect.tl();
+        p1.x += rect.height;
+        cv::Point p2 = p1;
+        p2.y += rect.height;
+        cv::line(debugImage, p1, p2, color, size);
+        p1.x = rect.br().x - rect.height;
+        p2.x = p1.x;
+        cv::line(debugImage, p1, p2, color, size);
+        return;
     }
+//    ////////////////////////////////////////////////
+//    unsigned buttonRedColor = 0x45;
+//    if (mCalibration) {
+//        buttonRedColor = luv2rgb(mCalibration->normalButtonLuv)[2];
+//    }
+//    cv::Mat redImage;
+//    cv::extractChannel(colorED, redImage, 2);
+//    cv::Mat listImage(redImage, rect);
+//
+//    cv::imshow("Red image: "+mLastEDState.path(), listImage);
+//
+//    cv::Mat erodeImage;
+//    int erosion_size = 2;
+//    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT,
+//                                               cv::Size(2*erosion_size + 1, 2*erosion_size+1),
+//                                               cv::Point(erosion_size, erosion_size));
+//    cv::erode(listImage, erodeImage, kernel);
+//    cv::imshow("Eroded image: "+mLastEDState.path(), erodeImage);
+//
+//    cv::Mat thresholdedImage;
+//    cv::threshold(erodeImage, thresholdedImage, buttonRedColor*0.95, 255, cv::THRESH_BINARY);
+//    //cv::adaptiveThreshold(erodeImage, thresholdedImage, 255, cv::ADAPTIVE_THRESH_MEAN_C, cv::THRESH_BINARY, 15, 10);
+//
+//    cv::imshow("Threshold image: "+mLastEDState.path(), thresholdedImage);
+//    cv::waitKey();
+//
+//    std::vector<std::vector<cv::Point>> contours;
+//    cv::findContours(thresholdedImage, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+//    for (const auto& contour : contours) {
+//        std::vector<cv::Point> approx;
+//        cv::approxPolyDP(contour, approx, cv::arcLength(contour, true) * 0.02, true);
+//
+//        if (approx.size() == 4 && cv::contourArea(approx) > 1000 && cv::isContourConvex(approx)) {
+//            cv::Rect bbox = cv::boundingRect(approx);
+//            cv::rectangle(debugImage, bbox+rect.tl(), cv::Scalar(0, 255, 0), 2);
+//        }
+//    }
+//    cv::destroyAllWindows();
 }
 bool Master::debugButtons() {
     detectEDState();
     widget::Widget* widget = mLastEDState.widget;
-    cv::Mat debugImage = colorED.clone();
+    mLastEDState.cEnv.debugImage = colorED.clone();
     if (widget) {
-        for (Widget* i : widget->have)
-            drawButton(i, debugImage, mLastEDState);
+        for (Widget* item : widget->have)
+            drawButton(item);
         if (widget->tp == WidgetType::Mode) {
-            for (Widget *i: widget->parent->have)
-                drawButton(i, debugImage, mLastEDState);
+            for (Widget *item: widget->parent->have)
+                drawButton(item);
         }
     }
-    cv::imshow(mLastEDState.path(), debugImage);
+    cv::imshow(mLastEDState.path(), mLastEDState.cEnv.debugImage);
     cv::waitKey();
     cv::destroyAllWindows();
+    mLastEDState.cEnv.debugImage = cv::Mat();
     return true;
-}
-
-cv::Rect Master::calcScaledRect(cv::Rect screenRect) {
-    screenRect.x -= mCaptureRect.x;
-    screenRect.y -= mCaptureRect.y;
-    if (mCaptureRect.width != REFERENCE_SCREEN_WIDTH || mCaptureRect.height != REFERENCE_SCREEN_HEIGHT) {
-        double x_scale = double(mCaptureRect.width) / REFERENCE_SCREEN_WIDTH;
-        double y_scale = double(mCaptureRect.height) / REFERENCE_SCREEN_HEIGHT;
-        double scale = std::min(x_scale, y_scale);
-        cv::Point lt_rel = screenRect.tl() - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        cv::Point rb_rel = screenRect.br() - cv::Point(REFERENCE_SCREEN_WIDTH/2, REFERENCE_SCREEN_HEIGHT/2);
-        lt_rel *= scale;
-        rb_rel *= scale;
-        cv::Point lt = lt_rel + cv::Point(mCaptureRect.width/2, mCaptureRect.height/2);
-        cv::Point rb = rb_rel + cv::Point(mCaptureRect.width/2, mCaptureRect.height/2);
-        screenRect = cv::Rect(lt, rb);
-    }
-    return screenRect;
 }
 
 bool Master::debugRectScreenshot(std::string name) {
@@ -899,9 +925,8 @@ bool Master::debugRectScreenshot(std::string name) {
         }
     }
     cv::Rect captureRect;
-    cv::Mat imgGray;
-    cv::Mat imgColor;
-    if (!captureWindow(captureRect, &imgGray, &imgColor)) {
+    cv::Mat imgColor, imgGray;
+    if (!captureWindow(captureRect, imgColor, imgGray)) {
         LOG(ERROR) << "Cannot capture screen";
         return false;
     }
@@ -918,7 +943,7 @@ bool Master::debugRectScreenshot(std::string name) {
 
 Widget* Master::detectFocused(const Widget* parent) {
     for (Widget* item : parent->have) {
-        const cv::Rect r = item->calcRect(mLastEDState.cEnv);
+        cv::Rect r = item->calcRect(mLastEDState.cEnv);
         if (r.empty())
             continue;
         if (item->tp == WidgetType::Button || item->tp == WidgetType::Spinner) {
@@ -938,11 +963,11 @@ Widget* Master::detectFocused(const Widget* parent) {
 const UIState& Master::detectEDState() {
     mLastEDState.clear();
     // make screenshot
-    if (!captureWindow(mCaptureRect, &grayED, &colorED)) {
+    if (!captureWindow(mCaptureRect, colorED, grayED)) {
         LOG(ERROR) << "Cannot capture screen";
         return mLastEDState;
     }
-    initializeClassifyEnv(mLastEDState.cEnv);
+    mLastEDState.cEnv.init(mCaptureRect, colorED, grayED);
 
     // detect screen and widget
     for (auto& screen : mScreensRoot->have) {
@@ -1035,10 +1060,10 @@ bool Master::isEDStateMatch(const std::string& state) {
     return true;
 }
 
-bool Master::captureWindow(cv::Rect& captureRect, cv::Mat* grayImg, cv::Mat* colorImg) {
+bool Master::captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& grayImg) {
     if (!isForeground()) {
-        LOG(ERROR) << "Cannot capture screen - not foreground; hWndED=0x" << std::hex << std::setw(16) << std::setfill('0') << hWndED;
-        return false;
+        LOG(WARNING) << "Elite Dangerous is not foreground; hWndED=" << std::format("0x{}", (void*)hWndED);
+        //return false;
     }
     Capturer *capturer = Capturer::getEDCapturer(hWndED);
     if (!capturer)
@@ -1046,9 +1071,9 @@ bool Master::captureWindow(cv::Rect& captureRect, cv::Mat* grayImg, cv::Mat* col
     if (!capturer->captureDisplay())
         return false;
     captureRect = capturer->getCaptureRect();
-    *grayImg = capturer->getGrayImage();
-    //cv::imwrite("captured-window-gray.png", grayED);
-    if (colorImg)
-        *colorImg = capturer->getColorImage();
+    colorImg = capturer->getColorImage();
+    //cv::imwrite("captured-window-color.png", colorImg);
+    grayImg = capturer->getGrayImage();
+    //cv::imwrite("captured-window-gray.png", grayImg);
     return true;
 }

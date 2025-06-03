@@ -1,0 +1,9 @@
+{
+  "name" : "edrobot",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "9eb6e4b60ea5bdd60a87e8d2353d53882a32a3f3",
+  "dependencies" : [
+    {"name": "cpptrace"},
+    {"name": "opencv4", "features": ["win32ui","highgui","intrinsics","thread","jpeg","png","ipp","tbb","contrib","world"], "default-features": false}
+  ]
+}

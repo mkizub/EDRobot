@@ -32,15 +32,27 @@ extern spEvalRect makeEvalRect(json5pp::value jv, int width=0, int height=0);
 struct ClassifyEnv {
     // in configuration all numbers are specified for reference screen size
     const cv::Size ReferenceScreenSize {1920, 1080};
+    const cv::Point ReferenceScreenCenter {1920/2, 1080/2};
     // actual window size and position on image (screenshot)
-    cv::Rect captureRect;
+    const cv::Rect captureRect;
+    const cv::Rect captureCrop;
     // RGB color window image
-    cv::Mat imageColor;
+    const cv::Mat imageColor;
     // grayscale window image
-    cv::Mat imageGray;
+    const cv::Mat imageGray;
     // image for debug drawing
     cv::Mat debugImage;
 
+    void init(const cv::Rect& captRect, const cv::Mat& imgColor, const cv::Mat& imgGray);
+    void clear();
+
+private:
+    // reference-to-captured scale
+    bool needScaling_ {false};
+    double scaleToCaptured_ {1};
+    cv::Point captureCenter;
+
+public:
     struct ResultRect {
         ResultRect() = default;
         ResultRect(double rat, const std::string& nm, cv::Rect refRect, cv::Rect detRect)
@@ -51,25 +63,33 @@ struct ClassifyEnv {
         cv::Rect referenceRect; // original rect in reference coordinates
         cv::Rect detectedRect;  // detected rect in reference coordinates
     };
-
     // a set of named detected rects
     std::vector<ResultRect> classifiedRects;
 
-    cv::Point cvtReferenceToImage(const cv::Point& point);
-    cv::Size  cvtReferenceToImage(const cv::Size& size);
-    cv::Rect  cvtReferenceToImage(const cv::Rect& rect);
-
-    cv::Point cvtImageToReference(const cv::Point& point);
-    cv::Size  cvtImageToReference(const cv::Size& size);
-    cv::Rect  cvtImageToReference(const cv::Rect& rect);
-
-    void clear() {
-        captureRect = cv::Rect();
-        imageColor = cv::Mat();
-        imageGray = cv::Mat();
-        debugImage = cv::Mat();
-        classifiedRects.clear();
+    cv::Point scaleToCaptured(const cv::Point& point) const {
+        return needScaling_ ? point * scaleToCaptured_ : point;
     }
+    cv::Size  scaleToCaptured(const cv::Size& size) const {
+        if (!needScaling_)
+            return size;
+        return {int(size.width * scaleToCaptured_), int(size.height * scaleToCaptured_)};
+    }
+    cv::Point scaleToReference(const cv::Point& point) const {
+        return needScaling_ ? point / scaleToCaptured_ : point;
+    }
+    cv::Size  scaleToReference(const cv::Size& size) const {
+        if (!needScaling_)
+            return size;
+        return {int(size.width / scaleToCaptured_), int(size.height / scaleToCaptured_)};
+    }
+
+    cv::Point cvtReferenceToDesktop(const cv::Point& point) const;
+
+    cv::Point cvtReferenceToCaptured(const cv::Point& point) const;
+    cv::Rect  cvtReferenceToCaptured(const cv::Rect& rect) const;
+
+    cv::Point cvtCapturedToReference(const cv::Point& point) const;
+    cv::Rect  cvtCapturedToReference(const cv::Rect& rect) const;
 };
 
 class Template {
@@ -131,7 +151,6 @@ public:
     double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 private:
-    cv::Rect getMatchRect(ClassifyEnv& env, int imageWidth, int imageHeight);
     double toResult(double matchValue); // something like logistic regression, S-curve
     const std::string name;
     const std::string filename;
@@ -144,9 +163,9 @@ private:
     cv::Mat templMask;
     cv::Mat templGrayScaled;
     cv::Mat templMaskScaled;
-    cv::Point scaledScreenLT; // for debug
-    cv::Point scaledScreenRB; // for debug
-    cv::Point matchedLoc;     // for debug
+    cv::Rect captureRect;
+    cv::Rect matchRect;
+    cv::Point matchedCaptureOffset;
     double lastScale;
 };
 

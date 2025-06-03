@@ -29,7 +29,7 @@ void stop();
 
 bool sendKeyDown(const std::string& key_name);
 bool sendKeyUp(const std::string& key_name);
-bool sendMouseMoveTo(int x, int y, bool absolute=true);
+bool sendMouseMoveTo(int x, int y, bool absolute, bool virtualDesk);
 bool sendMouseDown(int buttons);
 bool sendMouseUp(int buttons);
 bool sendMouseWheel(int count); // positive - forward, away from the user; negative - backward, toward the user

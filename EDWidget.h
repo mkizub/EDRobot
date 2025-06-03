@@ -45,10 +45,12 @@ struct Button : public Widget {
 
 struct Spinner : public Widget {
     Spinner(const std::string& name, Widget* parent) : Widget(WidgetType::Spinner, name, parent) {}
+    int button_width {}; // by default spinner button is square, i.e. width is the same as spinner height
 };
 
 struct List : public Widget {
     List(const std::string& name, Widget* parent) : Widget(WidgetType::List, name, parent) {}
+    int item_height {38}; // by default item height is 38 pixels, like common button height
 };
 
 struct Mode : public Widget {

@@ -27,12 +27,13 @@ protected:
         explicit completed_error(const char *arg) : runtime_error(arg) {}
     };
 
-    void preciseSleep(double seconds);
-    void sleep(int milliseconds);
-    bool sendKey(const std::string& name, int delay_ms = 35, int pause_ms = 50);
-    bool sendMouseMove(int x, int y, int pause_ms = 50);
-    bool sendMouseClick(int x, int y, int delay_ms = 35, int pause_ms = 50);
-    void check_completed() {
+    void preciseSleep(double seconds) const;
+    void sleep(int milliseconds) const;
+    bool sendKey(const std::string& name, int delay_ms = 35, int pause_ms = 50) const;
+    bool sendMouseMove(const cv::Point& point, int pause_ms = 50) const;
+    bool sendMouseClick(const cv::Point& point, int delay_ms = 35, int pause_ms = 50) const;
+    bool decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const;
+    void check_completed() const {
         if (done)
             throw completed_error("aborted");
     }

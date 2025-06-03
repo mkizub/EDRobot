@@ -22,6 +22,8 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <format>
+#include <variant>
 
 #define ELPP_PERFORMANCE_MICROSECONDS
 //#ifdef __MINGW64__

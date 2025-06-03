@@ -15,9 +15,6 @@
 
 class Task;
 
-const int REFERENCE_SCREEN_WIDTH = 1920;
-const int REFERENCE_SCREEN_HEIGHT = 1080;
-
 namespace Gdiplus {
     class Bitmap;
 }
@@ -90,7 +87,7 @@ private:
     Command popCommand();
     void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
 
-    bool captureWindow(cv::Rect& captureRect, cv::Mat* grayImg, cv::Mat* colorImg = nullptr);
+    bool captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& grayImg);
 
     bool preInitTask();
     bool startCalibration();
@@ -100,7 +97,6 @@ private:
     bool isForeground();
     static void runCurrentTask();
 
-    void initializeClassifyEnv(ClassifyEnv& env);
     std::vector<std::string> parseState(const std::string& name);
     widget::Widget* detectFocused(const widget::Widget* parent);
     widget::Widget* getCfgItem(std::string state);
@@ -108,8 +104,8 @@ private:
     bool matchItem(widget::Widget* item);
     bool debugTemplates(widget::Widget* item, ClassifyEnv& env);
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
+    void drawButton(widget::Widget* item);
     bool debugButtons();
-    cv::Rect calcScaledRect(cv::Rect screenRect);
     bool debugRectScreenshot(std::string name);
     void saveCalibration() const;
     bool loadCalibration();
@@ -123,7 +119,7 @@ private:
     HWND hWndED;
     cv::Mat colorED;
     cv::Mat grayED;
-    cv::Rect mCaptureRect;
+    cv::Rect mCaptureRect; // in virtual desktop coordinated
     cv::Rect mDevScreenRect;
     cv::Rect mDevScaledRect;
     UIState mLastEDState;
