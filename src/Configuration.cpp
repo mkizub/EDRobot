@@ -5,11 +5,11 @@
 #include "pch.h"
 #include "Configuration.h"
 #include "Keyboard.h"
-#include "dirlistener/ReadDirectoryChanges.h"
-#include "magic_enum/magic_enum.hpp"
+#include <dirlistener/ReadDirectoryChanges.h>
+#include <magic_enum/magic_enum.hpp>
 
 #define XML_H_IMPLEMENTATION
-#include "xml.h"
+#include <xml/xml.h>
 
 
 static cv::Vec3b from_json(const json5pp::value& v);

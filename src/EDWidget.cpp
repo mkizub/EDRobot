@@ -2,7 +2,8 @@
 // Created by mkizub on 31.05.2025.
 //
 
-#include "peglib.h"
+// conflicts with _() of gettext, have to include before pch.h
+#include <peglib/peglib.h>
 
 #include "pch.h"
 

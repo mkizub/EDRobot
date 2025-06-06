@@ -10,7 +10,7 @@
 #include <queue>
 #include <condition_variable>
 #include <thread>
-#include <opencv2/core/mat.hpp>
+#include "opencv2/core/mat.hpp"
 #include "EDWidget.h"
 
 class Task;

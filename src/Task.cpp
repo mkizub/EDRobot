@@ -10,7 +10,7 @@
 #include "UI.h"
 #include <synchapi.h>
 #include <timeapi.h>
-#include "magic_enum/magic_enum.hpp"
+#include <magic_enum/magic_enum.hpp>
 
 void Task::preciseSleep(double seconds)const {
     using namespace std;

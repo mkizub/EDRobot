@@ -23,41 +23,44 @@ endif()
 find_package(cpptrace CONFIG REQUIRED)
 
 add_executable(EDRobot
-        pch.cpp
-        pch.h
-        main.cpp
-        Keyboard.cpp
-        Keyboard.h
-        Master.cpp
-        Master.h
-        Task.cpp
-        Task.h
-        Template.cpp
-        Template.h
-        easylogging++.cc
-        easylogging++.h
-        Utils.cpp
-        Utils.h
-        Capturer.cpp
-        Capturer.h
-        UI.cpp
-        UI.h
+        src/pch.cpp
+        src/pch.h
+        src/main.cpp
+        src/Capturer.cpp
+        src/Capturer.h
+        src/Configuration.cpp
+        src/Configuration.h
+        src/EDWidget.cpp
+        src/EDWidget.h
+        src/Keyboard.cpp
+        src/Keyboard.h
+        src/Master.cpp
+        src/Master.h
+        src/Task.cpp
+        src/Task.h
+        src/Template.cpp
+        src/Template.h
+        src/UI.cpp
+        src/UI.h
+        src/Utils.cpp
+        src/Utils.h
         ui/Dialogs.rc
-        EDWidget.cpp
-        EDWidget.h
-#        wintoastlib.cpp
-#        wintoastlib.h
-        Configuration.cpp
-        Configuration.h
-        dirlistener/ReadDirectoryChanges.cpp
-        dirlistener/ReadDirectoryChanges.h
-        dirlistener/ReadDirectoryChangesPrivate.cpp
-        dirlistener/ReadDirectoryChangesPrivate.h
-        dirlistener/ThreadSafeQueue.h
+        thirdparty/easylogging/easylogging++.cc
+        thirdparty/easylogging/easylogging++.h
+        thirdparty/dirlistener/ReadDirectoryChanges.cpp
+        thirdparty/dirlistener/ReadDirectoryChanges.h
+        thirdparty/dirlistener/ReadDirectoryChangesPrivate.cpp
+        thirdparty/dirlistener/ReadDirectoryChangesPrivate.h
+        thirdparty/dirlistener/ThreadSafeQueue.h
+        thirdparty/CLI11/CLI11.hpp
+        #thirdparty/wintoast/wintoastlib.cpp
+        #thirdparty/wintoast/wintoastlib.h
+        thirdparty/xml/xml.h
 )
 #target_precompile_headers(EDRobot PUBLIC pch.h)
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/include")
+target_include_directories(EDRobot PRIVATE thirdparty)
 #target_include_directories(EDRobot PRIVATE ${GETTEXT_INCLUDE_DIR})
 target_link_libraries(EDRobot ${GETTEXT_LIBRARIES})
 target_link_libraries(EDRobot ${OpenCV_LIBS} winmm shcore) # cpptrace::cpptrace msimg32
@@ -71,8 +74,8 @@ install(TARGETS EDRobot RUNTIME_DEPENDENCIES
         POST_INCLUDE_REGEXES [[.*vcruntime140.*\.dll]]
         POST_EXCLUDE_REGEXES [[.*system32.*\.dll]]
 )
-install(DIRECTORY templates DESTINATION "." FILES_MATCHING PATTERN "*.png")
-install(DIRECTORY locales DESTINATION ".")
-install(FILES actions.json5 configuration.json5 screens.json5 logging.conf DESTINATION ".")
+install(DIRECTORY config/templates DESTINATION "." FILES_MATCHING PATTERN "*.png")
+install(DIRECTORY config/locales DESTINATION ".")
+install(FILES config/actions.json5 config/configuration.json5 config/screens.json5 config/logging.conf DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 

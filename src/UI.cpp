@@ -3,7 +3,7 @@
 #include "UI.h"
 
 #include <memory.h>
-#include "ui/resource.h"
+#include "../ui/resource.h"
 //#include "wintoastlib.h"
 //using namespace WinToastLib;
 

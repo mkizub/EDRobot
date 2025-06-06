@@ -7,9 +7,6 @@
 #ifndef EDROBOT_EDWIDGET_H
 #define EDROBOT_EDWIDGET_H
 
-#include "json5pp.hpp"
-#include <opencv2/opencv.hpp>
-
 namespace widget {
 
 enum class WidgetState {

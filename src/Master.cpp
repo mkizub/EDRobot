@@ -13,13 +13,13 @@
 #include <fstream>
 #include <string>
 #include <iterator>
-#include <opencv2/core/utils/logger.hpp>
-#include "CLI11.hpp"
-#include "magic_enum/magic_enum.hpp"
+#include "opencv2/core/utils/logger.hpp"
+#include <CLI11/CLI11.hpp>
+#include <magic_enum/magic_enum.hpp>
 
 #ifndef NDEBUG
 //#include <cpptrace/cpptrace.hpp>
-#include <cpptrace/from_current.hpp>
+#include "cpptrace/from_current.hpp"
 #endif
 
 #ifdef CPPTRACE_TRY

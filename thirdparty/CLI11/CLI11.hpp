@@ -262,7 +262,7 @@
 #endif
 
 // second
-#include <winbase.h>
+#include <WinBase.h>
 // third
 #include <processthreadsapi.h>
 #include <shellapi.h>

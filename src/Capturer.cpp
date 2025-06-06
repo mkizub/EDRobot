@@ -2,13 +2,9 @@
 // Created by mkizub on 24.05.2025.
 //
 
+#include "pch.h"
 #include "Capturer.h"
-#include <vector>
-#include "easylogging++.h"
-#include "Utils.h"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 #include <shellscalingapi.h>
 
 

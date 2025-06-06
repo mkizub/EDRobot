@@ -32,14 +32,14 @@
 #define ELPP_LOG_STD_ARRAY
 #define ELPP_LOG_UNORDERED_MAP
 //#endif  __MINGW64__
-#include "easylogging++.h"
+#include <easylogging/easylogging++.h>
 
-#include "json5pp.hpp"
+#include <json5pp/json5pp.hpp>
 
-#include <opencv2/opencv.hpp>
+#include "opencv2/opencv.hpp"
 
-#include <libintl.h>
-#include <locale.h>
+#include "libintl.h"
+#include <clocale>
 #define pgettext(P,T) gettext(P "\004" T)
 #define _(T) gettext(T)
 template<typename... Args>
