@@ -11,13 +11,13 @@
       exec: [
         { loop: 3, action: { key: "up", after: 100 } }, //{ goto: "spn-amount", after: 100 },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount" },
-        { key: "left", hold: 2300 },
+        { key: "left", hold: { wait: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount", disabled: "btn-commit", during: 3000, peeriod: 250 } },
         { loop: "$items", action: {key: "right"} },
-        { key: "down", hold: 35, after: 100 },
+        { sleep: 50 },
+        { key: "down", hold: 35, after: 100 }, // { goto: "btn-commit" },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-commit" },
-        { key: "space", hold: 35, after: 1500 }, // { goto: "btn-commit" },
-        { check: "scr-market:mod-sell:dlg-trade:*" },
-        { key: "space", after: 1500 },
+        { key: "space" },
+        { wait: "scr-market:mod-sell", during: 3000, peeriod: 250 }
       ]
     },
     "sell-all": {
@@ -26,9 +26,13 @@
       exec: [
         { loop: 3, action: { key: "up", after: 100 } }, //{ goto: "spn-amount", after: 100 },
         { key: "right", hold: 1000 },
+        { sleep: 50 },
+        { key: "down", hold: 35, after: 100 }, // { goto: "btn-commit" },
+        { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-commit" },
         { key: "space", hold: 35, after: 1500, focus: "btn-commit" }, // { goto: "btn-commit" },
         { check: "scr-market:mod-sell:dlg-trade:*" },
         { key: "space", after: 1500 },
+        { wait: "scr-market:mod-sell", during: 3000, peeriod: 250 }
       ]
     },
     restart: {

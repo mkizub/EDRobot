@@ -23,13 +23,17 @@ public:
 private:
     static void InitCapturers();
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData);
-    Capturer(LPMONITORINFOEX monitor, HDC hdcMonitor);
+    Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor);
     void initBuffers();
 
     const bool isHdcScreenCreated;
     MONITORINFOEX monitorInfo;
+    double dpiScaleX;
+    double dpiScaleY;
+    bool needScaling;
     int screenWidth;
     int screenHeight;
+    HMONITOR hMonitor;
     HDC hdcScreen;
     HDC hdcMem;
     HBITMAP hBitmap;

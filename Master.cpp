@@ -10,11 +10,15 @@
 #include "Template.h"
 #include "Capturer.h"
 #include <memory>
+#include <fstream>
+#include <string>
+#include <iterator>
 #include <opencv2/core/utils/logger.hpp>
 #include "CLI11.hpp"
+#include "magic_enum/magic_enum.hpp"
 
 #ifndef NDEBUG
-#include <cpptrace/cpptrace.hpp>
+//#include <cpptrace/cpptrace.hpp>
 #include <cpptrace/from_current.hpp>
 #endif
 
@@ -47,229 +51,6 @@ const char ED_WINDOW_EXE[] = "EliteDangerous64.exe";
 
 using namespace widget;
 
-static void from_json(const json5pp::value& j, Template*& o) {
-    o = nullptr;
-    if (j.is_null())
-        return;
-    if (j.is_object()) {
-        Template* oracle = nullptr;
-        if (j.as_object().contains("img")) {
-            std::string filename = "templates/"+j.at("img").as_string();
-            auto image = cv::imread(filename, cv::IMREAD_UNCHANGED);
-            if (image.empty()) {
-                LOG(ERROR) << "Template image " << filename << " not found";
-                return;
-            }
-            json5pp::value atX = j.at("at").as_array()[0];
-            json5pp::value atY = j.at("at").as_array()[1];
-            spEvalRect screenRect = makeEvalRect(j.at("at"), image.cols, image.rows);
-            int extL = 0;
-            int extT = 0;
-            int extR = 0;
-            int extB = 0;
-            if (j.at("ext")) {
-                if (j.at("ext").is_number())
-                    extL = extT = extR = extB = j.at("ext").as_integer();
-                else if (j.at("ext").is_array()) {
-                    auto& jext = j.at("ext").as_array();
-                    if (!jext.empty())
-                        extL = extT = extR = extB = jext[0].as_integer();
-                    if (jext.size() > 1)
-                        extT = extB = jext[1].as_integer();
-                    if (jext.size() > 2)
-                        extR = jext[2].as_integer();
-                    if (jext.size() > 3)
-                        extB = jext[3].as_integer();
-                }
-            }
-            cv::Point extLT(extL, extT);
-            cv::Point extRB(extR, extB);
-            double tmin = 0.8;
-            double tmax = 0.8;
-            if (j.at("t")) {
-                if (j.at("t").is_number())
-                    tmax = tmin = j.at("t").as_number();
-                else if (j.at("t").is_array()) {
-                    auto& jt = j.at("t").as_array();
-                    if (!jt.empty())
-                        tmin = jt[0].as_number();
-                    if (jt.size() > 1)
-                        tmax = jt[1].as_number();
-                    else
-                        tmax = tmin;
-                }
-                if (tmax < tmin)
-                    std::swap(tmin, tmax);
-            }
-            std::string name;
-            if (j.at("name").is_string())
-                name = j.at("name").as_string();
-            o = new ImageTemplate(name, filename, image, screenRect, extLT, extRB, tmin, tmax);
-
-            //t: [0.5, 0.9], rect:[500, 170], ext: [4,4,300,4]
-        }
-        return;
-    }
-    if (j.is_array()) {
-        std::vector<std::unique_ptr<Template>> oracles;
-        for (auto& jo : j.as_array()) {
-            Template *oracle = nullptr;
-            from_json(jo, oracle);
-            if (!oracle) {
-                oracles.clear();
-                break;
-            }
-            oracles.emplace_back(oracle);
-        }
-        if (!oracles.empty())
-            o = new SequenceTemplate(std::move(oracles));
-        return;
-    }
-}
-
-static void from_json(const json5pp::value& j, cv::Rect& r) {
-    if (j.is_null()) {
-        LOG(WARNING) << "No rect provided";
-        return;
-    }
-    if (!j.is_array() || j.as_array().size() != 4) {
-        LOG(ERROR) << "rect must be an array of [x,y,width,height] int numbers";
-        return;
-    }
-    auto arr = j.as_array();
-    r.x = arr[0].as_integer();
-    r.y = arr[1].as_integer();
-    r.width = arr[2].as_integer();
-    r.height = arr[3].as_integer();
-}
-
-static Widget* from_json(const json5pp::value& j, Widget* parent) {
-    if (j.is_null()) {
-        return nullptr;
-    }
-    Widget* child = nullptr;
-    auto& jo = j.as_object();
-    auto name = jo.at("name").as_string();
-    if (name.starts_with("scr-")) {
-        auto scr = new Screen(name, parent);
-        child = scr;
-    }
-    else if (name.starts_with("dlg-")) {
-        auto dlg = new Dialog(name, parent);
-        child = dlg;
-    }
-    else if (name.starts_with("mod-")) {
-        auto mode = new Mode(name, parent);
-        child = mode;
-    }
-    else if (name.starts_with("btn-")) {
-        auto btn = new Button(name, parent);
-        child = btn;
-        child->setRect(jo.at("rect"));
-    }
-    else if (name.starts_with("spn-")) {
-        auto btn = new Spinner(name, parent);
-        child = btn;
-        child->setRect(jo.at("rect"));
-    }
-    else if (name.starts_with("lst-")) {
-        auto btn = new List(name, parent);
-        child = btn;
-        child->setRect(jo.at("rect"));
-    }
-    else {
-        LOG(ERROR) << "Unknown widget type: " << name;
-        return nullptr;
-    }
-    if (jo.contains("have") && jo.at("have").is_array()) {
-        for (auto &h: jo.at("have").as_array()) {
-            child->addSubItem(from_json(h, child));
-        }
-    }
-    if (jo.contains("detect")) {
-        Template* oracle = nullptr;
-        from_json(jo.at("detect"), oracle);
-        child->oracle.reset(oracle);
-    }
-    return child;
-}
-
-void Master::saveCalibration() const {
-    const Calibrarion* c = mCalibration.get();
-    if (!c)
-        return;
-    // key values
-    double dashboardGUIBrightness; // Options/Player/Custom.?.misc: <DashboardGUIBrightness Value="0.49999991" />
-    double gammaOffset; // Options/Graphics/Settings.xml: <GammaOffset>1.200000</GammaOffset>
-    int ScreenWidth;    // Options\Graphics\DisplaySettings.xml: <ScreenWidth>1920</ScreenWidth>
-    int ScreenHeight;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
-    // end of key values
-
-    cv::Vec3b normalButtonLuv;
-    cv::Vec3b focusedButtonLuv;
-    cv::Vec3b disabledButtonLuv;
-    cv::Vec3b activatedToggleLuv;
-
-    json5pp::value x = json5pp::object(
-            {
-                {"dashboardGUIBrightness", c->dashboardGUIBrightness},
-                {"gammaOffset", c->gammaOffset},
-                {"screenWidth", c->ScreenWidth},
-                {"screenHeight", c->ScreenHeight},
-                {"normalButton", std::format("#{:06x}", decodeRGB(luv2rgb(c->normalButtonLuv)))},
-                {"focusedButton", std::format("#{:06x}", decodeRGB(luv2rgb(c->focusedButtonLuv)))},
-                {"disabledButton", std::format("#{:06x}", decodeRGB(luv2rgb(c->disabledButtonLuv)))},
-                {"activatedToggle", std::format("#{:06x}", decodeRGB(luv2rgb(c->activatedToggleLuv)))},
-            });
-    std::ofstream calibrationFile;
-    calibrationFile.open("calibration.json5");
-    calibrationFile << json5pp::rule::json5() << json5pp::rule::space_indent<>() << x;
-    calibrationFile.close();
-    LOG(INFO) << "Calibration data saved to 'calibration.json5'";
-}
-
-static cv::Vec3b from_json(const json5pp::value& v) {
-    unsigned rgb = 0;
-    if (v.is_integer())
-        rgb = v.as_integer();
-    else if (v.is_array()) {
-        unsigned r = v.as_array().at(0).as_integer();
-        unsigned g = v.as_array().at(1).as_integer();
-        unsigned b = v.as_array().at(2).as_integer();
-        rgb = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
-    }
-    else if (v.is_string()) {
-        auto& s = v.as_string();
-        if (s.size() == 7 && s[0] == '#')
-            rgb = std::stol(s.substr(1), nullptr, 16);
-    }
-    return encodeRGB(rgb);
-}
-
-bool Master::loadCalibration() {
-    std::ifstream calibrationFile("calibration.json5");
-    if (calibrationFile.fail()) {
-        LOG(ERROR) << "File calibration.json5 not exists";
-        return false;
-    }
-    auto x = json5pp::parse5(calibrationFile).as_object();
-    std::unique_ptr<Calibrarion> c = std::make_unique<Calibrarion>();
-    if (x.at("dashboardGUIBrightness").is_number())
-        c->dashboardGUIBrightness = x.at("dashboardGUIBrightness").as_number();
-    if (x.at("gammaOffset").is_number())
-        c->gammaOffset = x.at("gammaOffset").as_number();
-    if (x.at("screenWidth").is_integer())
-        c->ScreenWidth = x.at("screenWidth").as_integer();
-    if (x.at("screenHeight").is_integer())
-        c->ScreenHeight = x.at("screenHeight").as_integer();
-    c->normalButtonLuv = rgb2luv(from_json(x.at("normalButton")));
-    c->focusedButtonLuv = rgb2luv(from_json(x.at("focusedButton")));
-    c->disabledButtonLuv = rgb2luv(from_json(x.at("disabledButton")));
-    c->activatedToggleLuv = rgb2luv(from_json(x.at("activatedToggle")));
-    LOG(INFO) << "Calibration data loaded from 'calibration.json5'";
-    setCalibrationResult(c, false);
-    return true;
-}
 
 namespace {
 void writeOpenCVLogMessageFunc(cv::utils::logging::LogLevel cvLevel, const char* msg) {
@@ -342,11 +123,14 @@ std::ostream& operator<<(std::ostream& os, const UIState& obj) {
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const Calibrarion& obj) {
-    os << std::format("Screen {}x{} gamma {:.3f} GUI brightness {:.2f}", obj.ScreenWidth, obj.ScreenHeight, obj.gammaOffset, obj.dashboardGUIBrightness)
-       << "; Luv colors: focused=" << obj.focusedButtonLuv << ", normal=" << obj.normalButtonLuv;
-    return os;
+std::string UIState::to_string() const {
+    if (!this->widget)
+        return "unknown";
+    if (this->focused)
+        return widget->path+"@"+this->focused->name;
+    return widget->path;
 }
+
 
 Master& Master::getInstance() {
     static Master master;
@@ -360,9 +144,7 @@ int Master::initialize(int argc, char* argv[]) {
     bool kwd = false;
     options.add_flag("--kwd,--keep-working-dir", kwd, "Keep working directory (do not change on start)");
 
-    CLI11_PARSE(options, argc, argv);
-
-    TRY {
+    CLI11_PARSE(options, argc, argv)
     if (!kwd) {
         char buffer[MAX_PATH] = {0};
         GetModuleFileName(nullptr, buffer, MAX_PATH);
@@ -376,140 +158,50 @@ int Master::initialize(int argc, char* argv[]) {
             LOG(INFO) << "Working Directory: " << cwd;
         }
     }
+    TRY {
+        return initializeInternal();
+    } CATCH(const std::exception& e) {
+        LOG(ERROR) << "Exception in initialization: " << GET_EXCEPTION_STACK_TRACE;
+        return 1;
+    }
+    return 0;
+}
+int Master::initializeInternal() {
 
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
-    keyMapping = {
-            {{"esc",0}, Command::Stop},
-            {{"printscreen",0}, Command::Start},
-            {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
-            {{"printscreen",keyboard::CTRL|keyboard::WIN}, Command::DebugButtons},
-            {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect}
-    };
+    UI::initializeUI();
 
-    {
-        std::ifstream ifs_config("configuration.json5");
-        json5pp::value j_config = json5pp::parse5(ifs_config);
-        if (auto tm = j_config.at("default-key-hold-time"); tm.is_integer())
-            defaultKeyHoldTime = tm.as_integer();
-        if (auto tm = j_config.at("default-key-after-time"); tm.is_integer())
-            defaultKeyAfterTime = tm.as_integer();
-        if (auto tm = j_config.at("search-region-extent"); tm.is_integer())
-            searchRegionExtent = tm.as_integer();
-        if (j_config.at("shortcuts").is_object()) {
-            auto obj = j_config.at("shortcuts");
-            parseShortcutConfig(Command::Start, "start", obj);
-            parseShortcutConfig(Command::Pause, "pause", obj);
-            parseShortcutConfig(Command::Stop,  "stop",  obj);
-            parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
-            parseShortcutConfig(Command::DebugButtons,    "debug-buttons",  obj);
-            parseShortcutConfig(Command::DevRectSelect,   "dev-rect-select",  obj);
-            parseShortcutConfig(Command::Shutdown,  "shutdown",  obj);
-        }
-    }
-    {
-        std::ifstream ifs_config("actions.json5");
-        auto j_actions = json5pp::parse5(ifs_config).as_object();
-        for (auto& act: j_actions) {
-            mActions[act.first] = act.second;
-        }
-    }
-    {
-        mScreensRoot = std::make_unique<Root>();
-        std::ifstream ifs_config("screens.json5");
-        auto j_screens = json5pp::parse5(ifs_config).as_array();
-        for (json5pp::value& s: j_screens) {
-            mScreensRoot->addSubItem(from_json(s, mScreensRoot.get()));
-        }
-    }
-
-    loadCalibration();
-    } CATCH(const std::exception& e) {
-    LOG(ERROR) << "Exception in initializaton: " << GET_EXCEPTION_STACK_TRACE;
-    return 1;
-    }
+    mConfiguration = std::make_unique<Configuration>();
+    mConfiguration->load();
+    initButtonStateDetector();
 
     std::vector<std::string> keys;
-    for (auto& m : keyMapping)
+    for (auto& m : mConfiguration->keyMapping)
         keys.push_back(m.first.first);
     keyboard::intercept(std::move(keys));
     keyboard::start(tradingKbHook);
+
     return 0;
 }
 
-void Master::setCalibrationResult(std::unique_ptr<Calibrarion>& calibration, bool save) {
-    mCalibration.swap(calibration);
-    if (!mCalibration.get()) {
-        LOG(INFO) << "setCalibrationResult: reset";
-        mFocusedButtonDetector.reset();
-    } else {
-        LOG(INFO) << "setCalibrationResult: " << mCalibration.get();
-        mFocusedDetectorRect = std::make_shared<ConstRect>(cv::Rect());
-        mFocusedButtonDetector.reset(new HistogramTemplate(mCalibration->focusedButtonLuv, mFocusedDetectorRect));
-        LOG(INFO) << "Button state detector installed";
-        if (save)
-            saveCalibration();
-    }
+
+void Master::setCalibrationResult(const std::array<cv::Vec3b,4>& luv) {
+    mConfiguration->setCalibrationResult(luv);
+    initButtonStateDetector();
+}
+void Master::initButtonStateDetector() {
+    std::vector<cv::Vec3b> colors(mConfiguration->mButtonLuv.begin(), mConfiguration->mButtonLuv.end());
+    mButtonStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Luv, cv::Rect(), colors));
+    LOG(INFO) << "Button state detector installed";
 }
 
-static std::pair<std::string,unsigned> decodeShortcut(std::string key) {
-    unsigned flags = 0;
-    for (;;) {
-        size_t pos = key.find_first_of('+');
-        if (pos == std::string::npos)
-            break;
-        std::string mod = toLower(key.substr(0, pos));
-        if (mod == "ctrl")
-            flags |= keyboard::CTRL;
-        else if (mod == "alt")
-            flags |= keyboard::ALT;
-        else if (mod == "shift")
-            flags |= keyboard::SHIFT;
-        else if (mod == "win" || mod == "meta")
-            flags |= keyboard::WIN;
-        else
-            LOG(ERROR) << "Unknown key modifier " << mod;
-        key = key.substr(pos+1);
-    }
-    return std::make_pair(toLower(key), flags);
-}
-
-static std::string encodeShortcut(const std::string& name, unsigned flags) {
-    std::string res;
-    if (flags & keyboard::CTRL) res += "Ctrl+";
-    if (flags & keyboard::ALT) res += "Alt+";
-    if (flags & keyboard::SHIFT) res += "Shift+";
-    if (flags & keyboard::WIN) res += "Win+";
-    res += name;
-    return res;
-}
-
-
-void Master::parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg) {
-    if (cfg.as_object().contains((name))) {
-        for (auto it = keyMapping.begin(); it != keyMapping.end();)  {
-            if (it->second == command)
-                it = keyMapping.erase(it);
-            else
-                ++it;
-        }
-        json5pp::value jcmd = cfg.at(name);
-        if (jcmd.is_string())
-            keyMapping[decodeShortcut(jcmd.as_string())] = command;
-        if (jcmd.is_array()) {
-            for (auto& jc : jcmd.as_array()) {
-                if (jc.is_string())
-                    keyMapping[decodeShortcut(jc.as_string())] = command;
-            }
-        }
-
-    }
-}
 
 Master::Master() {
-    mSells = 3;
-    mItems = 5;
+    mScreensRoot = std::make_unique<widget::Root>();
+    mSells = 1000;
+    mItems = 1;
     hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
 }
 
@@ -522,7 +214,9 @@ Master::~Master() {
 void Master::loop() {
     TRY {
         while (true) {
-            switch (popCommand()) {
+            pCommand cmd;
+            popCommand(cmd);
+            switch (cmd->command) {
             case Command::NoOp:
                 break;
             case Command::TaskFinished:
@@ -532,10 +226,11 @@ void Master::loop() {
                 startTrade();
                 break;
             case Command::Pause:
-                stopTrade();
-                break;
             case Command::Stop:
                 stopTrade();
+                break;
+            case Command::UserNotify:
+                showNotification(cmd);
                 break;
             case Command::Calibrate:
                 startCalibration();
@@ -553,7 +248,7 @@ void Master::loop() {
                 debugRectScreenshot("rect");
                 break;
             case Command::DevRectSelect:
-                UI::selectRectDialog(hWndED);
+                UI::askSelectRectWindow();
                 break;
             case Command::Shutdown:
                 clearCurrentTask();
@@ -574,30 +269,66 @@ bool Master::isForeground() {
 void Master::tradingKbHook(int code, int scancode, int flags, const std::string& name) {
     (void)code;
     (void)scancode;
-    LOG(INFO) << "Key '"+encodeShortcut(name,flags)+"' pressed";
+    LOG(DEBUG) << "Key '"+encodeShortcut(name,flags)+"' pressed";
     Master& self = getInstance();
-    auto cmd = self.keyMapping.find(std::make_pair(toLower(name),flags));
-    if (cmd != self.keyMapping.end()) {
-        LOG(INFO) << "Key '"+encodeShortcut(name,flags)+"' pressed";
+    auto keyMapping = self.mConfiguration->keyMapping;
+    auto cmd = keyMapping.find(std::make_pair(toLower(name),flags));
+    if (cmd != keyMapping.end()) {
+        LOG(INFO) << "Command " << magic_enum::enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
         self.pushCommand(cmd->second);
     }
 }
 
 void Master::pushCommand(Command cmd) {
     std::unique_lock<std::mutex> lock(mCommandMutex);
-    mCommandQueue.push(cmd);
+    mCommandQueue.emplace(new CommandEntry(cmd));
+    mCommandCond.notify_one();
+}
+void Master::pushCommand(CommandEntry* cmd) {
+    std::unique_lock<std::mutex> lock(mCommandMutex);
+    mCommandQueue.emplace(cmd);
     mCommandCond.notify_one();
 }
 
-Command Master::popCommand() {
-    std::unique_lock<std::mutex> lock(mCommandMutex);
-    mCommandCond.wait(lock, [this]() { return !mCommandQueue.empty(); });
-    Command cmd = mCommandQueue.front();
-    mCommandQueue.pop();
-    return cmd;
+struct CommandNotify : public CommandEntry {
+    CommandNotify(bool error, int timeout, const std::string& title, const std::string& text)
+        : CommandEntry(Command::UserNotify)
+        , error(error)
+        , timeout(timeout)
+        , title(title)
+        , text(text)
+        {}
+    ~CommandNotify() override = default;
+    const bool error;
+    const int timeout;
+    const std::string title;
+    const std::string text;
+};
+
+void Master::notifyProgress(const std::string& title, const std::string& text) {
+    LOG(INFO) << title << ": " << text;
+    UI::showToast(title, text);
+}
+void Master::notifyError(const std::string& title, const std::string& text) {
+    LOG(ERROR) << title << ": " << text;
+    UI::showToast(title, text);
 }
 
-bool Master::preInitTask() {
+
+void Master::popCommand(pCommand& cmd) {
+    std::unique_lock<std::mutex> lock(mCommandMutex);
+    mCommandCond.wait(lock, [this]() { return !mCommandQueue.empty(); });
+    std::swap(cmd, mCommandQueue.front());
+    mCommandQueue.pop();
+}
+
+void Master::showNotification(pCommand& cmd) {
+    CommandNotify* c = dynamic_cast<CommandNotify*>(cmd.get());
+    if (c)
+        UI::showToast(c->title, c->text);
+}
+
+bool Master::preInitTask(bool checkCalibration) {
     if (currentTask) {
         LOG(ERROR) << "Exiting current task";
         clearCurrentTask();
@@ -608,21 +339,29 @@ bool Master::preInitTask() {
         LOG(ERROR) << "Window [class " << ED_WINDOW_CLASS << "; name " << ED_WINDOW_NAME << "] not found" ;
         return false;
     }
+    Capturer *capturer = Capturer::getEDCapturer(hWndED);
+    if (!capturer)
+        return false;
+    bool ok = mConfiguration->checkResolutionSupported(capturer->getCaptureRect().size());
+    if (!ok)
+        return false;
+    if (checkCalibration && mConfiguration->checkNeedColorCalibration()) {
+        UI::showCalibrationDialog(_("Color calibration required"));
+        return false;
+    }
 
     Sleep(200); // wait for dialog to dissappear
+    SetForegroundWindow(hWndED);
+    Sleep(200); // wait for switching to foreground
     if (!isForeground()) {
-        SetForegroundWindow(hWndED);
-        Sleep(200); // wait for switching to foreground
-        if (!isForeground()) {
-            LOG(ERROR) << "ED is not foreground";
-            return false;
-        }
+        LOG(ERROR) << "ED is not foreground";
+        return false;
     }
     return true;
 }
 
 bool Master::startCalibration() {
-    if (!preInitTask())
+    if (!preInitTask(false))
         return false;
     LOG(INFO) << "Staring calibration task";
     currentTask = std::make_unique<TaskCalibrate>();
@@ -897,7 +636,7 @@ void Master::drawButton(widget::Widget* item) {
 }
 bool Master::debugButtons() {
     detectEDState();
-    widget::Widget* widget = mLastEDState.widget;
+    const widget::Widget* widget = mLastEDState.widget;
     mLastEDState.cEnv.debugImage = colorED.clone();
     if (widget) {
         for (Widget* item : widget->have)
@@ -941,24 +680,52 @@ bool Master::debugRectScreenshot(std::string name) {
     return true;
 }
 
-Widget* Master::detectFocused(const Widget* parent) {
+double Master::detectButtonState(const widget::Widget* item) {
+    cv::Rect r = item->calcRect(mLastEDState.cEnv);
+    if (r.empty())
+        return 0;
+    int x = r.x + r.width - 36;
+    int y = r.y + r.height / 2 - 8;
+    if (item->tp == WidgetType::Spinner)
+        x -= r.height + 10;
+    mButtonStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
+    mButtonStateDetector->classify(mLastEDState.cEnv);
+    auto& values = mButtonStateDetector->mLastValues;
+    int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
+    double value = values[idx];
+    if (value > 0.90) {
+        ButtonState bs = (ButtonState)idx;
+        mLastEDState.cEnv.classifiedButtonStates[item->name] = bs;
+        LOG_IF(bs == ButtonState::Focused, INFO) << "Focused: " << item->name;
+        LOG_IF(bs == ButtonState::Disabled, INFO) << "Disabld: " << item->name;
+        return value;
+    }
+    return 0;
+}
+
+Widget* Master::detectAllButtonsStates(const widget::Widget* parent) {
+    if (!parent)
+        return nullptr;
+    widget::Widget* focused = nullptr;
+    double focused_value = 0;
     for (Widget* item : parent->have) {
-        cv::Rect r = item->calcRect(mLastEDState.cEnv);
-        if (r.empty())
-            continue;
         if (item->tp == WidgetType::Button || item->tp == WidgetType::Spinner) {
-            // check it's focused
-            int x = r.x + r.width - 36;
-            int y = r.y + r.height / 2 - 8;
-            if (item->tp == WidgetType::Spinner)
-                x -= r.height + 10;
-            mFocusedDetectorRect->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
-            double value = mFocusedButtonDetector->classify(mLastEDState.cEnv);
-            if (value >= 0.96)
-                return item;
+            double value = detectButtonState(item);
+            if (mLastEDState.cEnv.classifiedButtonStates[item->name] == ButtonState::Focused) {
+                if (!focused || value > focused_value) {
+                    focused = item;
+                    focused_value = value;
+                }
+            }
         }
     }
-    return nullptr;
+    widget::Widget* parent_focused = nullptr;
+    if (parent->tp == WidgetType::Mode) {
+        parent_focused = detectAllButtonsStates(parent->parent);
+    }
+    if (focused && focused_value > 0.96)
+        return focused;
+    return parent_focused;
 }
 const UIState& Master::detectEDState() {
     mLastEDState.clear();
@@ -984,11 +751,9 @@ const UIState& Master::detectEDState() {
         return mLastEDState;
     }
 
-    if (mFocusedButtonDetector) {
+    if (mButtonStateDetector) {
         // detect focused button
-        Widget *focused = detectFocused(mLastEDState.widget);
-        if (!focused && mLastEDState.widget->tp == WidgetType::Mode)
-            focused = detectFocused(mLastEDState.widget->parent);
+        const Widget *focused = detectAllButtonsStates(mLastEDState.widget);
         if (focused) {
             mLastEDState.focused = focused;
             LOG(DEBUG) << "Detected focused button: " << focused->name;

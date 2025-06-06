@@ -2,9 +2,9 @@
 // Created by mkizub on 31.05.2025.
 //
 
-#include "pch.h"
-
 #include "peglib.h"
+
+#include "pch.h"
 
 namespace widget {
 
@@ -39,7 +39,7 @@ void Widget::setRect(json5pp::value value) {
     rect = makeEvalRect(value);
 }
 
-cv::Rect Widget::calcRect(const ClassifyEnv& env) {
+cv::Rect Widget::calcRect(const ClassifyEnv& env) const {
     if (!rect)
         return {};
     return rect->calcRect(env);

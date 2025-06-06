@@ -7,6 +7,8 @@
 #include <locale>
 #include <codecvt>
 
+#include "Keyboard.h"
+
 std::string getErrorMessage() {
     return getErrorMessage(GetLastError());
 }
@@ -46,13 +48,31 @@ std::string trim(const std::string & source) {
     return s;
 }
 
-std::string toString(char* buffer, size_t size) {
+std::wstring trim(const std::wstring & source) {
+    std::wstring s(source);
+    s.erase(0,s.find_first_not_of(L" \n\r\t"));
+    s.erase(s.find_last_not_of(L" \n\r\t")+1);
+    return s;
+}
+
+std::string toString(const char* buffer, size_t size) {
     return {buffer, size};
 }
-std::string toString(wchar_t* buffer, size_t size) {
+std::string toUtf8(const wchar_t* buffer, size_t size) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
     std::string utf8_string = converter.to_bytes(buffer, buffer+size);
     return utf8_string;
+}
+std::string toUtf8(const std::wstring& str) {
+    return toUtf8(str.c_str(), str.size());
+}
+std::wstring toUtf16(const char* buffer, size_t size) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+    std::wstring utf16_string = converter.from_bytes(buffer, buffer+size);
+    return utf16_string;
+}
+std::wstring toUtf16(const std::string& str) {
+    return toUtf16(str.c_str(), str.size());
 }
 
 std::string toLower(const std::string& str) {
@@ -110,3 +130,37 @@ cv::Vec3b luv2rgb(const cv::Vec3b& luv) {
     cv::cvtColor(in, out, cv::COLOR_Luv2RGB);
     return out.at<cv::Vec3b>(0);
 }
+
+
+std::pair<std::string,unsigned> decodeShortcut(std::string key) {
+    unsigned flags = 0;
+    for (;;) {
+        size_t pos = key.find_first_of('+');
+        if (pos == std::string::npos)
+            break;
+        std::string mod = toLower(key.substr(0, pos));
+        if (mod == "ctrl")
+            flags |= keyboard::CTRL;
+        else if (mod == "alt")
+            flags |= keyboard::ALT;
+        else if (mod == "shift")
+            flags |= keyboard::SHIFT;
+        else if (mod == "win" || mod == "meta")
+            flags |= keyboard::WIN;
+        else
+            LOG(ERROR) << "Unknown key modifier " << mod;
+        key = key.substr(pos+1);
+    }
+    return std::make_pair(toLower(key), flags);
+}
+
+std::string encodeShortcut(const std::string& name, unsigned flags) {
+    std::string res;
+    if (flags & keyboard::CTRL) res += "Ctrl+";
+    if (flags & keyboard::ALT) res += "Alt+";
+    if (flags & keyboard::SHIFT) res += "Shift+";
+    if (flags & keyboard::WIN) res += "Win+";
+    res += keyboard::getNamesForKey(name)[0];
+    return res;
+}
+

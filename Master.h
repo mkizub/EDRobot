@@ -25,6 +25,7 @@ enum class Command {
     Start,
     Pause,
     Stop,
+    UserNotify,
     Calibrate,
     DebugTemplates,
     DebugButtons,
@@ -32,31 +33,21 @@ enum class Command {
     DevRectScreenshot,
     Shutdown,
 };
-
-struct Calibrarion {
-    Calibrarion() = default;
-    // key values
-    double dashboardGUIBrightness; // Options/Player/Custom.?.misc: <DashboardGUIBrightness Value="0.49999991" />
-    double gammaOffset; // Options/Graphics/Settings.xml: <GammaOffset>1.200000</GammaOffset>
-    int ScreenWidth;    // Options\Graphics\DisplaySettings.xml: <ScreenWidth>1920</ScreenWidth>
-    int ScreenHeight;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
-    // end of key values
-
-    cv::Vec3b normalButtonLuv;
-    cv::Vec3b focusedButtonLuv;
-    cv::Vec3b disabledButtonLuv;
-    cv::Vec3b activatedToggleLuv;
-    friend std::ostream& operator<<(std::ostream& os, const Calibrarion& obj);
+struct CommandEntry {
+    CommandEntry(Command command) : command(command) {}
+    virtual ~CommandEntry() = default;
+    const Command command;
 };
 
 struct UIState {
     UIState() = default;
     void clear();
     const std::string& path() const;
-    widget::Widget* widget;
-    widget::Widget* focused;
+    const widget::Widget* widget;
+    const widget::Widget* focused;
     ClassifyEnv cEnv;
     friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
+    std::string to_string() const;
 };
 
 class Master {
@@ -70,26 +61,40 @@ public:
     bool isEDStateMatch(const std::string& state);
     const json5pp::value& getTaskActions(const std::string& action);
     cv::Rect resolveWidgetRect(const std::string& name);
-    int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
-    int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
-    int getSearchRegionExtent() const { return searchRegionExtent; }
+    Configuration* getConfiguration() const { return mConfiguration.get(); }
+    int getDefaultKeyHoldTime() const { return mConfiguration->defaultKeyHoldTime; }
+    int getDefaultKeyAfterTime() const { return mConfiguration->defaultKeyAfterTime; }
+    int getSearchRegionExtent() const { return mConfiguration->searchRegionExtent; }
 
     void setDevScreenRect(cv::Rect rect) { mDevScreenRect = rect; mDevScaledRect = {}; }
     void setDevScaledRect(cv::Rect rect) { mDevScaledRect = rect; mDevScreenRect = {}; }
-    void pushCommand(Command cmd);
 
-    void setCalibrationResult(std::unique_ptr<Calibrarion>& calibration, bool save);
+    void pushCommand(Command cmd);
+    void notifyProgress(const std::string& title, const std::string& text);
+    void notifyError(const std::string& title, const std::string& text);
+
+    void setCalibrationResult(const std::array<cv::Vec3b,4>& luv);
 
 private:
+    friend class Configuration;
+
     Master();
     ~Master();
+
+    int initializeInternal();
+    void initButtonStateDetector();
+
     static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
-    Command popCommand();
-    void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
+
+    typedef std::unique_ptr<CommandEntry> pCommand;
+
+    void pushCommand(CommandEntry* cmd);
+    void popCommand(pCommand& cmd);
 
     bool captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& grayImg);
 
-    bool preInitTask();
+    void showNotification(pCommand& cmd);
+    bool preInitTask(bool checkCalibration=true);
     bool startCalibration();
     bool startTrade();
     bool stopTrade();
@@ -98,7 +103,8 @@ private:
     static void runCurrentTask();
 
     std::vector<std::string> parseState(const std::string& name);
-    widget::Widget* detectFocused(const widget::Widget* parent);
+    double detectButtonState(const widget::Widget* item);
+    widget::Widget* detectAllButtonsStates(const widget::Widget* parent);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
     bool matchItem(widget::Widget* item);
@@ -107,13 +113,7 @@ private:
     void drawButton(widget::Widget* item);
     bool debugButtons();
     bool debugRectScreenshot(std::string name);
-    void saveCalibration() const;
-    bool loadCalibration();
 
-    int defaultKeyHoldTime = 35;
-    int defaultKeyAfterTime = 50;
-    int searchRegionExtent = 10;
-    std::map<std::pair<std::string,unsigned>, Command> keyMapping;
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
     HWND hWndED;
@@ -123,11 +123,10 @@ private:
     cv::Rect mDevScreenRect;
     cv::Rect mDevScaledRect;
     UIState mLastEDState;
-    std::unique_ptr<Calibrarion> mCalibration;
-    std::unique_ptr<HistogramTemplate> mFocusedButtonDetector;
-    std::shared_ptr<ConstRect> mFocusedDetectorRect;
+    std::unique_ptr<Configuration> mConfiguration;
+    std::unique_ptr<HistogramTemplate> mButtonStateDetector;
 
-    std::queue<Command> mCommandQueue;
+    std::queue<pCommand> mCommandQueue;
     std::mutex mCommandMutex;
     std::condition_variable mCommandCond;
 

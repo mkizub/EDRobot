@@ -10,10 +10,13 @@
 
 namespace UI {
 
-bool showStartupDialog();
+bool initializeUI();
+void shutdownUI();
+bool showToast(const std::string& title, const std::string& text);
+bool showStartupDialog(const std::string& line1, const std::string& line2);
+bool showCalibrationDialog(const std::string& line1);
 bool askSellInput(int& sells, int& items);
-bool showSceneEditorDialog();
-void selectRectDialog(HWND = nullptr);
+bool askSelectRectWindow();
 
 
 }

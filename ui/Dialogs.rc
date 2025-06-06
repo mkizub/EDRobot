@@ -18,11 +18,47 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// English (United States) resources
+// Russian (Neutral) resources
 
-#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
-LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
-#pragma code_page(1252)
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_RUS)
+LANGUAGE LANG_RUSSIAN, SUBLANG_NEUTRAL
+#pragma code_page(1251)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDC_DIALOGS MENU
+BEGIN
+    POPUP "&Файл"
+    BEGIN
+        MENUITEM "&Калибровка",                 ID_FILE_CALIBRATE
+        MENUITEM SEPARATOR
+        MENUITEM "Выход",                       IDM_EXIT_APP
+    END
+    POPUP "&Разработка"
+    BEGIN
+        MENUITEM "&Сохранить конфигурацию",     ID_DEV_SAVECONFIG
+        MENUITEM "&Загрузить конфигурацию",     ID_DEV_RELOADCONFIG
+        MENUITEM "Выбрать прямоугольник",       ID_DEV_SELECT_RECT
+    END
+    POPUP "&Помощь"
+    BEGIN
+        MENUITEM "&О программе ...",            IDM_ABOUT
+    END
+END
+
+#endif    // Russian (Neutral) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Neutral (Default) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_NEUD)
+LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
+#pragma code_page(1251)
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -35,13 +71,13 @@ CAPTION "ED Robot"
 FONT 10, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            IDI_DIALOGS,IDC_STATIC,14,14,20,20
-    LTEXT           "Press 'Print Screen' key to start selling",IDC_STATIC,42,14,114,8,SS_NOPREFIX
-    LTEXT           "Press 'Esc' to stop",IDC_STATIC,42,26,114,8
+    LTEXT           "Press 'Print Screen' key to start selling",IDC_STATIC_1,42,14,114,8,SS_NOPREFIX
+    LTEXT           "Press 'Esc' to stop",IDC_STATIC_2,42,26,114,8
     DEFPUSHBUTTON   "OK",IDOK,113,41,50,14,WS_GROUP
 END
 
 IDD_SELLBOX DIALOGEX 0, 0, 135, 70
-STYLE DS_SETFONT | DS_SETFOREGROUND | DS_FIXEDSYS | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_TOPMOST
 CAPTION "ED Robot"
 MENU IDC_DIALOGS
@@ -51,9 +87,19 @@ BEGIN
     EDITTEXT        IDC_EDIT_ITEMS,86,29,40,14,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
     DEFPUSHBUTTON   "OK",IDOK,7,49,50,14,WS_GROUP
     PUSHBUTTON      "Cancel",IDCANCEL,77,49,50,14,WS_GROUP
-    ICON            IDI_DIALOGS,IDC_STATIC,14,14,21,20
-    LTEXT           "Sells:",IDC_STATIC,42,15,30,8,SS_NOPREFIX
-    LTEXT           "Items:",IDC_STATIC,42,32,30,8
+    ICON            IDI_DIALOGS,IDC_STATIC,14,14,20,20
+    LTEXT           "Sells:",IDC_STATIC_SELLS,42,15,30,8,SS_NOPREFIX
+    LTEXT           "Items:",IDC_STATIC_ITEMS,42,32,30,8
+END
+
+IDD_CALIBRATIONBOX DIALOGEX 0, 0, 167, 60
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Dialog"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "Start",IDOK,22,39,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,95,39,50,14
+    CTEXT           "Color calibration required",IDC_STATIC_1,17,17,136,10,SS_NOPREFIX
 END
 
 
@@ -76,21 +122,27 @@ BEGIN
     IDD_SELLBOX, DIALOG
     BEGIN
     END
+
+    IDD_CALIBRATIONBOX, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 160
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 53
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
+#endif    // Neutral (Default) resources
+/////////////////////////////////////////////////////////////////////////////
+
 
 /////////////////////////////////////////////////////////////////////////////
-//
-// Icon
-//
+// English (Neutral) resources
 
-// Icon with lowest ID value placed first to ensure application icon
-// remains consistent on all systems.
-IDI_DIALOGS             ICON                    "robot-assistant.ico"
-
-IDI_SMALL               ICON                    "small.ico"
-
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_NEUTRAL
+#pragma code_page(1252)
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -116,6 +168,28 @@ BEGIN
         MENUITEM "&About ...",                  IDM_ABOUT
     END
 END
+
+#endif    // English (Neutral) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_DIALOGS             ICON                    "robot-assistant.ico"
+
+IDI_SMALL               ICON                    "small.ico"
 
 
 /////////////////////////////////////////////////////////////////////////////

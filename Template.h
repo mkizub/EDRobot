@@ -65,6 +65,7 @@ public:
     };
     // a set of named detected rects
     std::vector<ResultRect> classifiedRects;
+    std::unordered_map<std::string,ButtonState> classifiedButtonStates;
 
     cv::Point scaleToCaptured(const cv::Point& point) const {
         return needScaling_ ? point * scaleToCaptured_ : point;
@@ -122,24 +123,25 @@ private:
 
 class HistogramTemplate : public Template {
 public:
-    HistogramTemplate(unsigned value, bool gray, spEvalRect rect);
-    HistogramTemplate(cv::Vec3b luv, spEvalRect rect);
+    enum class CompareMode {
+        Gray, Luv, RGB
+    };
+    HistogramTemplate(CompareMode mode, const cv::Rect& rect, const cv::Vec3b& colors);
+    HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::vector<cv::Vec3b>& colors);
     ~HistogramTemplate() override = default;
 
     double match(ClassifyEnv& env) override;
     double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 
-    cv::Vec3b mLastColorRGB;
-    cv::Vec3b mLastColorLuv;
-    double mLastValue;
+    cv::Vec3b mLastColor;
+    std::vector<double> mLastDistance;
+    std::vector<double> mLastValues;
+    cv::Rect mRect;
 
 private:
-    spEvalRect mRect;
-    unsigned mValueGray;
-    cv::Vec3b mValueRGB;
-    cv::Vec3b mValueLuv;
-    bool mGray;
+    const std::vector<cv::Vec3b> mColors;
+    const CompareMode mMode;
 };
 
 class ImageTemplate : public Template {

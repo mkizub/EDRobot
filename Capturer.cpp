@@ -9,6 +9,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellscalingapi.h>
 
 
 static std::vector<std::unique_ptr<Capturer>> AllCapturers;
@@ -26,7 +27,7 @@ BOOL CALLBACK Capturer::MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPREC
     MONITORINFOEX monitorInfoEx;
     monitorInfoEx.cbSize = sizeof(MONITORINFOEX);
     if (GetMonitorInfo(hMonitor, &monitorInfoEx)) {
-        AllCapturers.push_back(std::unique_ptr<Capturer>(new Capturer(&monitorInfoEx, hdcMonitor)));
+        AllCapturers.push_back(std::unique_ptr<Capturer>(new Capturer(hMonitor, &monitorInfoEx, hdcMonitor)));
     }
     return TRUE;
 }
@@ -35,9 +36,11 @@ void Capturer::InitCapturers() {
     DefaultCapturer = nullptr;
     AllCapturers.clear();
 
+    SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+
     EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)nullptr);
 
-    DefaultCapturer = new Capturer(nullptr, nullptr);
+    DefaultCapturer = new Capturer(nullptr, nullptr, nullptr);
     AllCapturers.push_back(std::unique_ptr<Capturer>(DefaultCapturer));
 }
 
@@ -88,14 +91,18 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
     return DefaultCapturer;
 }
 
-Capturer::Capturer(LPMONITORINFOEX monitor, HDC hdcMonitor)
+Capturer::Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor)
     : isHdcScreenCreated(hdcMonitor == nullptr)
+    , dpiScaleX{1.0}
+    , dpiScaleY{1.0}
+    , needScaling(false)
+    , hMonitor(hMonitor)
     , hdcMem(nullptr)
     , hBitmap(nullptr)
     , bitmapInfoHeader{}
 {
-    if (monitor) {
-        memcpy(&monitorInfo, monitor, sizeof(monitorInfo));
+    if (monitorInfoEx) {
+        memcpy(&monitorInfo, monitorInfoEx, sizeof(monitorInfo));
         screenWidth = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
         screenHeight = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
         hdcScreen = hdcMonitor;
@@ -112,6 +119,15 @@ Capturer::Capturer(LPMONITORINFOEX monitor, HDC hdcMonitor)
         hdcScreen = GetDC(nullptr);
     }
     captureRect = {0, 0, screenWidth, screenHeight};
+    UINT dpiX = USER_DEFAULT_SCREEN_DPI;
+    UINT dpiY = USER_DEFAULT_SCREEN_DPI;
+    if (SUCCEEDED(GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
+        if (dpiX != USER_DEFAULT_SCREEN_DPI || dpiY != USER_DEFAULT_SCREEN_DPI) {
+            dpiScaleX = double(dpiX) / USER_DEFAULT_SCREEN_DPI;
+            dpiScaleY = double(dpiY) / USER_DEFAULT_SCREEN_DPI;
+            needScaling = true;
+        }
+    }
 }
 
 Capturer::~Capturer() {

@@ -3,8 +3,8 @@
   "dashboardGUIBrightness": 0,
   "disabledButton": "#393938",
   "focusedButton": "#fe9506",
-  "gammaOffset": 0,
+  "gammaOffset": 1,
   "normalButton": "#462900",
-  "screenHeight": 0,
-  "screenWidth": 0
+  "screenHeight": 1080,
+  "screenWidth": 1920
 }

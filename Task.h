@@ -39,7 +39,12 @@ protected:
     }
     bool executeAction(const std::string& actionName, const json5pp::value& args);
     bool executeStep(const json5pp::value& step, const json5pp::value& args);
+    bool executeWait(const json5pp::value& step, const json5pp::value& args);
 
+    void notifyProgress(const std::string& msg);
+    void notifyError(const std::string& msg);
+
+    std::string taskName;
     json5pp::value taskActions;
     std::string actionName;
     std::string fromState;
@@ -52,15 +57,13 @@ public:
     TaskCalibrate();
     bool run() final;
 private:
-    enum class BS { Normal, Focused, Activated, Disabled };
     int imageCounter = 0;
     std::array<std::vector<cv::Vec3b>,4> mLuvColors;
     std::array<std::vector<cv::Vec3b>,4> mRGBColors;
-    cv::Vec3b getLuv(const char* button, BS bs);
+    void recordLuv(const char* button, ButtonState bs);
     void hardcodedStep(const char* step);
     bool calculateAverage();
     std::array<cv::Vec3b,4> mLuvAverage;
-    std::shared_ptr<ConstRect> mRect;
     HistogramTemplate mDetector;
 };
 
@@ -68,7 +71,9 @@ class TaskSell final : public Task {
 public:
     TaskSell(int sells, int items)
         : mSells(sells), mItems(items)
-    {}
+    {
+        taskName = "Selling";
+    }
     bool run() final;
 private:
     int mSells;

@@ -23,6 +23,7 @@ const int MOUSE_L_BUTTON = 0x1;
 const int MOUSE_R_BUTTON = 0x2;
 const int MOUSE_M_BUTTON = 0x4;
 
+const std::vector<std::string>& getNamesForKey(const std::string& key);
 void intercept(const std::vector<std::string>& keys);
 void start(KeyboardCollbackFn callback);
 void stop();

@@ -273,6 +273,14 @@ static void addInterceptKey(const std::string name) {
     INTERCEPT_VK_KEY_SET.try_emplace(k.vkCode, k);
 }
 
+const std::vector<std::string>& getNamesForKey(const std::string& key) {
+    auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(toLower(key));
+    if (it != US_QWERTY_MAPPING_NAME_TO_KEY.end())
+        return it->second.names;
+    static std::vector<std::string> unknown {"unknown"};
+    return unknown;
+}
+
 void intercept(const std::vector<std::string>& keys) {
     INTERCEPT_VK_KEY_SET.clear();
     for (const std::string& nm : keys) {

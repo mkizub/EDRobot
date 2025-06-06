@@ -129,41 +129,39 @@ double SequenceTemplate::debugMatch(ClassifyEnv& env) {
     return sum;
 }
 
-HistogramTemplate::HistogramTemplate(unsigned value, bool gray, spEvalRect rect)
-    : mGray(gray)
+HistogramTemplate::HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::vector<cv::Vec3b>& colors)
+    : mMode(mode)
+    , mRect(rect)
+    , mColors(colors)
 {
-    mRect.swap(rect);
-    if (mGray) {
-        mValueGray = value & 0xFF;
-        mValueRGB = gray2rgb(mValueGray);
-        mValueLuv = rgb2luv(mValueRGB);
-    } else {
-        mValueRGB = encodeRGB(value);
-        mValueGray = rgb2gray(mValueRGB);
-        mValueLuv = rgb2luv(mValueRGB);
-    }
+    mLastDistance.resize(mColors.size());
+    mLastValues.resize(mColors.size());
 }
 
-HistogramTemplate::HistogramTemplate(cv::Vec3b luv, spEvalRect rect)
-    : mGray(false)
+HistogramTemplate::HistogramTemplate(CompareMode mode, const cv::Rect& rect, const cv::Vec3b& colors)
+        : mMode(mode)
+        , mRect(rect)
+        , mColors(1U, colors)
 {
-    mRect.swap(rect);
-    mValueLuv = luv;
-    mValueRGB = luv2rgb(luv);
-    mValueGray = rgb2gray(mValueRGB);
+    mLastDistance.resize(mColors.size());
+    mLastValues.resize(mColors.size());
 }
-
+double gaussian(double x) {
+    const double M_PI = 3.14159265358979323846;
+    return exp(-x*x / 2) / (sqrt(2 * M_PI));
+}
+double xxx(double x, double downscale) {
+    return gaussian(x/downscale) / gaussian(0);
+}
 double HistogramTemplate::match(ClassifyEnv& env) {
-    if (!mRect)
-        return 0;
-    cv::Rect rect = mRect->calcRect(env);
+    cv::Rect rect = mRect;
     rect = env.cvtReferenceToCaptured(rect);
     rect &= env.captureCrop;
     if (rect.empty())
         return 0;
     int colorPlanes;
     std::vector<cv::Mat> imagePlanes;
-    if (mGray) {
+    if (mMode == CompareMode::Gray) {
         colorPlanes = 1;
         if (env.imageGray.empty())
             return 0;
@@ -186,14 +184,35 @@ double HistogramTemplate::match(ClassifyEnv& env) {
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
         resultColor |= maxLoc[0] << (i*8);
     }
-    mLastColorRGB = mGray ? gray2rgb(resultColor) : encodeRGB(resultColor);
-    mLastColorLuv = rgb2luv(mLastColorRGB);
-    LOG(DEBUG) << "Colors: result RGB:" << mLastColorRGB << " Luv:" << mLastColorLuv << "; expected Luv:" << mValueLuv;
-    double dist = cv::norm(mLastColorLuv - mValueLuv);
-    LOG(DEBUG) << "Distance: " << dist;
-    mLastValue = 1.0 - std::erf(dist);
+    cv::Vec3d delta;
+    switch (mMode) {
+    case CompareMode::Gray:
+        mLastColor = cv::Vec3b(resultColor, 0, 0);
+        for (size_t i=0; i < mColors.size(); i++) {
+            mLastDistance[i] = std::abs(int(mLastColor[0]) - int(mColors[i][0]));
+            mLastValues[i] = xxx(mLastDistance[i], 7);
+        }
+        break;
+    case CompareMode::Luv:
+        mLastColor = rgb2luv(encodeRGB(resultColor));
+        for (size_t i=0; i < mColors.size(); i++) {
+            delta = cv::Vec3d(mLastColor) - cv::Vec3d(mColors[i]);
+            mLastDistance[i] = cv::norm(delta);
+            mLastValues[i] = xxx(mLastDistance[i], 20);
+        }
+        break;
+    case CompareMode::RGB:
+        mLastColor = encodeRGB(resultColor);
+        for (size_t i=0; i < mColors.size(); i++) {
+            delta = cv::Vec3d(mLastColor) - cv::Vec3d(mColors[i]);
+            mLastDistance[i] = cv::norm(delta);
+            mLastValues[i] = xxx(mLastDistance[i], 25);
+        }
+        break;
+    }
+    LOG(DEBUG) << "Colors result: " << mLastValues << " for color " << mLastColor << " and colors " << mColors << " with distance " << mLastDistance;
     imagePlanes.clear();
-    return mLastValue;
+    return mLastValues[0];
 }
 double HistogramTemplate::classify(ClassifyEnv& env) {
     return match(env) >= 0.8;

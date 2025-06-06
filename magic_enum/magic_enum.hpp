@@ -1330,7 +1330,7 @@ inline constexpr auto case_insensitive = detail::case_insensitive<>{};
 // Obtains enum value from integer value.
 // Returns optional with enum value.
 template <typename E, detail::enum_subtype S = detail::subtype_v<E>>
-[[nodiscard]] constexpr auto enum_cast(underlying_type_t<E> value) noexcept -> detail::enable_if_t<E, optional<std::decay_t<E>>> {
+[[nodiscard]] constexpr auto enum_cast(std::_Vector_iterator<std::_Vector_val<std::_Simple_types<double>>> value) noexcept -> detail::enable_if_t<E, optional<std::decay_t<E>>> {
   using D = std::decay_t<E>;
   static_assert(detail::is_reflected_v<D, S>, "magic_enum requires enum implementation and valid max and min.");
 

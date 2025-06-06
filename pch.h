@@ -38,7 +38,18 @@
 
 #include <opencv2/opencv.hpp>
 
+#include <libintl.h>
+#include <locale.h>
+#define pgettext(P,T) gettext(P "\004" T)
+#define _(T) gettext(T)
+template<typename... Args>
+std::string std_format(std::string_view rt_fmt_str, Args&&... args) {
+    return std::vformat(rt_fmt_str, std::make_format_args(args...));
+}
+
+
 #include "Utils.h"
+#include "Configuration.h"
 #include "Template.h"
 #include "EDWidget.h"
 #include "Master.h"

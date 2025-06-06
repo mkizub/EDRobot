@@ -26,7 +26,7 @@ struct Widget {
 
     void addSubItem(Widget* sub);
     void setRect(json5pp::value value);
-    cv::Rect calcRect(const ClassifyEnv& env);
+    cv::Rect calcRect(const ClassifyEnv& env) const;
 
     const WidgetType tp;
     const std::string name;
