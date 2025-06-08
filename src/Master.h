@@ -15,10 +15,9 @@
 
 class Task;
 
-namespace Gdiplus {
-    class Bitmap;
-}
-
+enum class DetectLevel {
+    Buttons, ListRows, ListRowStates, ListOcrFocusedRow, ListOcrAllRows
+};
 enum class Command {
     NoOp,
     TaskFinished,
@@ -33,6 +32,7 @@ enum class Command {
     DevRectScreenshot,
     Shutdown,
 };
+
 struct CommandEntry {
     CommandEntry(Command command) : command(command) {}
     virtual ~CommandEntry() = default;
@@ -56,7 +56,7 @@ public:
 
     int initialize(int argc, char* argv[]);
     void loop();
-    const UIState& detectEDState();
+    const UIState& detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastEDState; }
     bool isEDStateMatch(const std::string& state);
     const json5pp::value& getTaskActions(const std::string& action);
@@ -73,7 +73,7 @@ public:
     void notifyProgress(const std::string& title, const std::string& text);
     void notifyError(const std::string& title, const std::string& text);
 
-    void setCalibrationResult(const std::array<cv::Vec3b,4>& luv);
+    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv);
 
 private:
     friend class Configuration;
@@ -102,9 +102,11 @@ private:
     bool isForeground();
     static void runCurrentTask();
 
+    const ClassifyEnv::ResultListRow* getFocusedRow(const std::string& lst_name);
     std::vector<std::string> parseState(const std::string& name);
     double detectButtonState(const widget::Widget* item);
-    widget::Widget* detectAllButtonsStates(const widget::Widget* parent);
+    void detectListState(const widget::List* item, DetectLevel level);
+    widget::Widget* detectAllButtonsStates(const widget::Widget* parent, DetectLevel level);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
     bool matchItem(widget::Widget* item);
@@ -125,6 +127,7 @@ private:
     UIState mLastEDState;
     std::unique_ptr<Configuration> mConfiguration;
     std::unique_ptr<HistogramTemplate> mButtonStateDetector;
+    std::unique_ptr<HistogramTemplate> mLstRowStateDetector;
 
     std::queue<pCommand> mCommandQueue;
     std::mutex mCommandMutex;
@@ -132,10 +135,6 @@ private:
 
     std::thread currentTaskThread;
     std::unique_ptr<Task> currentTask;
-
-    int mSells;
-    int mItems;
-
 };
 
 

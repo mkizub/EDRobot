@@ -24,14 +24,13 @@
 #include <condition_variable>
 #include <format>
 #include <variant>
+#include <chrono>
 
 #define ELPP_PERFORMANCE_MICROSECONDS
-//#ifdef __MINGW64__
 #define ELPP_STL_LOGGING
 // #define ELPP_FEATURE_CRASH_LOG -- Stack trace not available for MinGW GCC
 #define ELPP_LOG_STD_ARRAY
 #define ELPP_LOG_UNORDERED_MAP
-//#endif  __MINGW64__
 #include <easylogging/easylogging++.h>
 
 #include <json5pp/json5pp.hpp>

@@ -137,7 +137,7 @@ public:
   using null_type = std::nullptr_t;
   using boolean_type = bool;
   using number_type = double;
-  using integer_type = int;
+  using integer_type = int64_t;
   using number_i_type = integer_type;
   using string_type = std::string;
   using string_p_type = const char*;
@@ -177,7 +177,37 @@ public:
    * @brief JSON value constructor with integer for "number" type.
    * @param number An integer value to be set.
    */
-  value(integer_type integer) noexcept : type(TYPE_INTEGER), content(integer) {}
+  value(int64_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+
+  /**
+   * @brief JSON value constructor with integer for "number" type.
+   * @param number An integer value to be set.
+   */
+  value(uint64_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+
+  /**
+   * @brief JSON value constructor with integer for "number" type.
+   * @param number An integer value to be set.
+   */
+  value(int32_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+
+  /**
+   * @brief JSON value constructor with integer for "number" type.
+   * @param number An integer value to be set.
+   */
+  value(uint32_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+
+  /**
+   * @brief JSON value constructor with integer for "number" type.
+   * @param number An integer value to be set.
+   */
+  value(int16_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+
+  /**
+   * @brief JSON value constructor with integer for "number" type.
+   * @param number An integer value to be set.
+   */
+  value(uint16_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
 
   /**
    * @brief JSON value constructor for "string" type.
@@ -388,10 +418,85 @@ public:
    * 
    * @throws std::bad_cast if the value is not a number nor integer
    */
-  integer_type as_integer() const
+  int32_t as_integer() const
   {
     if (type == TYPE_NUMBER) {
-      return static_cast<integer_type>(content.number);
+      return static_cast<int64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return content.integer;
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  uint32_t as_unsigned() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return content.integer;
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  int64_t as_int64() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<int64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return content.integer;
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  uint64_t as_uint64() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return content.integer;
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  int32_t as_int32() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<int32_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return content.integer;
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  uint32_t as_uint32() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint32_t>(content.number);
     } else if (type != TYPE_INTEGER) {
       throw std::bad_cast();
     }

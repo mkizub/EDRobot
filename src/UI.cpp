@@ -4,6 +4,7 @@
 
 #include <memory.h>
 #include "../ui/resource.h"
+#include <windowsx.h>
 //#include "wintoastlib.h"
 //using namespace WinToastLib;
 
@@ -18,16 +19,25 @@ static INT_PTR CALLBACK AboutProc(HWND, UINT, WPARAM, LPARAM);
 static INT_PTR CALLBACK CalibrationProc(HWND, UINT, WPARAM, LPARAM);
 static INT_PTR CALLBACK SellProc(HWND, UINT, WPARAM, LPARAM);
 
+static void initSelectRectDialog();
+static void initShowPopupMessageWindow();
+static void selectRectWindow();
+static void popupMessageWindow();
+
 static bool isToastSupported;
 static bool dlgResult;
-static int sellTimes;
-static int sellItems;
+static int sellTotal;
+static int sellChunk;
+static std::string sellCargo;
+static const Cargo* shipCargo;
+static std::wstring sellCargoAll;
 static std::wstring popupTitle;
 static std::wstring popupText;
 
-static std::thread uiThread;
-static void loopUi();
-static HWND hWndUILoop;
+//static std::thread uiThread;
+//static void loopUi();
+//static std::atomic<bool> shutdownRequested;
+//static HWND hWndUILoop;
 static HWND hWndSelectRect;
 static HWND hWndPopupMessage;
 
@@ -95,17 +105,21 @@ bool initializeUI() {
 //    }
 //    LOG_IF(!isToastSupported,ERROR) << "Toast notifications are not supported";
 
-    uiThread = std::thread(loopUi);
+    //uiThread = std::thread(loopUi);
+
+    initSelectRectDialog();
+    initShowPopupMessageWindow();
 
     return true;
 }
 
 void shutdownUI() {
-    if (hWndUILoop)
-        SendMessage(hWndUILoop, WM_DESTROY, 0, 0);
-    if (uiThread.joinable()) {
-        uiThread.join();
-    }
+//    shutdownRequested = true;
+//    if (hWndUILoop)
+//        SendMessage(hWndUILoop, WM_DESTROY, 0, 0);
+//    if (uiThread.joinable()) {
+//        uiThread.join();
+//    }
 }
 
 //bool showToast(const std::wstring& title, const std::wstring& text) {
@@ -140,31 +154,59 @@ bool showCalibrationDialog(const std::string& line1) {
 }
 
 
-bool askSellInput(int &sells, int &items) {
-    sellTimes = sells;
-    sellItems = items;
+bool askSellInput(int &total, int &chunk, std::string& commodity, const Cargo& cargo) {
+    sellTotal = total;
+    sellChunk = chunk;
+    sellCargo = commodity;
+    shipCargo = &cargo;
     HINSTANCE hInstance = GetModuleHandle(nullptr);
-    DialogBox(hInstance, MAKEINTRESOURCE(IDD_SELLBOX), nullptr, SellProc);
+    DialogBoxW(hInstance, MAKEINTRESOURCE(IDD_SELLBOX), nullptr, SellProc);
+    shipCargo = nullptr;
     if (dlgResult) {
-        sells = sellTimes;
-        items = sellItems;
+        total = sellTotal;
+        chunk = sellChunk;
+        commodity = sellCargo;
     }
     return dlgResult;
 }
 
 bool askSelectRectWindow() {
-    if (!hWndUILoop)
-        return false;
-    PostMessage(hWndUILoop, ID_DEV_SELECT_RECT, 0, 0);
+//    if (!hWndUILoop)
+//        return false;
+//    PostMessage(hWndUILoop, ID_DEV_SELECT_RECT, 0, 0);
+//    return true;
+    if (hWndSelectRect) {
+        SetForegroundWindow(hWndSelectRect);
+    } else {
+        std::thread thr(selectRectWindow);
+        thr.detach();
+    }
     return true;
 }
 
+UINT_PTR CLOSE_POPUP_TIMER_ID;
+void ClosePopupProc(HWND hWnd, UINT, UINT_PTR, DWORD) {
+    CLOSE_POPUP_TIMER_ID = 0;
+    PostMessage(hWnd, WM_CLOSE, 0, 0);
+}
+
 bool showToast(const std::string& title, const std::string& text) {
-    if (!hWndUILoop)
-        return false;
+//    if (!hWndUILoop)
+//        return false;
     popupTitle = toUtf16(title);
     popupText = toUtf16(text);
-    PostMessage(hWndUILoop, ID_SHOW_TOAST, 0, 0);
+//    PostMessage(hWndUILoop, ID_SHOW_TOAST, 0, 0);
+    if (hWndPopupMessage) {
+        InvalidateRect(hWndPopupMessage, nullptr, TRUE);
+        UpdateWindow(hWndPopupMessage);
+        CLOSE_POPUP_TIMER_ID = SetTimer(hWndPopupMessage, CLOSE_POPUP_TIMER_ID, 5000, ClosePopupProc);
+    } else {
+        std::thread thr(popupMessageWindow);
+        thr.detach();
+        Sleep(200);
+        if (hWndPopupMessage)
+            CLOSE_POPUP_TIMER_ID = SetTimer(hWndPopupMessage, CLOSE_POPUP_TIMER_ID, 5000, ClosePopupProc);
+    }
     return true;
 }
 
@@ -245,12 +287,34 @@ INT_PTR CALLBACK SellProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             // Add a separator (if desired)
             InsertMenu(hMenu, 5, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
             // Add the new menu item
-            InsertMenu(hMenu, 6, MF_BYPOSITION | MF_STRING, IDM_EXIT_APP, "Exit EDRobot");
+            InsertMenu(hMenu, 6, MF_BYPOSITION | MF_STRING, IDM_EXIT_APP, L"Exit EDRobot");
         }
-        SetDlgItemTextA(hDlg, IDC_EDIT_SELLS, std::to_string(sellTimes).c_str());
-        SetDlgItemTextA(hDlg, IDC_EDIT_ITEMS, std::to_string(sellItems).c_str());
-        SetDlgItemTextW(hDlg, IDC_STATIC_SELLS, toUtf16(pgettext("SellDialogLabel|","Sells")).c_str());
+        SetDlgItemTextW(hDlg, IDC_STATIC_TOTAL, toUtf16(pgettext("SellDialogLabel|","Total")).c_str());
         SetDlgItemTextW(hDlg, IDC_STATIC_ITEMS, toUtf16(pgettext("SellDialogLabel|","Items")).c_str());
+        SetDlgItemTextW(hDlg, IDC_STATIC_SELLS, toUtf16(pgettext("SellDialogLabel|","Sells")).c_str());
+        HWND hItems = GetDlgItem(hDlg, IDC_COMBO_ITEMS);
+        std::wstring str = toUtf16(pgettext("SellDialogLabel|","All"));
+        if (str.starts_with(L"SellDialogLabel|"))
+            str = L"Everything";
+        sellCargoAll = str;
+        std::wstring select = str;
+        int err = SendMessage(hItems, CB_ADDSTRING, 0L, (LPARAM)str.c_str());
+        if (shipCargo) {
+            sellTotal = shipCargo->count;
+            for (auto& c : shipCargo->inventory) {
+                str = toUtf16(c.commodity.nameLocalized);
+                SendMessage(hItems, CB_ADDSTRING, 0L, (LPARAM)str.c_str());
+                if (c.commodity.nameLocalized == sellCargo) {
+                    select = str;
+                    sellTotal = shipCargo->count;
+                }
+            }
+        }
+        SendMessageW(hItems, CB_SELECTSTRING, -1L, (LPARAM)select.c_str());
+        SetDlgItemTextA(hDlg, IDC_EDIT_TOTAL, std::to_string(sellTotal).c_str());
+        SetDlgItemTextA(hDlg, IDC_EDIT_ITEMS, std::to_string(sellChunk).c_str());
+        int sellTimes = (int)std::floor(double(sellTotal) / sellChunk);
+        SetDlgItemTextA(hDlg, IDC_EDIT_SELLS, std::to_string(sellTimes).c_str());
         return (INT_PTR) TRUE;
     }
 
@@ -281,8 +345,14 @@ INT_PTR CALLBACK SellProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_COMMAND:
         if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL || LOWORD(wParam) == IDM_EXIT_APP) {
             WINBOOL translated;
-            sellTimes = GetDlgItemInt(hDlg, IDC_EDIT_SELLS, &translated, FALSE);
-            sellItems = GetDlgItemInt(hDlg, IDC_EDIT_ITEMS, &translated, FALSE);
+            sellTotal = GetDlgItemInt(hDlg, IDC_EDIT_TOTAL, &translated, FALSE);
+            sellChunk = GetDlgItemInt(hDlg, IDC_EDIT_ITEMS, &translated, FALSE);
+            int index = SendDlgItemMessage(hDlg, IDC_COMBO_ITEMS, CB_GETCURSEL, 0L, 0L);
+            if (index <= 0 || !shipCargo || index > shipCargo->inventory.size()) {
+                sellCargo = "";
+            } else {
+                sellCargo = shipCargo->inventory[index-1].commodity.nameLocalized;
+            }
             if (LOWORD(wParam) == IDOK) {
                 dlgResult = true;
             } else {
@@ -316,8 +386,8 @@ const long minSz = 20;
 static cv::Rect screenRect;
 static cv::Rect selectedRect;
 static int repeatKeyCount;
-const TCHAR selectRectWindowClass[] = "SelectRectWindowClass";
-const TCHAR showPopupMessageWindowClass[] = "ShowPopupMessageWindowClass";
+const TCHAR selectRectWindowClass[] = L"SelectRectWindowClass";
+const TCHAR showPopupMessageWindowClass[] = L"ShowPopupMessageWindowClass";
 
 inline RECT toRECT(cv::Rect& r) {
     return {r.x, r.y, r.br().x, r.br().y};
@@ -433,7 +503,7 @@ INT_PTR CALLBACK selectRectProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 moveSelectedWindow(hWnd, 0, -y);
             break;
         case VK_DOWN:
-            if (isSizeAndIncr(x))
+            if (isSizeAndIncr(y))
                 resizeSelectedWindow(hWnd, 0, +y);
             else
                 moveSelectedWindow(hWnd, 0, +y);
@@ -475,11 +545,9 @@ void initSelectRectDialog() {
 void selectRectWindow() {
     HINSTANCE hInstance = GetModuleHandle(nullptr);
 
-    initSelectRectDialog();
-
     MONITORINFOEX monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
-    GetMonitorInfo(MonitorFromWindow(hWndUILoop, MONITOR_DEFAULTTOPRIMARY), &monitorInfo);
+    GetMonitorInfo(MonitorFromWindow(nullptr, MONITOR_DEFAULTTOPRIMARY), &monitorInfo);
     screenRect = fromRECT(monitorInfo.rcMonitor);
     if (selectedRect.empty()) {
         cv::Size size{100, 100};
@@ -490,13 +558,13 @@ void selectRectWindow() {
     hWndSelectRect = CreateWindowEx(
             WS_EX_LAYERED | WS_EX_TOPMOST,
             selectRectWindowClass,
-            "",
+            L"",
             WS_POPUP | WS_BORDER,
             selectedRect.x,
             selectedRect.y,
             selectedRect.width,
             selectedRect.height,
-            hWndUILoop, nullptr, hInstance, nullptr
+            nullptr, nullptr, hInstance, nullptr
     );
 
     if (!hWndSelectRect) {
@@ -514,17 +582,22 @@ void selectRectWindow() {
     ShowWindow(hWndSelectRect, SW_SHOW);
     UpdateWindow(hWndSelectRect);
     SetForegroundWindow(hWndSelectRect);
+
+    MSG msg;
+    while (GetMessage(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    hWndSelectRect = nullptr;
 }
 
 INT_PTR CALLBACK PopupMessageProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     UNREFERENCED_PARAMETER(lParam);
     switch (message) {
-    case WM_INITDIALOG:
-        return (INT_PTR) TRUE;
-
     case WM_DESTROY:
         hWndPopupMessage = nullptr;
-        break;
+        PostQuitMessage(0);
+        return 0L;
 
     case WM_PAINT:
     {
@@ -598,7 +671,7 @@ void popupMessageWindow() {
 
     MONITORINFOEX monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
-    GetMonitorInfo(MonitorFromWindow(hWndUILoop, MONITOR_DEFAULTTOPRIMARY), &monitorInfo);
+    GetMonitorInfo(MonitorFromWindow(nullptr, MONITOR_DEFAULTTOPRIMARY), &monitorInfo);
     cv::Size winSize(300, 150);
     cv::Size winOffset(60, 80);
     cv::Rect monitorRect = fromRECT(monitorInfo.rcMonitor);
@@ -607,13 +680,13 @@ void popupMessageWindow() {
     hWndPopupMessage = CreateWindowEx(
             WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT,
             showPopupMessageWindowClass,
-            "",
+            L"",
             WS_POPUP | WS_DISABLED,
             popupRect.x,
             popupRect.y,
             popupRect.width,
             popupRect.height,
-            hWndUILoop, nullptr, hInstance, nullptr
+            nullptr, nullptr, hInstance, nullptr
     );
 
     if (!hWndPopupMessage) {
@@ -630,74 +703,80 @@ void popupMessageWindow() {
 
     ShowWindow(hWndPopupMessage, SW_SHOW);
     UpdateWindow(hWndPopupMessage);
-}
 
-static BOOL CALLBACK CloseWindowProc(HWND hwnd, LPARAM lParam) {
-    PostMessage(hwnd, WM_DESTROY, 0, 0);
-    return TRUE;
-}
-
-UINT_PTR CLOSE_POPUP_TIMER_ID;
-void ClosePopupProc(HWND hWnd, UINT, UINT_PTR, DWORD) {
-    CLOSE_POPUP_TIMER_ID = 0;
-    PostMessage(hWnd, WM_CLOSE, 0, 0);
-}
-
-static LRESULT CALLBACK UILoopWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg) {
-    case ID_DEV_SELECT_RECT:
-        if (hWndSelectRect)
-            SetForegroundWindow(hWndSelectRect);
-        else
-            selectRectWindow();
-        break;
-    case ID_SHOW_TOAST:
-        if (hWndPopupMessage) {
-            InvalidateRect(hWndPopupMessage, nullptr, TRUE);
-            UpdateWindow(hWndPopupMessage);
-            //SetForegroundWindow(hWndPopupMessage);
-        } else {
-            popupMessageWindow();
-        }
-        CLOSE_POPUP_TIMER_ID = SetTimer(hWndPopupMessage, CLOSE_POPUP_TIMER_ID, 5000, ClosePopupProc);
-        break;
-    case WM_DESTROY:
-        EnumChildWindows(hWndUILoop, CloseWindowProc, 0);
-        PostQuitMessage(0);
-        return 0;
-    default:
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
-    }
-    return 0;
-}
-
-static void loopUi() {
-    HINSTANCE hInstance = GetModuleHandle(nullptr);
-
-    initSelectRectDialog();
-    initShowPopupMessageWindow();
-
-    // Register window class
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = UILoopWndProc;
-    wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = "MessageOnlyWindowClass";
-    RegisterClass(&wc);
-
-    // Create message-only window
-    hWndUILoop = CreateWindowEx(0,  wc.lpszClassName, nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, hInstance, nullptr);
-
-    if (hWndUILoop == nullptr)
-        return;
-
-    // Message loop
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    hWndUILoop = nullptr;
+    hWndPopupMessage = nullptr;
 }
+
+//UINT_PTR CLOSE_POPUP_TIMER_ID;
+//void ClosePopupProc(HWND hWnd, UINT, UINT_PTR, DWORD) {
+//    CLOSE_POPUP_TIMER_ID = 0;
+//    PostMessage(hWnd, WM_CLOSE, 0, 0);
+//}
+//
+//static LRESULT CALLBACK UILoopWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+//    switch (uMsg) {
+//    case ID_DEV_SELECT_RECT:
+//        if (hWndSelectRect)
+//            SetForegroundWindow(hWndSelectRect);
+//        else
+//            selectRectWindow();
+//        return 0;
+//    case ID_SHOW_TOAST:
+//        if (hWndPopupMessage) {
+//            InvalidateRect(hWndPopupMessage, nullptr, TRUE);
+//            UpdateWindow(hWndPopupMessage);
+//            //SetForegroundWindow(hWndPopupMessage);
+//        } else {
+//            popupMessageWindow();
+//        }
+//        CLOSE_POPUP_TIMER_ID = SetTimer(hWndPopupMessage, CLOSE_POPUP_TIMER_ID, 5000, ClosePopupProc);
+//        return 0;
+//    case WM_DESTROY:
+//        if (shutdownRequested) {
+//            if (hWndSelectRect)
+//                PostMessage(hWndSelectRect, WM_CLOSE, 0, 0);
+//            if (hWndPopupMessage)
+//                PostMessage(hWndPopupMessage, WM_CLOSE, 0, 0);
+//            PostQuitMessage(0);
+//            return 0;
+//        }
+//        break;
+//    }
+//    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+//}
+//
+//static void loopUi() {
+//    HINSTANCE hInstance = GetModuleHandle(nullptr);
+//
+//    initSelectRectDialog();
+//    initShowPopupMessageWindow();
+//
+//    // Register window class
+//    WNDCLASS wc = {};
+//    wc.lpfnWndProc = UILoopWndProc;
+//    wc.hInstance = hInstance;
+//    wc.lpszClassName = L"MessageOnlyWindowClass";
+//    RegisterClass(&wc);
+//
+//    while (!shutdownRequested) {
+//        // Create message-only window
+//        hWndUILoop = CreateWindowEx(0, wc.lpszClassName, L"EDRobotMessageOnlyWindow",
+//                                    0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, hInstance, nullptr);
+//        if (hWndUILoop == nullptr)
+//            return;
+//        // Message loop
+//        MSG msg;
+//        while (GetMessage(&msg, nullptr, 0, 0)) {
+//            TranslateMessage(&msg);
+//            DispatchMessage(&msg);
+//        }
+//        hWndUILoop = nullptr;
+//    }
+//}
 
 } // namespace UI

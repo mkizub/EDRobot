@@ -9,15 +9,14 @@
       from: "scr-market:mod-sell:dlg-trade:*",
       dest: "scr-market:mod-sell",
       exec: [
-        { loop: 3, action: { key: "up", after: 100 } }, //{ goto: "spn-amount", after: 100 },
+        { loop: 3, action: { key: "up" } }, //{ goto: "spn-amount", after: 100 },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount" },
-        { key: "left", hold: { wait: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount", disabled: "btn-commit", during: 3000, peeriod: 250 } },
+        { key: "left", hold: { wait: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount", disabled: "btn-commit", during: 3000, peeriod: 100 } },
         { loop: "$items", action: {key: "right"} },
-        { sleep: 50 },
-        { key: "down", hold: 35, after: 100 }, // { goto: "btn-commit" },
+        { key: "down" }, // { goto: "btn-commit" },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-commit" },
         { key: "space" },
-        { wait: "scr-market:mod-sell", during: 3000, peeriod: 250 }
+        { wait: "scr-market:mod-sell", during: 3000, peeriod: 100 }
       ]
     },
     "sell-all": {

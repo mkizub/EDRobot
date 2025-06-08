@@ -9,11 +9,14 @@ set(BUILD_SHARED_LIBS TRUE)
 
 set(OpenCV_ROOT "${VCPKG_INSTALLED_DIR}/x64-windows/share/opencv4")
 find_package(OpenCV REQUIRED)
+
+find_package(Tesseract CONFIG REQUIRED)
+
 #find_package(Gettext REQUIRED)
 find_library(GETTEXT_LIBRARIES intl iconv)
 
 
-#add_compile_definitions(UNICODE)
+add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE)
 if (MSVC)
@@ -53,6 +56,8 @@ add_executable(EDRobot
         thirdparty/dirlistener/ReadDirectoryChangesPrivate.h
         thirdparty/dirlistener/ThreadSafeQueue.h
         thirdparty/CLI11/CLI11.hpp
+        thirdparty/FuzzyMatcher/FuzzyMatcher.cpp
+        thirdparty/FuzzyMatcher/FuzzyMatcher.h
         #thirdparty/wintoast/wintoastlib.cpp
         #thirdparty/wintoast/wintoastlib.h
         thirdparty/xml/xml.h
@@ -63,7 +68,7 @@ target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/i
 target_include_directories(EDRobot PRIVATE thirdparty)
 #target_include_directories(EDRobot PRIVATE ${GETTEXT_INCLUDE_DIR})
 target_link_libraries(EDRobot ${GETTEXT_LIBRARIES})
-target_link_libraries(EDRobot ${OpenCV_LIBS} winmm shcore) # cpptrace::cpptrace msimg32
+target_link_libraries(EDRobot ${OpenCV_LIBS} Tesseract::libtesseract winmm shcore) # cpptrace::cpptrace msimg32
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot cpptrace::cpptrace)
 endif()

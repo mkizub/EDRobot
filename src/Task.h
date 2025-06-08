@@ -57,25 +57,28 @@ public:
     TaskCalibrate();
     bool run() final;
 private:
-    int imageCounter = 0;
-    std::array<std::vector<cv::Vec3b>,4> mLuvColors;
-    std::array<std::vector<cv::Vec3b>,4> mRGBColors;
-    void recordLuv(const char* button, ButtonState bs);
-    void hardcodedStep(const char* step);
-    bool calculateAverage();
-    std::array<cv::Vec3b,4> mLuvAverage;
+    std::array<std::vector<cv::Vec3b>,4> mButtonLuv;
+    std::array<std::vector<cv::Vec3b>,4> mLstRowLuv;
+    void recordButtonLuv(const char* button, WState bs);
+    void recordLstRowLuv(const char* list, cv::Point mouse, WState bs);
+    void hardcodedStep(const char* step, DetectLevel level);
+    bool getRowsByState(const ClassifyEnv::ResultListRow** rows);
+    bool calculateAverage(bool incomplete);
+    std::array<cv::Vec3b,4> mButtonLuvAverage;
+    std::array<cv::Vec3b,4> mLstRowLuvAverage;
     HistogramTemplate mDetector;
 };
 
 class TaskSell final : public Task {
 public:
-    TaskSell(int sells, int items)
-        : mSells(sells), mItems(items)
+    TaskSell(const Commodity* commodity, int sells, int items)
+        : mCommodity(commodity), mSells(sells), mItems(items)
     {
         taskName = "Selling";
     }
     bool run() final;
 private:
+    const Commodity* mCommodity;
     int mSells;
     int mItems;
 };

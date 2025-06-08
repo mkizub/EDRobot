@@ -1,3 +1,5 @@
+#include <utility>
+
 //
 // Created by mkizub on 04.06.2025.
 //
@@ -7,11 +9,68 @@
 #ifndef EDROBOT_CONFIGURATION_H
 #define EDROBOT_CONFIGURATION_H
 
+#include <chrono>
+
 enum class Command;
 
-enum class ButtonState : int { Normal, Focused, Activated, Disabled };
+enum class WState : int { Normal, Focused, Active, Disabled };
 
 class CReadDirectoryChanges;
+
+struct CommodityCategory {
+    std::string name;
+    std::string nameLocalized;
+    unsigned marketOrder;   // N*1000
+};
+
+struct Commodity {
+    int64_t commodityId;
+    std::string name;
+    std::string nameLocalized;
+    std::wstring nameLocalizedW;
+    std::string category;
+    std::string categoryLocalized;
+    std::wstring categoryLocalizedW;
+    unsigned marketOrder;    // category.marketOrder + N
+};
+
+struct MarketCommodity {
+    Commodity& commodity;
+    int buyPrice;
+    int sellPrice;
+    int meanPrice;
+    int stock;
+    int demand;
+    uint8_t stockBracket;
+    uint8_t demandBracket;
+    bool isConsumer;
+    bool isProducer;
+    bool isRare;
+};
+
+struct CargoCommodity {
+    Commodity& commodity;
+    int count;
+    int stolen;
+};
+
+struct Market {
+    Market& operator=(Market&& other) noexcept = default;
+    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    int64_t marketId;
+    std::string stationName;
+    std::string stationType;
+    std::string starSystem;
+    std::vector<MarketCommodity> items;
+};
+
+struct Cargo {
+    Cargo& operator=(Cargo&& other) noexcept = default;
+    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    std::string vessel;
+    int count {0};
+    std::vector<CargoCommodity> inventory;
+};
 
 class Configuration {
 public:
@@ -21,11 +80,17 @@ public:
     ~Configuration();
 
     bool load();
-    void setCalibrationResult(const std::array<cv::Vec3b,4>& luv);
+    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv);
     bool saveCalibration() const;
     bool checkResolutionSupported(cv::Size gameSize);
     bool checkNeedColorCalibration();
     std::string getShortcutFor(Command cmd) const;
+    Commodity* getCommodityByName(const std::string& name);
+    CargoCommodity* getCargoByName(const std::string& name, bool fuzzy);
+
+    bool loadMarket();
+    bool loadCargo();
+    const char* makeTesseractWordsFile();
 
 private:
     friend class Master;
@@ -34,6 +99,7 @@ private:
     bool loadCalibration();
     bool loadGameSettings();
     bool checkReloadGameSettings();
+    Commodity& getOrAddCommodity(Commodity&& c);
 
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;
 
@@ -58,6 +124,13 @@ private:
     FullScreenMode calibrationFullScreen = FullScreenMode::Window;
 
     std::array<cv::Vec3b, 4> mButtonLuv;
+    std::array<cv::Vec3b, 4> mLstRowLuv;
+    std::deque<CommodityCategory> allKnownCommodityCategories;
+    std::deque<Commodity> allKnownCommodities;
+    std::unordered_map<uint64_t,Commodity*> commodityById;
+    std::unordered_map<std::string,Commodity*> commodityByName;
+    Market currentMarket;
+    Cargo currentCargo;
 };
 
 

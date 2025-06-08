@@ -17,6 +17,9 @@
 #include <CLI11/CLI11.hpp>
 #include <magic_enum/magic_enum.hpp>
 
+#include <tesseract/baseapi.h>
+#include <leptonica/allheaders.h>
+
 #ifndef NDEBUG
 //#include <cpptrace/cpptrace.hpp>
 #include "cpptrace/from_current.hpp"
@@ -45,9 +48,9 @@
 #endif
 
 
-const char ED_WINDOW_NAME[] = "Elite - Dangerous (CLIENT)";
-const char ED_WINDOW_CLASS[] = "FrontierDevelopmentsAppWinClass";
-const char ED_WINDOW_EXE[] = "EliteDangerous64.exe";
+const wchar_t ED_WINDOW_NAME[] = L"Elite - Dangerous (CLIENT)";
+const wchar_t ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
+const wchar_t ED_WINDOW_EXE[] = L"EliteDangerous64.exe";
 
 using namespace widget;
 
@@ -146,13 +149,13 @@ int Master::initialize(int argc, char* argv[]) {
 
     CLI11_PARSE(options, argc, argv)
     if (!kwd) {
-        char buffer[MAX_PATH] = {0};
+        wchar_t buffer[MAX_PATH] = {0};
         GetModuleFileName(nullptr, buffer, MAX_PATH);
-        std::string fullPath(buffer);
-        size_t lastSlash = fullPath.find_last_of("\\");
+        std::wstring fullPath(buffer);
+        size_t lastSlash = fullPath.find_last_of(L'\\');
         if (lastSlash != std::string::npos) {
-            std::string cwd = fullPath.substr(0, lastSlash);
-            if (cwd.ends_with("\\bin"))
+            std::wstring cwd = fullPath.substr(0, lastSlash);
+            if (cwd.ends_with(L"\\bin"))
                 cwd = cwd.substr(0,cwd.size()-4);
             SetCurrentDirectory(cwd.c_str());
             LOG(INFO) << "Working Directory: " << cwd;
@@ -187,21 +190,22 @@ int Master::initializeInternal() {
 }
 
 
-void Master::setCalibrationResult(const std::array<cv::Vec3b,4>& luv) {
-    mConfiguration->setCalibrationResult(luv);
+void Master::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv) {
+    mConfiguration->setCalibrationResult(buttonLuv, lstRowLuv);
     initButtonStateDetector();
 }
 void Master::initButtonStateDetector() {
-    std::vector<cv::Vec3b> colors(mConfiguration->mButtonLuv.begin(), mConfiguration->mButtonLuv.end());
-    mButtonStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Luv, cv::Rect(), colors));
+    std::vector<cv::Vec3b> buttonColors(mConfiguration->mButtonLuv.begin(), mConfiguration->mButtonLuv.end());
+    mButtonStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Luv, cv::Rect(), buttonColors));
     LOG(INFO) << "Button state detector installed";
+    std::vector<cv::Vec3b> lstRowColors(mConfiguration->mLstRowLuv.begin(), mConfiguration->mLstRowLuv.end());
+    mLstRowStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Luv, cv::Rect(), lstRowColors));
+    LOG(INFO) << "List row state detector installed";
 }
 
 
 Master::Master() {
     mScreensRoot = std::make_unique<widget::Root>();
-    mSells = 1000;
-    mItems = 1;
     hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
 }
 
@@ -369,20 +373,59 @@ bool Master::startCalibration() {
     return true;
 }
 
+
+const ClassifyEnv::ResultListRow* Master::getFocusedRow(const std::string& lst_name) {
+    auto it_rows = mLastEDState.cEnv.classifiedListRows.find(lst_name);
+    if (it_rows == mLastEDState.cEnv.classifiedListRows.end()) {
+        LOG(ERROR) << _("Rows in list are not detected");
+        return nullptr;
+    }
+    auto &classified_rows = it_rows->second;
+    if (classified_rows.empty()) {
+        LOG(ERROR) << _("Rows in list are not detected");
+        return nullptr;
+    }
+    for (auto &row: classified_rows) {
+        if (row.bs == WState::Focused)
+            return &row;
+    }
+    return nullptr;
+}
+
 bool Master::startTrade() {
-    int sells = mSells;
-    int items = mItems;
-    bool res = UI::askSellInput(sells, items);
-    if (!res || sells <= 0 || items <= 0)
+    if (!mConfiguration->loadMarket()) {
+        UI::showToast(_("Cannot sell"), _("Cannot load market"));
         return false;
-    mSells = sells;
-    mItems = items;
+    }
+
+    if (!mConfiguration->loadCargo() || mConfiguration->currentCargo.count <= 0) {
+        UI::showToast(_("Cannot sell"), _("Ship cargo empty"));
+        return false;
+    }
+
+    std::string cargo_name;
+    detectEDState(DetectLevel::ListOcrFocusedRow);
+    if (isEDStateMatch("scr-market:mod-sell")) {
+        auto row = getFocusedRow("lst-goods");
+        if (row) {
+            const CargoCommodity* cc = mConfiguration->getCargoByName(row->text, true);
+            if (cc)
+                cargo_name = cc->commodity.nameLocalized;
+        }
+    }
+
+    int total = 0;
+    int chunk = 1;
+    bool res = UI::askSellInput(total, chunk, cargo_name, mConfiguration->currentCargo);
+    if (!res || total <= 0 || chunk <= 0)
+        return false;
+    int sells = (int)std::ceil(double(total) / double(chunk));
 
     if (!preInitTask())
         return false;
 
     LOG(INFO) << "Staring new trade task";
-    currentTask = std::make_unique<TaskSell>(mSells, mItems);
+    currentTask = std::make_unique<TaskSell>(nullptr, sells, chunk);
     currentTaskThread = std::thread(Master::runCurrentTask);
     return true;
 }
@@ -582,9 +625,9 @@ void Master::drawButton(widget::Widget* item) {
     cv::Scalar color(200, 80, 80);
     int size = (item == mLastEDState.focused) ? 2 : 1;
     cv::rectangle(debugImage, rect.tl(), rect.br(), color, size);
-    if ( item->tp == WidgetType::Button)
+    if (item->tp == WidgetType::Button)
         return;
-    if ( item->tp == WidgetType::Spinner) {
+    if (item->tp == WidgetType::Spinner) {
         cv::Point p1 = rect.tl();
         p1.x += rect.height;
         cv::Point p2 = p1;
@@ -595,47 +638,74 @@ void Master::drawButton(widget::Widget* item) {
         cv::line(debugImage, p1, p2, color, size);
         return;
     }
-//    ////////////////////////////////////////////////
-//    unsigned buttonRedColor = 0x45;
-//    if (mCalibration) {
-//        buttonRedColor = luv2rgb(mCalibration->normalButtonLuv)[2];
-//    }
-//    cv::Mat redImage;
-//    cv::extractChannel(colorED, redImage, 2);
-//    cv::Mat listImage(redImage, rect);
-//
-//    cv::imshow("Red image: "+mLastEDState.path(), listImage);
-//
-//    cv::Mat erodeImage;
-//    int erosion_size = 2;
-//    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT,
-//                                               cv::Size(2*erosion_size + 1, 2*erosion_size+1),
-//                                               cv::Point(erosion_size, erosion_size));
-//    cv::erode(listImage, erodeImage, kernel);
-//    cv::imshow("Eroded image: "+mLastEDState.path(), erodeImage);
-//
-//    cv::Mat thresholdedImage;
-//    cv::threshold(erodeImage, thresholdedImage, buttonRedColor*0.95, 255, cv::THRESH_BINARY);
-//    //cv::adaptiveThreshold(erodeImage, thresholdedImage, 255, cv::ADAPTIVE_THRESH_MEAN_C, cv::THRESH_BINARY, 15, 10);
-//
-//    cv::imshow("Threshold image: "+mLastEDState.path(), thresholdedImage);
-//    cv::waitKey();
-//
-//    std::vector<std::vector<cv::Point>> contours;
-//    cv::findContours(thresholdedImage, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-//    for (const auto& contour : contours) {
-//        std::vector<cv::Point> approx;
-//        cv::approxPolyDP(contour, approx, cv::arcLength(contour, true) * 0.02, true);
-//
-//        if (approx.size() == 4 && cv::contourArea(approx) > 1000 && cv::isContourConvex(approx)) {
-//            cv::Rect bbox = cv::boundingRect(approx);
-//            cv::rectangle(debugImage, bbox+rect.tl(), cv::Scalar(0, 255, 0), 2);
-//        }
-//    }
-//    cv::destroyAllWindows();
+    if (item->tp == WidgetType::List) {
+        List* lst = static_cast<List*>(item);
+        ////////////////////////////////////////////////
+        unsigned buttonGrayColor = rgb2gray(luv2rgb(mConfiguration->mLstRowLuv[int(WState::Normal)]));
+        cv::Mat listImage(grayED, rect);
+
+        //cv::imshow("List image: " + mLastEDState.path(), listImage);
+
+        cv::Mat thresholdedImage;
+        cv::threshold(listImage, thresholdedImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
+
+        //cv::imshow("Threshold image: " + mLastEDState.path(), thresholdedImage);
+
+        std::vector<cv::Rect> detectedRows;
+        std::vector<std::vector<cv::Point>> contours;
+        cv::findContoursLinkRuns(thresholdedImage, contours);
+        for (const auto &contour: contours) {
+            std::vector<cv::Point> convex;
+            cv::convexHull(contour, convex);
+            if (convex.size() >= 4) {
+                std::vector<cv::Point> approx;
+                cv::approxPolyN(convex, approx, 4, 5, true);
+                auto row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
+                if (cv::contourArea(approx) > rect.width * (row_height-2)) {
+                    cv::Rect bbox = cv::boundingRect(approx);
+                    if (bbox.height < row_height * 1.5) {
+                        detectedRows.push_back(bbox);
+                        cv::rectangle(debugImage, bbox + rect.tl(), cv::Scalar(0, 255, 0), 1);
+                    } else {
+                        int count = (int)std::floor(0.1 + double(bbox.height) / double(row_height));
+                        int split_height = bbox.height / count;
+                        for (int i=0; i < count; i++) {
+                            cv::Rect bb(bbox.x, bbox.y+(i*split_height), bbox.width, split_height-2);
+                            detectedRows.push_back(bb);
+                            cv::rectangle(debugImage, bb + rect.tl(), cv::Scalar(0, 255, 0), 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        auto *tesseractApi = new tesseract::TessBaseAPI();
+        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+        tesseractApi->SetVariable("user_words_file", mConfiguration->makeTesseractWordsFile());
+        // "eng" for English language
+        if (tesseractApi->Init("tessdata", "rus", tesseract::OEM_LSTM_ONLY)) {
+            LOG(ERROR) << "Error: Could not initialize tesseract.";
+            return;
+        }
+        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+        for (auto& r : detectedRows) {
+            cv::Mat rowImage(listImage, r);
+            tesseractApi->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
+            char *outText = tesseractApi->GetUTF8Text();
+            LOG(INFO) << "OCR Output: " << outText;
+            delete outText;
+        }
+        tesseractApi->End();
+        delete tesseractApi;
+
+        //cv::imshow("Contour image: " + mLastEDState.path(), contourDebugImage);
+
+        //cv::waitKey();
+        //cv::destroyAllWindows();
+    }
 }
 bool Master::debugButtons() {
-    detectEDState();
+    detectEDState(DetectLevel::ListOcrAllRows);
     const widget::Widget* widget = mLastEDState.widget;
     mLastEDState.cEnv.debugImage = colorED.clone();
     if (widget) {
@@ -681,6 +751,8 @@ bool Master::debugRectScreenshot(std::string name) {
 }
 
 double Master::detectButtonState(const widget::Widget* item) {
+    if (!item)
+        return 0;
     cv::Rect r = item->calcRect(mLastEDState.cEnv);
     if (r.empty())
         return 0;
@@ -694,16 +766,106 @@ double Master::detectButtonState(const widget::Widget* item) {
     int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
     double value = values[idx];
     if (value > 0.90) {
-        ButtonState bs = (ButtonState)idx;
+        WState bs = (WState)idx;
         mLastEDState.cEnv.classifiedButtonStates[item->name] = bs;
-        LOG_IF(bs == ButtonState::Focused, INFO) << "Focused: " << item->name;
-        LOG_IF(bs == ButtonState::Disabled, INFO) << "Disabld: " << item->name;
+        LOG_IF(bs == WState::Focused, INFO) << "Focused: " << item->name;
+        LOG_IF(bs == WState::Disabled, INFO) << "Disabld: " << item->name;
         return value;
     }
     return 0;
 }
 
-Widget* Master::detectAllButtonsStates(const widget::Widget* parent) {
+void Master::detectListState(const widget::List* lst, DetectLevel level) {
+    if (!lst)
+        return;
+    cv::Rect rect = lst->calcRect(mLastEDState.cEnv);
+    if (rect.empty())
+        return;
+
+    unsigned buttonGrayColor = rgb2gray(luv2rgb(mConfiguration->mLstRowLuv[int(WState::Normal)]));
+    cv::Mat grayImage(grayED, rect);
+
+    cv::Mat thresholdedImage;
+    cv::threshold(grayImage, thresholdedImage, buttonGrayColor * 0.75, 255, cv::THRESH_BINARY);
+
+    std::vector<cv::Rect> detectedRows;
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContoursLinkRuns(thresholdedImage, contours);
+    for (const auto &contour: contours) {
+        std::vector<cv::Point> convex;
+        cv::convexHull(contour, convex);
+        if (convex.size() >= 4) {
+            std::vector<cv::Point> approx;
+            cv::approxPolyN(convex, approx, 4, 5, true);
+            auto row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
+            if (cv::contourArea(approx) > rect.width * (row_height-2)) {
+                cv::Rect bbox = cv::boundingRect(approx);
+                if (bbox.height < row_height * 1.5) {
+                    detectedRows.push_back(bbox);
+                } else {
+                    int count = (int)std::floor(0.1 + double(bbox.height) / double(row_height));
+                    int split_height = bbox.height / count;
+                    for (int i=0; i < count; i++) {
+                        cv::Rect bb(bbox.x, bbox.y+(i*split_height), bbox.width, split_height-1);
+                        detectedRows.push_back(bb);
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<ClassifyEnv::ResultListRow> rows;
+
+    tesseract::TessBaseAPI* tesseractApi = nullptr;
+    if (lst->ocr && level >= DetectLevel::ListOcrFocusedRow) {
+        tesseractApi = new tesseract::TessBaseAPI();
+        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+        tesseractApi->SetVariable("user_words_file", mConfiguration->makeTesseractWordsFile());
+        // "eng" for English language
+        if (tesseractApi->Init("tessdata", "rus", tesseract::OEM_LSTM_ONLY)) {
+            LOG(ERROR) << "Error: Could not initialize tesseract.";
+            delete tesseractApi;
+            tesseractApi = nullptr;
+        }
+    }
+    if (tesseractApi) {
+        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+        tesseractApi->SetVariable("user_words_file", mConfiguration->makeTesseractWordsFile());
+    }
+
+    for (auto& r : detectedRows) {
+        WState bs = WState::Disabled;
+        if (level >= DetectLevel::ListRowStates) {
+            int x = rect.x + r.x + r.width - 36;
+            int y = rect.y + r.y + r.height / 2 - 8;
+            mLstRowStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
+            mLstRowStateDetector->classify(mLastEDState.cEnv);
+            auto& values = mLstRowStateDetector->mLastValues;
+            int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
+            double value = values[idx];
+            if (value > 0.90)
+                bs = (WState)idx;
+        }
+        std::string text;
+        if (tesseractApi && (level >= DetectLevel::ListOcrAllRows || (bs == WState::Focused && level >= DetectLevel::ListOcrFocusedRow))) {
+            cv::Mat rowImage(grayImage, r);
+            tesseractApi->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
+            char* ocrText = tesseractApi->GetUTF8Text();
+            text = trim(ocrText);
+            delete ocrText;
+            LOG(INFO) << "OCR text: " << text;
+        }
+        rows.emplace_back(r+rect.tl(), bs, text);
+    }
+    if (tesseractApi) {
+        tesseractApi->End();
+        delete tesseractApi;
+    }
+
+    mLastEDState.cEnv.classifiedListRows[lst->name] = rows;
+}
+
+Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel level) {
     if (!parent)
         return nullptr;
     widget::Widget* focused = nullptr;
@@ -711,23 +873,26 @@ Widget* Master::detectAllButtonsStates(const widget::Widget* parent) {
     for (Widget* item : parent->have) {
         if (item->tp == WidgetType::Button || item->tp == WidgetType::Spinner) {
             double value = detectButtonState(item);
-            if (mLastEDState.cEnv.classifiedButtonStates[item->name] == ButtonState::Focused) {
+            if (mLastEDState.cEnv.classifiedButtonStates[item->name] == WState::Focused) {
                 if (!focused || value > focused_value) {
                     focused = item;
                     focused_value = value;
                 }
             }
         }
+        if (item->tp == WidgetType::List && level >= DetectLevel::ListRows) {
+            detectListState(dynamic_cast<List*>(item), level);
+        }
     }
     widget::Widget* parent_focused = nullptr;
     if (parent->tp == WidgetType::Mode) {
-        parent_focused = detectAllButtonsStates(parent->parent);
+        parent_focused = detectAllButtonsStates(parent->parent, level);
     }
     if (focused && focused_value > 0.96)
         return focused;
     return parent_focused;
 }
-const UIState& Master::detectEDState() {
+const UIState& Master::detectEDState(DetectLevel level) {
     mLastEDState.clear();
     // make screenshot
     if (!captureWindow(mCaptureRect, colorED, grayED)) {
@@ -753,7 +918,7 @@ const UIState& Master::detectEDState() {
 
     if (mButtonStateDetector) {
         // detect focused button
-        const Widget *focused = detectAllButtonsStates(mLastEDState.widget);
+        const Widget *focused = detectAllButtonsStates(mLastEDState.widget, level);
         if (focused) {
             mLastEDState.focused = focused;
             LOG(DEBUG) << "Detected focused button: " << focused->name;

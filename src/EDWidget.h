@@ -47,7 +47,9 @@ struct Spinner : public Widget {
 
 struct List : public Widget {
     List(const std::string& name, Widget* parent) : Widget(WidgetType::List, name, parent) {}
-    int item_height {38}; // by default item height is 38 pixels, like common button height
+    int row_height {36};
+    int row_gap {2};
+    bool ocr {false};
 };
 
 struct Mode : public Widget {

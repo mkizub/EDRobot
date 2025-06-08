@@ -23,7 +23,11 @@ std::string getErrorMessage(unsigned errorCode) {
             0,
             nullptr
     );
+#ifdef UNICODE
+    return toUtf8(messageBuffer, size);
+#else
     return toString(messageBuffer, size);
+#endif
 }
 
 void pasteToClipboard(const std::string& text) {
@@ -56,6 +60,9 @@ std::wstring trim(const std::wstring & source) {
 }
 
 std::string toString(const char* buffer, size_t size) {
+    return {buffer, size};
+}
+std::wstring toString(const wchar_t* buffer, size_t size) {
     return {buffer, size};
 }
 std::string toUtf8(const wchar_t* buffer, size_t size) {

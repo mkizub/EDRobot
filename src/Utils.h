@@ -13,6 +13,7 @@ extern void pasteToClipboard(const std::string& text);
 extern std::string trim(const std::string & source);
 extern std::wstring trim(const std::wstring & source);
 extern std::string toString(const char* buffer, size_t size);
+extern std::wstring toString(const wchar_t* buffer, size_t size);
 extern std::string toUtf8(const wchar_t* buffer, size_t size);
 extern std::string toUtf8(const std::wstring& str);
 extern std::wstring toUtf16(const char* buffer, size_t size);

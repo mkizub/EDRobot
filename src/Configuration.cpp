@@ -7,6 +7,7 @@
 #include "Keyboard.h"
 #include <dirlistener/ReadDirectoryChanges.h>
 #include <magic_enum/magic_enum.hpp>
+#include <FuzzyMatcher/FuzzyMatcher.h>
 
 #define XML_H_IMPLEMENTATION
 #include <xml/xml.h>
@@ -198,17 +199,22 @@ bool Configuration::loadCalibration() {
         calibrationScreenWidth = x.at("screenWidth").as_integer();
     if (x.at("screenHeight").is_integer())
         calibrationScreenHeight = x.at("screenHeight").as_integer();
-    mButtonLuv[int(ButtonState::Normal)] = rgb2luv(from_json(x.at("normalButton")));
-    mButtonLuv[int(ButtonState::Focused)] = rgb2luv(from_json(x.at("focusedButton")));
-    mButtonLuv[int(ButtonState::Disabled)] = rgb2luv(from_json(x.at("disabledButton")));
-    mButtonLuv[int(ButtonState::Activated)] = rgb2luv(from_json(x.at("activatedToggle")));
+    mButtonLuv[int(WState::Normal)] = rgb2luv(from_json(x.at("normalButton")));
+    mButtonLuv[int(WState::Focused)] = rgb2luv(from_json(x.at("focusedButton")));
+    mButtonLuv[int(WState::Active)] = rgb2luv(from_json(x.at("activeToggle")));
+    mButtonLuv[int(WState::Disabled)] = rgb2luv(from_json(x.at("disabledButton")));
+    mLstRowLuv[int(WState::Normal)] = rgb2luv(from_json(x.at("normalRow")));
+    mLstRowLuv[int(WState::Focused)] = rgb2luv(from_json(x.at("focusedRow")));
+    mLstRowLuv[int(WState::Active)] = rgb2luv(from_json(x.at("activeRow")));
+    mLstRowLuv[int(WState::Disabled)] = rgb2luv(from_json(x.at("disabledRow")));
     LOG(INFO) << "Calibration data loaded from 'calibration.json5'";
     return true;
 }
 
-void Configuration::setCalibrationResult(const std::array<cv::Vec3b,4>& luv)
+void Configuration::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv)
 {
-    mButtonLuv = luv;
+    mButtonLuv = buttonLuv;
+    mLstRowLuv = lstRowLuv;
     calibrationDashboardGUIBrightness = configDashboardGUIBrightness;
     calibrationGammaOffset = configGammaOffset;
     calibrationScreenWidth = configScreenWidth;
@@ -223,10 +229,14 @@ bool Configuration::saveCalibration() const {
                     {"gammaOffset", configGammaOffset},
                     {"screenWidth", configScreenWidth},
                     {"screenHeight", configScreenHeight},
-                    {"normalButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(ButtonState::Normal)])))},
-                    {"focusedButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(ButtonState::Focused)])))},
-                    {"disabledButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(ButtonState::Disabled)])))},
-                    {"activatedToggle", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(ButtonState::Activated)])))},
+                    {"normalButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Normal)])))},
+                    {"focusedButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Focused)])))},
+                    {"activeToggle", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Active)])))},
+                    {"disabledButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Disabled)])))},
+                    {"normalRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Normal)])))},
+                    {"focusedRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Focused)])))},
+                    {"activeRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Active)])))},
+                    {"disabledRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Disabled)])))},
             });
     std::ofstream calibrationFile;
     calibrationFile.open("calibration.json5");
@@ -289,6 +299,197 @@ std::string Configuration::getShortcutFor(Command cmd) const {
         }
     }
     return "";
+}
+
+Commodity& Configuration::getOrAddCommodity(Commodity&& c) {
+    if (c.commodityId) {
+        auto it = commodityById.find(c.commodityId);
+        if (it != commodityById.end())
+            return *it->second;
+    }
+    if (!c.name.empty()) {
+        auto it = commodityByName.find(c.name);
+        if (it != commodityByName.end())
+            return *it->second;
+    }
+    allKnownCommodities.emplace_back(c);
+    Commodity& stored = allKnownCommodities.back();
+    commodityById[stored.commodityId] = &stored;
+    commodityByName[stored.name] = &stored;
+    return stored;
+}
+
+Commodity* Configuration::getCommodityByName(const std::string& name) {
+    auto it = commodityByName.find(name);
+    if (it != commodityByName.end())
+        return it->second;
+    for (auto& c : allKnownCommodities) {
+        if (name == c.nameLocalized)
+            return &c;
+    }
+    return nullptr;
+}
+CargoCommodity* Configuration::getCargoByName(const std::string& name, bool fuzzy) {
+    if (currentCargo.inventory.empty() || name.empty())
+        return nullptr;
+    for (auto& c : currentCargo.inventory) {
+        if (name == c.commodity.name || name == c.commodity.nameLocalized)
+            return &c;
+    }
+    if (!fuzzy)
+        return nullptr;
+    int bestCargoScore = -1;
+    int bestCargoScoreIndex = -1;
+    std::wstring nameW = toUtf16(name);
+    FuzzyMatcher matcher(nameW);
+    for (int i=0; i < currentCargo.inventory.size(); i++) {
+        int score = matcher.ScoreMatch(currentCargo.inventory[i].commodity.nameLocalizedW);
+        if (score > bestCargoScore) {
+            bestCargoScore = score;
+            bestCargoScoreIndex = i;
+        }
+    }
+    if (bestCargoScore <= 0 || bestCargoScore < nameW.size() * 0.8)
+        return nullptr;
+    int bestMarketScore = -1;
+    int bestMarketScoreIndex = -1;
+    for (int i=0; i < currentMarket.items.size(); i++) {
+        int score = matcher.ScoreMatch(currentMarket.items[i].commodity.nameLocalizedW);
+        if (score > bestMarketScore) {
+            bestMarketScore = score;
+            bestMarketScoreIndex = i;
+        }
+    }
+    if (bestCargoScore < bestMarketScore)
+        return nullptr;
+    return &currentCargo.inventory[bestCargoScore];
+}
+
+bool Configuration::loadMarket() {
+    std::ifstream marketFile(mEDLogsPath + L"/Market.json");
+    if (marketFile.fail()) {
+        LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Market.json");
+        return false;
+    }
+    auto j_market = json5pp::parse5(marketFile);
+    if (!j_market)
+        return false;
+    marketFile.close();
+    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    std::istringstream iss(j_market.at("timestamp").as_string());
+    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
+    if (iss.fail()) {
+        LOG(ERROR) << "Timestamp parse failed, Market.json file corrupted?";
+        return false;
+    }
+    Market market = {
+            .timestamp = timestamp,
+            .marketId = j_market.at("MarketID").as_integer(),
+            .stationName = j_market.at("StationName").as_string(),
+            .stationType = j_market.at("StationType").as_string(),
+            .starSystem = j_market.at("StarSystem").as_string(),
+    };
+    market.items.reserve(400);
+    auto items = j_market.at("Items").as_array();
+    for (auto& j_item : items) {
+        auto item = j_item.as_object();
+        auto name = item.at("Name").as_string();
+        if (name.empty() || name[0] != '$' || !name.ends_with("_name;")) {
+            LOG(ERROR) << "Bad market commodity name: " << name;
+            continue;
+        }
+        name = name.substr(1,name.size()-7);
+        auto nameLocalized = item.at("Name_Localised").as_string();
+        auto nameLocalizedW = toUtf16(nameLocalized);
+        auto categoryLocalized = item.at("Category_Localised").as_string();
+        auto categoryLocalizedW = toUtf16(categoryLocalized);
+        Commodity commodity {
+                .commodityId = item.at("id").as_integer(),
+                .name = name,
+                .nameLocalized = nameLocalized,
+                .nameLocalizedW = nameLocalizedW,
+                .category = item.at("Category").as_string(),
+                .categoryLocalized = categoryLocalized,
+                .categoryLocalizedW = categoryLocalizedW,
+        };
+        MarketCommodity mc {
+                .commodity = getOrAddCommodity(std::move(commodity)),
+                .buyPrice = item.at("BuyPrice").as_int32(),
+                .sellPrice = item.at("SellPrice").as_int32(),
+                .meanPrice = item.at("MeanPrice").as_int32(),
+                .stock = item.at("Stock").as_int32(),
+                .demand = item.at("Demand").as_int32(),
+                .stockBracket = (uint8_t)item.at("StockBracket").as_integer(),
+                .demandBracket = (uint8_t)item.at("DemandBracket").as_integer(),
+                .isConsumer = item.at("Consumer").as_boolean(),
+                .isProducer = item.at("Producer").as_boolean(),
+                .isRare = item.at("Rare").as_boolean(),
+        };
+        market.items.push_back(mc);
+    }
+    currentMarket = std::move(market);
+    return true;
+}
+
+bool Configuration::loadCargo() {
+    std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json");
+    if (cargoFile.fail()) {
+        LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
+        return false;
+    }
+    auto j_cargo = json5pp::parse5(cargoFile);
+    if (!j_cargo)
+        return false;
+    cargoFile.close();
+    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    std::istringstream iss(j_cargo.at("timestamp").as_string());
+    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
+    if (iss.fail()) {
+        LOG(ERROR) << "Timestamp parse failed, Cargo.json file corrupted?";
+        return false;
+    }
+    Cargo cargo = {
+            .timestamp = timestamp,
+            .vessel = j_cargo.at("Vessel").as_string(),
+            .count = j_cargo.at("Count").as_integer(),
+    };
+    cargo.inventory.reserve(20);
+    auto items = j_cargo.at("Inventory").as_array();
+    for (auto& j_item : items) {
+        auto item = j_item.as_object();
+        auto name = item.at("Name").as_string();
+        if (name.empty()) {
+            LOG(ERROR) << "Bad cargo item name: " << name;
+            continue;
+        }
+        Commodity* c = getCommodityByName(name);
+        if (!c) {
+            LOG(ERROR) << "Unknown cargo item name: " << name;
+            continue;
+        }
+        CargoCommodity cc {
+                .commodity = *c,
+                .count = item.at("Count").as_integer(),
+                .stolen = item.at("Stolen").as_integer(),
+        };
+        cargo.inventory.push_back(cc);
+    }
+    currentCargo = std::move(cargo);
+    return true;
+}
+
+const char* Configuration::makeTesseractWordsFile() {
+    loadMarket();
+    std::ofstream wf("tesseract-words.txt", std::ios::out | std::ios::trunc | std::ios::binary);
+    for (auto& c : allKnownCommodities) {
+        std::istringstream iss(c.nameLocalized);
+        std::string token;
+        while (iss >> token) {
+            wf << token << '\n';
+        }
+    }
+    wf.close();
+    return "tesseract-words.txt";
 }
 
 using namespace widget;
@@ -437,9 +638,15 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
         child->setRect(jo.at("rect"));
     }
     else if (name.starts_with("lst-")) {
-        auto btn = new List(name, parent);
-        child = btn;
+        auto lst = new List(name, parent);
+        child = lst;
         child->setRect(jo.at("rect"));
+        if (jo.at("row").is_integer())
+            lst->row_height = jo.at("row").as_integer();
+        if (jo.at("gap").is_integer())
+            lst->row_gap = jo.at("gap").as_integer();
+        if (jo.at("ocr").is_boolean())
+            lst->ocr = jo.at("ocr").as_boolean();
     }
     else {
         LOG(ERROR) << "Unknown widget type: " << name;

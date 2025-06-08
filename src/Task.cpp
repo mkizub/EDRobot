@@ -9,7 +9,6 @@
 #include "Template.h"
 #include "UI.h"
 #include <synchapi.h>
-#include <timeapi.h>
 #include <magic_enum/magic_enum.hpp>
 
 void Task::preciseSleep(double seconds)const {
@@ -195,20 +194,20 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
     LOG(INFO) << "Step 'wait' #0 duration " << during << " left " << std::chrono::duration_cast<std::chrono::milliseconds>(until - now).count();
     bool ok;
     for (int counter=1; now < until; counter++) {
-        master.detectEDState();
+        master.detectEDState(DetectLevel::Buttons);
         ok = master.isEDStateMatch(state.as_string());
         if (ok) {
             bool ok_focus = true;
             if (focus.is_string()) {
                 auto& cbs = master.lastEDState().cEnv.classifiedButtonStates;
                 auto it = cbs.find(focus.as_string());
-                ok_focus = (it != cbs.end() && it->second == ButtonState::Focused);
+                ok_focus = (it != cbs.end() && it->second == WState::Focused);
             }
             bool ok_disabled = true;
             if (disabled.is_string()) {
                 auto& cbs = master.lastEDState().cEnv.classifiedButtonStates;
                 auto it = cbs.find(disabled.as_string());
-                ok_disabled = (it != cbs.end() && it->second == ButtonState::Disabled);
+                ok_disabled = (it != cbs.end() && it->second == WState::Disabled);
             }
             ok = ok_focus && ok_disabled;
             if (ok)
@@ -257,7 +256,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         if (step.as_object().contains("check")) {
             LOG(DEBUG) << "action step check: " << step;
             const json5pp::value& state = step.at("check");
-            master.detectEDState();
+            master.detectEDState(DetectLevel::Buttons);
             bool ok = master.isEDStateMatch(state.as_string());
             if (ok) {
                 const json5pp::value &focus = step.at("focus");
@@ -347,7 +346,7 @@ TaskCalibrate::TaskCalibrate()
     taskName = "Calibration";
 }
 
-void TaskCalibrate::recordLuv(const char* button, ButtonState bs) {
+void TaskCalibrate::recordButtonLuv(const char* button, WState bs) {
     cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+button);
     if (rect.empty()) {
         LOG(ERROR) << "Cannot get rect of button '" << button << "'";
@@ -357,20 +356,60 @@ void TaskCalibrate::recordLuv(const char* button, ButtonState bs) {
     ClassifyEnv cEnv = master.lastEDState().cEnv; // copy
     mDetector.match(cEnv);
     cv::Vec3b rgb = mDetector.mLastColor;
-    mRGBColors[int(bs)].push_back(rgb);
-    mLuvColors[int(bs)].push_back(rgb2luv(rgb));
-    imageCounter += 1;
-    const char* names[] = {"Normal   ", "Focused  ", "Activated", "Disabled "};
-    LOG(INFO) << names[int(bs)] << " button: luv=" << mLuvColors[int(bs)].back()
+    mButtonLuv[int(bs)].push_back(rgb2luv(rgb));
+    const char* names[] = {"Normal   ", "Focused  ", "Active   ", "Disabled "};
+    LOG(INFO) << names[int(bs)] << " button: luv=" << mButtonLuv[int(bs)].back()
               << " rgb=" << rgb << std::format(" 0x{:06x}", decodeRGB(rgb));
-    //cv::Mat m(cEnv.imageColor,rect);
-    //std::string bname = master.lastEDState().path()+"-"+button;
-    //std::transform(bname.begin(), bname.end(), bname.begin(),[](unsigned char c){ return c==':' ? '~' : c; });
-    //std::string fname = "calibration-"+std::format("{:02d}", imageCounter)+"-"+toLower(trim(names[int(bs)]))+"-"+bname+".png";
-    //cv::imwrite(fname, m);
 }
 
-void TaskCalibrate::hardcodedStep(const char* step) {
+void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs) {
+    cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+list);
+    if (rect.empty()) {
+        LOG(ERROR) << "Cannot get rect of list '" << list << "'";
+        return;
+    }
+    ClassifyEnv cEnv = master.lastEDState().cEnv; // copy
+    auto& rows = cEnv.classifiedListRows[list];
+    if (rows.empty()) {
+        LOG(ERROR) << "Cannot get rows of list '" << list << "'";
+        return;
+    }
+    std::vector<cv::Vec3b> colors;
+    std::vector<double> lums;
+    for (auto& cr : rows) {
+        cv::Rect refRect = cEnv.cvtCapturedToReference(cr.detectedRect);
+        mDetector.mRect = refRect;
+        mDetector.match(cEnv);
+        cv::Vec3b rgb = mDetector.mLastColor;
+        if (refRect.contains(mouse)) {
+            mLstRowLuv[int(WState::Focused)].push_back(rgb2luv(rgb));
+        } else {
+            colors.push_back(rgb2luv(rgb));
+            lums.push_back(colors.back()[0]);
+        }
+    }
+    cv::Point minLoc;
+    cv::Point maxLoc;
+    cv::minMaxLoc(lums, nullptr, nullptr, &minLoc, &maxLoc);
+    cv::Vec3d minColor(colors[minLoc.x]);
+    cv::Vec3d maxColor(colors[maxLoc.x]);
+    cv::Vec3d delta = maxColor - minColor;
+
+    if (cv::norm(delta) < 6) {
+        mLstRowLuv[int(bs)].insert(mLstRowLuv[int(bs)].end(), colors.begin(), colors.end());
+    } else {
+        for (auto& c : colors) {
+            double distNorm = cv::norm(minColor - cv::Vec3d(c));
+            double distActv = cv::norm(maxColor - cv::Vec3d(c));
+            if (distNorm < distActv)
+                mLstRowLuv[int(WState::Normal)].push_back(c);
+            else
+                mLstRowLuv[int(WState::Active)].push_back(c);
+        }
+    }
+}
+
+void TaskCalibrate::hardcodedStep(const char* step, DetectLevel level) {
     json5pp::value parsed, args;
     try {
         std::stringstream in(step);
@@ -383,18 +422,19 @@ void TaskCalibrate::hardcodedStep(const char* step) {
         LOG(ERROR) << "Failed to execute " << step;
         throw completed_error("hardcoded step failed");
     }
-    master.detectEDState();
+    master.detectEDState(level);
 }
 
-bool TaskCalibrate::calculateAverage() {
-    bool success = true;
-    for(auto bs : magic_enum::enum_values<ButtonState>()) {
-        auto& luvState = mLuvColors[int(bs)];
-        auto& rgbState = mRGBColors[int(bs)];
+bool TaskCalibrate::calculateAverage(bool incomplete) {
+    bool buttonSuccess = true;
+    for(auto bs : magic_enum::enum_values<WState>()) {
+        auto& luvState = mButtonLuv[int(bs)];
         int len = (int)luvState.size();
         if (!len) {
             LOG(INFO) << "No samples for " << magic_enum::enum_name(bs) << " button color";
-            return false;
+            if (!incomplete)
+                return false;
+            continue;
         }
         cv::Mat colorsMatrix(len, 1, CV_8UC3);
         for (int j=0; j < len; j++)
@@ -404,18 +444,66 @@ bool TaskCalibrate::calculateAverage() {
         cv::meanStdDev(colorsMatrix, meanS, stddevS);
         cv::Vec3b mean(meanS[0], meanS[1], meanS[2]);
         cv::Vec3d stddev(stddevS[0], stddevS[1], stddevS[2]);
-        LOG(INFO) << "Luv color for " << magic_enum::enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
-        mLuvAverage[int(bs)] = mean;
+        LOG(INFO) << "Luv button color for " << magic_enum::enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
+        mButtonLuvAverage[int(bs)] = mean;
         if (stddevS[0] > 3 || stddevS[1] > 3 || stddevS[2] > 3) {
-            success = false;
+            buttonSuccess = false;
             LOG(ERROR) << "Luv color for " << magic_enum::enum_name(bs) << ", has too high deviation " << stddev;
         }
     }
-    if (success) {
-        master.setCalibrationResult(mLuvAverage);
-        master.getConfiguration()->saveCalibration();
+    bool lstRowSuccess = true;
+    for(auto bs : magic_enum::enum_values<WState>()) {
+        auto& luvState = mLstRowLuv[int(bs)];
+        int len = (int)luvState.size();
+        if (!len) {
+            LOG(INFO) << "No samples for " << magic_enum::enum_name(bs) << " list row color";
+            continue;
+        }
+        cv::Mat colorsMatrix(len, 1, CV_8UC3);
+        for (int j=0; j < len; j++)
+            colorsMatrix.at<cv::Vec3b>(j) = luvState[j];
+        cv::Scalar meanS;
+        cv::Scalar stddevS;
+        cv::meanStdDev(colorsMatrix, meanS, stddevS);
+        cv::Vec3b mean(meanS[0], meanS[1], meanS[2]);
+        cv::Vec3d stddev(stddevS[0], stddevS[1], stddevS[2]);
+        LOG(INFO) << "Luv list row color for " << magic_enum::enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
+        mLstRowLuvAverage[int(bs)] = mean;
+        if (stddevS[0] > 3 || stddevS[1] > 3 || stddevS[2] > 3) {
+            lstRowSuccess = false;
+            LOG(ERROR) << "Luv color for " << magic_enum::enum_name(bs) << ", has too high deviation " << stddev;
+        }
     }
-    return success;
+    std::array<cv::Vec3b,4> lstRowLuvAverage;
+    for (int i=0; i < 4; i++) {
+        if (mLstRowLuvAverage[i] == cv::Vec3b::zeros())
+            lstRowLuvAverage[i] = mButtonLuvAverage[i];
+        else
+            lstRowLuvAverage[i] = mLstRowLuvAverage[i];
+    }
+    master.setCalibrationResult(mButtonLuvAverage, lstRowLuvAverage);
+    return buttonSuccess;
+}
+
+bool TaskCalibrate::getRowsByState(const ClassifyEnv::ResultListRow** rows) {
+    for (int i=0; i < 4; i++)
+        rows[i] = nullptr;
+    auto it_rows = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
+    if (it_rows == master.lastEDState().cEnv.classifiedListRows.end()) {
+        notifyError(_("Rows in commodity list are not detected, calibration fails"));
+        return false;
+    }
+    auto &classified_rows = it_rows->second;
+    if (classified_rows.empty()) {
+        notifyError(_("Rows in commodity list are not detected, calibration fails"));
+        return false;
+    }
+    const ClassifyEnv::ResultListRow *row_to_test = nullptr;
+    for (auto &row: classified_rows) {
+        if (rows[int(row.bs)] == nullptr)
+            rows[int(row.bs)] = &row;
+    }
+    return true;
 }
 
 bool TaskCalibrate::run() {
@@ -424,67 +512,235 @@ bool TaskCalibrate::run() {
         return false;
     }
     try {
-        master.detectEDState();
-        if (!master.isEDStateMatch("scr-market:mod-sell")) {
-            notifyError(_("Not at market sell, calibration fails"));
+        master.detectEDState(DetectLevel::Buttons);
+        if (!master.isEDStateMatch("scr-market:*")) {
+            notifyError(_("Not at market, calibration fails"));
             return false;
         }
 
         notifyProgress(_("Calibration started"));
 
-        hardcodedStep("{goto:'btn-exit', after: 500}");
-        LOG(INFO) << "State " << master.lastEDState() << " activated 'btn-exit'";
+        //
+        // Detect normal, focused, activated colors using buttons
+        //
 
-        recordLuv("btn-help", ButtonState::Normal);
-        recordLuv("btn-exit", ButtonState::Focused);
-        recordLuv("btn-to-sell", ButtonState::Activated);
+        if (master.isEDStateMatch("scr-market:mod-sell")) {
+            hardcodedStep("{click:'btn-to-sell', after: 500}", DetectLevel::Buttons);
+        }
+        else if (master.isEDStateMatch("scr-market:mod-buy")) {
+            hardcodedStep("{click:'btn-to-buy', after: 500}", DetectLevel::Buttons);
+        }
 
-        hardcodedStep("[{goto:'lst-goods', after:500},"
-                      "{key:'space', after:1000},"
+        hardcodedStep("{goto:'btn-exit', after: 500}", DetectLevel::Buttons);
+        LOG(INFO) << "State " << master.lastEDState() << " expected focused 'btn-exit'";
+
+        recordButtonLuv("btn-help", WState::Normal);
+        recordButtonLuv("btn-exit", WState::Focused);
+        recordButtonLuv("btn-filter", WState::Normal);
+        if (master.isEDStateMatch("scr-market:mod-sell")) {
+            recordButtonLuv("btn-to-sell", WState::Active);
+            recordButtonLuv("btn-to-buy", WState::Normal);
+        }
+        else if (master.isEDStateMatch("scr-market:mod-buy")) {
+            recordButtonLuv("btn-to-sell", WState::Normal);
+            recordButtonLuv("btn-to-buy", WState::Active);
+        }
+
+        hardcodedStep("{goto:'btn-help', after: 500}", DetectLevel::Buttons);
+        LOG(INFO) << "State " << master.lastEDState() << " expected focused 'btn-help'";
+
+        recordButtonLuv("btn-help", WState::Focused);
+        recordButtonLuv("btn-exit", WState::Normal);
+        recordButtonLuv("btn-filter", WState::Normal);
+        if (master.isEDStateMatch("scr-market:mod-sell")) {
+            recordButtonLuv("btn-to-sell", WState::Active);
+            recordButtonLuv("btn-to-buy", WState::Normal);
+        }
+        else if (master.isEDStateMatch("scr-market:mod-buy")) {
+            recordButtonLuv("btn-to-sell", WState::Normal);
+            recordButtonLuv("btn-to-buy", WState::Active);
+        }
+
+        hardcodedStep("{goto:'btn-filter', after: 500}", DetectLevel::Buttons);
+        LOG(INFO) << "State " << master.lastEDState() << " expected focused 'btn-filter'";
+
+        recordButtonLuv("btn-help", WState::Normal);
+        recordButtonLuv("btn-exit", WState::Normal);
+        recordButtonLuv("btn-filter", WState::Focused);
+        if (master.isEDStateMatch("scr-market:mod-sell")) {
+            recordButtonLuv("btn-to-sell", WState::Active);
+            recordButtonLuv("btn-to-buy", WState::Normal);
+        }
+        else if (master.isEDStateMatch("scr-market:mod-buy")) {
+            recordButtonLuv("btn-to-sell", WState::Normal);
+            recordButtonLuv("btn-to-buy", WState::Active);
+        }
+
+        hardcodedStep("{goto:'btn-to-buy', after: 500}", DetectLevel::Buttons);
+        LOG(INFO) << "State " << master.lastEDState() << " expected focused 'btn-to-buy'";
+
+        recordButtonLuv("btn-help", WState::Normal);
+        recordButtonLuv("btn-exit", WState::Normal);
+        recordButtonLuv("btn-filter", WState::Normal);
+        recordButtonLuv("btn-to-buy", WState::Focused);
+
+        hardcodedStep("{goto:'btn-to-sell', after: 500}", DetectLevel::Buttons);
+        LOG(INFO) << "State " << master.lastEDState() << " expected focused 'btn-to-sell'";
+
+        recordButtonLuv("btn-help", WState::Normal);
+        recordButtonLuv("btn-exit", WState::Normal);
+        recordButtonLuv("btn-filter", WState::Normal);
+        recordButtonLuv("btn-to-sell", WState::Focused);
+
+        calculateAverage(true);
+
+        //
+        // Goto sell market
+        //
+
+        hardcodedStep("{click:'btn-to-sell', after: 1000}", DetectLevel::ListRows);
+        const UIState& uiState = master.lastEDState();
+        LOG(INFO) << "State " << uiState << " expected state 'scr-market:mod-sell'";
+        if (!master.isEDStateMatch("scr-market:mod-sell")) {
+            notifyError(_("Not at market sell, calibration fails"));
+            return false;
+        }
+
+        //
+        // Detect normal list rows in sell market
+        //
+        {
+            auto it = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
+            std::vector<ClassifyEnv::ResultListRow> rows;
+            if (it != master.lastEDState().cEnv.classifiedListRows.end())
+                rows = it->second;
+            for (auto &cr: rows) {
+                cv::Point mouse = master.lastEDState().cEnv.cvtCapturedToReference(
+                        (cr.detectedRect.tl() + cr.detectedRect.br()) / 2);
+                sendMouseMove(mouse, 300);
+                master.detectEDState(DetectLevel::ListRowStates);
+                recordLstRowLuv("lst-goods", mouse, WState::Normal);
+                if (mLstRowLuv[int(WState::Normal)].size() > 30)
+                    break;
+            }
+        }
+
+        calculateAverage(true);
+
+        master.detectEDState(DetectLevel::ListRowStates);
+        const ClassifyEnv::ResultListRow* list_rows[4];
+        if (!getRowsByState(list_rows))
+            return false;
+        const ClassifyEnv::ResultListRow* row_to_test = list_rows[int(WState::Normal)];
+        if (!row_to_test) {
+            notifyError(_("Cannot find commodity to test sell dialog, calibration fails"));
+            return false;
+        }
+
+        //
+        // found commodity to test, check we detected list row correctly
+        //
+
+        {
+            cv::Rect row_rect = uiState.cEnv.cvtCapturedToReference(row_to_test->detectedRect);
+            cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
+            std::ostringstream goto_str;
+            goto_str << "{goto:" << row_point << ", after:500}";
+            hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRowStates);
+            LOG(INFO) << "State " << master.lastEDState();
+        }
+
+        if (!getRowsByState(list_rows))
+            return false;
+        row_to_test = list_rows[int(WState::Focused)];
+        if (!row_to_test) {
+            notifyError(_("Cannot find commodity to test sell dialog, calibration fails"));
+            return false;
+        }
+
+        hardcodedStep("[{key:'space', after:1000},"
                       "{check:'scr-market:mod-sell:dlg-trade:*'},"
-                      "{goto:'btn-more', after:500}]");
+                      "{goto:'btn-more', after:500}]", DetectLevel::Buttons);
         LOG(INFO) << "State " << master.lastEDState();
 
-        recordLuv("btn-exit", ButtonState::Normal);
-        recordLuv("btn-more", ButtonState::Focused);
-        recordLuv("btn-commit", ButtonState::Disabled);
+        recordButtonLuv("btn-exit", WState::Normal);
+        recordButtonLuv("btn-more", WState::Focused);
+        recordButtonLuv("btn-commit", WState::Disabled);
 
         hardcodedStep("[{key:'left'},"
                       "{key:'space', after:1000},"
                       "{check:'scr-market:mod-sell'},"
-                      /*"{goto:[0,0], after:1000},"*/
                       "{click:'btn-to-buy', after:1000},"
                       "{check:'scr-market:mod-buy'},"
-                      "{goto:'btn-help', after:500}]");
-        LOG(INFO) << "State " << master.lastEDState() << " activated 'btn-help'";
+                      "{goto:'btn-help', after:500}]", DetectLevel::ListRowStates);
+        LOG(INFO) << "State " << master.lastEDState() << " expected focused 'btn-help'";
 
-        recordLuv("btn-exit", ButtonState::Normal);
-        recordLuv("btn-help", ButtonState::Focused);
-        recordLuv("btn-to-buy", ButtonState::Activated);
+        recordButtonLuv("btn-exit", WState::Normal);
+        recordButtonLuv("btn-help", WState::Focused);
+        recordButtonLuv("btn-to-buy", WState::Active);
 
-        hardcodedStep("[{goto:'lst-goods', after:500},"
-                      "{key:'space', after:1000},"
+        //
+        // Detect activated list rows in sell market
+        //
+        {
+            auto it = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
+            std::vector<ClassifyEnv::ResultListRow> rows;
+            if (it != master.lastEDState().cEnv.classifiedListRows.end())
+                rows = it->second;
+            for (auto &cr: rows) {
+                cv::Point mouse = master.lastEDState().cEnv.cvtCapturedToReference(
+                        (cr.detectedRect.tl() + cr.detectedRect.br()) / 2);
+                sendMouseMove(mouse, 300);
+                master.detectEDState(DetectLevel::ListRowStates);
+                recordLstRowLuv("lst-goods", mouse, WState::Active);
+                if (mLstRowLuv[int(WState::Active)].size() > 30)
+                    break;
+            }
+        }
+
+        calculateAverage(true);
+
+        if (!getRowsByState(list_rows))
+            return false;
+        row_to_test = list_rows[int(WState::Active)];
+        if (!row_to_test) {
+            notifyError(_("Cannot find commodity to test buy dialog, calibration fails"));
+            return false;
+        }
+
+        {
+            cv::Rect row_rect = uiState.cEnv.cvtCapturedToReference(row_to_test->detectedRect);
+            cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
+            std::ostringstream goto_str;
+            goto_str << "{goto:" << row_point << ", after:500}";
+            hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRowStates);
+            LOG(INFO) << "State " << master.lastEDState();
+        }
+
+        hardcodedStep("[{key:'space', after:1000},"
                       "{check:'scr-market:mod-buy:dlg-trade:*'},"
-                      "{goto:'btn-more', after:1000}]");
+                      "{goto:'btn-more', after:1000}]", DetectLevel::Buttons);
         LOG(INFO) << "State " << master.lastEDState();
 
-        recordLuv("btn-exit", ButtonState::Normal);
-        recordLuv("btn-more", ButtonState::Focused);
-        recordLuv("btn-commit", ButtonState::Disabled);
+        recordButtonLuv("btn-exit", WState::Normal);
+        recordButtonLuv("btn-more", WState::Focused);
+        recordButtonLuv("btn-commit", WState::Disabled);
 
         hardcodedStep("[{key:'left'},"
                       "{key:'space', after:500},"
                       "{check:'scr-market:mod-buy'},"
                       "{click:'btn-to-sell', after:500},"
                       "{check:'scr-market:mod-sell'},"
-                      "{goto:'btn-exit', after:500}]");
+                      "{goto:'btn-exit', after:500}]", DetectLevel::Buttons);
 
         LOG(INFO) << "State " << master.lastEDState();
 
-        if (calculateAverage())
+        if (calculateAverage(false)) {
             notifyProgress(_("Calibration completed successfully!"));
-        else
+            master.getConfiguration()->saveCalibration();
+        } else {
             notifyError(_("Failed to calibrate button state detector"));
+        }
     } catch (completed_error& e) {
         notifyError(_("Failed to calibrate button state detector"));
         return false;
@@ -503,7 +759,7 @@ bool TaskSell::run() {
         notifyProgress(std_format(_("Start selling {} times by {} item(s)"), mSells, mItems));
         auto actionArgs = json5pp::object({{"$items", mItems}});
         while (mSells > 0) {
-            master.detectEDState();
+            master.detectEDState(DetectLevel::Buttons);
             if (master.isEDStateMatch("scr-market:mod-sell")) {
                 LOG(INFO) << "At market sell, execute action 'start'";
                 bool ok = executeAction("start");
@@ -519,7 +775,7 @@ bool TaskSell::run() {
                 if (!ok) {
                     LOG(WARNING) << "Step 'sell-some' not successful, recovering";
                     for (int i=0; i < 3; i++) {
-                        master.detectEDState();
+                        master.detectEDState(DetectLevel::Buttons);
                         if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
                             LOG(WARNING) << "Step 'sell-some' not successful, retrying";
                             executeAction("restart");

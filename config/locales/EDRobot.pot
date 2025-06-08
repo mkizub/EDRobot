@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-06-06 15:09+0300\n"
+"POT-Creation-Date: 2025-06-07 17:58+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -38,50 +38,96 @@ msgstr ""
 msgid "Unsupported aspect ratio"
 msgstr ""
 
-#: src/Master.cpp:349
+#: src/Master.cpp:350
 msgid "Color calibration required"
 msgstr ""
 
-#: src/Task.cpp:429
-msgid "Not at market sell, calibration fails"
+#: src/Master.cpp:377 src/Master.cpp:382
+msgid "Rows in list are not detected"
 msgstr ""
 
-#: src/Task.cpp:433
+#: src/Master.cpp:394 src/Master.cpp:399
+msgid "Cannot sell"
+msgstr ""
+
+#: src/Master.cpp:394
+msgid "Cannot load market"
+msgstr ""
+
+#: src/Master.cpp:399
+msgid "Ship cargo empty"
+msgstr ""
+
+#: src/Task.cpp:423 src/Task.cpp:428
+msgid "Rows in commodity list are not detected, calibration fails"
+msgstr ""
+
+#: src/Task.cpp:447
+msgid "Not at market, calibration fails"
+msgstr ""
+
+#: src/Task.cpp:451
 msgid "Calibration started"
 msgstr ""
 
-#: src/Task.cpp:485
-msgid "Calibration completed successfully!"
-msgstr ""
-
-#: src/Task.cpp:487 src/Task.cpp:489
+#: src/Task.cpp:519 src/Task.cpp:633 src/Task.cpp:636
 msgid "Failed to calibrate button state detector"
 msgstr ""
 
-#: src/Task.cpp:503
+#: src/Task.cpp:531
+msgid "Not at market sell, calibration fails"
+msgstr ""
+
+#: src/Task.cpp:539 src/Task.cpp:593
+msgid "Unexpected focused row in commodity list, calibration fails"
+msgstr ""
+
+#: src/Task.cpp:544 src/Task.cpp:565
+msgid "Cannot find commodity to test sell dialog, calibration fails"
+msgstr ""
+
+#: src/Task.cpp:598
+msgid "Cannot find commodity to test buy dialog, calibration fails"
+msgstr ""
+
+#: src/Task.cpp:630
+msgid "Calibration completed successfully!"
+msgstr ""
+
+#: src/Task.cpp:650
 #, c++-format
 msgid "Start selling {} times by {} item(s)"
 msgstr ""
 
-#: src/Task.cpp:511
+#: src/Task.cpp:658
 msgid "Step 'sell-start' failed, aborting"
 msgstr ""
 
-#: src/Task.cpp:534
+#: src/Task.cpp:681
 msgid "Step 'sell-some' not successful, cannot recover"
 msgstr ""
 
-#: src/Task.cpp:543
+#: src/Task.cpp:690
 #, c++-format
 msgid "Unknown state '{}', aborting trade task"
 msgstr ""
 
-#: src/UI.cpp:252
+#: src/UI.cpp:258
+msgctxt "SellDialogLabel|"
+msgid "Total"
+msgstr ""
+
+#: src/UI.cpp:259
+msgctxt "SellDialogLabel|"
+msgid "Items"
+msgstr ""
+
+#: src/UI.cpp:260
 msgctxt "SellDialogLabel|"
 msgid "Sells"
 msgstr ""
 
-#: src/UI.cpp:253
+#: src/UI.cpp:262
 msgctxt "SellDialogLabel|"
-msgid "Items"
+msgid "All"
 msgstr ""

@@ -63,9 +63,20 @@ public:
         cv::Rect referenceRect; // original rect in reference coordinates
         cv::Rect detectedRect;  // detected rect in reference coordinates
     };
+    struct ResultListRow {
+        ResultListRow() = default;
+        ResultListRow(cv::Rect detRect, WState bs, std::string text)
+                : detectedRect(detRect), bs(bs), text(std::move(text))
+        {}
+        cv::Rect detectedRect;  // detected rect in reference coordinates
+        WState bs; // detected state
+        std::string text;
+    };
     // a set of named detected rects
     std::vector<ResultRect> classifiedRects;
-    std::unordered_map<std::string,ButtonState> classifiedButtonStates;
+    std::unordered_map<std::string,WState> classifiedButtonStates;
+    std::unordered_map<std::string,std::vector<ResultListRow>> classifiedListRows;
+
 
     cv::Point scaleToCaptured(const cv::Point& point) const {
         return needScaling_ ? point * scaleToCaptured_ : point;

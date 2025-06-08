@@ -15,4 +15,5 @@ tags
 /vs-build/
 /vcpkg_installed/
 CMakeSettings.json
+calibration.json5
 

@@ -8,8 +8,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-06-06 13:14+0300\n"
-"PO-Revision-Date: 2025-06-06 13:37+0300\n"
+"POT-Creation-Date: 2025-06-07 17:58+0300\n"
+"PO-Revision-Date: 2025-06-07 18:03+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ru\n"
@@ -18,17 +18,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Poedit 3.6\n"
 
-#: main.cpp:33
+#: src/main.cpp:33
 #, c++-format
 msgid "Press '{}' key to start selling"
 msgstr "Нажмите '{}' чтобы начать продажу"
 
-#: main.cpp:34
+#: src/main.cpp:34
 #, c++-format
 msgid "Press '{}' to stop"
 msgstr "Нажмите '{}' для остановки"
 
-#: Configuration.cpp:266
+#: src/Configuration.cpp:266
 #, c++-format
 msgid ""
 "In FullScreen/Borderless mode aspect ratio must match, but {:.3f} != {:.3f} "
@@ -37,61 +37,114 @@ msgstr ""
 "В режиме FullScreen/Borderless соотношение сторон должно совпадать, но "
 "{:.3f} != {:.3f} для {}x{} и {}x{}"
 
-#: Configuration.cpp:270
+#: src/Configuration.cpp:270
 msgid "Unsupported aspect ratio"
 msgstr "Неподдерживаемое соотношение сторон"
 
-#: Master.cpp:349
+#: src/Master.cpp:350
 #, fuzzy
 #| msgid "Calibration started"
 msgid "Color calibration required"
 msgstr "Калибровка начата"
 
-#: Task.cpp:429
-msgid "Not at market sell, calibration fails"
+#: src/Master.cpp:377 src/Master.cpp:382
+msgid "Rows in list are not detected"
+msgstr "Строки в списке не определены"
+
+#: src/Master.cpp:394 src/Master.cpp:399
+msgid "Cannot sell"
+msgstr "Продажа не удалась"
+
+#: src/Master.cpp:394
+msgid "Cannot load market"
+msgstr "Не могу загрузить рынок"
+
+#: src/Master.cpp:399
+msgid "Ship cargo empty"
+msgstr "Нет груза на корабле"
+
+#: src/Task.cpp:423 src/Task.cpp:428
+#, fuzzy
+#| msgid "Not at market sell, calibration fails"
+msgid "Rows in commodity list are not detected, calibration fails"
 msgstr "Не на рынке продажи, калибровка не работает"
 
-#: Task.cpp:433
+#: src/Task.cpp:447
+#, fuzzy
+#| msgid "Not at market sell, calibration fails"
+msgid "Not at market, calibration fails"
+msgstr "Не на рынке продажи, калибровка не работает"
+
+#: src/Task.cpp:451
 msgid "Calibration started"
 msgstr "Калибровка начата"
 
-#: Task.cpp:485
-msgid "Calibration completed successfully!"
-msgstr "Калибровка успешно завершена!"
-
-#: Task.cpp:487 Task.cpp:489
+#: src/Task.cpp:519 src/Task.cpp:633 src/Task.cpp:636
 msgid "Failed to calibrate button state detector"
 msgstr "Не удалось откалибровать детектор состояния кнопки"
 
-#: Task.cpp:503
+#: src/Task.cpp:531
+msgid "Not at market sell, calibration fails"
+msgstr "Не на рынке продажи, калибровка не работает"
+
+#: src/Task.cpp:539 src/Task.cpp:593
+msgid "Unexpected focused row in commodity list, calibration fails"
+msgstr "Неожиданная выбранная строка в списке товаров, калибровка не удалась"
+
+#: src/Task.cpp:544 src/Task.cpp:565
+#, fuzzy
+#| msgid "Not at market sell, calibration fails"
+msgid "Cannot find commodity to test sell dialog, calibration fails"
+msgstr "Не на рынке продажи, калибровка не работает"
+
+#: src/Task.cpp:598
+msgid "Cannot find commodity to test buy dialog, calibration fails"
+msgstr ""
+"Не могу найти товар для тестирования диалога покупки, калибровка не удалась"
+
+#: src/Task.cpp:630
+msgid "Calibration completed successfully!"
+msgstr "Калибровка успешно завершена!"
+
+#: src/Task.cpp:650
 #, c++-format
 msgid "Start selling {} times by {} item(s)"
 msgstr ""
 "Начата продажа\n"
 "{} раз по {} штук"
 
-#: Task.cpp:511
+#: src/Task.cpp:658
 msgid "Step 'sell-start' failed, aborting"
 msgstr "Шаг 'sell-start' не удался, остановка"
 
-#: Task.cpp:534
+#: src/Task.cpp:681
 msgid "Step 'sell-some' not successful, cannot recover"
 msgstr "Шаг 'sell-some' не удался, не удаётся восстановить продажи"
 
-#: Task.cpp:543
+#: src/Task.cpp:690
 #, c++-format
 msgid "Unknown state '{}', aborting trade task"
 msgstr "Неизвестное состояние '{}', остановка задачи"
 
-#: UI.cpp:252
+#: src/UI.cpp:258
+msgctxt "SellDialogLabel|"
+msgid "Total"
+msgstr "Всего"
+
+#: src/UI.cpp:259
+msgctxt "SellDialogLabel|"
+msgid "Items"
+msgstr "Штук"
+
+#: src/UI.cpp:260
 msgctxt "SellDialogLabel|"
 msgid "Sells"
 msgstr "Продаж"
 
-#: UI.cpp:253
+#: src/UI.cpp:262
 msgctxt "SellDialogLabel|"
-msgid "Items"
-msgstr "Штук"
+msgid "All"
+msgstr "Продать всё"
 
 #~ msgid "Hello world!"
 #~ msgstr "Привет мир!"

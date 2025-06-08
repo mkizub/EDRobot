@@ -9,7 +9,7 @@
       { name: 'btn-compare', action: 'dlg-compare', rect: [97,509,134,79] },
       { name: 'btn-to-sell', action: 'mod-sell', rect: [96,316,133,129] },
       { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
-      { name: 'lst-goods', action: 'dlg-trade', rect: [369,256,428,712] },
+      { name: 'lst-goods', action: 'dlg-trade', rect: [369,250,425,721], row: 36, gap: 2, ocr: true },
       { name: 'mod-sell',
         detect: { img: "at_market_sell.png", t: [0.6, 0.8], at:[245, 172] },
         have: [
@@ -41,7 +41,7 @@
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"575+sdim.oy",490,60] },
                   { name: 'spn-amount', rect: [510,"349+sdim.oy",493,59] },
                   { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"809+sdim.oy",382,76] },
-                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,350,"482+sdim.oy"] }
+                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,350,"482+sdim.oy"], row: 44, gap: 2, ocr: false }
                 ]
               }
             ],
@@ -79,7 +79,7 @@
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [508,"568+bdim.oy",496,64] },
                   { name: 'spn-amount', rect: [510,"371+bdim.oy",494,62] },
                   { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1027,"804+bdim.oy",384,76] },
-                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,310,350,"486+bdim.oy"] }
+                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,310,350,"486+bdim.oy"], row: 44, gap: 2, ocr: false }
                 ]
               }
             ],
