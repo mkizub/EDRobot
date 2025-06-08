@@ -15,6 +15,10 @@
 
 class Task;
 
+namespace tesseract {
+    class TessBaseAPI;
+}
+
 enum class DetectLevel {
     Buttons, ListRows, ListRowStates, ListOcrFocusedRow, ListOcrAllRows
 };
@@ -66,10 +70,8 @@ public:
     int getDefaultKeyAfterTime() const { return mConfiguration->defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return mConfiguration->searchRegionExtent; }
 
-    void setDevScreenRect(cv::Rect rect) { mDevScreenRect = rect; mDevScaledRect = {}; }
-    void setDevScaledRect(cv::Rect rect) { mDevScaledRect = rect; mDevScreenRect = {}; }
-
     void pushCommand(Command cmd);
+    void pushDevRectScreenshotCommand(cv::Rect rect);
     void notifyProgress(const std::string& title, const std::string& text);
     void notifyError(const std::string& title, const std::string& text);
 
@@ -81,7 +83,7 @@ private:
     Master();
     ~Master();
 
-    int initializeInternal();
+    int initializeInternal(std::string ocr_dir);
     void initButtonStateDetector();
 
     static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
@@ -114,7 +116,7 @@ private:
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
     void drawButton(widget::Widget* item);
     bool debugButtons();
-    bool debugRectScreenshot(std::string name);
+    bool debugRectScreenshot(pCommand& cmd);
 
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
@@ -122,9 +124,9 @@ private:
     cv::Mat colorED;
     cv::Mat grayED;
     cv::Rect mCaptureRect; // in virtual desktop coordinated
-    cv::Rect mDevScreenRect;
-    cv::Rect mDevScaledRect;
     UIState mLastEDState;
+    std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
+    std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForDigits;
     std::unique_ptr<Configuration> mConfiguration;
     std::unique_ptr<HistogramTemplate> mButtonStateDetector;
     std::unique_ptr<HistogramTemplate> mLstRowStateDetector;

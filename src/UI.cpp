@@ -302,9 +302,9 @@ INT_PTR CALLBACK SellProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         if (shipCargo) {
             sellTotal = shipCargo->count;
             for (auto& c : shipCargo->inventory) {
-                str = toUtf16(c.commodity.nameLocalized);
+                str = c->commodity.wide;
                 SendMessage(hItems, CB_ADDSTRING, 0L, (LPARAM)str.c_str());
-                if (c.commodity.nameLocalized == sellCargo) {
+                if (c->commodity.name == sellCargo) {
                     select = str;
                     sellTotal = shipCargo->count;
                 }
@@ -351,7 +351,7 @@ INT_PTR CALLBACK SellProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             if (index <= 0 || !shipCargo || index > shipCargo->inventory.size()) {
                 sellCargo = "";
             } else {
-                sellCargo = shipCargo->inventory[index-1].commodity.nameLocalized;
+                sellCargo = shipCargo->inventory[index-1]->commodity.name;
             }
             if (LOWORD(wParam) == IDOK) {
                 dlgResult = true;
@@ -476,11 +476,7 @@ INT_PTR CALLBACK selectRectProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
                 if (!GetWindowRect(hWnd, &rect))
                     break;
                 selectedRect = fromRECT(rect);
-                std::string text = std::format("[{},{},{},{}]", selectedRect.x, selectedRect.y, selectedRect.width, selectedRect.height);
-                LOG(INFO) << "Selected rect: " << selectedRect << ": " << text;
-                Master::getInstance().setDevScreenRect(selectedRect);
-                pasteToClipboard(text);
-                Master::getInstance().pushCommand(Command::DevRectScreenshot);
+                Master::getInstance().pushDevRectScreenshotCommand(selectedRect);
             }
             PostMessage(hWnd, WM_CLOSE, 0, 0);
             break;
@@ -711,72 +707,5 @@ void popupMessageWindow() {
     }
     hWndPopupMessage = nullptr;
 }
-
-//UINT_PTR CLOSE_POPUP_TIMER_ID;
-//void ClosePopupProc(HWND hWnd, UINT, UINT_PTR, DWORD) {
-//    CLOSE_POPUP_TIMER_ID = 0;
-//    PostMessage(hWnd, WM_CLOSE, 0, 0);
-//}
-//
-//static LRESULT CALLBACK UILoopWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-//    switch (uMsg) {
-//    case ID_DEV_SELECT_RECT:
-//        if (hWndSelectRect)
-//            SetForegroundWindow(hWndSelectRect);
-//        else
-//            selectRectWindow();
-//        return 0;
-//    case ID_SHOW_TOAST:
-//        if (hWndPopupMessage) {
-//            InvalidateRect(hWndPopupMessage, nullptr, TRUE);
-//            UpdateWindow(hWndPopupMessage);
-//            //SetForegroundWindow(hWndPopupMessage);
-//        } else {
-//            popupMessageWindow();
-//        }
-//        CLOSE_POPUP_TIMER_ID = SetTimer(hWndPopupMessage, CLOSE_POPUP_TIMER_ID, 5000, ClosePopupProc);
-//        return 0;
-//    case WM_DESTROY:
-//        if (shutdownRequested) {
-//            if (hWndSelectRect)
-//                PostMessage(hWndSelectRect, WM_CLOSE, 0, 0);
-//            if (hWndPopupMessage)
-//                PostMessage(hWndPopupMessage, WM_CLOSE, 0, 0);
-//            PostQuitMessage(0);
-//            return 0;
-//        }
-//        break;
-//    }
-//    return DefWindowProc(hwnd, uMsg, wParam, lParam);
-//}
-//
-//static void loopUi() {
-//    HINSTANCE hInstance = GetModuleHandle(nullptr);
-//
-//    initSelectRectDialog();
-//    initShowPopupMessageWindow();
-//
-//    // Register window class
-//    WNDCLASS wc = {};
-//    wc.lpfnWndProc = UILoopWndProc;
-//    wc.hInstance = hInstance;
-//    wc.lpszClassName = L"MessageOnlyWindowClass";
-//    RegisterClass(&wc);
-//
-//    while (!shutdownRequested) {
-//        // Create message-only window
-//        hWndUILoop = CreateWindowEx(0, wc.lpszClassName, L"EDRobotMessageOnlyWindow",
-//                                    0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, hInstance, nullptr);
-//        if (hWndUILoop == nullptr)
-//            return;
-//        // Message loop
-//        MSG msg;
-//        while (GetMessage(&msg, nullptr, 0, 0)) {
-//            TranslateMessage(&msg);
-//            DispatchMessage(&msg);
-//        }
-//        hWndUILoop = nullptr;
-//    }
-//}
 
 } // namespace UI

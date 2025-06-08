@@ -145,7 +145,9 @@ int Master::initialize(int argc, char* argv[]) {
     options.allow_windows_style_options();
 
     bool kwd = false;
+    std::string ocr_dir;
     options.add_flag("--kwd,--keep-working-dir", kwd, "Keep working directory (do not change on start)");
+    options.add_option("--ocr-dir,--tesseract-dir", ocr_dir, "Tesseract OCR data directory");
 
     CLI11_PARSE(options, argc, argv)
     if (!kwd) {
@@ -161,15 +163,16 @@ int Master::initialize(int argc, char* argv[]) {
             LOG(INFO) << "Working Directory: " << cwd;
         }
     }
+
     TRY {
-        return initializeInternal();
+        return initializeInternal(ocr_dir);
     } CATCH(const std::exception& e) {
         LOG(ERROR) << "Exception in initialization: " << GET_EXCEPTION_STACK_TRACE;
         return 1;
     }
     return 0;
 }
-int Master::initializeInternal() {
+int Master::initializeInternal(std::string ocr_dir) {
 
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
@@ -179,6 +182,41 @@ int Master::initializeInternal() {
     mConfiguration = std::make_unique<Configuration>();
     mConfiguration->load();
     initButtonStateDetector();
+
+    if (ocr_dir.empty())
+        ocr_dir = mConfiguration->mTesseractDataPath;
+    if (ocr_dir.empty())
+        ocr_dir = "tessdata";
+
+    {
+        const char* tesseractLang = "eng";
+        if (mConfiguration->lng == RU)
+            tesseractLang = "rus+eng";
+        mTesseractApiForMarket = std::make_unique<tesseract::TessBaseAPI>();
+        const std::vector<std::string> vars_vec{"user_words_file"};
+        const std::vector<std::string> vars_values{mConfiguration->makeTesseractWordsFile()};
+        // "eng" for English language
+        if (mTesseractApiForMarket->Init(ocr_dir.c_str(), tesseractLang, tesseract::OEM_LSTM_ONLY,
+                                         nullptr, 0, &vars_vec, &vars_values, true)) {
+            LOG(ERROR) << "Error: Could not initialize tesseract.";
+            mTesseractApiForMarket.reset();
+        } else {
+            mTesseractApiForMarket->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+        }
+    }
+
+    {
+        mTesseractApiForDigits = std::make_unique<tesseract::TessBaseAPI>();
+        const std::vector<std::string> vars_vec{"tessedit_char_whitelist"};
+        const std::vector<std::string> vars_values{"0123456789+-/."};
+        // "eng" for English language
+        if (mTesseractApiForDigits->Init(ocr_dir.c_str(), "eng", tesseract::OEM_LSTM_ONLY)) {
+            LOG(ERROR) << "Error: Could not initialize tesseract.";
+            mTesseractApiForDigits.reset();
+        } else {
+            mTesseractApiForDigits->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+        }
+    }
 
     std::vector<std::string> keys;
     for (auto& m : mConfiguration->keyMapping)
@@ -239,8 +277,7 @@ void Master::loop() {
             case Command::Calibrate:
                 startCalibration();
                 break;
-            case Command::DebugTemplates:
-                {
+            case Command::DebugTemplates: {
                     ClassifyEnv env;
                     debugTemplates(nullptr, env);
                 }
@@ -249,7 +286,7 @@ void Master::loop() {
                 debugButtons();
                 break;
             case Command::DevRectScreenshot:
-                debugRectScreenshot("rect");
+                debugRectScreenshot(cmd);
                 break;
             case Command::DevRectSelect:
                 UI::askSelectRectWindow();
@@ -288,6 +325,7 @@ void Master::pushCommand(Command cmd) {
     mCommandQueue.emplace(new CommandEntry(cmd));
     mCommandCond.notify_one();
 }
+
 void Master::pushCommand(CommandEntry* cmd) {
     std::unique_lock<std::mutex> lock(mCommandMutex);
     mCommandQueue.emplace(cmd);
@@ -318,6 +356,18 @@ void Master::notifyError(const std::string& title, const std::string& text) {
     UI::showToast(title, text);
 }
 
+struct CommandDevRestScreenshot : public CommandEntry {
+    CommandDevRestScreenshot(cv::Rect rect)
+            : CommandEntry(Command::DevRectScreenshot)
+            , rect(rect)
+    {}
+    ~CommandDevRestScreenshot() override = default;
+    cv::Rect rect;
+};
+
+void Master::pushDevRectScreenshotCommand(cv::Rect rect) {
+    pushCommand(new CommandDevRestScreenshot(rect));
+}
 
 void Master::popCommand(pCommand& cmd) {
     std::unique_lock<std::mutex> lock(mCommandMutex);
@@ -408,9 +458,9 @@ bool Master::startTrade() {
     if (isEDStateMatch("scr-market:mod-sell")) {
         auto row = getFocusedRow("lst-goods");
         if (row) {
-            const CargoCommodity* cc = mConfiguration->getCargoByName(row->text, true);
+            spCargoCommodity cc = mConfiguration->getCargoByName(row->text, true);
             if (cc)
-                cargo_name = cc->commodity.nameLocalized;
+                cargo_name = cc->commodity.name;
         }
     }
 
@@ -679,24 +729,15 @@ void Master::drawButton(widget::Widget* item) {
             }
         }
 
-        auto *tesseractApi = new tesseract::TessBaseAPI();
-        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
-        tesseractApi->SetVariable("user_words_file", mConfiguration->makeTesseractWordsFile());
-        // "eng" for English language
-        if (tesseractApi->Init("tessdata", "rus", tesseract::OEM_LSTM_ONLY)) {
-            LOG(ERROR) << "Error: Could not initialize tesseract.";
-            return;
+        if (mTesseractApiForMarket) {
+            for (auto &r: detectedRows) {
+                cv::Mat rowImage(listImage, r);
+                mTesseractApiForMarket->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
+                char *outText = mTesseractApiForMarket->GetUTF8Text();
+                LOG(INFO) << "OCR Output: " << outText;
+                delete outText;
+            }
         }
-        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
-        for (auto& r : detectedRows) {
-            cv::Mat rowImage(listImage, r);
-            tesseractApi->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
-            char *outText = tesseractApi->GetUTF8Text();
-            LOG(INFO) << "OCR Output: " << outText;
-            delete outText;
-        }
-        tesseractApi->End();
-        delete tesseractApi;
 
         //cv::imshow("Contour image: " + mLastEDState.path(), contourDebugImage);
 
@@ -723,7 +764,19 @@ bool Master::debugButtons() {
     return true;
 }
 
-bool Master::debugRectScreenshot(std::string name) {
+bool Master::debugRectScreenshot(pCommand& cmd) {
+    cv::Rect rect;
+    {
+        CommandDevRestScreenshot *c = dynamic_cast<CommandDevRestScreenshot *>(cmd.get());
+        if (!c)
+            return false;
+        rect = c->rect;
+        cmd.reset();
+    }
+    std::string clipboardText = std::format("[{},{},{},{}]", rect.x, rect.y, rect.width, rect.height);
+    LOG(INFO) << "Selected rect: " << rect << ": " << clipboardText;
+    pasteToClipboard(clipboardText);
+
     Sleep(200);
     if (!isForeground()) {
         SetForegroundWindow(hWndED);
@@ -739,14 +792,64 @@ bool Master::debugRectScreenshot(std::string name) {
         LOG(ERROR) << "Cannot capture screen";
         return false;
     }
-    cv::Rect rect = mDevScreenRect;
     if ((rect & captureRect) != rect) {
         LOG(ERROR) << "Cannot make screenshot because dev rect is beyond of game client area";
         return false;
     }
     rect -= captureRect.tl();
-    cv::imwrite("debug-" + name + "-gray.png", cv::Mat(imgGray, rect));
-    cv::imwrite("debug-" + name + "-color.png", cv::Mat(imgColor, rect));
+
+    std::string text;
+    std::string name;
+    if (mTesseractApiForMarket) {
+        cv::Mat imgOcr(imgGray, rect);
+        mTesseractApiForMarket->SetImage(imgOcr.data, imgOcr.cols, imgOcr.rows, 1, imgOcr.step);
+        char* ocrText = mTesseractApiForMarket->GetUTF8Text();
+        text = trim(ocrText);
+        delete ocrText;
+        LOG(INFO) << "OCR text for selected rect " << rect << ": " << text;
+        std::transform(text.begin(), text.end(), text.begin(),[](unsigned char c){ return std::isspace(c) ? ' ' : c; });
+        Commodity* commodity = mConfiguration->getCommodityByName(text, true);
+        if (commodity) {
+            name = commodity->nameId;
+            if (mConfiguration->lng != EN)  // they capitalize text
+                text = commodity->name;
+        } else {
+            name.clear();
+            text.clear();
+        }
+    }
+
+    cv::imwrite("debug-rect-gray.png", cv::Mat(imgGray, rect));
+    cv::imwrite("debug-rect-color.png", cv::Mat(imgColor, rect));
+    if (!name.empty()) {
+        int histSize = 256;
+        float range[]{0, 256};
+        const float* histRange[]{range};
+        cv::Mat imgOcr(imgGray, rect);
+        //cv::Mat hist;
+        //cv::calcHist(&imgOcr, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+        //int maxLoc[4]{};
+        //cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+        //int backgroundColor = maxLoc[0];
+        //cv::Mat imgThr;
+        //cv::threshold(imgOcr, imgThr, backgroundColor+1, 255, cv::THRESH_TOZERO_INV);
+        //cv::Mat imgNorm;
+        //cv::normalize(imgThr, imgNorm, backgroundColor+1, 255, cv::NORM_MINMAX); // cv::NORM_L1
+
+        std::string lng;
+        if (mConfiguration->lng == RU)
+            lng = "-rus";
+        else if (mConfiguration->lng == EN)
+            lng = "-eng";
+        else
+            lng = "-xxx";
+        cv::imwrite(name + lng + ".png", imgOcr);
+        std::ofstream wf(name+lng+".gt.txt", std::ios::trunc | std::ios::binary);
+        if (wf.is_open()) {
+            wf << text;
+            wf.close();
+        }
+    }
     return true;
 }
 
@@ -816,23 +919,6 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
 
     std::vector<ClassifyEnv::ResultListRow> rows;
 
-    tesseract::TessBaseAPI* tesseractApi = nullptr;
-    if (lst->ocr && level >= DetectLevel::ListOcrFocusedRow) {
-        tesseractApi = new tesseract::TessBaseAPI();
-        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
-        tesseractApi->SetVariable("user_words_file", mConfiguration->makeTesseractWordsFile());
-        // "eng" for English language
-        if (tesseractApi->Init("tessdata", "rus", tesseract::OEM_LSTM_ONLY)) {
-            LOG(ERROR) << "Error: Could not initialize tesseract.";
-            delete tesseractApi;
-            tesseractApi = nullptr;
-        }
-    }
-    if (tesseractApi) {
-        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
-        tesseractApi->SetVariable("user_words_file", mConfiguration->makeTesseractWordsFile());
-    }
-
     for (auto& r : detectedRows) {
         WState bs = WState::Disabled;
         if (level >= DetectLevel::ListRowStates) {
@@ -847,19 +933,15 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
                 bs = (WState)idx;
         }
         std::string text;
-        if (tesseractApi && (level >= DetectLevel::ListOcrAllRows || (bs == WState::Focused && level >= DetectLevel::ListOcrFocusedRow))) {
+        if (mTesseractApiForMarket && (level >= DetectLevel::ListOcrAllRows || (bs == WState::Focused && level >= DetectLevel::ListOcrFocusedRow))) {
             cv::Mat rowImage(grayImage, r);
-            tesseractApi->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
-            char* ocrText = tesseractApi->GetUTF8Text();
+            mTesseractApiForMarket->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
+            char* ocrText = mTesseractApiForMarket->GetUTF8Text();
             text = trim(ocrText);
             delete ocrText;
             LOG(INFO) << "OCR text: " << text;
         }
         rows.emplace_back(r+rect.tl(), bs, text);
-    }
-    if (tesseractApi) {
-        tesseractApi->End();
-        delete tesseractApi;
     }
 
     mLastEDState.cEnv.classifiedListRows[lst->name] = rows;

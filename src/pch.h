@@ -34,6 +34,7 @@
 #include <easylogging/easylogging++.h>
 
 #include <json5pp/json5pp.hpp>
+#include <meojson/json5.hpp>
 
 #include "opencv2/opencv.hpp"
 

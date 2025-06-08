@@ -1,0 +1,3538 @@
+{
+  foods: {
+    en: "Foods",
+    ru: "Продукты питания",
+    items: {
+      algae: {
+        id: 128049177,
+        en: "Algae",
+        ru: "Водоросли",
+      },
+      tea: {
+        id: 128049188,
+        en: "Tea",
+        ru: "Чай",
+      },
+      bluemilk: {
+        id: 128667716,
+        en: "Azure Milk",
+        ru: "Лазурное молоко",
+      },
+      wheemetewheatcakes: {
+        id: 128667698,
+        en: "Wheemete Wheat Cakes",
+        ru: "Уимитские пшеничные галеты",
+      },
+      syntheticmeat: {
+        id: 128049185,
+        en: "Synthetic Meat",
+        ru: "Синтетическое мясо",
+      },
+      neritusberries: {
+        id: 128667056,
+        en: "Neritus Berries",
+        ru: "Нерутские ягоды",
+      },
+      animalmeat: {
+        id: 128049182,
+        en: "Animal Meat",
+        ru: "Мясо животных",
+      },
+      ochoengchillies: {
+        id: 128667057,
+        en: "Ochoeng Chillies",
+        ru: "Перчик чили с Ochoeng",
+      },
+      utgaroarmillenialeggs: {
+        id: 128667021,
+        en: "Utgaroar Millennial Eggs",
+        ru: "Миллениальные яйца с Utgaroar",
+      },
+      aerialedenapple: {
+        id: 128667055,
+        en: "Eden Apples Of Aerial",
+        ru: "Райские яблоки с Aerial",
+      },
+      albinoquechuamammoth: {
+        id: 128667020,
+        en: "Albino Quechua Mammoth Meat",
+        ru: "Мясо белого кечуанского мамонта",
+      },
+      anynacoffee: {
+        id: 128667041,
+        en: "Any Na Coffee",
+        ru: "Кофе Any Na",
+      },
+      aroucaconventualsweets: {
+        id: 128667705,
+        en: "Arouca Conventual Sweets",
+        ru: "Монастырские сладости с Arouca",
+      },
+      bakedgreebles: {
+        id: 128667669,
+        en: "Baked Greebles",
+        ru: "Печеные гриблы",
+      },
+      baltahsinevacuumkrill: {
+        id: 128667025,
+        en: "Baltah'sine Vacuum Krill",
+        ru: "Вакуумный криль с Baltah'sine",
+      },
+      cd75catcoffee: {
+        id: 128667042,
+        en: "CD-75 Kitten Brand Coffee",
+        ru: "Кошачий кофе CD-75",
+      },
+      ceremonialheiketea: {
+        id: 128667078,
+        en: "Ceremonial Heike Tea",
+        ru: "Церемониальный чай Heike",
+      },
+      cetiaepyornisegg: {
+        id: 128667670,
+        en: "Aepyornis Egg",
+        ru: "Яйцо эпиорниса",
+      },
+      cetirabbits: {
+        id: 128667026,
+        en: "Ceti Rabbits",
+        ru: "Кролики с Ceti",
+      },
+      chieridanimarinepaste: {
+        id: 128667049,
+        en: "Chi Eridani Marine Paste",
+        ru: "Морская паста с Chi Eridani",
+      },
+      coffee: {
+        id: 128049189,
+        en: "Coffee",
+        ru: "Кофе",
+      },
+      coquimspongiformvictuals: {
+        id: 128667054,
+        en: "Coquim Spongiform Victuals",
+        ru: "Губковые продукты с Coquim",
+      },
+      deuringastruffles: {
+        id: 128667058,
+        en: "Deuringas Truffles",
+        ru: "Трюфели с Deuringas",
+      },
+      disomacorn: {
+        id: 128667714,
+        en: "Diso Ma Corn",
+        ru: "Зерна дисо ма",
+      },
+      esusekucaviar: {
+        id: 128667050,
+        en: "Esuseku Caviar",
+        ru: "Эсусекусская осетровая икра",
+      },
+      ethgrezeteabuds: {
+        id: 128667077,
+        en: "Ethgreze Tea Buds",
+        ru: "Чайные бутоны с Ethgreze",
+      },
+      fish: {
+        id: 128049183,
+        en: "Fish",
+        ru: "Рыба",
+      },
+      foodcartridges: {
+        id: 128049184,
+        en: "Food Cartridges",
+        ru: "Пищевые брикеты",
+      },
+      hr7221wheat: {
+        id: 128667059,
+        en: "HR 7221 Wheat",
+        ru: "Пшеница HR 7221",
+      },
+      fruitandvegetables: {
+        id: 128049178,
+        en: "Fruit and Vegetables",
+        ru: "Фрукты и овощи",
+      },
+      fujintea: {
+        id: 128667709,
+        en: "Fujin Tea",
+        ru: "Фудзинский чай",
+      },
+      giantirukamasnails: {
+        id: 128667024,
+        en: "Giant Irukama Snails",
+        ru: "Огромные улитки с Irukama",
+      },
+      gomanyauponcoffee: {
+        id: 128667043,
+        en: "Goman Yaupon Coffee",
+        ru: "Кофе Goman Yaupon",
+      },
+      grain: {
+        id: 128049180,
+        en: "Grain",
+        ru: "Зерно",
+      },
+      haidneblackbrew: {
+        id: 128667679,
+        en: "Haiden Black Brew",
+        ru: "Гайденовский черный напиток",
+      },
+      hip10175bushmeat: {
+        id: 128667019,
+        en: "HIP 10175 Bush Meat",
+        ru: "Мясо лесной дичи с HIP 10175",
+      },
+      hip41181squid: {
+        id: 128667053,
+        en: "HIP Proto-Squid",
+        ru: "Протокальмар с HIP",
+      },
+      jarouarice: {
+        id: 128667060,
+        en: "Jaroua Rice",
+        ru: "Жаруйский рис",
+      },
+      karsukilocusts: {
+        id: 128667023,
+        en: "Karsuki Locusts",
+        ru: "Саранча с Karsuki",
+      },
+      lftvoidextractcoffee: {
+        id: 128667685,
+        en: "Void Extract Coffee",
+        ru: "Кофе «Экстракт пустоты»",
+      },
+      livehecateseaworms: {
+        id: 128667051,
+        en: "Live Hecate Sea Worms",
+        ru: "Живые морские черви с Hecate",
+      },
+      ltthypersweet: {
+        id: 128667688,
+        en: "LTT Hyper Sweet",
+        ru: "Гиперсладости LTT",
+      },
+      mechucoshightea: {
+        id: 128667689,
+        en: "Mechucos High Tea",
+        ru: "Мечукосский кайфочай",
+      },
+      witchhaulkobebeef: {
+        id: 128667022,
+        en: "Witchhaul Kobe Beef",
+        ru: "Мясо кобе с Witchhaul",
+      },
+      mokojingbeastfeast: {
+        id: 128667691,
+        en: "Mokojing Beast Feast",
+        ru: "Мокоджингское зверское яство",
+      },
+      mukusubiichitinos: {
+        id: 128667692,
+        en: "Mukusubii Chitin-os",
+        ru: "Мукусубские хитинос",
+      },
+      mulachigiantfungus: {
+        id: 128667693,
+        en: "Mulachi Giant Fungus",
+        ru: "Гигатские грибы с Mulachi",
+      },
+      orrerianviciousbrew: {
+        id: 128667711,
+        en: "Orrerian Vicious Brew",
+        ru: "Оррерское жуткое пойло",
+      },
+      sanumameat: {
+        id: 128667076,
+        en: "Sanuma Decorative Meat",
+        ru: "Декоративное мясо с Sanuma",
+      },
+      tanmarktranquiltea: {
+        id: 128667079,
+        en: "Tanmark Tranquil Tea",
+        ru: "Успокаивающий чай Tanmark",
+      },
+      uszaiantreegrub: {
+        id: 128667712,
+        en: "Uszaian Tree Grub",
+        ru: "Ушжаанский росток дерева",
+      },
+    },
+  },
+  consumer_items: {
+    en: "Consumer items",
+    ru: "Потребительские товары",
+    items: {
+      eleuthermals: {
+        id: 128667037,
+        en: "Eleu Thermals",
+        ru: "Элеусская теплая одежда",
+      },
+      soontillrelics: {
+        id: 128668018,
+        en: "Soontill Relics",
+        ru: "Реликвии Сунтилла",
+      },
+      njangarisaddles: {
+        id: 128667040,
+        en: "Njangari Saddles",
+        ru: "Седла Njangari",
+      },
+      uzumokulowgwings: {
+        id: 128667696,
+        en: "Uzumoku Low-G Wings",
+        ru: "Узумокские крылья для малой гравитации",
+      },
+      momusbogspaniel: {
+        id: 128667713,
+        en: "Momus Bog Spaniel",
+        ru: "Момусовский болотный спаниель",
+      },
+      tiolcewaste2pasteunits: {
+        id: 128667048,
+        en: "Tiolce Waste2Paste Units",
+        ru: "Устройства «Отход-в-приход» Tiolce",
+      },
+      ngunamodernantiques: {
+        id: 128667046,
+        en: "Nguna Modern Antiques",
+        ru: "Современные древности с Nguna",
+      },
+      anduligafireworks: {
+        id: 128667673,
+        en: "Anduliga Fire Works",
+        ru: "Андулигские фейерверки",
+      },
+      advert1: {
+        id: 128671119,
+        en: "Ultra-Compact Processor Prototypes",
+        ru: "Экспериментальные ультракомпактные процессоры",
+      },
+      eshuumbrellas: {
+        id: 128667038,
+        en: "Eshu Umbrellas",
+        ru: "Зонтики Эшу",
+      },
+      alacarakmoskinart: {
+        id: 128667036,
+        en: "Alacarakmo Skin Art",
+        ru: "Алакаракмовские татуировки",
+      },
+      alieneggs: {
+        id: 128667717,
+        en: "Leathery Eggs",
+        ru: "Кожистые яйца",
+      },
+      thehuttonmug: {
+        id: 128672121,
+        en: "The Hutton Mug",
+        ru: "Кружка Hutton",
+      },
+      altairianskin: {
+        id: 128667700,
+        en: "Altairian Skin",
+        ru: "Альтаирская кожа",
+      },
+      buckyballbeermats: {
+        id: 128748428,
+        en: "Buckyball Beer Mats",
+        ru: "Подставка под пиво Buckyball",
+      },
+      clothing: {
+        id: 128049241,
+        en: "Clothing",
+        ru: "Одежда",
+      },
+      shanscharisorchid: {
+        id: 128732551,
+        en: "Shan's Charis Orchid",
+        ru: "Орхидея Shan Charis",
+      },
+      karetiicouture: {
+        id: 128667039,
+        en: "Karetii Couture",
+        ru: "Модные вещи от Karetii",
+      },
+      consumertechnology: {
+        id: 128049240,
+        en: "Consumer Technology",
+        ru: "Потребительские товары",
+      },
+      taurichimes: {
+        id: 128667706,
+        en: "Tauri Chimes",
+        ru: "Колокольчики с Tauri",
+      },
+      domesticappliances: {
+        id: 128049238,
+        en: "Domestic Appliances",
+        ru: "Бытовая техника",
+      },
+      evacuationshelter: {
+        id: 128672314,
+        en: "Evacuation Shelter",
+        ru: "Эвакуационное убежище",
+      },
+      havasupaidreamcatcher: {
+        id: 128667680,
+        en: "Havasupai Dream Catcher",
+        ru: "Хавасупайский ловец снов",
+      },
+      jaquesquinentianstill: {
+        id: 128668017,
+        en: "Jaques Quinentian Still",
+        ru: "Дистиллятор Жака Квиненциана",
+      },
+      kinagoinstruments: {
+        id: 128667045,
+        en: "Kinago Violins",
+        ru: "Скрипки Kinago",
+      },
+      ophiuchiexinoartefacts: {
+        id: 128667668,
+        en: "Ophiuch Exino Artefacts",
+        ru: "Артефакты офиух экзино",
+      },
+      rajukrustoves: {
+        id: 128667047,
+        en: "Rajukru Multi-Stoves",
+        ru: "Мультипечи Rajukru",
+      },
+      survivalequipment: {
+        id: 128682048,
+        en: "Survival Equipment",
+        ru: "Снаряжение для выживания",
+      },
+      vidavantianlace: {
+        id: 128667719,
+        en: "Vidavantian Lace",
+        ru: "Видавантийский шнурок",
+      },
+      zeesszeantglue: {
+        id: 128667707,
+        en: "Zeessze Ant Grub Glue",
+        ru: "Зесский муравьиный клей",
+      },
+    },
+  },
+  chemicals: {
+    en: "Chemicals",
+    ru: "Химикаты",
+    items: {
+      agronomictreatment: {
+        id: 128924334,
+        en: "Agronomic Treatment",
+        ru: "Средство очистки почвы",
+      },
+      deltaphoenicispalms: {
+        id: 128667073,
+        en: "Delta Phoenicis Palms",
+        ru: "Фениксовые пальмы с Delta",
+      },
+      hydrogenfuel: {
+        id: 128049202,
+        en: "Hydrogen Fuel",
+        ru: "Водородное топливо",
+      },
+      explosives: {
+        id: 128049204,
+        en: "Explosives",
+        ru: "Взрывчатка",
+      },
+      syntheticreagents: {
+        id: 128672303,
+        en: "Synthetic Reagents",
+        ru: "Синтетические реагенты",
+      },
+      hiporganophosphates: {
+        id: 128667682,
+        en: "Hip Organophosphates",
+        ru: "Мощные органофосфаты",
+      },
+      liquidoxygen: {
+        id: 128673851,
+        en: "Liquid oxygen",
+        ru: "Жидкий кислород",
+      },
+      hydrogenperoxide: {
+        id: 128673850,
+        en: "Hydrogen Peroxide",
+        ru: "Пероксид водорода",
+      },
+      korrokungpellets: {
+        id: 128667684,
+        en: "Koro Kung Pellets",
+        ru: "Корокунгские катышки",
+      },
+      medbstarlube: {
+        id: 128667690,
+        en: "Medb Starlube",
+        ru: "Звездная смазка с Medb",
+      },
+      mineraloil: {
+        id: 128049203,
+        en: "Mineral Oil",
+        ru: "Нефтепродукты",
+      },
+      nerveagents: {
+        id: 128672304,
+        en: "Nerve Agents",
+        ru: "Агенты нервно-паралит. действия",
+      },
+      pesticides: {
+        id: 128049205,
+        en: "Pesticides",
+        ru: "Пестициды",
+      },
+      rockforthfertiliser: {
+        id: 128924333,
+        en: "Rockforth Fertiliser",
+        ru: "Удобрение Rockforth",
+      },
+      surfacestabilisers: {
+        id: 128672305,
+        en: "Surface Stabilisers",
+        ru: "Стабилизаторы поверхности",
+      },
+      toxandjivirocide: {
+        id: 128667074,
+        en: "Toxandji Virocide",
+        ru: "Токсанджийские вирициды",
+      },
+      tritium: {
+        id: 128961249,
+        en: "Tritium",
+        ru: "Тритий",
+      },
+      water: {
+        id: 128049166,
+        en: "Water",
+        ru: "Вода",
+      },
+    },
+  },
+  drugs: {
+    en: "Legal drugs",
+    ru: "Легальные психоактивные вещества",
+    items: {
+      chateaudeaegaeon: {
+        id: 128667084,
+        en: "Chateau De Aegaeon",
+        ru: "Шато де Эгеон",
+      },
+      burnhambiledistillate: {
+        id: 128667681,
+        en: "Burnham Bile Distillate",
+        ru: "Бернхемский желчный дистиллят",
+      },
+      apavietii: {
+        id: 128958679,
+        en: "Apa Vietii",
+        ru: "Apa Vietii",
+      },
+      onionheadc: {
+        id: 128983059,
+        en: "Onionhead Gamma Strain",
+        ru: "Луковая головка, сорт гамма",
+      },
+      konggaale: {
+        id: 128667034,
+        en: "Kongga Ale",
+        ru: "Эль с Kongga",
+      },
+      animaleffigies: {
+        id: 128727921,
+        en: "Crom Silver Fesh",
+        ru: "Кромская серебряная дурь",
+      },
+      bootlegliquor: {
+        id: 128672306,
+        en: "Bootleg Liquor",
+        ru: "Самогон",
+      },
+      saxonwine: {
+        id: 128667671,
+        en: "Saxon Wine",
+        ru: "Саксонское вино",
+      },
+      gerasiangueuzebeer: {
+        id: 128667678,
+        en: "Gerasian Gueuze Beer",
+        ru: "Герасианское пиво гез",
+      },
+      kamitracigars: {
+        id: 128667081,
+        en: "Kamitra Cigars",
+        ru: "Сигара Kamitra",
+      },
+      basicnarcotics: {
+        id: 128049212,
+        en: "Narcotics",
+        ru: "Наркотики",
+      },
+      geawendancedust: {
+        id: 128667677,
+        en: "Geawen Dance Dust",
+        ru: "Геавенская танцевальная пыль",
+      },
+      eraninpearlwhisky: {
+        id: 128666746,
+        en: "Eranin Pearl Whisky",
+        ru: "Эранинское жемчужное виски",
+      },
+      bastsnakegin: {
+        id: 128667065,
+        en: "Bast Snake Gin",
+        ru: "Настойка из бастетовых змей",
+      },
+      beer: {
+        id: 128049214,
+        en: "Beer",
+        ru: "Пиво",
+      },
+      centaurimegagin: {
+        id: 128667672,
+        en: "Centauri Mega Gin",
+        ru: "Кентаврский мега-джин",
+      },
+      harmasilversearum: {
+        id: 128793113,
+        en: "Harma Silver Sea Rum",
+        ru: "Ром «Серебряное море Harma»",
+      },
+      indibourbon: {
+        id: 128667704,
+        en: "Indi Bourbon",
+        ru: "Инди-бурбон",
+      },
+      lavianbrandy: {
+        id: 128666747,
+        en: "Lavian Brandy",
+        ru: "Лавианский бренди",
+      },
+      leestianeviljuice: {
+        id: 128667715,
+        en: "Leestian Evil Juice",
+        ru: "Леестийский сок зла",
+      },
+      liquor: {
+        id: 128049216,
+        en: "Liquor",
+        ru: "Спиртное",
+      },
+      lyraeweed: {
+        id: 128667028,
+        en: "Lyrae Weed",
+        ru: "Трава лираи",
+      },
+      motronaexperiencejelly: {
+        id: 128667676,
+        en: "Motrona Experience Jelly",
+        ru: "Мотронское желе",
+      },
+      onionhead: {
+        id: 128667029,
+        en: "Onionhead",
+        ru: "Луковая головка",
+      },
+      onionheada: {
+        id: 128672812,
+        en: "Onionhead Alpha Strain",
+        ru: "Луковая головка, сорт альфа",
+      },
+      onionheadb: {
+        id: 128673069,
+        en: "Onionhead Beta Strain",
+        ru: "Луковая головка, сорт бета",
+      },
+      pavoniseargrubs: {
+        id: 128667701,
+        en: "Pavonis Ear Grubs",
+        ru: "Павлинские ухочерви",
+      },
+      rusanioldsmokey: {
+        id: 128667082,
+        en: "Rusani Old Smokey",
+        ru: "Старые папиросы Rusani",
+      },
+      tarachtorspice: {
+        id: 128667030,
+        en: "Tarach Spice",
+        ru: "Таракская пряность",
+      },
+      thrutiscream: {
+        id: 128667066,
+        en: "Thrutis Cream",
+        ru: "Трутисские сливки",
+      },
+      tobacco: {
+        id: 128049213,
+        en: "Tobacco",
+        ru: "Табак",
+      },
+      transgeniconionhead: {
+        id: 128667760,
+        en: "Lucan Onionhead",
+        ru: "Луканская луковая головка",
+      },
+      wine: {
+        id: 128049215,
+        en: "Wine",
+        ru: "Вино",
+      },
+      wolf1301fesh: {
+        id: 128667031,
+        en: "Wolf Fesh",
+        ru: "Волчья дурь",
+      },
+      wuthielokufroth: {
+        id: 128667035,
+        en: "Wuthielo Ku Froth",
+        ru: "Пиво Ку с Wuthielo",
+      },
+      yasokondileaf: {
+        id: 128667083,
+        en: "Yaso Kondi Leaf",
+        ru: "Лист ясо Конди",
+      },
+    },
+  },
+  machinery: {
+    en: "Machinery",
+    ru: "Машинное оборудование",
+    items: {
+      powertransferconduits: {
+        id: 128673864,
+        en: "Power Transfer Bus",
+        ru: "Энергообменная шина",
+      },
+      reinforcedmountingplate: {
+        id: 128673867,
+        en: "Reinforced Mounting Plate",
+        ru: "Усиленная монтажная плита",
+      },
+      volkhabbeedrones: {
+        id: 128667044,
+        en: "Volkhab Bee Drones",
+        ru: "Дроны Volkhab Bee",
+      },
+      noneuclidianexotanks: {
+        id: 128667687,
+        en: "Non Euclidian Exotanks",
+        ru: "Неевклидовы экзобаки",
+      },
+      powerconverter: {
+        id: 128673862,
+        en: "Power Converter",
+        ru: "Преобразователь энергии",
+      },
+      heatsinkinterlink: {
+        id: 128673868,
+        en: "Heatsink Interlink",
+        ru: "Радиаторный соединитель",
+      },
+      skimercomponents: {
+        id: 128672313,
+        en: "Skimmer Components",
+        ru: "Детали оборон. беспилотников",
+      },
+      modularterminals: {
+        id: 128673870,
+        en: "Modular Terminals",
+        ru: "Модульные терминалы",
+      },
+      articulationmotors: {
+        id: 128673859,
+        en: "Articulation Motors",
+        ru: "Шарнирные моторы",
+      },
+      atmosphericextractors: {
+        id: 128064028,
+        en: "Atmospheric Processors",
+        ru: "Атмосферный процессор",
+      },
+      buildingfabricators: {
+        id: 128672309,
+        en: "Building Fabricators",
+        ru: "Строительные синтезаторы",
+      },
+      cropharvesters: {
+        id: 128049222,
+        en: "Crop Harvesters",
+        ru: "Уборочный комбайн",
+      },
+      emergencypowercells: {
+        id: 128673861,
+        en: "Emergency Power Cells",
+        ru: "Аварийные энергоячейки",
+      },
+      exhaustmanifold: {
+        id: 128673866,
+        en: "Exhaust Manifold",
+        ru: "Выпускной коллектор",
+      },
+      geologicalequipment: {
+        id: 128672307,
+        en: "Geological Equipment",
+        ru: "Геологическое оборудование",
+      },
+      giantverrix: {
+        id: 128667703,
+        en: "Giant Verrix",
+        ru: "Гигант Веррикс",
+      },
+      heliostaticfurnaces: {
+        id: 128049220,
+        en: "Microbial Furnaces",
+        ru: "Микробные печи",
+      },
+      hnshockmount: {
+        id: 128673860,
+        en: "HN Shock Mount",
+        ru: "Разрядная установка HN",
+      },
+      iondistributor: {
+        id: 128673874,
+        en: "Ion Distributor",
+        ru: "Ионный распределитель",
+      },
+      magneticemittercoil: {
+        id: 128673869,
+        en: "Magnetic Emitter Coil",
+        ru: "Спираль магнитного излучателя",
+      },
+      marinesupplies: {
+        id: 128049223,
+        en: "Marine Equipment",
+        ru: "Морское оборудование",
+      },
+      mineralextractors: {
+        id: 128049221,
+        en: "Mineral Extractors",
+        ru: "Экстракторы минералов",
+      },
+      powergenerators: {
+        id: 128049217,
+        en: "Power Generators",
+        ru: "Электрогенераторы",
+      },
+      powergridassembly: {
+        id: 128673863,
+        en: "Energy Grid Assembly",
+        ru: "Электросеть в сборе",
+      },
+      radiationbaffle: {
+        id: 128673865,
+        en: "Radiation Baffle",
+        ru: "Отражатель излучения",
+      },
+      thermalcoolingunits: {
+        id: 128672308,
+        en: "Thermal Cooling Units",
+        ru: "Термальные охладители",
+      },
+      waterpurifiers: {
+        id: 128049218,
+        en: "Water Purifiers",
+        ru: "Водоочистители",
+      },
+      wulpahyperboresystems: {
+        id: 128667067,
+        en: "Wulpa Hyperbore Systems",
+        ru: "Гипербурильные системы Wulpa",
+      },
+    },
+  },
+  industrial_materials: {
+    en: "Industrial materials",
+    ru: "Промышленные материалы",
+    items: {
+      ceramiccomposites: {
+        id: 128672302,
+        en: "Ceramic Composites",
+        ru: "Керамокомпозиты",
+      },
+      cmmcomposite: {
+        id: 128673856,
+        en: "CMM Composite",
+        ru: "CMM-композит",
+      },
+      coolinghoses: {
+        id: 128673857,
+        en: "Micro-weave Cooling Hoses",
+        ru: "Шланги системы охлаждения малых диаметров",
+      },
+      insulatingmembrane: {
+        id: 128673855,
+        en: "Insulating Membrane",
+        ru: "Изолирующая мембрана",
+      },
+      metaalloys: {
+        id: 128672701,
+        en: "Meta-Alloys",
+        ru: "Метасплавы",
+      },
+      neofabricinsulation: {
+        id: 128673858,
+        en: "Neofabric Insulation",
+        ru: "Высокотехнологичная изоляция",
+      },
+      polymers: {
+        id: 128049197,
+        en: "Polymers",
+        ru: "Полимеры",
+      },
+      semiconductors: {
+        id: 128049199,
+        en: "Semiconductors",
+        ru: "Полупроводники",
+      },
+      superconductors: {
+        id: 128049200,
+        en: "Superconductors",
+        ru: "Сверхпроводники",
+      },
+    },
+  },
+  salvage: {
+    en: "Salvage",
+    ru: "Спасенное имущество",
+    items: {
+      s_tissuesample_surface: {
+        id: 128922521,
+        en: "Pod Dead Tissue",
+        ru: "Мертвая ткань семянки",
+      },
+      thargoidtissuesampletype10b: {
+        id: 129022403,
+        en: "Titan Maw Tissue Sample",
+        ru: "Образец ткани пасти титана",
+      },
+      encryptedcorrespondence: {
+        id: 128672130,
+        en: "Encrypted Correspondence",
+        ru: "Шифрованная переписка",
+      },
+      ancienturn: {
+        id: 128732187,
+        en: "Guardian Urn",
+        ru: "Урна Стражей",
+      },
+      unknownresin: {
+        id: 128737287,
+        en: "Thargoid Resin",
+        ru: "Таргоидская смола",
+      },
+      geologicalsamples: {
+        id: 128672315,
+        en: "Geological Samples",
+        ru: "Образцы породы",
+      },
+      fossilremnants: {
+        id: 128682055,
+        en: "Fossil Remnants",
+        ru: "Ископаемые останки",
+      },
+      unknowntechnologysamples: {
+        id: 128737289,
+        en: "Thargoid Technology Samples",
+        ru: "Образцы таргоидских технологий",
+      },
+      encripteddatastorage: {
+        id: 128672124,
+        en: "Encrypted Data Storage",
+        ru: "Зашифрованный носитель данных",
+      },
+      ancientcasket: {
+        id: 128732185,
+        en: "Guardian Casket",
+        ru: "Шкатулка Стражей",
+      },
+      galactictravelguide: {
+        id: 128682050,
+        en: "Galactic Travel Guide",
+        ru: "Путеводитель галактического путешественника",
+      },
+      s6_tissuesample_cells: {
+        id: 128922786,
+        en: "Pod Outer Tissue",
+        ru: "Внешняя ткань семянки",
+      },
+      unknownmineral: {
+        id: 129022408,
+        en: "Impure Spire Mineral",
+        ru: "Неочищенный минерал со шпилей",
+      },
+      ancienttablet: {
+        id: 128732186,
+        en: "Guardian Tablet",
+        ru: "Табличка Стражей",
+      },
+      s6_tissuesample_coenosarc: {
+        id: 128922787,
+        en: "Pod Shell Tissue",
+        ru: "Ткань оболочки семянки",
+      },
+      thargoidheart: {
+        id: 128793127,
+        en: "Thargoid Heart",
+        ru: "Таргоидское «сердце»",
+      },
+      thargoidtissuesampletype7: {
+        id: 129022396,
+        en: "Thargoid Scythe Tissue Sample",
+        ru: "Образец ткани таргоидского корабля «Коса»",
+      },
+      thargoidtissuesampletype4: {
+        id: 128902652,
+        en: "Thargoid Hydra Tissue Sample",
+        ru: "Образец ткани таргоидского корабля «Гидра»",
+      },
+      tacticaldata: {
+        id: 128672128,
+        en: "Tactical Data",
+        ru: "Тактические данные",
+      },
+      personalgifts: {
+        id: 128672431,
+        en: "Festive Gifts",
+        ru: "Праздничные подарки",
+      },
+      m_tissuesample_nerves: {
+        id: 128922519,
+        en: "Mollusc Brain Tissue",
+        ru: "Мозговое вещество моллюска",
+      },
+      thargoidcystspecimen: {
+        id: 129030460,
+        en: "Cyst Specimen",
+        ru: "Образец кисты",
+      },
+      thargoidtissuesampletype2: {
+        id: 128793129,
+        en: "Thargoid Basilisk Tissue Sample",
+        ru: "Образец ткани таргоидского корабля «Василиск»",
+      },
+      m3_tissuesample_membrane: {
+        id: 128922782,
+        en: "Mollusc Membrane",
+        ru: "Мембрана моллюска",
+      },
+      s_tissuesample_core: {
+        id: 128922522,
+        en: "Pod Surface Tissue",
+        ru: "Поверхностная ткань семянки",
+      },
+      ancientrelictg: {
+        id: 129015433,
+        en: "Unclassified Relic",
+        ru: "Неопознанная реликвия",
+      },
+      thargoidtissuesampletype9b: {
+        id: 129022399,
+        en: "Titan Tissue Sample",
+        ru: "Образец ткани титана",
+      },
+      m3_tissuesample_mycelium: {
+        id: 128922783,
+        en: "Mollusc Mycelium",
+        ru: "Мицелий моллюска",
+      },
+      thargoidtissuesampletype6: {
+        id: 129022395,
+        en: "Thargoid Glaive Tissue Sample",
+        ru: "Образец ткани таргоидского корабля «Глефа»",
+      },
+      m3_tissuesample_spores: {
+        id: 128922784,
+        en: "Mollusc Spores",
+        ru: "Споры моллюска",
+      },
+      ancientkey: {
+        id: 128888499,
+        en: "Ancient Key",
+        ru: "Древний ключ",
+      },
+      ancientorb: {
+        id: 128732184,
+        en: "Guardian Orb",
+        ru: "Сфера Стражей",
+      },
+      ancientrelic: {
+        id: 128732183,
+        en: "Guardian Relic",
+        ru: "Реликвия Стражей",
+      },
+      ancienttotem: {
+        id: 128732188,
+        en: "Guardian Totem",
+        ru: "Тотем Стражей",
+      },
+      antiquejewellery: {
+        id: 128672159,
+        en: "Antique Jewellery",
+        ru: "Древние ювелирные украшения",
+      },
+      assaultplans: {
+        id: 128672129,
+        en: "Assault Plans",
+        ru: "Планы атак",
+      },
+      comercialsamples: {
+        id: 128672127,
+        en: "Commercial Samples",
+        ru: "Рекламные образцы",
+      },
+      coralsap: {
+        id: 129022407,
+        en: "Coral Sap",
+        ru: "Коралловая смола",
+      },
+      crystallinespheres: {
+        id: 128672432,
+        en: "Crystalline Spheres",
+        ru: "Прозрачные сферы",
+      },
+      datacore: {
+        id: 128682049,
+        en: "Data Core",
+        ru: "Ядро данных",
+      },
+      diplomaticbag: {
+        id: 128672131,
+        en: "Diplomatic Bag",
+        ru: "Дипломатическая сумка",
+      },
+      earthrelics: {
+        id: 128672161,
+        en: "Earth Relics",
+        ru: "Реликвии с Земли",
+      },
+      genebank: {
+        id: 128672162,
+        en: "Gene Bank",
+        ru: "Генотека",
+      },
+      unstabledatacore: {
+        id: 128672810,
+        en: "Unstable Data Core",
+        ru: "Нестабильное ядро данных",
+      },
+      largeexplorationdatacash: {
+        id: 128672136,
+        en: "Large Survey Data Cache",
+        ru: "Большой пакет с данными исследования",
+      },
+      m_tissuesample_fluid: {
+        id: 128922517,
+        en: "Mollusc Fluid",
+        ru: "Жидкость моллюска",
+      },
+      m_tissuesample_soft: {
+        id: 128922518,
+        en: "Mollusc Soft Tissue",
+        ru: "Мягкие ткани моллюска",
+      },
+      mysteriousidol: {
+        id: 128682051,
+        en: "Mysterious Idol",
+        ru: "Таинственный идол",
+      },
+      p_particulatesample: {
+        id: 128922523,
+        en: "Anomaly Particles",
+        ru: "Аномальные частицы",
+      },
+      preciousgems: {
+        id: 128672160,
+        en: "Precious Gems",
+        ru: "Драгоценные камни",
+      },
+      s6_tissuesample_mesoglea: {
+        id: 128922785,
+        en: "Pod Mesoglea",
+        ru: "Мезоглея семянки",
+      },
+      s9_tissuesample_shell: {
+        id: 128922781,
+        en: "Pod Tissue",
+        ru: "Ткань семянки",
+      },
+      s_tissuesample_cells: {
+        id: 128922520,
+        en: "Pod Core Tissue",
+        ru: "Ткань ядра семянки",
+      },
+      sap8corecontainer: {
+        id: 128671443,
+        en: "SAP 8 Core Container",
+        ru: "Контейнер SAP 8 Core",
+      },
+      scientificresearch: {
+        id: 128672132,
+        en: "Scientific Research",
+        ru: "Материалы исследования",
+      },
+      scientificsamples: {
+        id: 128672133,
+        en: "Scientific Samples",
+        ru: "Научные образцы",
+      },
+      smallexplorationdatacash: {
+        id: 128672137,
+        en: "Small Survey Data Cache",
+        ru: "Малый пакет с данными исследования",
+      },
+      spacepioneerrelics: {
+        id: 128682054,
+        en: "Space Pioneer Relics",
+        ru: "Следы первопроходцев космоса",
+      },
+      thargoidbonefragments: {
+        id: 129030461,
+        en: "Bone Fragments",
+        ru: "Фрагменты кости",
+      },
+      unknownartifact2: {
+        id: 128673876,
+        en: "Thargoid Probe",
+        ru: "Таргоидский зонд",
+      },
+      thargoidgeneratortissuesample: {
+        id: 129019259,
+        en: "Caustic Tissue Sample",
+        ru: "Образец едких тканей",
+      },
+      thargoidorgansample: {
+        id: 129030462,
+        en: "Organ Sample",
+        ru: "Образец органа",
+      },
+      thargoidscouttissuesample: {
+        id: 128824468,
+        en: "Thargoid Scout Tissue Sample",
+        ru: "Образец тканей таргоида-разведчика",
+      },
+      thargoidtissuesampletype1: {
+        id: 128793128,
+        en: "Thargoid Cyclops Tissue Sample",
+        ru: "Образец ткани таргоидского корабля «Циклоп»",
+      },
+      thargoidtissuesampletype10a: {
+        id: 129022402,
+        en: "Titan Maw Deep Tissue Sample",
+        ru: "Образец глубокой ткани пасти титана",
+      },
+      thargoidtissuesampletype10c: {
+        id: 129022404,
+        en: "Titan Maw Partial Tissue Sample",
+        ru: "Неполный образец ткани пасти титана",
+      },
+      thargoidtissuesampletype3: {
+        id: 128793130,
+        en: "Thargoid Medusa Tissue Sample",
+        ru: "Образец ткани таргоидского корабля «Медуза»",
+      },
+      thargoidtissuesampletype5: {
+        id: 129019258,
+        en: "Thargoid Orthrus Tissue Sample",
+        ru: "Образец ткани таргоидского корабля «Орф»",
+      },
+      thargoidtissuesampletype9a: {
+        id: 129022398,
+        en: "Titan Deep Tissue Sample",
+        ru: "Образец глубокой ткани титана",
+      },
+      thargoidtissuesampletype9c: {
+        id: 129022400,
+        en: "Titan Partial Tissue Sample",
+        ru: "Неполный образец ткани титана",
+      },
+      thargoidtitandrivecomponent: {
+        id: 129030459,
+        en: "Titan Drive Component",
+        ru: "Компонент двигателя титана",
+      },
+      timecapsule: {
+        id: 128672163,
+        en: "Time Capsule",
+        ru: "Капсула времени",
+      },
+      unknownartifact: {
+        id: 128668547,
+        en: "Thargoid Sensor",
+        ru: "Таргоидский сенсор",
+      },
+      unknownartifact3: {
+        id: 128740752,
+        en: "Thargoid Link",
+        ru: "Таргоидское звено",
+      },
+      unknownbiologicalmatter: {
+        id: 128737288,
+        en: "Thargoid Biological Matter",
+        ru: "Таргоидская биомасса",
+      },
+      unknownrefinedmineral: {
+        id: 129022409,
+        en: "Semi-Refined Spire Mineral",
+        ru: "Полуочищенный минерал со шпилей",
+      },
+      unknownsack: {
+        id: 129022405,
+        en: "Protective Membrane Scrap",
+        ru: "Остатки защитной мембраны",
+      },
+      unocuppiedescapepod: {
+        id: 129022087,
+        en: "Unoccupied Escape Pod",
+        ru: "Пустая спасательная капсула",
+      },
+      usscargorareartwork: {
+        id: 128666757,
+        en: "Rare Artwork",
+        ru: "Редкие произведения искусства",
+      },
+    },
+  },
+  medicines: {
+    en: "Medicines",
+    ru: "Лекарства",
+    items: {
+      vherculisbodyrub: {
+        id: 128667697,
+        en: "V Herculis Body Rub",
+        ru: "Скраб с V Herculis",
+      },
+      kachiriginleaches: {
+        id: 128667027,
+        en: "Kachirigin Filter Leeches",
+        ru: "Очищающие пиявки с Kachirigin",
+      },
+      basicmedicines: {
+        id: 128049210,
+        en: "Basic Medicines",
+        ru: "Основные лекарства",
+      },
+      watersofshintara: {
+        id: 128667085,
+        en: "The Waters Of Shintara",
+        ru: "Воды с Shintara",
+      },
+      advancedmedicines: {
+        id: 128682046,
+        en: "Advanced Medicines",
+        ru: "Новейшие лекарства",
+      },
+      aganipperush: {
+        id: 128667068,
+        en: "Aganippe Rush",
+        ru: "Аганиппийский кайф",
+      },
+      agriculturalmedicines: {
+        id: 128049208,
+        en: "Agri-Medicines",
+        ru: "Ветмедикаменты",
+      },
+      alyabodilysoap: {
+        id: 128667718,
+        en: "Alya Body Soap",
+        ru: "Алийское мыло для тела",
+      },
+      combatstabilisers: {
+        id: 128049670,
+        en: "Combat Stabilisers",
+        ru: "Боевые стабилизаторы",
+      },
+      honestypills: {
+        id: 128667686,
+        en: "Honesty Pills",
+        ru: "Пилюли честности",
+      },
+      nanomedicines: {
+        id: 128913661,
+        en: "Nanomedicines",
+        ru: "Нанолекарства",
+      },
+      pantaaprayersticks: {
+        id: 128667708,
+        en: "Pantaa Prayer Sticks",
+        ru: "Пантаские молитвенные палочки",
+      },
+      performanceenhancers: {
+        id: 128049209,
+        en: "Performance Enhancers",
+        ru: "Стимуляторы",
+      },
+      progenitorcells: {
+        id: 128049669,
+        en: "Progenitor Cells",
+        ru: "Прогениторные клетки",
+      },
+      terramaterbloodbores: {
+        id: 128667069,
+        en: "Terra Mater Blood Bores",
+        ru: "Кровяные усилители с Terra Mater",
+      },
+      vegaslimweed: {
+        id: 128667699,
+        en: "Vega Slimweed",
+        ru: "Водоросли для похудения с Vega",
+      },
+    },
+  },
+  metals: {
+    en: "Metals",
+    ru: "Металлы",
+    items: {
+      thorium: {
+        id: 128672301,
+        en: "Thorium",
+        ru: "Торий",
+      },
+      indium: {
+        id: 128049169,
+        en: "Indium",
+        ru: "Индий",
+      },
+      samarium: {
+        id: 128673847,
+        en: "Samarium",
+        ru: "Самарий",
+      },
+      osmium: {
+        id: 128671118,
+        en: "Osmium",
+        ru: "Осмий",
+      },
+      steel: {
+        id: 129031238,
+        en: "Steel",
+        ru: "Сталь",
+      },
+      titanium: {
+        id: 128049174,
+        en: "Titanium",
+        ru: "Титан",
+      },
+      sothiscrystallinegold: {
+        id: 128672122,
+        en: "Sothis Crystalline Gold",
+        ru: "Кристаллическое золото системы Sothis",
+      },
+      aluminium: {
+        id: 128049176,
+        en: "Aluminium",
+        ru: "Алюминий",
+      },
+      beryllium: {
+        id: 128049168,
+        en: "Beryllium",
+        ru: "Бериллий",
+      },
+      bismuth: {
+        id: 128672300,
+        en: "Bismuth",
+        ru: "Висмут",
+      },
+      cherbonesbloodcrystals: {
+        id: 128667675,
+        en: "Cherbones Blood Crystals",
+        ru: "Чербонские кровавые кристаллы",
+      },
+      cobalt: {
+        id: 128049162,
+        en: "Cobalt",
+        ru: "Кобальт",
+      },
+      copper: {
+        id: 128049175,
+        en: "Copper",
+        ru: "Медь",
+      },
+      gallium: {
+        id: 128049170,
+        en: "Gallium",
+        ru: "Галлий",
+      },
+      gold: {
+        id: 128049154,
+        en: "Gold",
+        ru: "Золото",
+      },
+      helvetitjpearls: {
+        id: 128667052,
+        en: "Helvetitj Pearls",
+        ru: "Жемчуг с Helvetitj",
+      },
+      lanthanum: {
+        id: 128672298,
+        en: "Lanthanum",
+        ru: "Лантан",
+      },
+      lithium: {
+        id: 128049173,
+        en: "Lithium",
+        ru: "Литий",
+      },
+      ngadandarifireopals: {
+        id: 128667694,
+        en: "Ngadandari Fire Opals",
+        ru: "Нгадандарийские огненные опалы",
+      },
+      palladium: {
+        id: 128049153,
+        en: "Palladium",
+        ru: "Палладий",
+      },
+      platinum: {
+        id: 128049152,
+        en: "Platinum",
+        ru: "Платина",
+      },
+      platinumaloy: {
+        id: 128793114,
+        en: "Platinum Alloy",
+        ru: "Платиновый сплав",
+      },
+      praseodymium: {
+        id: 128673845,
+        en: "Praseodymium",
+        ru: "Празеодим",
+      },
+      silver: {
+        id: 128049155,
+        en: "Silver",
+        ru: "Серебро",
+      },
+      tantalum: {
+        id: 128049171,
+        en: "Tantalum",
+        ru: "Тантал",
+      },
+      thallium: {
+        id: 128672299,
+        en: "Thallium",
+        ru: "Таллий",
+      },
+      uranium: {
+        id: 128049172,
+        en: "Uranium",
+        ru: "Уран",
+      },
+    },
+  },
+  weapons: {
+    en: "Weapons",
+    ru: "Оружие",
+    items: {
+      nonlethalweapons: {
+        id: 128049236,
+        en: "Non-Lethal Weapons",
+        ru: "Нелетальное оружие",
+      },
+      hip118311swarm: {
+        id: 128667033,
+        en: "HIP 118311 Swarm",
+        ru: "Рой HIP 118311",
+      },
+      gilyasignatureweapons: {
+        id: 128667072,
+        en: "Gilya Signature Weapons",
+        ru: "Именное оружие из системы Gilya",
+      },
+      reactivearmour: {
+        id: 128049235,
+        en: "Reactive Armour",
+        ru: "Реактивная защита",
+      },
+      landmines: {
+        id: 128672312,
+        en: "Landmines",
+        ru: "Мины",
+      },
+      borasetanipathogenetics: {
+        id: 128667032,
+        en: "Borasetani Pathogenetics",
+        ru: "Боразетанские патогены",
+      },
+      battleweapons: {
+        id: 128049234,
+        en: "Battle Weapons",
+        ru: "Военное оружие",
+      },
+      holvaduellingblades: {
+        id: 128667070,
+        en: "Holva Duelling Blades",
+        ru: "Хольванские дуэльные клинки",
+      },
+      kamorinhistoricweapons: {
+        id: 128667071,
+        en: "Kamorin Historic Weapons",
+        ru: "Каморинское историческое оружие",
+      },
+      personalweapons: {
+        id: 128049233,
+        en: "Personal Weapons",
+        ru: "Личное оружие",
+      },
+    },
+  },
+  minerals: {
+    en: "Minerals",
+    ru: "Минералы",
+    items: {
+      bertrandite: {
+        id: 128049156,
+        en: "Bertrandite",
+        ru: "Бертрандит",
+      },
+      opal: {
+        id: 128924332,
+        en: "Void Opal",
+        ru: "Опал бездны",
+      },
+      methaneclathrate: {
+        id: 128673854,
+        en: "Methane Clathrate",
+        ru: "Клатрат метана",
+      },
+      musgravite: {
+        id: 128924328,
+        en: "Musgravite",
+        ru: "Мусгравит",
+      },
+      pyrophyllite: {
+        id: 128672297,
+        en: "Pyrophyllite",
+        ru: "Пирофиллит",
+      },
+      lepidolite: {
+        id: 128049161,
+        en: "Lepidolite",
+        ru: "Лепидолит",
+      },
+      monazite: {
+        id: 128924327,
+        en: "Monazite",
+        ru: "Монацит",
+      },
+      methanolmonohydratecrystals: {
+        id: 128673852,
+        en: "Methanol Monohydrate Crystals",
+        ru: "Кристаллы моногидрата метанола",
+      },
+      alexandrite: {
+        id: 128924331,
+        en: "Alexandrite",
+        ru: "Александрит",
+      },
+      bauxite: {
+        id: 128049165,
+        en: "Bauxite",
+        ru: "Боксит",
+      },
+      benitoite: {
+        id: 128924329,
+        en: "Benitoite",
+        ru: "Бенитоит",
+      },
+      bromellite: {
+        id: 128673846,
+        en: "Bromellite",
+        ru: "Бромеллит",
+      },
+      coltan: {
+        id: 128049159,
+        en: "Coltan",
+        ru: "Колтан",
+      },
+      cryolite: {
+        id: 128672294,
+        en: "Cryolite",
+        ru: "Криолит",
+      },
+      gallite: {
+        id: 128049158,
+        en: "Gallite",
+        ru: "Галлит",
+      },
+      goslarite: {
+        id: 128672295,
+        en: "Goslarite",
+        ru: "Госларит",
+      },
+      grandidierite: {
+        id: 128924330,
+        en: "Grandidierite",
+        ru: "Грандидьерит",
+      },
+      haematite: {
+        id: 129031327,
+        en: "Haematite",
+        ru: "Гематит",
+      },
+      indite: {
+        id: 128049157,
+        en: "Indite",
+        ru: "Индит",
+      },
+      jadeite: {
+        id: 128672776,
+        en: "Jadeite",
+        ru: "Жадеит",
+      },
+      lithiumhydroxide: {
+        id: 128673853,
+        en: "Lithium Hydroxide",
+        ru: "Гидроксид лития",
+      },
+      lowtemperaturediamond: {
+        id: 128673848,
+        en: "Low Temp. Diamonds",
+        ru: "Низкотемпературные алмазы",
+      },
+      moissanite: {
+        id: 128672296,
+        en: "Moissanite",
+        ru: "Муассанит",
+      },
+      painite: {
+        id: 128668550,
+        en: "Painite",
+        ru: "Пейнит",
+      },
+      rhodplumsite: {
+        id: 128924325,
+        en: "Rhodplumsite",
+        ru: "Родплумсайт",
+      },
+      rutile: {
+        id: 128049163,
+        en: "Rutile",
+        ru: "Рутил",
+      },
+      serendibite: {
+        id: 128924326,
+        en: "Serendibite",
+        ru: "Серендибит",
+      },
+      taaffeite: {
+        id: 128672775,
+        en: "Taaffeite",
+        ru: "Тааффеит",
+      },
+      uraninite: {
+        id: 128049160,
+        en: "Uraninite",
+        ru: "Уранинит",
+      },
+    },
+  },
+  slaves: {
+    en: "Slavery",
+    ru: "Рабы",
+    items: {
+      masterchefs: {
+        id: 128672316,
+        en: "Master Chefs",
+        ru: "Мастер-шефы",
+      },
+      imperialslaves: {
+        id: 128667728,
+        en: "Imperial Slaves",
+        ru: "Имперские рабы",
+      },
+    },
+  },
+  technology: {
+    en: "Technology",
+    ru: "Технологии",
+    items: {
+      structuralregulators: {
+        id: 128672311,
+        en: "Structural Regulators",
+        ru: "Конструкционные регуляторы",
+      },
+      duradrives: {
+        id: 128922524,
+        en: "Duradrives",
+        ru: "Дюрадрайвы",
+      },
+      advancedcatalysers: {
+        id: 128049231,
+        en: "Advanced Catalysers",
+        ru: "Улучшенные катализаторы",
+      },
+      classifiedexperimentalequipment: {
+        id: 129002574,
+        en: "Classified Experimental Equipment",
+        ru: "Засекреченное экспериментальное оборудование",
+      },
+      aquaponicsystems: {
+        id: 128049230,
+        en: "Aquaponic Systems",
+        ru: "Аквапонные системы",
+      },
+      terrainenrichmentsystems: {
+        id: 128049232,
+        en: "Land Enrichment Systems",
+        ru: "Системы обогащения почвы",
+      },
+      azcancriformula42: {
+        id: 128667080,
+        en: "AZ Cancri Formula 42",
+        ru: "Формула 42 AZ Cancri",
+      },
+      telemetrysuite: {
+        id: 128673872,
+        en: "Telemetry Suite",
+        ru: "Телеметрический комплект",
+      },
+      robotics: {
+        id: 128049227,
+        en: "Robotics",
+        ru: "Роботы",
+      },
+      medicaldiagnosticequipment: {
+        id: 128682047,
+        en: "Medical Diagnostic Equipment",
+        ru: "Диагностическое медоборудование",
+      },
+      microcontrollers: {
+        id: 128673873,
+        en: "Micro Controllers",
+        ru: "Микроконтроллеры",
+      },
+      diagnosticsensor: {
+        id: 128673875,
+        en: "Hardware Diagnostic Sensor",
+        ru: "Сенсор диагностики оборудования",
+      },
+      xihecompanions: {
+        id: 128667075,
+        en: "Xihe Biomorphic Companions",
+        ru: "Биоморфные спутники Xihe",
+      },
+      bioreducinglichen: {
+        id: 128049672,
+        en: "Bioreducing Lichen",
+        ru: "Лишайник-биоредуктор",
+      },
+      animalmonitors: {
+        id: 128049229,
+        en: "Animal Monitors",
+        ru: "Мониторы фауны",
+      },
+      autofabricators: {
+        id: 128049228,
+        en: "Auto-Fabricators",
+        ru: "Автосинтезаторы",
+      },
+      computercomponents: {
+        id: 128049225,
+        en: "Computer Components",
+        ru: "Компьютерные компоненты",
+      },
+      hazardousenvironmentsuits: {
+        id: 128049226,
+        en: "H.E. Suits",
+        ru: "Защитные костюмы",
+      },
+      mutomimager: {
+        id: 128672310,
+        en: "Muon Imager",
+        ru: "Мюонное видеоустройство",
+      },
+      nanobreakers: {
+        id: 128673871,
+        en: "Nanobreakers",
+        ru: "Нанопрерыватели",
+      },
+      resonatingseparators: {
+        id: 128049671,
+        en: "Resonating Separators",
+        ru: "Резонансные сепараторы",
+      },
+    },
+  },
+  textiles: {
+    en: "Textiles",
+    ru: "Текстиль",
+    items: {
+      leather: {
+        id: 128049190,
+        en: "Leather",
+        ru: "Кожа",
+      },
+      tiegfriessynthsilk: {
+        id: 128667695,
+        en: "Tiegfries Synth Silk",
+        ru: "Тигфрайский синтешелк",
+      },
+      militarygradefabrics: {
+        id: 128682045,
+        en: "Military Grade Fabrics",
+        ru: "Ткани военного класса",
+      },
+      conductivefabrics: {
+        id: 128682044,
+        en: "Conductive Fabrics",
+        ru: "Проводящая ткань",
+      },
+      rapabaosnakeskins: {
+        id: 128667063,
+        en: "Rapa Bao Snake Skins",
+        ru: "Змеиные шкуры с Rapa Bao",
+      },
+      bankiamphibiousleather: {
+        id: 128667674,
+        en: "Banki Amphibious Leather",
+        ru: "Кожа банкийских амфибий",
+      },
+      vanayequirhinofur: {
+        id: 128667064,
+        en: "Vanayequi Ceratomorpha Fur",
+        ru: "Мех носорогов с Vanayequi",
+      },
+      jotunmookah: {
+        id: 128667702,
+        en: "Jotun Mookah",
+        ru: "Йотунская моока",
+      },
+      syntheticfabrics: {
+        id: 128049193,
+        en: "Synthetic Fabrics",
+        ru: "Синтетическая ткань",
+      },
+      belalansrayleather: {
+        id: 128667061,
+        en: "Belalans Ray Leather",
+        ru: "Кожа белаланских скатов",
+      },
+      chameleoncloth: {
+        id: 128667710,
+        en: "Chameleon Cloth",
+        ru: "Ткань-хамелеон",
+      },
+      damnacarapaces: {
+        id: 128667062,
+        en: "Damna Carapaces",
+        ru: "Панцири с Damna",
+      },
+      naturalfabrics: {
+        id: 128049191,
+        en: "Natural Fabrics",
+        ru: "Натуральная ткань",
+      },
+    },
+  },
+  waste: {
+    en: "Waste",
+    ru: "Отходы",
+    items: {
+      scrap: {
+        id: 128049248,
+        en: "Scrap",
+        ru: "Утильсырье",
+      },
+      biowaste: {
+        id: 128049244,
+        en: "Biowaste",
+        ru: "Биоотходы",
+      },
+      chemicalwaste: {
+        id: 128049246,
+        en: "Chemical Waste",
+        ru: "Радиоактивные материалы",
+      },
+    },
+  },
+  'market-order-en': [
+    "metals", // Metals | Металлы
+    [
+      "platinum", // Platinum | Платина
+      "palladium", // Palladium | Палладий
+      "gold", // Gold | Золото
+      "silver", // Silver | Серебро
+      "cobalt", // Cobalt | Кобальт
+      "beryllium", // Beryllium | Бериллий
+      "indium", // Indium | Индий
+      "gallium", // Gallium | Галлий
+      "tantalum", // Tantalum | Тантал
+      "uranium", // Uranium | Уран
+      "lithium", // Lithium | Литий
+      "titanium", // Titanium | Титан
+      "copper", // Copper | Медь
+      "aluminium", // Aluminium | Алюминий
+      "helvetitjpearls", // Helvetitj Pearls | Жемчуг с Helvetitj
+      "cherbonesbloodcrystals", // Cherbones Blood Crystals | Чербонские кровавые кристаллы
+      "ngadandarifireopals", // Ngadandari Fire Opals | Нгадандарийские огненные опалы
+      "osmium", // Osmium | Осмий
+      "sothiscrystallinegold", // Sothis Crystalline Gold | Кристаллическое золото системы Sothis
+      "lanthanum", // Lanthanum | Лантан
+      "thallium", // Thallium | Таллий
+      "bismuth", // Bismuth | Висмут
+      "thorium", // Thorium | Торий
+      "praseodymium", // Praseodymium | Празеодим
+      "samarium", // Samarium | Самарий
+      "platinumaloy", // Platinum Alloy | Платиновый сплав
+      "steel", // Steel | Сталь
+    ],
+    "minerals", // Minerals | Минералы
+    [
+      "bertrandite", // Bertrandite | Бертрандит
+      "indite", // Indite | Индит
+      "gallite", // Gallite | Галлит
+      "coltan", // Coltan | Колтан
+      "uraninite", // Uraninite | Уранинит
+      "lepidolite", // Lepidolite | Лепидолит
+      "rutile", // Rutile | Рутил
+      "bauxite", // Bauxite | Боксит
+      "painite", // Painite | Пейнит
+      "cryolite", // Cryolite | Криолит
+      "goslarite", // Goslarite | Госларит
+      "moissanite", // Moissanite | Муассанит
+      "pyrophyllite", // Pyrophyllite | Пирофиллит
+      "taaffeite", // Taaffeite | Тааффеит
+      "jadeite", // Jadeite | Жадеит
+      "bromellite", // Bromellite | Бромеллит
+      "lowtemperaturediamond", // Low Temp. Diamonds | Низкотемпературные алмазы
+      "methanolmonohydratecrystals", // Methanol Monohydrate Crystals | Кристаллы моногидрата метанола
+      "lithiumhydroxide", // Lithium Hydroxide | Гидроксид лития
+      "methaneclathrate", // Methane Clathrate | Клатрат метана
+      "rhodplumsite", // Rhodplumsite | Родплумсайт
+      "serendibite", // Serendibite | Серендибит
+      "monazite", // Monazite | Монацит
+      "musgravite", // Musgravite | Мусгравит
+      "benitoite", // Benitoite | Бенитоит
+      "grandidierite", // Grandidierite | Грандидьерит
+      "alexandrite", // Alexandrite | Александрит
+      "opal", // Void Opal | Опал бездны
+      "haematite", // Haematite | Гематит
+    ],
+    "chemicals", // Chemicals | Химикаты
+    [
+      "water", // Water | Вода
+      "hydrogenfuel", // Hydrogen Fuel | Водородное топливо
+      "mineraloil", // Mineral Oil | Нефтепродукты
+      "explosives", // Explosives | Взрывчатка
+      "pesticides", // Pesticides | Пестициды
+      "deltaphoenicispalms", // Delta Phoenicis Palms | Фениксовые пальмы с Delta
+      "toxandjivirocide", // Toxandji Virocide | Токсанджийские вирициды
+      "hiporganophosphates", // Hip Organophosphates | Мощные органофосфаты
+      "korrokungpellets", // Koro Kung Pellets | Корокунгские катышки
+      "medbstarlube", // Medb Starlube | Звездная смазка с Medb
+      "syntheticreagents", // Synthetic Reagents | Синтетические реагенты
+      "nerveagents", // Nerve Agents | Агенты нервно-паралит. действия
+      "surfacestabilisers", // Surface Stabilisers | Стабилизаторы поверхности
+      "hydrogenperoxide", // Hydrogen Peroxide | Пероксид водорода
+      "liquidoxygen", // Liquid oxygen | Жидкий кислород
+      "rockforthfertiliser", // Rockforth Fertiliser | Удобрение Rockforth
+      "agronomictreatment", // Agronomic Treatment | Средство очистки почвы
+      "tritium", // Tritium | Тритий
+    ],
+    "foods", // Foods | Продукты питания
+    [
+      "algae", // Algae | Водоросли
+      "fruitandvegetables", // Fruit and Vegetables | Фрукты и овощи
+      "grain", // Grain | Зерно
+      "animalmeat", // Animal Meat | Мясо животных
+      "fish", // Fish | Рыба
+      "foodcartridges", // Food Cartridges | Пищевые брикеты
+      "syntheticmeat", // Synthetic Meat | Синтетическое мясо
+      "tea", // Tea | Чай
+      "coffee", // Coffee | Кофе
+      "hip10175bushmeat", // HIP 10175 Bush Meat | Мясо лесной дичи с HIP 10175
+      "albinoquechuamammoth", // Albino Quechua Mammoth Meat | Мясо белого кечуанского мамонта
+      "utgaroarmillenialeggs", // Utgaroar Millennial Eggs | Миллениальные яйца с Utgaroar
+      "witchhaulkobebeef", // Witchhaul Kobe Beef | Мясо кобе с Witchhaul
+      "karsukilocusts", // Karsuki Locusts | Саранча с Karsuki
+      "giantirukamasnails", // Giant Irukama Snails | Огромные улитки с Irukama
+      "baltahsinevacuumkrill", // Baltah'sine Vacuum Krill | Вакуумный криль с Baltah'sine
+      "cetirabbits", // Ceti Rabbits | Кролики с Ceti
+      "anynacoffee", // Any Na Coffee | Кофе Any Na
+      "cd75catcoffee", // CD-75 Kitten Brand Coffee | Кошачий кофе CD-75
+      "gomanyauponcoffee", // Goman Yaupon Coffee | Кофе Goman Yaupon
+      "chieridanimarinepaste", // Chi Eridani Marine Paste | Морская паста с Chi Eridani
+      "esusekucaviar", // Esuseku Caviar | Эсусекусская осетровая икра
+      "livehecateseaworms", // Live Hecate Sea Worms | Живые морские черви с Hecate
+      "hip41181squid", // HIP Proto-Squid | Протокальмар с HIP
+      "coquimspongiformvictuals", // Coquim Spongiform Victuals | Губковые продукты с Coquim
+      "aerialedenapple", // Eden Apples Of Aerial | Райские яблоки с Aerial
+      "neritusberries", // Neritus Berries | Нерутские ягоды
+      "ochoengchillies", // Ochoeng Chillies | Перчик чили с Ochoeng
+      "deuringastruffles", // Deuringas Truffles | Трюфели с Deuringas
+      "hr7221wheat", // HR 7221 Wheat | Пшеница HR 7221
+      "jarouarice", // Jaroua Rice | Жаруйский рис
+      "sanumameat", // Sanuma Decorative Meat | Декоративное мясо с Sanuma
+      "ethgrezeteabuds", // Ethgreze Tea Buds | Чайные бутоны с Ethgreze
+      "ceremonialheiketea", // Ceremonial Heike Tea | Церемониальный чай Heike
+      "tanmarktranquiltea", // Tanmark Tranquil Tea | Успокаивающий чай Tanmark
+      "bakedgreebles", // Baked Greebles | Печеные гриблы
+      "cetiaepyornisegg", // Aepyornis Egg | Яйцо эпиорниса
+      "haidneblackbrew", // Haiden Black Brew | Гайденовский черный напиток
+      "lftvoidextractcoffee", // Void Extract Coffee | Кофе «Экстракт пустоты»
+      "ltthypersweet", // LTT Hyper Sweet | Гиперсладости LTT
+      "mechucoshightea", // Mechucos High Tea | Мечукосский кайфочай
+      "mokojingbeastfeast", // Mokojing Beast Feast | Мокоджингское зверское яство
+      "mukusubiichitinos", // Mukusubii Chitin-os | Мукусубские хитинос
+      "mulachigiantfungus", // Mulachi Giant Fungus | Гигатские грибы с Mulachi
+      "wheemetewheatcakes", // Wheemete Wheat Cakes | Уимитские пшеничные галеты
+      "aroucaconventualsweets", // Arouca Conventual Sweets | Монастырские сладости с Arouca
+      "fujintea", // Fujin Tea | Фудзинский чай
+      "orrerianviciousbrew", // Orrerian Vicious Brew | Оррерское жуткое пойло
+      "uszaiantreegrub", // Uszaian Tree Grub | Ушжаанский росток дерева
+      "disomacorn", // Diso Ma Corn | Зерна дисо ма
+      "bluemilk", // Azure Milk | Лазурное молоко
+    ],
+    "textiles", // Textiles | Текстиль
+    [
+      "leather", // Leather | Кожа
+      "naturalfabrics", // Natural Fabrics | Натуральная ткань
+      "syntheticfabrics", // Synthetic Fabrics | Синтетическая ткань
+      "belalansrayleather", // Belalans Ray Leather | Кожа белаланских скатов
+      "damnacarapaces", // Damna Carapaces | Панцири с Damna
+      "rapabaosnakeskins", // Rapa Bao Snake Skins | Змеиные шкуры с Rapa Bao
+      "vanayequirhinofur", // Vanayequi Ceratomorpha Fur | Мех носорогов с Vanayequi
+      "bankiamphibiousleather", // Banki Amphibious Leather | Кожа банкийских амфибий
+      "tiegfriessynthsilk", // Tiegfries Synth Silk | Тигфрайский синтешелк
+      "jotunmookah", // Jotun Mookah | Йотунская моока
+      "chameleoncloth", // Chameleon Cloth | Ткань-хамелеон
+      "conductivefabrics", // Conductive Fabrics | Проводящая ткань
+      "militarygradefabrics", // Military Grade Fabrics | Ткани военного класса
+    ],
+    "industrial_materials", // Industrial materials | Промышленные материалы
+    [
+      "polymers", // Polymers | Полимеры
+      "semiconductors", // Semiconductors | Полупроводники
+      "superconductors", // Superconductors | Сверхпроводники
+      "ceramiccomposites", // Ceramic Composites | Керамокомпозиты
+      "metaalloys", // Meta-Alloys | Метасплавы
+      "insulatingmembrane", // Insulating Membrane | Изолирующая мембрана
+      "cmmcomposite", // CMM Composite | CMM-композит
+      "coolinghoses", // Micro-weave Cooling Hoses | Шланги системы охлаждения малых диаметров
+      "neofabricinsulation", // Neofabric Insulation | Высокотехнологичная изоляция
+    ],
+    "medicines", // Medicines | Лекарства
+    [
+      "agriculturalmedicines", // Agri-Medicines | Ветмедикаменты
+      "performanceenhancers", // Performance Enhancers | Стимуляторы
+      "basicmedicines", // Basic Medicines | Основные лекарства
+      "progenitorcells", // Progenitor Cells | Прогениторные клетки
+      "combatstabilisers", // Combat Stabilisers | Боевые стабилизаторы
+      "kachiriginleaches", // Kachirigin Filter Leeches | Очищающие пиявки с Kachirigin
+      "aganipperush", // Aganippe Rush | Аганиппийский кайф
+      "terramaterbloodbores", // Terra Mater Blood Bores | Кровяные усилители с Terra Mater
+      "watersofshintara", // The Waters Of Shintara | Воды с Shintara
+      "honestypills", // Honesty Pills | Пилюли честности
+      "vherculisbodyrub", // V Herculis Body Rub | Скраб с V Herculis
+      "vegaslimweed", // Vega Slimweed | Водоросли для похудения с Vega
+      "pantaaprayersticks", // Pantaa Prayer Sticks | Пантаские молитвенные палочки
+      "alyabodilysoap", // Alya Body Soap | Алийское мыло для тела
+      "advancedmedicines", // Advanced Medicines | Новейшие лекарства
+      "nanomedicines", // Nanomedicines | Нанолекарства
+    ],
+    "drugs", // Legal drugs | Легальные психоактивные вещества
+    [
+      "basicnarcotics", // Narcotics | Наркотики
+      "tobacco", // Tobacco | Табак
+      "beer", // Beer | Пиво
+      "wine", // Wine | Вино
+      "liquor", // Liquor | Спиртное
+      "eraninpearlwhisky", // Eranin Pearl Whisky | Эранинское жемчужное виски
+      "lavianbrandy", // Lavian Brandy | Лавианский бренди
+      "lyraeweed", // Lyrae Weed | Трава лираи
+      "onionhead", // Onionhead | Луковая головка
+      "tarachtorspice", // Tarach Spice | Таракская пряность
+      "wolf1301fesh", // Wolf Fesh | Волчья дурь
+      "konggaale", // Kongga Ale | Эль с Kongga
+      "wuthielokufroth", // Wuthielo Ku Froth | Пиво Ку с Wuthielo
+      "bastsnakegin", // Bast Snake Gin | Настойка из бастетовых змей
+      "thrutiscream", // Thrutis Cream | Трутисские сливки
+      "kamitracigars", // Kamitra Cigars | Сигара Kamitra
+      "rusanioldsmokey", // Rusani Old Smokey | Старые папиросы Rusani
+      "yasokondileaf", // Yaso Kondi Leaf | Лист ясо Конди
+      "chateaudeaegaeon", // Chateau De Aegaeon | Шато де Эгеон
+      "saxonwine", // Saxon Wine | Саксонское вино
+      "centaurimegagin", // Centauri Mega Gin | Кентаврский мега-джин
+      "motronaexperiencejelly", // Motrona Experience Jelly | Мотронское желе
+      "geawendancedust", // Geawen Dance Dust | Геавенская танцевальная пыль
+      "gerasiangueuzebeer", // Gerasian Gueuze Beer | Герасианское пиво гез
+      "burnhambiledistillate", // Burnham Bile Distillate | Бернхемский желчный дистиллят
+      "pavoniseargrubs", // Pavonis Ear Grubs | Павлинские ухочерви
+      "indibourbon", // Indi Bourbon | Инди-бурбон
+      "leestianeviljuice", // Leestian Evil Juice | Леестийский сок зла
+      "transgeniconionhead", // Lucan Onionhead | Луканская луковая головка
+      "bootlegliquor", // Bootleg Liquor | Самогон
+      "onionheada", // Onionhead Alpha Strain | Луковая головка, сорт альфа
+      "onionheadb", // Onionhead Beta Strain | Луковая головка, сорт бета
+      "animaleffigies", // Crom Silver Fesh | Кромская серебряная дурь
+      "harmasilversearum", // Harma Silver Sea Rum | Ром «Серебряное море Harma»
+      "apavietii", // Apa Vietii | Apa Vietii
+      "onionheadc", // Onionhead Gamma Strain | Луковая головка, сорт гамма
+    ],
+    "machinery", // Machinery | Машинное оборудование
+    [
+      "powergenerators", // Power Generators | Электрогенераторы
+      "waterpurifiers", // Water Purifiers | Водоочистители
+      "heliostaticfurnaces", // Microbial Furnaces | Микробные печи
+      "mineralextractors", // Mineral Extractors | Экстракторы минералов
+      "cropharvesters", // Crop Harvesters | Уборочный комбайн
+      "marinesupplies", // Marine Equipment | Морское оборудование
+      "atmosphericextractors", // Atmospheric Processors | Атмосферный процессор
+      "volkhabbeedrones", // Volkhab Bee Drones | Дроны Volkhab Bee
+      "wulpahyperboresystems", // Wulpa Hyperbore Systems | Гипербурильные системы Wulpa
+      "noneuclidianexotanks", // Non Euclidian Exotanks | Неевклидовы экзобаки
+      "giantverrix", // Giant Verrix | Гигант Веррикс
+      "geologicalequipment", // Geological Equipment | Геологическое оборудование
+      "thermalcoolingunits", // Thermal Cooling Units | Термальные охладители
+      "buildingfabricators", // Building Fabricators | Строительные синтезаторы
+      "skimercomponents", // Skimmer Components | Детали оборон. беспилотников
+      "articulationmotors", // Articulation Motors | Шарнирные моторы
+      "hnshockmount", // HN Shock Mount | Разрядная установка HN
+      "emergencypowercells", // Emergency Power Cells | Аварийные энергоячейки
+      "powerconverter", // Power Converter | Преобразователь энергии
+      "powergridassembly", // Energy Grid Assembly | Электросеть в сборе
+      "powertransferconduits", // Power Transfer Bus | Энергообменная шина
+      "radiationbaffle", // Radiation Baffle | Отражатель излучения
+      "exhaustmanifold", // Exhaust Manifold | Выпускной коллектор
+      "reinforcedmountingplate", // Reinforced Mounting Plate | Усиленная монтажная плита
+      "heatsinkinterlink", // Heatsink Interlink | Радиаторный соединитель
+      "magneticemittercoil", // Magnetic Emitter Coil | Спираль магнитного излучателя
+      "modularterminals", // Modular Terminals | Модульные терминалы
+      "iondistributor", // Ion Distributor | Ионный распределитель
+    ],
+    "technology", // Technology | Технологии
+    [
+      "computercomponents", // Computer Components | Компьютерные компоненты
+      "hazardousenvironmentsuits", // H.E. Suits | Защитные костюмы
+      "robotics", // Robotics | Роботы
+      "autofabricators", // Auto-Fabricators | Автосинтезаторы
+      "animalmonitors", // Animal Monitors | Мониторы фауны
+      "aquaponicsystems", // Aquaponic Systems | Аквапонные системы
+      "advancedcatalysers", // Advanced Catalysers | Улучшенные катализаторы
+      "terrainenrichmentsystems", // Land Enrichment Systems | Системы обогащения почвы
+      "resonatingseparators", // Resonating Separators | Резонансные сепараторы
+      "bioreducinglichen", // Bioreducing Lichen | Лишайник-биоредуктор
+      "xihecompanions", // Xihe Biomorphic Companions | Биоморфные спутники Xihe
+      "azcancriformula42", // AZ Cancri Formula 42 | Формула 42 AZ Cancri
+      "mutomimager", // Muon Imager | Мюонное видеоустройство
+      "structuralregulators", // Structural Regulators | Конструкционные регуляторы
+      "nanobreakers", // Nanobreakers | Нанопрерыватели
+      "telemetrysuite", // Telemetry Suite | Телеметрический комплект
+      "microcontrollers", // Micro Controllers | Микроконтроллеры
+      "diagnosticsensor", // Hardware Diagnostic Sensor | Сенсор диагностики оборудования
+      "medicaldiagnosticequipment", // Medical Diagnostic Equipment | Диагностическое медоборудование
+      "duradrives", // Duradrives | Дюрадрайвы
+      "classifiedexperimentalequipment", // Classified Experimental Equipment | Засекреченное экспериментальное оборудование
+    ],
+    "weapons", // Weapons | Оружие
+    [
+      "personalweapons", // Personal Weapons | Личное оружие
+      "battleweapons", // Battle Weapons | Военное оружие
+      "reactivearmour", // Reactive Armour | Реактивная защита
+      "nonlethalweapons", // Non-Lethal Weapons | Нелетальное оружие
+      "borasetanipathogenetics", // Borasetani Pathogenetics | Боразетанские патогены
+      "hip118311swarm", // HIP 118311 Swarm | Рой HIP 118311
+      "holvaduellingblades", // Holva Duelling Blades | Хольванские дуэльные клинки
+      "kamorinhistoricweapons", // Kamorin Historic Weapons | Каморинское историческое оружие
+      "gilyasignatureweapons", // Gilya Signature Weapons | Именное оружие из системы Gilya
+      "landmines", // Landmines | Мины
+    ],
+    "consumer_items", // Consumer items | Потребительские товары
+    [
+      "domesticappliances", // Domestic Appliances | Бытовая техника
+      "consumertechnology", // Consumer Technology | Потребительские товары
+      "clothing", // Clothing | Одежда
+      "alacarakmoskinart", // Alacarakmo Skin Art | Алакаракмовские татуировки
+      "eleuthermals", // Eleu Thermals | Элеусская теплая одежда
+      "eshuumbrellas", // Eshu Umbrellas | Зонтики Эшу
+      "karetiicouture", // Karetii Couture | Модные вещи от Karetii
+      "njangarisaddles", // Njangari Saddles | Седла Njangari
+      "kinagoinstruments", // Kinago Violins | Скрипки Kinago
+      "ngunamodernantiques", // Nguna Modern Antiques | Современные древности с Nguna
+      "rajukrustoves", // Rajukru Multi-Stoves | Мультипечи Rajukru
+      "tiolcewaste2pasteunits", // Tiolce Waste2Paste Units | Устройства «Отход-в-приход» Tiolce
+      "ophiuchiexinoartefacts", // Ophiuch Exino Artefacts | Артефакты офиух экзино
+      "anduligafireworks", // Anduliga Fire Works | Андулигские фейерверки
+      "havasupaidreamcatcher", // Havasupai Dream Catcher | Хавасупайский ловец снов
+      "uzumokulowgwings", // Uzumoku Low-G Wings | Узумокские крылья для малой гравитации
+      "altairianskin", // Altairian Skin | Альтаирская кожа
+      "taurichimes", // Tauri Chimes | Колокольчики с Tauri
+      "zeesszeantglue", // Zeessze Ant Grub Glue | Зесский муравьиный клей
+      "momusbogspaniel", // Momus Bog Spaniel | Момусовский болотный спаниель
+      "alieneggs", // Leathery Eggs | Кожистые яйца
+      "vidavantianlace", // Vidavantian Lace | Видавантийский шнурок
+      "jaquesquinentianstill", // Jaques Quinentian Still | Дистиллятор Жака Квиненциана
+      "soontillrelics", // Soontill Relics | Реликвии Сунтилла
+      "advert1", // Ultra-Compact Processor Prototypes | Экспериментальные ультракомпактные процессоры
+      "thehuttonmug", // The Hutton Mug | Кружка Hutton
+      "evacuationshelter", // Evacuation Shelter | Эвакуационное убежище
+      "survivalequipment", // Survival Equipment | Снаряжение для выживания
+      "shanscharisorchid", // Shan's Charis Orchid | Орхидея Shan Charis
+      "buckyballbeermats", // Buckyball Beer Mats | Подставка под пиво Buckyball
+    ],
+    "waste", // Waste | Отходы
+    [
+      "biowaste", // Biowaste | Биоотходы
+      "chemicalwaste", // Chemical Waste | Радиоактивные материалы
+      "scrap", // Scrap | Утильсырье
+    ],
+    "salvage", // Salvage | Спасенное имущество
+    [
+      "usscargorareartwork", // Rare Artwork | Редкие произведения искусства
+      "unknownartifact", // Thargoid Sensor | Таргоидский сенсор
+      "sap8corecontainer", // SAP 8 Core Container | Контейнер SAP 8 Core
+      "encripteddatastorage", // Encrypted Data Storage | Зашифрованный носитель данных
+      "comercialsamples", // Commercial Samples | Рекламные образцы
+      "tacticaldata", // Tactical Data | Тактические данные
+      "assaultplans", // Assault Plans | Планы атак
+      "encryptedcorrespondence", // Encrypted Correspondence | Шифрованная переписка
+      "diplomaticbag", // Diplomatic Bag | Дипломатическая сумка
+      "scientificresearch", // Scientific Research | Материалы исследования
+      "scientificsamples", // Scientific Samples | Научные образцы
+      "largeexplorationdatacash", // Large Survey Data Cache | Большой пакет с данными исследования
+      "smallexplorationdatacash", // Small Survey Data Cache | Малый пакет с данными исследования
+      "antiquejewellery", // Antique Jewellery | Древние ювелирные украшения
+      "preciousgems", // Precious Gems | Драгоценные камни
+      "earthrelics", // Earth Relics | Реликвии с Земли
+      "genebank", // Gene Bank | Генотека
+      "timecapsule", // Time Capsule | Капсула времени
+      "geologicalsamples", // Geological Samples | Образцы породы
+      "personalgifts", // Festive Gifts | Праздничные подарки
+      "crystallinespheres", // Crystalline Spheres | Прозрачные сферы
+      "unstabledatacore", // Unstable Data Core | Нестабильное ядро данных
+      "unknownartifact2", // Thargoid Probe | Таргоидский зонд
+      "datacore", // Data Core | Ядро данных
+      "galactictravelguide", // Galactic Travel Guide | Путеводитель галактического путешественника
+      "mysteriousidol", // Mysterious Idol | Таинственный идол
+      "spacepioneerrelics", // Space Pioneer Relics | Следы первопроходцев космоса
+      "fossilremnants", // Fossil Remnants | Ископаемые останки
+      "ancientrelic", // Guardian Relic | Реликвия Стражей
+      "ancientorb", // Guardian Orb | Сфера Стражей
+      "ancientcasket", // Guardian Casket | Шкатулка Стражей
+      "ancienttablet", // Guardian Tablet | Табличка Стражей
+      "ancienturn", // Guardian Urn | Урна Стражей
+      "ancienttotem", // Guardian Totem | Тотем Стражей
+      "unknownresin", // Thargoid Resin | Таргоидская смола
+      "unknownbiologicalmatter", // Thargoid Biological Matter | Таргоидская биомасса
+      "unknowntechnologysamples", // Thargoid Technology Samples | Образцы таргоидских технологий
+      "unknownartifact3", // Thargoid Link | Таргоидское звено
+      "thargoidheart", // Thargoid Heart | Таргоидское «сердце»
+      "thargoidtissuesampletype1", // Thargoid Cyclops Tissue Sample | Образец ткани таргоидского корабля «Циклоп»
+      "thargoidtissuesampletype2", // Thargoid Basilisk Tissue Sample | Образец ткани таргоидского корабля «Василиск»
+      "thargoidtissuesampletype3", // Thargoid Medusa Tissue Sample | Образец ткани таргоидского корабля «Медуза»
+      "thargoidscouttissuesample", // Thargoid Scout Tissue Sample | Образец тканей таргоида-разведчика
+      "ancientkey", // Ancient Key | Древний ключ
+      "thargoidtissuesampletype4", // Thargoid Hydra Tissue Sample | Образец ткани таргоидского корабля «Гидра»
+      "m_tissuesample_fluid", // Mollusc Fluid | Жидкость моллюска
+      "m_tissuesample_soft", // Mollusc Soft Tissue | Мягкие ткани моллюска
+      "m_tissuesample_nerves", // Mollusc Brain Tissue | Мозговое вещество моллюска
+      "s_tissuesample_cells", // Pod Core Tissue | Ткань ядра семянки
+      "s_tissuesample_surface", // Pod Dead Tissue | Мертвая ткань семянки
+      "s_tissuesample_core", // Pod Surface Tissue | Поверхностная ткань семянки
+      "p_particulatesample", // Anomaly Particles | Аномальные частицы
+      "s9_tissuesample_shell", // Pod Tissue | Ткань семянки
+      "m3_tissuesample_membrane", // Mollusc Membrane | Мембрана моллюска
+      "m3_tissuesample_mycelium", // Mollusc Mycelium | Мицелий моллюска
+      "m3_tissuesample_spores", // Mollusc Spores | Споры моллюска
+      "s6_tissuesample_mesoglea", // Pod Mesoglea | Мезоглея семянки
+      "s6_tissuesample_cells", // Pod Outer Tissue | Внешняя ткань семянки
+      "s6_tissuesample_coenosarc", // Pod Shell Tissue | Ткань оболочки семянки
+      "ancientrelictg", // Unclassified Relic | Неопознанная реликвия
+      "thargoidtissuesampletype5", // Thargoid Orthrus Tissue Sample | Образец ткани таргоидского корабля «Орф»
+      "thargoidgeneratortissuesample", // Caustic Tissue Sample | Образец едких тканей
+      "unocuppiedescapepod", // Unoccupied Escape Pod | Пустая спасательная капсула
+      "thargoidtissuesampletype6", // Thargoid Glaive Tissue Sample | Образец ткани таргоидского корабля «Глефа»
+      "thargoidtissuesampletype7", // Thargoid Scythe Tissue Sample | Образец ткани таргоидского корабля «Коса»
+      "thargoidtissuesampletype9a", // Titan Deep Tissue Sample | Образец глубокой ткани титана
+      "thargoidtissuesampletype9b", // Titan Tissue Sample | Образец ткани титана
+      "thargoidtissuesampletype9c", // Titan Partial Tissue Sample | Неполный образец ткани титана
+      "thargoidtissuesampletype10a", // Titan Maw Deep Tissue Sample | Образец глубокой ткани пасти титана
+      "thargoidtissuesampletype10b", // Titan Maw Tissue Sample | Образец ткани пасти титана
+      "thargoidtissuesampletype10c", // Titan Maw Partial Tissue Sample | Неполный образец ткани пасти титана
+      "unknownsack", // Protective Membrane Scrap | Остатки защитной мембраны
+      "coralsap", // Coral Sap | Коралловая смола
+      "unknownmineral", // Impure Spire Mineral | Неочищенный минерал со шпилей
+      "unknownrefinedmineral", // Semi-Refined Spire Mineral | Полуочищенный минерал со шпилей
+      "thargoidtitandrivecomponent", // Titan Drive Component | Компонент двигателя титана
+      "thargoidcystspecimen", // Cyst Specimen | Образец кисты
+      "thargoidbonefragments", // Bone Fragments | Фрагменты кости
+      "thargoidorgansample", // Organ Sample | Образец органа
+    ],
+    "slaves", // Slavery | Рабы
+    [
+      "imperialslaves", // Imperial Slaves | Имперские рабы
+      "masterchefs", // Master Chefs | Мастер-шефы
+    ],
+  ],
+  'market-order-ru': [
+    "metals", // Metals | Металлы
+    [
+      "platinum", // Platinum | Платина
+      "palladium", // Palladium | Палладий
+      "gold", // Gold | Золото
+      "silver", // Silver | Серебро
+      "cobalt", // Cobalt | Кобальт
+      "beryllium", // Beryllium | Бериллий
+      "indium", // Indium | Индий
+      "gallium", // Gallium | Галлий
+      "tantalum", // Tantalum | Тантал
+      "uranium", // Uranium | Уран
+      "lithium", // Lithium | Литий
+      "titanium", // Titanium | Титан
+      "copper", // Copper | Медь
+      "aluminium", // Aluminium | Алюминий
+      "helvetitjpearls", // Helvetitj Pearls | Жемчуг с Helvetitj
+      "cherbonesbloodcrystals", // Cherbones Blood Crystals | Чербонские кровавые кристаллы
+      "ngadandarifireopals", // Ngadandari Fire Opals | Нгадандарийские огненные опалы
+      "osmium", // Osmium | Осмий
+      "sothiscrystallinegold", // Sothis Crystalline Gold | Кристаллическое золото системы Sothis
+      "lanthanum", // Lanthanum | Лантан
+      "thallium", // Thallium | Таллий
+      "bismuth", // Bismuth | Висмут
+      "thorium", // Thorium | Торий
+      "praseodymium", // Praseodymium | Празеодим
+      "samarium", // Samarium | Самарий
+      "platinumaloy", // Platinum Alloy | Платиновый сплав
+      "steel", // Steel | Сталь
+    ],
+    "minerals", // Minerals | Минералы
+    [
+      "bertrandite", // Bertrandite | Бертрандит
+      "indite", // Indite | Индит
+      "gallite", // Gallite | Галлит
+      "coltan", // Coltan | Колтан
+      "uraninite", // Uraninite | Уранинит
+      "lepidolite", // Lepidolite | Лепидолит
+      "rutile", // Rutile | Рутил
+      "bauxite", // Bauxite | Боксит
+      "painite", // Painite | Пейнит
+      "cryolite", // Cryolite | Криолит
+      "goslarite", // Goslarite | Госларит
+      "moissanite", // Moissanite | Муассанит
+      "pyrophyllite", // Pyrophyllite | Пирофиллит
+      "taaffeite", // Taaffeite | Тааффеит
+      "jadeite", // Jadeite | Жадеит
+      "bromellite", // Bromellite | Бромеллит
+      "lowtemperaturediamond", // Low Temp. Diamonds | Низкотемпературные алмазы
+      "methanolmonohydratecrystals", // Methanol Monohydrate Crystals | Кристаллы моногидрата метанола
+      "lithiumhydroxide", // Lithium Hydroxide | Гидроксид лития
+      "methaneclathrate", // Methane Clathrate | Клатрат метана
+      "rhodplumsite", // Rhodplumsite | Родплумсайт
+      "serendibite", // Serendibite | Серендибит
+      "monazite", // Monazite | Монацит
+      "musgravite", // Musgravite | Мусгравит
+      "benitoite", // Benitoite | Бенитоит
+      "grandidierite", // Grandidierite | Грандидьерит
+      "alexandrite", // Alexandrite | Александрит
+      "opal", // Void Opal | Опал бездны
+      "haematite", // Haematite | Гематит
+    ],
+    "chemicals", // Chemicals | Химикаты
+    [
+      "water", // Water | Вода
+      "hydrogenfuel", // Hydrogen Fuel | Водородное топливо
+      "mineraloil", // Mineral Oil | Нефтепродукты
+      "explosives", // Explosives | Взрывчатка
+      "pesticides", // Pesticides | Пестициды
+      "deltaphoenicispalms", // Delta Phoenicis Palms | Фениксовые пальмы с Delta
+      "toxandjivirocide", // Toxandji Virocide | Токсанджийские вирициды
+      "hiporganophosphates", // Hip Organophosphates | Мощные органофосфаты
+      "korrokungpellets", // Koro Kung Pellets | Корокунгские катышки
+      "medbstarlube", // Medb Starlube | Звездная смазка с Medb
+      "syntheticreagents", // Synthetic Reagents | Синтетические реагенты
+      "nerveagents", // Nerve Agents | Агенты нервно-паралит. действия
+      "surfacestabilisers", // Surface Stabilisers | Стабилизаторы поверхности
+      "hydrogenperoxide", // Hydrogen Peroxide | Пероксид водорода
+      "liquidoxygen", // Liquid oxygen | Жидкий кислород
+      "rockforthfertiliser", // Rockforth Fertiliser | Удобрение Rockforth
+      "agronomictreatment", // Agronomic Treatment | Средство очистки почвы
+      "tritium", // Tritium | Тритий
+    ],
+    "foods", // Foods | Продукты питания
+    [
+      "algae", // Algae | Водоросли
+      "fruitandvegetables", // Fruit and Vegetables | Фрукты и овощи
+      "grain", // Grain | Зерно
+      "animalmeat", // Animal Meat | Мясо животных
+      "fish", // Fish | Рыба
+      "foodcartridges", // Food Cartridges | Пищевые брикеты
+      "syntheticmeat", // Synthetic Meat | Синтетическое мясо
+      "tea", // Tea | Чай
+      "coffee", // Coffee | Кофе
+      "hip10175bushmeat", // HIP 10175 Bush Meat | Мясо лесной дичи с HIP 10175
+      "albinoquechuamammoth", // Albino Quechua Mammoth Meat | Мясо белого кечуанского мамонта
+      "utgaroarmillenialeggs", // Utgaroar Millennial Eggs | Миллениальные яйца с Utgaroar
+      "witchhaulkobebeef", // Witchhaul Kobe Beef | Мясо кобе с Witchhaul
+      "karsukilocusts", // Karsuki Locusts | Саранча с Karsuki
+      "giantirukamasnails", // Giant Irukama Snails | Огромные улитки с Irukama
+      "baltahsinevacuumkrill", // Baltah'sine Vacuum Krill | Вакуумный криль с Baltah'sine
+      "cetirabbits", // Ceti Rabbits | Кролики с Ceti
+      "anynacoffee", // Any Na Coffee | Кофе Any Na
+      "cd75catcoffee", // CD-75 Kitten Brand Coffee | Кошачий кофе CD-75
+      "gomanyauponcoffee", // Goman Yaupon Coffee | Кофе Goman Yaupon
+      "chieridanimarinepaste", // Chi Eridani Marine Paste | Морская паста с Chi Eridani
+      "esusekucaviar", // Esuseku Caviar | Эсусекусская осетровая икра
+      "livehecateseaworms", // Live Hecate Sea Worms | Живые морские черви с Hecate
+      "hip41181squid", // HIP Proto-Squid | Протокальмар с HIP
+      "coquimspongiformvictuals", // Coquim Spongiform Victuals | Губковые продукты с Coquim
+      "aerialedenapple", // Eden Apples Of Aerial | Райские яблоки с Aerial
+      "neritusberries", // Neritus Berries | Нерутские ягоды
+      "ochoengchillies", // Ochoeng Chillies | Перчик чили с Ochoeng
+      "deuringastruffles", // Deuringas Truffles | Трюфели с Deuringas
+      "hr7221wheat", // HR 7221 Wheat | Пшеница HR 7221
+      "jarouarice", // Jaroua Rice | Жаруйский рис
+      "sanumameat", // Sanuma Decorative Meat | Декоративное мясо с Sanuma
+      "ethgrezeteabuds", // Ethgreze Tea Buds | Чайные бутоны с Ethgreze
+      "ceremonialheiketea", // Ceremonial Heike Tea | Церемониальный чай Heike
+      "tanmarktranquiltea", // Tanmark Tranquil Tea | Успокаивающий чай Tanmark
+      "bakedgreebles", // Baked Greebles | Печеные гриблы
+      "cetiaepyornisegg", // Aepyornis Egg | Яйцо эпиорниса
+      "haidneblackbrew", // Haiden Black Brew | Гайденовский черный напиток
+      "lftvoidextractcoffee", // Void Extract Coffee | Кофе «Экстракт пустоты»
+      "ltthypersweet", // LTT Hyper Sweet | Гиперсладости LTT
+      "mechucoshightea", // Mechucos High Tea | Мечукосский кайфочай
+      "mokojingbeastfeast", // Mokojing Beast Feast | Мокоджингское зверское яство
+      "mukusubiichitinos", // Mukusubii Chitin-os | Мукусубские хитинос
+      "mulachigiantfungus", // Mulachi Giant Fungus | Гигатские грибы с Mulachi
+      "wheemetewheatcakes", // Wheemete Wheat Cakes | Уимитские пшеничные галеты
+      "aroucaconventualsweets", // Arouca Conventual Sweets | Монастырские сладости с Arouca
+      "fujintea", // Fujin Tea | Фудзинский чай
+      "orrerianviciousbrew", // Orrerian Vicious Brew | Оррерское жуткое пойло
+      "uszaiantreegrub", // Uszaian Tree Grub | Ушжаанский росток дерева
+      "disomacorn", // Diso Ma Corn | Зерна дисо ма
+      "bluemilk", // Azure Milk | Лазурное молоко
+    ],
+    "textiles", // Textiles | Текстиль
+    [
+      "leather", // Leather | Кожа
+      "naturalfabrics", // Natural Fabrics | Натуральная ткань
+      "syntheticfabrics", // Synthetic Fabrics | Синтетическая ткань
+      "belalansrayleather", // Belalans Ray Leather | Кожа белаланских скатов
+      "damnacarapaces", // Damna Carapaces | Панцири с Damna
+      "rapabaosnakeskins", // Rapa Bao Snake Skins | Змеиные шкуры с Rapa Bao
+      "vanayequirhinofur", // Vanayequi Ceratomorpha Fur | Мех носорогов с Vanayequi
+      "bankiamphibiousleather", // Banki Amphibious Leather | Кожа банкийских амфибий
+      "tiegfriessynthsilk", // Tiegfries Synth Silk | Тигфрайский синтешелк
+      "jotunmookah", // Jotun Mookah | Йотунская моока
+      "chameleoncloth", // Chameleon Cloth | Ткань-хамелеон
+      "conductivefabrics", // Conductive Fabrics | Проводящая ткань
+      "militarygradefabrics", // Military Grade Fabrics | Ткани военного класса
+    ],
+    "industrial_materials", // Industrial materials | Промышленные материалы
+    [
+      "polymers", // Polymers | Полимеры
+      "semiconductors", // Semiconductors | Полупроводники
+      "superconductors", // Superconductors | Сверхпроводники
+      "ceramiccomposites", // Ceramic Composites | Керамокомпозиты
+      "metaalloys", // Meta-Alloys | Метасплавы
+      "insulatingmembrane", // Insulating Membrane | Изолирующая мембрана
+      "cmmcomposite", // CMM Composite | CMM-композит
+      "coolinghoses", // Micro-weave Cooling Hoses | Шланги системы охлаждения малых диаметров
+      "neofabricinsulation", // Neofabric Insulation | Высокотехнологичная изоляция
+    ],
+    "medicines", // Medicines | Лекарства
+    [
+      "agriculturalmedicines", // Agri-Medicines | Ветмедикаменты
+      "performanceenhancers", // Performance Enhancers | Стимуляторы
+      "basicmedicines", // Basic Medicines | Основные лекарства
+      "progenitorcells", // Progenitor Cells | Прогениторные клетки
+      "combatstabilisers", // Combat Stabilisers | Боевые стабилизаторы
+      "kachiriginleaches", // Kachirigin Filter Leeches | Очищающие пиявки с Kachirigin
+      "aganipperush", // Aganippe Rush | Аганиппийский кайф
+      "terramaterbloodbores", // Terra Mater Blood Bores | Кровяные усилители с Terra Mater
+      "watersofshintara", // The Waters Of Shintara | Воды с Shintara
+      "honestypills", // Honesty Pills | Пилюли честности
+      "vherculisbodyrub", // V Herculis Body Rub | Скраб с V Herculis
+      "vegaslimweed", // Vega Slimweed | Водоросли для похудения с Vega
+      "pantaaprayersticks", // Pantaa Prayer Sticks | Пантаские молитвенные палочки
+      "alyabodilysoap", // Alya Body Soap | Алийское мыло для тела
+      "advancedmedicines", // Advanced Medicines | Новейшие лекарства
+      "nanomedicines", // Nanomedicines | Нанолекарства
+    ],
+    "drugs", // Legal drugs | Легальные психоактивные вещества
+    [
+      "basicnarcotics", // Narcotics | Наркотики
+      "tobacco", // Tobacco | Табак
+      "beer", // Beer | Пиво
+      "wine", // Wine | Вино
+      "liquor", // Liquor | Спиртное
+      "eraninpearlwhisky", // Eranin Pearl Whisky | Эранинское жемчужное виски
+      "lavianbrandy", // Lavian Brandy | Лавианский бренди
+      "lyraeweed", // Lyrae Weed | Трава лираи
+      "onionhead", // Onionhead | Луковая головка
+      "tarachtorspice", // Tarach Spice | Таракская пряность
+      "wolf1301fesh", // Wolf Fesh | Волчья дурь
+      "konggaale", // Kongga Ale | Эль с Kongga
+      "wuthielokufroth", // Wuthielo Ku Froth | Пиво Ку с Wuthielo
+      "bastsnakegin", // Bast Snake Gin | Настойка из бастетовых змей
+      "thrutiscream", // Thrutis Cream | Трутисские сливки
+      "kamitracigars", // Kamitra Cigars | Сигара Kamitra
+      "rusanioldsmokey", // Rusani Old Smokey | Старые папиросы Rusani
+      "yasokondileaf", // Yaso Kondi Leaf | Лист ясо Конди
+      "chateaudeaegaeon", // Chateau De Aegaeon | Шато де Эгеон
+      "saxonwine", // Saxon Wine | Саксонское вино
+      "centaurimegagin", // Centauri Mega Gin | Кентаврский мега-джин
+      "motronaexperiencejelly", // Motrona Experience Jelly | Мотронское желе
+      "geawendancedust", // Geawen Dance Dust | Геавенская танцевальная пыль
+      "gerasiangueuzebeer", // Gerasian Gueuze Beer | Герасианское пиво гез
+      "burnhambiledistillate", // Burnham Bile Distillate | Бернхемский желчный дистиллят
+      "pavoniseargrubs", // Pavonis Ear Grubs | Павлинские ухочерви
+      "indibourbon", // Indi Bourbon | Инди-бурбон
+      "leestianeviljuice", // Leestian Evil Juice | Леестийский сок зла
+      "transgeniconionhead", // Lucan Onionhead | Луканская луковая головка
+      "bootlegliquor", // Bootleg Liquor | Самогон
+      "onionheada", // Onionhead Alpha Strain | Луковая головка, сорт альфа
+      "onionheadb", // Onionhead Beta Strain | Луковая головка, сорт бета
+      "animaleffigies", // Crom Silver Fesh | Кромская серебряная дурь
+      "harmasilversearum", // Harma Silver Sea Rum | Ром «Серебряное море Harma»
+      "apavietii", // Apa Vietii | Apa Vietii
+      "onionheadc", // Onionhead Gamma Strain | Луковая головка, сорт гамма
+    ],
+    "machinery", // Machinery | Машинное оборудование
+    [
+      "powergenerators", // Power Generators | Электрогенераторы
+      "waterpurifiers", // Water Purifiers | Водоочистители
+      "heliostaticfurnaces", // Microbial Furnaces | Микробные печи
+      "mineralextractors", // Mineral Extractors | Экстракторы минералов
+      "cropharvesters", // Crop Harvesters | Уборочный комбайн
+      "marinesupplies", // Marine Equipment | Морское оборудование
+      "atmosphericextractors", // Atmospheric Processors | Атмосферный процессор
+      "volkhabbeedrones", // Volkhab Bee Drones | Дроны Volkhab Bee
+      "wulpahyperboresystems", // Wulpa Hyperbore Systems | Гипербурильные системы Wulpa
+      "noneuclidianexotanks", // Non Euclidian Exotanks | Неевклидовы экзобаки
+      "giantverrix", // Giant Verrix | Гигант Веррикс
+      "geologicalequipment", // Geological Equipment | Геологическое оборудование
+      "thermalcoolingunits", // Thermal Cooling Units | Термальные охладители
+      "buildingfabricators", // Building Fabricators | Строительные синтезаторы
+      "skimercomponents", // Skimmer Components | Детали оборон. беспилотников
+      "articulationmotors", // Articulation Motors | Шарнирные моторы
+      "hnshockmount", // HN Shock Mount | Разрядная установка HN
+      "emergencypowercells", // Emergency Power Cells | Аварийные энергоячейки
+      "powerconverter", // Power Converter | Преобразователь энергии
+      "powergridassembly", // Energy Grid Assembly | Электросеть в сборе
+      "powertransferconduits", // Power Transfer Bus | Энергообменная шина
+      "radiationbaffle", // Radiation Baffle | Отражатель излучения
+      "exhaustmanifold", // Exhaust Manifold | Выпускной коллектор
+      "reinforcedmountingplate", // Reinforced Mounting Plate | Усиленная монтажная плита
+      "heatsinkinterlink", // Heatsink Interlink | Радиаторный соединитель
+      "magneticemittercoil", // Magnetic Emitter Coil | Спираль магнитного излучателя
+      "modularterminals", // Modular Terminals | Модульные терминалы
+      "iondistributor", // Ion Distributor | Ионный распределитель
+    ],
+    "technology", // Technology | Технологии
+    [
+      "computercomponents", // Computer Components | Компьютерные компоненты
+      "hazardousenvironmentsuits", // H.E. Suits | Защитные костюмы
+      "robotics", // Robotics | Роботы
+      "autofabricators", // Auto-Fabricators | Автосинтезаторы
+      "animalmonitors", // Animal Monitors | Мониторы фауны
+      "aquaponicsystems", // Aquaponic Systems | Аквапонные системы
+      "advancedcatalysers", // Advanced Catalysers | Улучшенные катализаторы
+      "terrainenrichmentsystems", // Land Enrichment Systems | Системы обогащения почвы
+      "resonatingseparators", // Resonating Separators | Резонансные сепараторы
+      "bioreducinglichen", // Bioreducing Lichen | Лишайник-биоредуктор
+      "xihecompanions", // Xihe Biomorphic Companions | Биоморфные спутники Xihe
+      "azcancriformula42", // AZ Cancri Formula 42 | Формула 42 AZ Cancri
+      "mutomimager", // Muon Imager | Мюонное видеоустройство
+      "structuralregulators", // Structural Regulators | Конструкционные регуляторы
+      "nanobreakers", // Nanobreakers | Нанопрерыватели
+      "telemetrysuite", // Telemetry Suite | Телеметрический комплект
+      "microcontrollers", // Micro Controllers | Микроконтроллеры
+      "diagnosticsensor", // Hardware Diagnostic Sensor | Сенсор диагностики оборудования
+      "medicaldiagnosticequipment", // Medical Diagnostic Equipment | Диагностическое медоборудование
+      "duradrives", // Duradrives | Дюрадрайвы
+      "classifiedexperimentalequipment", // Classified Experimental Equipment | Засекреченное экспериментальное оборудование
+    ],
+    "weapons", // Weapons | Оружие
+    [
+      "personalweapons", // Personal Weapons | Личное оружие
+      "battleweapons", // Battle Weapons | Военное оружие
+      "reactivearmour", // Reactive Armour | Реактивная защита
+      "nonlethalweapons", // Non-Lethal Weapons | Нелетальное оружие
+      "borasetanipathogenetics", // Borasetani Pathogenetics | Боразетанские патогены
+      "hip118311swarm", // HIP 118311 Swarm | Рой HIP 118311
+      "holvaduellingblades", // Holva Duelling Blades | Хольванские дуэльные клинки
+      "kamorinhistoricweapons", // Kamorin Historic Weapons | Каморинское историческое оружие
+      "gilyasignatureweapons", // Gilya Signature Weapons | Именное оружие из системы Gilya
+      "landmines", // Landmines | Мины
+    ],
+    "consumer_items", // Consumer items | Потребительские товары
+    [
+      "domesticappliances", // Domestic Appliances | Бытовая техника
+      "consumertechnology", // Consumer Technology | Потребительские товары
+      "clothing", // Clothing | Одежда
+      "alacarakmoskinart", // Alacarakmo Skin Art | Алакаракмовские татуировки
+      "eleuthermals", // Eleu Thermals | Элеусская теплая одежда
+      "eshuumbrellas", // Eshu Umbrellas | Зонтики Эшу
+      "karetiicouture", // Karetii Couture | Модные вещи от Karetii
+      "njangarisaddles", // Njangari Saddles | Седла Njangari
+      "kinagoinstruments", // Kinago Violins | Скрипки Kinago
+      "ngunamodernantiques", // Nguna Modern Antiques | Современные древности с Nguna
+      "rajukrustoves", // Rajukru Multi-Stoves | Мультипечи Rajukru
+      "tiolcewaste2pasteunits", // Tiolce Waste2Paste Units | Устройства «Отход-в-приход» Tiolce
+      "ophiuchiexinoartefacts", // Ophiuch Exino Artefacts | Артефакты офиух экзино
+      "anduligafireworks", // Anduliga Fire Works | Андулигские фейерверки
+      "havasupaidreamcatcher", // Havasupai Dream Catcher | Хавасупайский ловец снов
+      "uzumokulowgwings", // Uzumoku Low-G Wings | Узумокские крылья для малой гравитации
+      "altairianskin", // Altairian Skin | Альтаирская кожа
+      "taurichimes", // Tauri Chimes | Колокольчики с Tauri
+      "zeesszeantglue", // Zeessze Ant Grub Glue | Зесский муравьиный клей
+      "momusbogspaniel", // Momus Bog Spaniel | Момусовский болотный спаниель
+      "alieneggs", // Leathery Eggs | Кожистые яйца
+      "vidavantianlace", // Vidavantian Lace | Видавантийский шнурок
+      "jaquesquinentianstill", // Jaques Quinentian Still | Дистиллятор Жака Квиненциана
+      "soontillrelics", // Soontill Relics | Реликвии Сунтилла
+      "advert1", // Ultra-Compact Processor Prototypes | Экспериментальные ультракомпактные процессоры
+      "thehuttonmug", // The Hutton Mug | Кружка Hutton
+      "evacuationshelter", // Evacuation Shelter | Эвакуационное убежище
+      "survivalequipment", // Survival Equipment | Снаряжение для выживания
+      "shanscharisorchid", // Shan's Charis Orchid | Орхидея Shan Charis
+      "buckyballbeermats", // Buckyball Beer Mats | Подставка под пиво Buckyball
+    ],
+    "waste", // Waste | Отходы
+    [
+      "biowaste", // Biowaste | Биоотходы
+      "chemicalwaste", // Chemical Waste | Радиоактивные материалы
+      "scrap", // Scrap | Утильсырье
+    ],
+    "salvage", // Salvage | Спасенное имущество
+    [
+      "usscargorareartwork", // Rare Artwork | Редкие произведения искусства
+      "unknownartifact", // Thargoid Sensor | Таргоидский сенсор
+      "sap8corecontainer", // SAP 8 Core Container | Контейнер SAP 8 Core
+      "encripteddatastorage", // Encrypted Data Storage | Зашифрованный носитель данных
+      "comercialsamples", // Commercial Samples | Рекламные образцы
+      "tacticaldata", // Tactical Data | Тактические данные
+      "assaultplans", // Assault Plans | Планы атак
+      "encryptedcorrespondence", // Encrypted Correspondence | Шифрованная переписка
+      "diplomaticbag", // Diplomatic Bag | Дипломатическая сумка
+      "scientificresearch", // Scientific Research | Материалы исследования
+      "scientificsamples", // Scientific Samples | Научные образцы
+      "largeexplorationdatacash", // Large Survey Data Cache | Большой пакет с данными исследования
+      "smallexplorationdatacash", // Small Survey Data Cache | Малый пакет с данными исследования
+      "antiquejewellery", // Antique Jewellery | Древние ювелирные украшения
+      "preciousgems", // Precious Gems | Драгоценные камни
+      "earthrelics", // Earth Relics | Реликвии с Земли
+      "genebank", // Gene Bank | Генотека
+      "timecapsule", // Time Capsule | Капсула времени
+      "geologicalsamples", // Geological Samples | Образцы породы
+      "personalgifts", // Festive Gifts | Праздничные подарки
+      "crystallinespheres", // Crystalline Spheres | Прозрачные сферы
+      "unstabledatacore", // Unstable Data Core | Нестабильное ядро данных
+      "unknownartifact2", // Thargoid Probe | Таргоидский зонд
+      "datacore", // Data Core | Ядро данных
+      "galactictravelguide", // Galactic Travel Guide | Путеводитель галактического путешественника
+      "mysteriousidol", // Mysterious Idol | Таинственный идол
+      "spacepioneerrelics", // Space Pioneer Relics | Следы первопроходцев космоса
+      "fossilremnants", // Fossil Remnants | Ископаемые останки
+      "ancientrelic", // Guardian Relic | Реликвия Стражей
+      "ancientorb", // Guardian Orb | Сфера Стражей
+      "ancientcasket", // Guardian Casket | Шкатулка Стражей
+      "ancienttablet", // Guardian Tablet | Табличка Стражей
+      "ancienturn", // Guardian Urn | Урна Стражей
+      "ancienttotem", // Guardian Totem | Тотем Стражей
+      "unknownresin", // Thargoid Resin | Таргоидская смола
+      "unknownbiologicalmatter", // Thargoid Biological Matter | Таргоидская биомасса
+      "unknowntechnologysamples", // Thargoid Technology Samples | Образцы таргоидских технологий
+      "unknownartifact3", // Thargoid Link | Таргоидское звено
+      "thargoidheart", // Thargoid Heart | Таргоидское «сердце»
+      "thargoidtissuesampletype1", // Thargoid Cyclops Tissue Sample | Образец ткани таргоидского корабля «Циклоп»
+      "thargoidtissuesampletype2", // Thargoid Basilisk Tissue Sample | Образец ткани таргоидского корабля «Василиск»
+      "thargoidtissuesampletype3", // Thargoid Medusa Tissue Sample | Образец ткани таргоидского корабля «Медуза»
+      "thargoidscouttissuesample", // Thargoid Scout Tissue Sample | Образец тканей таргоида-разведчика
+      "ancientkey", // Ancient Key | Древний ключ
+      "thargoidtissuesampletype4", // Thargoid Hydra Tissue Sample | Образец ткани таргоидского корабля «Гидра»
+      "m_tissuesample_fluid", // Mollusc Fluid | Жидкость моллюска
+      "m_tissuesample_soft", // Mollusc Soft Tissue | Мягкие ткани моллюска
+      "m_tissuesample_nerves", // Mollusc Brain Tissue | Мозговое вещество моллюска
+      "s_tissuesample_cells", // Pod Core Tissue | Ткань ядра семянки
+      "s_tissuesample_surface", // Pod Dead Tissue | Мертвая ткань семянки
+      "s_tissuesample_core", // Pod Surface Tissue | Поверхностная ткань семянки
+      "p_particulatesample", // Anomaly Particles | Аномальные частицы
+      "s9_tissuesample_shell", // Pod Tissue | Ткань семянки
+      "m3_tissuesample_membrane", // Mollusc Membrane | Мембрана моллюска
+      "m3_tissuesample_mycelium", // Mollusc Mycelium | Мицелий моллюска
+      "m3_tissuesample_spores", // Mollusc Spores | Споры моллюска
+      "s6_tissuesample_mesoglea", // Pod Mesoglea | Мезоглея семянки
+      "s6_tissuesample_cells", // Pod Outer Tissue | Внешняя ткань семянки
+      "s6_tissuesample_coenosarc", // Pod Shell Tissue | Ткань оболочки семянки
+      "ancientrelictg", // Unclassified Relic | Неопознанная реликвия
+      "thargoidtissuesampletype5", // Thargoid Orthrus Tissue Sample | Образец ткани таргоидского корабля «Орф»
+      "thargoidgeneratortissuesample", // Caustic Tissue Sample | Образец едких тканей
+      "unocuppiedescapepod", // Unoccupied Escape Pod | Пустая спасательная капсула
+      "thargoidtissuesampletype6", // Thargoid Glaive Tissue Sample | Образец ткани таргоидского корабля «Глефа»
+      "thargoidtissuesampletype7", // Thargoid Scythe Tissue Sample | Образец ткани таргоидского корабля «Коса»
+      "thargoidtissuesampletype9a", // Titan Deep Tissue Sample | Образец глубокой ткани титана
+      "thargoidtissuesampletype9b", // Titan Tissue Sample | Образец ткани титана
+      "thargoidtissuesampletype9c", // Titan Partial Tissue Sample | Неполный образец ткани титана
+      "thargoidtissuesampletype10a", // Titan Maw Deep Tissue Sample | Образец глубокой ткани пасти титана
+      "thargoidtissuesampletype10b", // Titan Maw Tissue Sample | Образец ткани пасти титана
+      "thargoidtissuesampletype10c", // Titan Maw Partial Tissue Sample | Неполный образец ткани пасти титана
+      "unknownsack", // Protective Membrane Scrap | Остатки защитной мембраны
+      "coralsap", // Coral Sap | Коралловая смола
+      "unknownmineral", // Impure Spire Mineral | Неочищенный минерал со шпилей
+      "unknownrefinedmineral", // Semi-Refined Spire Mineral | Полуочищенный минерал со шпилей
+      "thargoidtitandrivecomponent", // Titan Drive Component | Компонент двигателя титана
+      "thargoidcystspecimen", // Cyst Specimen | Образец кисты
+      "thargoidbonefragments", // Bone Fragments | Фрагменты кости
+      "thargoidorgansample", // Organ Sample | Образец органа
+    ],
+    "slaves", // Slavery | Рабы
+    [
+      "imperialslaves", // Imperial Slaves | Имперские рабы
+      "masterchefs", // Master Chefs | Мастер-шефы
+    ],
+  ],
+  'carrier-order-en': [
+    "platinum", // Platinum | Платина
+    "palladium", // Palladium | Палладий
+    "gold", // Gold | Золото
+    "silver", // Silver | Серебро
+    "cobalt", // Cobalt | Кобальт
+    "beryllium", // Beryllium | Бериллий
+    "indium", // Indium | Индий
+    "gallium", // Gallium | Галлий
+    "tantalum", // Tantalum | Тантал
+    "uranium", // Uranium | Уран
+    "lithium", // Lithium | Литий
+    "titanium", // Titanium | Титан
+    "copper", // Copper | Медь
+    "aluminium", // Aluminium | Алюминий
+    "helvetitjpearls", // Helvetitj Pearls | Жемчуг с Helvetitj
+    "cherbonesbloodcrystals", // Cherbones Blood Crystals | Чербонские кровавые кристаллы
+    "ngadandarifireopals", // Ngadandari Fire Opals | Нгадандарийские огненные опалы
+    "osmium", // Osmium | Осмий
+    "sothiscrystallinegold", // Sothis Crystalline Gold | Кристаллическое золото системы Sothis
+    "lanthanum", // Lanthanum | Лантан
+    "thallium", // Thallium | Таллий
+    "bismuth", // Bismuth | Висмут
+    "thorium", // Thorium | Торий
+    "praseodymium", // Praseodymium | Празеодим
+    "samarium", // Samarium | Самарий
+    "platinumaloy", // Platinum Alloy | Платиновый сплав
+    "steel", // Steel | Сталь
+    "bertrandite", // Bertrandite | Бертрандит
+    "indite", // Indite | Индит
+    "gallite", // Gallite | Галлит
+    "coltan", // Coltan | Колтан
+    "uraninite", // Uraninite | Уранинит
+    "lepidolite", // Lepidolite | Лепидолит
+    "rutile", // Rutile | Рутил
+    "bauxite", // Bauxite | Боксит
+    "painite", // Painite | Пейнит
+    "cryolite", // Cryolite | Криолит
+    "goslarite", // Goslarite | Госларит
+    "moissanite", // Moissanite | Муассанит
+    "pyrophyllite", // Pyrophyllite | Пирофиллит
+    "taaffeite", // Taaffeite | Тааффеит
+    "jadeite", // Jadeite | Жадеит
+    "bromellite", // Bromellite | Бромеллит
+    "lowtemperaturediamond", // Low Temp. Diamonds | Низкотемпературные алмазы
+    "methanolmonohydratecrystals", // Methanol Monohydrate Crystals | Кристаллы моногидрата метанола
+    "lithiumhydroxide", // Lithium Hydroxide | Гидроксид лития
+    "methaneclathrate", // Methane Clathrate | Клатрат метана
+    "rhodplumsite", // Rhodplumsite | Родплумсайт
+    "serendibite", // Serendibite | Серендибит
+    "monazite", // Monazite | Монацит
+    "musgravite", // Musgravite | Мусгравит
+    "benitoite", // Benitoite | Бенитоит
+    "grandidierite", // Grandidierite | Грандидьерит
+    "alexandrite", // Alexandrite | Александрит
+    "opal", // Void Opal | Опал бездны
+    "haematite", // Haematite | Гематит
+    "water", // Water | Вода
+    "hydrogenfuel", // Hydrogen Fuel | Водородное топливо
+    "mineraloil", // Mineral Oil | Нефтепродукты
+    "explosives", // Explosives | Взрывчатка
+    "pesticides", // Pesticides | Пестициды
+    "deltaphoenicispalms", // Delta Phoenicis Palms | Фениксовые пальмы с Delta
+    "toxandjivirocide", // Toxandji Virocide | Токсанджийские вирициды
+    "hiporganophosphates", // Hip Organophosphates | Мощные органофосфаты
+    "korrokungpellets", // Koro Kung Pellets | Корокунгские катышки
+    "medbstarlube", // Medb Starlube | Звездная смазка с Medb
+    "syntheticreagents", // Synthetic Reagents | Синтетические реагенты
+    "nerveagents", // Nerve Agents | Агенты нервно-паралит. действия
+    "surfacestabilisers", // Surface Stabilisers | Стабилизаторы поверхности
+    "hydrogenperoxide", // Hydrogen Peroxide | Пероксид водорода
+    "liquidoxygen", // Liquid oxygen | Жидкий кислород
+    "rockforthfertiliser", // Rockforth Fertiliser | Удобрение Rockforth
+    "agronomictreatment", // Agronomic Treatment | Средство очистки почвы
+    "tritium", // Tritium | Тритий
+    "algae", // Algae | Водоросли
+    "fruitandvegetables", // Fruit and Vegetables | Фрукты и овощи
+    "grain", // Grain | Зерно
+    "animalmeat", // Animal Meat | Мясо животных
+    "fish", // Fish | Рыба
+    "foodcartridges", // Food Cartridges | Пищевые брикеты
+    "syntheticmeat", // Synthetic Meat | Синтетическое мясо
+    "tea", // Tea | Чай
+    "coffee", // Coffee | Кофе
+    "hip10175bushmeat", // HIP 10175 Bush Meat | Мясо лесной дичи с HIP 10175
+    "albinoquechuamammoth", // Albino Quechua Mammoth Meat | Мясо белого кечуанского мамонта
+    "utgaroarmillenialeggs", // Utgaroar Millennial Eggs | Миллениальные яйца с Utgaroar
+    "witchhaulkobebeef", // Witchhaul Kobe Beef | Мясо кобе с Witchhaul
+    "karsukilocusts", // Karsuki Locusts | Саранча с Karsuki
+    "giantirukamasnails", // Giant Irukama Snails | Огромные улитки с Irukama
+    "baltahsinevacuumkrill", // Baltah'sine Vacuum Krill | Вакуумный криль с Baltah'sine
+    "cetirabbits", // Ceti Rabbits | Кролики с Ceti
+    "anynacoffee", // Any Na Coffee | Кофе Any Na
+    "cd75catcoffee", // CD-75 Kitten Brand Coffee | Кошачий кофе CD-75
+    "gomanyauponcoffee", // Goman Yaupon Coffee | Кофе Goman Yaupon
+    "chieridanimarinepaste", // Chi Eridani Marine Paste | Морская паста с Chi Eridani
+    "esusekucaviar", // Esuseku Caviar | Эсусекусская осетровая икра
+    "livehecateseaworms", // Live Hecate Sea Worms | Живые морские черви с Hecate
+    "hip41181squid", // HIP Proto-Squid | Протокальмар с HIP
+    "coquimspongiformvictuals", // Coquim Spongiform Victuals | Губковые продукты с Coquim
+    "aerialedenapple", // Eden Apples Of Aerial | Райские яблоки с Aerial
+    "neritusberries", // Neritus Berries | Нерутские ягоды
+    "ochoengchillies", // Ochoeng Chillies | Перчик чили с Ochoeng
+    "deuringastruffles", // Deuringas Truffles | Трюфели с Deuringas
+    "hr7221wheat", // HR 7221 Wheat | Пшеница HR 7221
+    "jarouarice", // Jaroua Rice | Жаруйский рис
+    "sanumameat", // Sanuma Decorative Meat | Декоративное мясо с Sanuma
+    "ethgrezeteabuds", // Ethgreze Tea Buds | Чайные бутоны с Ethgreze
+    "ceremonialheiketea", // Ceremonial Heike Tea | Церемониальный чай Heike
+    "tanmarktranquiltea", // Tanmark Tranquil Tea | Успокаивающий чай Tanmark
+    "bakedgreebles", // Baked Greebles | Печеные гриблы
+    "cetiaepyornisegg", // Aepyornis Egg | Яйцо эпиорниса
+    "haidneblackbrew", // Haiden Black Brew | Гайденовский черный напиток
+    "lftvoidextractcoffee", // Void Extract Coffee | Кофе «Экстракт пустоты»
+    "ltthypersweet", // LTT Hyper Sweet | Гиперсладости LTT
+    "mechucoshightea", // Mechucos High Tea | Мечукосский кайфочай
+    "mokojingbeastfeast", // Mokojing Beast Feast | Мокоджингское зверское яство
+    "mukusubiichitinos", // Mukusubii Chitin-os | Мукусубские хитинос
+    "mulachigiantfungus", // Mulachi Giant Fungus | Гигатские грибы с Mulachi
+    "wheemetewheatcakes", // Wheemete Wheat Cakes | Уимитские пшеничные галеты
+    "aroucaconventualsweets", // Arouca Conventual Sweets | Монастырские сладости с Arouca
+    "fujintea", // Fujin Tea | Фудзинский чай
+    "orrerianviciousbrew", // Orrerian Vicious Brew | Оррерское жуткое пойло
+    "uszaiantreegrub", // Uszaian Tree Grub | Ушжаанский росток дерева
+    "disomacorn", // Diso Ma Corn | Зерна дисо ма
+    "bluemilk", // Azure Milk | Лазурное молоко
+    "leather", // Leather | Кожа
+    "naturalfabrics", // Natural Fabrics | Натуральная ткань
+    "syntheticfabrics", // Synthetic Fabrics | Синтетическая ткань
+    "belalansrayleather", // Belalans Ray Leather | Кожа белаланских скатов
+    "damnacarapaces", // Damna Carapaces | Панцири с Damna
+    "rapabaosnakeskins", // Rapa Bao Snake Skins | Змеиные шкуры с Rapa Bao
+    "vanayequirhinofur", // Vanayequi Ceratomorpha Fur | Мех носорогов с Vanayequi
+    "bankiamphibiousleather", // Banki Amphibious Leather | Кожа банкийских амфибий
+    "tiegfriessynthsilk", // Tiegfries Synth Silk | Тигфрайский синтешелк
+    "jotunmookah", // Jotun Mookah | Йотунская моока
+    "chameleoncloth", // Chameleon Cloth | Ткань-хамелеон
+    "conductivefabrics", // Conductive Fabrics | Проводящая ткань
+    "militarygradefabrics", // Military Grade Fabrics | Ткани военного класса
+    "polymers", // Polymers | Полимеры
+    "semiconductors", // Semiconductors | Полупроводники
+    "superconductors", // Superconductors | Сверхпроводники
+    "ceramiccomposites", // Ceramic Composites | Керамокомпозиты
+    "metaalloys", // Meta-Alloys | Метасплавы
+    "insulatingmembrane", // Insulating Membrane | Изолирующая мембрана
+    "cmmcomposite", // CMM Composite | CMM-композит
+    "coolinghoses", // Micro-weave Cooling Hoses | Шланги системы охлаждения малых диаметров
+    "neofabricinsulation", // Neofabric Insulation | Высокотехнологичная изоляция
+    "agriculturalmedicines", // Agri-Medicines | Ветмедикаменты
+    "performanceenhancers", // Performance Enhancers | Стимуляторы
+    "basicmedicines", // Basic Medicines | Основные лекарства
+    "progenitorcells", // Progenitor Cells | Прогениторные клетки
+    "combatstabilisers", // Combat Stabilisers | Боевые стабилизаторы
+    "kachiriginleaches", // Kachirigin Filter Leeches | Очищающие пиявки с Kachirigin
+    "aganipperush", // Aganippe Rush | Аганиппийский кайф
+    "terramaterbloodbores", // Terra Mater Blood Bores | Кровяные усилители с Terra Mater
+    "watersofshintara", // The Waters Of Shintara | Воды с Shintara
+    "honestypills", // Honesty Pills | Пилюли честности
+    "vherculisbodyrub", // V Herculis Body Rub | Скраб с V Herculis
+    "vegaslimweed", // Vega Slimweed | Водоросли для похудения с Vega
+    "pantaaprayersticks", // Pantaa Prayer Sticks | Пантаские молитвенные палочки
+    "alyabodilysoap", // Alya Body Soap | Алийское мыло для тела
+    "advancedmedicines", // Advanced Medicines | Новейшие лекарства
+    "nanomedicines", // Nanomedicines | Нанолекарства
+    "basicnarcotics", // Narcotics | Наркотики
+    "tobacco", // Tobacco | Табак
+    "beer", // Beer | Пиво
+    "wine", // Wine | Вино
+    "liquor", // Liquor | Спиртное
+    "eraninpearlwhisky", // Eranin Pearl Whisky | Эранинское жемчужное виски
+    "lavianbrandy", // Lavian Brandy | Лавианский бренди
+    "lyraeweed", // Lyrae Weed | Трава лираи
+    "onionhead", // Onionhead | Луковая головка
+    "tarachtorspice", // Tarach Spice | Таракская пряность
+    "wolf1301fesh", // Wolf Fesh | Волчья дурь
+    "konggaale", // Kongga Ale | Эль с Kongga
+    "wuthielokufroth", // Wuthielo Ku Froth | Пиво Ку с Wuthielo
+    "bastsnakegin", // Bast Snake Gin | Настойка из бастетовых змей
+    "thrutiscream", // Thrutis Cream | Трутисские сливки
+    "kamitracigars", // Kamitra Cigars | Сигара Kamitra
+    "rusanioldsmokey", // Rusani Old Smokey | Старые папиросы Rusani
+    "yasokondileaf", // Yaso Kondi Leaf | Лист ясо Конди
+    "chateaudeaegaeon", // Chateau De Aegaeon | Шато де Эгеон
+    "saxonwine", // Saxon Wine | Саксонское вино
+    "centaurimegagin", // Centauri Mega Gin | Кентаврский мега-джин
+    "motronaexperiencejelly", // Motrona Experience Jelly | Мотронское желе
+    "geawendancedust", // Geawen Dance Dust | Геавенская танцевальная пыль
+    "gerasiangueuzebeer", // Gerasian Gueuze Beer | Герасианское пиво гез
+    "burnhambiledistillate", // Burnham Bile Distillate | Бернхемский желчный дистиллят
+    "pavoniseargrubs", // Pavonis Ear Grubs | Павлинские ухочерви
+    "indibourbon", // Indi Bourbon | Инди-бурбон
+    "leestianeviljuice", // Leestian Evil Juice | Леестийский сок зла
+    "transgeniconionhead", // Lucan Onionhead | Луканская луковая головка
+    "bootlegliquor", // Bootleg Liquor | Самогон
+    "onionheada", // Onionhead Alpha Strain | Луковая головка, сорт альфа
+    "onionheadb", // Onionhead Beta Strain | Луковая головка, сорт бета
+    "animaleffigies", // Crom Silver Fesh | Кромская серебряная дурь
+    "harmasilversearum", // Harma Silver Sea Rum | Ром «Серебряное море Harma»
+    "apavietii", // Apa Vietii | Apa Vietii
+    "onionheadc", // Onionhead Gamma Strain | Луковая головка, сорт гамма
+    "powergenerators", // Power Generators | Электрогенераторы
+    "waterpurifiers", // Water Purifiers | Водоочистители
+    "heliostaticfurnaces", // Microbial Furnaces | Микробные печи
+    "mineralextractors", // Mineral Extractors | Экстракторы минералов
+    "cropharvesters", // Crop Harvesters | Уборочный комбайн
+    "marinesupplies", // Marine Equipment | Морское оборудование
+    "atmosphericextractors", // Atmospheric Processors | Атмосферный процессор
+    "volkhabbeedrones", // Volkhab Bee Drones | Дроны Volkhab Bee
+    "wulpahyperboresystems", // Wulpa Hyperbore Systems | Гипербурильные системы Wulpa
+    "noneuclidianexotanks", // Non Euclidian Exotanks | Неевклидовы экзобаки
+    "giantverrix", // Giant Verrix | Гигант Веррикс
+    "geologicalequipment", // Geological Equipment | Геологическое оборудование
+    "thermalcoolingunits", // Thermal Cooling Units | Термальные охладители
+    "buildingfabricators", // Building Fabricators | Строительные синтезаторы
+    "skimercomponents", // Skimmer Components | Детали оборон. беспилотников
+    "articulationmotors", // Articulation Motors | Шарнирные моторы
+    "hnshockmount", // HN Shock Mount | Разрядная установка HN
+    "emergencypowercells", // Emergency Power Cells | Аварийные энергоячейки
+    "powerconverter", // Power Converter | Преобразователь энергии
+    "powergridassembly", // Energy Grid Assembly | Электросеть в сборе
+    "powertransferconduits", // Power Transfer Bus | Энергообменная шина
+    "radiationbaffle", // Radiation Baffle | Отражатель излучения
+    "exhaustmanifold", // Exhaust Manifold | Выпускной коллектор
+    "reinforcedmountingplate", // Reinforced Mounting Plate | Усиленная монтажная плита
+    "heatsinkinterlink", // Heatsink Interlink | Радиаторный соединитель
+    "magneticemittercoil", // Magnetic Emitter Coil | Спираль магнитного излучателя
+    "modularterminals", // Modular Terminals | Модульные терминалы
+    "iondistributor", // Ion Distributor | Ионный распределитель
+    "computercomponents", // Computer Components | Компьютерные компоненты
+    "hazardousenvironmentsuits", // H.E. Suits | Защитные костюмы
+    "robotics", // Robotics | Роботы
+    "autofabricators", // Auto-Fabricators | Автосинтезаторы
+    "animalmonitors", // Animal Monitors | Мониторы фауны
+    "aquaponicsystems", // Aquaponic Systems | Аквапонные системы
+    "advancedcatalysers", // Advanced Catalysers | Улучшенные катализаторы
+    "terrainenrichmentsystems", // Land Enrichment Systems | Системы обогащения почвы
+    "resonatingseparators", // Resonating Separators | Резонансные сепараторы
+    "bioreducinglichen", // Bioreducing Lichen | Лишайник-биоредуктор
+    "xihecompanions", // Xihe Biomorphic Companions | Биоморфные спутники Xihe
+    "azcancriformula42", // AZ Cancri Formula 42 | Формула 42 AZ Cancri
+    "mutomimager", // Muon Imager | Мюонное видеоустройство
+    "structuralregulators", // Structural Regulators | Конструкционные регуляторы
+    "nanobreakers", // Nanobreakers | Нанопрерыватели
+    "telemetrysuite", // Telemetry Suite | Телеметрический комплект
+    "microcontrollers", // Micro Controllers | Микроконтроллеры
+    "diagnosticsensor", // Hardware Diagnostic Sensor | Сенсор диагностики оборудования
+    "medicaldiagnosticequipment", // Medical Diagnostic Equipment | Диагностическое медоборудование
+    "duradrives", // Duradrives | Дюрадрайвы
+    "classifiedexperimentalequipment", // Classified Experimental Equipment | Засекреченное экспериментальное оборудование
+    "personalweapons", // Personal Weapons | Личное оружие
+    "battleweapons", // Battle Weapons | Военное оружие
+    "reactivearmour", // Reactive Armour | Реактивная защита
+    "nonlethalweapons", // Non-Lethal Weapons | Нелетальное оружие
+    "borasetanipathogenetics", // Borasetani Pathogenetics | Боразетанские патогены
+    "hip118311swarm", // HIP 118311 Swarm | Рой HIP 118311
+    "holvaduellingblades", // Holva Duelling Blades | Хольванские дуэльные клинки
+    "kamorinhistoricweapons", // Kamorin Historic Weapons | Каморинское историческое оружие
+    "gilyasignatureweapons", // Gilya Signature Weapons | Именное оружие из системы Gilya
+    "landmines", // Landmines | Мины
+    "domesticappliances", // Domestic Appliances | Бытовая техника
+    "consumertechnology", // Consumer Technology | Потребительские товары
+    "clothing", // Clothing | Одежда
+    "alacarakmoskinart", // Alacarakmo Skin Art | Алакаракмовские татуировки
+    "eleuthermals", // Eleu Thermals | Элеусская теплая одежда
+    "eshuumbrellas", // Eshu Umbrellas | Зонтики Эшу
+    "karetiicouture", // Karetii Couture | Модные вещи от Karetii
+    "njangarisaddles", // Njangari Saddles | Седла Njangari
+    "kinagoinstruments", // Kinago Violins | Скрипки Kinago
+    "ngunamodernantiques", // Nguna Modern Antiques | Современные древности с Nguna
+    "rajukrustoves", // Rajukru Multi-Stoves | Мультипечи Rajukru
+    "tiolcewaste2pasteunits", // Tiolce Waste2Paste Units | Устройства «Отход-в-приход» Tiolce
+    "ophiuchiexinoartefacts", // Ophiuch Exino Artefacts | Артефакты офиух экзино
+    "anduligafireworks", // Anduliga Fire Works | Андулигские фейерверки
+    "havasupaidreamcatcher", // Havasupai Dream Catcher | Хавасупайский ловец снов
+    "uzumokulowgwings", // Uzumoku Low-G Wings | Узумокские крылья для малой гравитации
+    "altairianskin", // Altairian Skin | Альтаирская кожа
+    "taurichimes", // Tauri Chimes | Колокольчики с Tauri
+    "zeesszeantglue", // Zeessze Ant Grub Glue | Зесский муравьиный клей
+    "momusbogspaniel", // Momus Bog Spaniel | Момусовский болотный спаниель
+    "alieneggs", // Leathery Eggs | Кожистые яйца
+    "vidavantianlace", // Vidavantian Lace | Видавантийский шнурок
+    "jaquesquinentianstill", // Jaques Quinentian Still | Дистиллятор Жака Квиненциана
+    "soontillrelics", // Soontill Relics | Реликвии Сунтилла
+    "advert1", // Ultra-Compact Processor Prototypes | Экспериментальные ультракомпактные процессоры
+    "thehuttonmug", // The Hutton Mug | Кружка Hutton
+    "evacuationshelter", // Evacuation Shelter | Эвакуационное убежище
+    "survivalequipment", // Survival Equipment | Снаряжение для выживания
+    "shanscharisorchid", // Shan's Charis Orchid | Орхидея Shan Charis
+    "buckyballbeermats", // Buckyball Beer Mats | Подставка под пиво Buckyball
+    "biowaste", // Biowaste | Биоотходы
+    "chemicalwaste", // Chemical Waste | Радиоактивные материалы
+    "scrap", // Scrap | Утильсырье
+    "usscargorareartwork", // Rare Artwork | Редкие произведения искусства
+    "unknownartifact", // Thargoid Sensor | Таргоидский сенсор
+    "sap8corecontainer", // SAP 8 Core Container | Контейнер SAP 8 Core
+    "encripteddatastorage", // Encrypted Data Storage | Зашифрованный носитель данных
+    "comercialsamples", // Commercial Samples | Рекламные образцы
+    "tacticaldata", // Tactical Data | Тактические данные
+    "assaultplans", // Assault Plans | Планы атак
+    "encryptedcorrespondence", // Encrypted Correspondence | Шифрованная переписка
+    "diplomaticbag", // Diplomatic Bag | Дипломатическая сумка
+    "scientificresearch", // Scientific Research | Материалы исследования
+    "scientificsamples", // Scientific Samples | Научные образцы
+    "largeexplorationdatacash", // Large Survey Data Cache | Большой пакет с данными исследования
+    "smallexplorationdatacash", // Small Survey Data Cache | Малый пакет с данными исследования
+    "antiquejewellery", // Antique Jewellery | Древние ювелирные украшения
+    "preciousgems", // Precious Gems | Драгоценные камни
+    "earthrelics", // Earth Relics | Реликвии с Земли
+    "genebank", // Gene Bank | Генотека
+    "timecapsule", // Time Capsule | Капсула времени
+    "geologicalsamples", // Geological Samples | Образцы породы
+    "personalgifts", // Festive Gifts | Праздничные подарки
+    "crystallinespheres", // Crystalline Spheres | Прозрачные сферы
+    "unstabledatacore", // Unstable Data Core | Нестабильное ядро данных
+    "unknownartifact2", // Thargoid Probe | Таргоидский зонд
+    "datacore", // Data Core | Ядро данных
+    "galactictravelguide", // Galactic Travel Guide | Путеводитель галактического путешественника
+    "mysteriousidol", // Mysterious Idol | Таинственный идол
+    "spacepioneerrelics", // Space Pioneer Relics | Следы первопроходцев космоса
+    "fossilremnants", // Fossil Remnants | Ископаемые останки
+    "ancientrelic", // Guardian Relic | Реликвия Стражей
+    "ancientorb", // Guardian Orb | Сфера Стражей
+    "ancientcasket", // Guardian Casket | Шкатулка Стражей
+    "ancienttablet", // Guardian Tablet | Табличка Стражей
+    "ancienturn", // Guardian Urn | Урна Стражей
+    "ancienttotem", // Guardian Totem | Тотем Стражей
+    "unknownresin", // Thargoid Resin | Таргоидская смола
+    "unknownbiologicalmatter", // Thargoid Biological Matter | Таргоидская биомасса
+    "unknowntechnologysamples", // Thargoid Technology Samples | Образцы таргоидских технологий
+    "unknownartifact3", // Thargoid Link | Таргоидское звено
+    "thargoidheart", // Thargoid Heart | Таргоидское «сердце»
+    "thargoidtissuesampletype1", // Thargoid Cyclops Tissue Sample | Образец ткани таргоидского корабля «Циклоп»
+    "thargoidtissuesampletype2", // Thargoid Basilisk Tissue Sample | Образец ткани таргоидского корабля «Василиск»
+    "thargoidtissuesampletype3", // Thargoid Medusa Tissue Sample | Образец ткани таргоидского корабля «Медуза»
+    "thargoidscouttissuesample", // Thargoid Scout Tissue Sample | Образец тканей таргоида-разведчика
+    "ancientkey", // Ancient Key | Древний ключ
+    "thargoidtissuesampletype4", // Thargoid Hydra Tissue Sample | Образец ткани таргоидского корабля «Гидра»
+    "m_tissuesample_fluid", // Mollusc Fluid | Жидкость моллюска
+    "m_tissuesample_soft", // Mollusc Soft Tissue | Мягкие ткани моллюска
+    "m_tissuesample_nerves", // Mollusc Brain Tissue | Мозговое вещество моллюска
+    "s_tissuesample_cells", // Pod Core Tissue | Ткань ядра семянки
+    "s_tissuesample_surface", // Pod Dead Tissue | Мертвая ткань семянки
+    "s_tissuesample_core", // Pod Surface Tissue | Поверхностная ткань семянки
+    "p_particulatesample", // Anomaly Particles | Аномальные частицы
+    "s9_tissuesample_shell", // Pod Tissue | Ткань семянки
+    "m3_tissuesample_membrane", // Mollusc Membrane | Мембрана моллюска
+    "m3_tissuesample_mycelium", // Mollusc Mycelium | Мицелий моллюска
+    "m3_tissuesample_spores", // Mollusc Spores | Споры моллюска
+    "s6_tissuesample_mesoglea", // Pod Mesoglea | Мезоглея семянки
+    "s6_tissuesample_cells", // Pod Outer Tissue | Внешняя ткань семянки
+    "s6_tissuesample_coenosarc", // Pod Shell Tissue | Ткань оболочки семянки
+    "ancientrelictg", // Unclassified Relic | Неопознанная реликвия
+    "thargoidtissuesampletype5", // Thargoid Orthrus Tissue Sample | Образец ткани таргоидского корабля «Орф»
+    "thargoidgeneratortissuesample", // Caustic Tissue Sample | Образец едких тканей
+    "unocuppiedescapepod", // Unoccupied Escape Pod | Пустая спасательная капсула
+    "thargoidtissuesampletype6", // Thargoid Glaive Tissue Sample | Образец ткани таргоидского корабля «Глефа»
+    "thargoidtissuesampletype7", // Thargoid Scythe Tissue Sample | Образец ткани таргоидского корабля «Коса»
+    "thargoidtissuesampletype9a", // Titan Deep Tissue Sample | Образец глубокой ткани титана
+    "thargoidtissuesampletype9b", // Titan Tissue Sample | Образец ткани титана
+    "thargoidtissuesampletype9c", // Titan Partial Tissue Sample | Неполный образец ткани титана
+    "thargoidtissuesampletype10a", // Titan Maw Deep Tissue Sample | Образец глубокой ткани пасти титана
+    "thargoidtissuesampletype10b", // Titan Maw Tissue Sample | Образец ткани пасти титана
+    "thargoidtissuesampletype10c", // Titan Maw Partial Tissue Sample | Неполный образец ткани пасти титана
+    "unknownsack", // Protective Membrane Scrap | Остатки защитной мембраны
+    "coralsap", // Coral Sap | Коралловая смола
+    "unknownmineral", // Impure Spire Mineral | Неочищенный минерал со шпилей
+    "unknownrefinedmineral", // Semi-Refined Spire Mineral | Полуочищенный минерал со шпилей
+    "thargoidtitandrivecomponent", // Titan Drive Component | Компонент двигателя титана
+    "thargoidcystspecimen", // Cyst Specimen | Образец кисты
+    "thargoidbonefragments", // Bone Fragments | Фрагменты кости
+    "thargoidorgansample", // Organ Sample | Образец органа
+    "imperialslaves", // Imperial Slaves | Имперские рабы
+    "masterchefs", // Master Chefs | Мастер-шефы
+  ],
+  'carrier-order-ru': [
+    "platinum", // Platinum | Платина
+    "palladium", // Palladium | Палладий
+    "gold", // Gold | Золото
+    "silver", // Silver | Серебро
+    "cobalt", // Cobalt | Кобальт
+    "beryllium", // Beryllium | Бериллий
+    "indium", // Indium | Индий
+    "gallium", // Gallium | Галлий
+    "tantalum", // Tantalum | Тантал
+    "uranium", // Uranium | Уран
+    "lithium", // Lithium | Литий
+    "titanium", // Titanium | Титан
+    "copper", // Copper | Медь
+    "aluminium", // Aluminium | Алюминий
+    "helvetitjpearls", // Helvetitj Pearls | Жемчуг с Helvetitj
+    "cherbonesbloodcrystals", // Cherbones Blood Crystals | Чербонские кровавые кристаллы
+    "ngadandarifireopals", // Ngadandari Fire Opals | Нгадандарийские огненные опалы
+    "osmium", // Osmium | Осмий
+    "sothiscrystallinegold", // Sothis Crystalline Gold | Кристаллическое золото системы Sothis
+    "lanthanum", // Lanthanum | Лантан
+    "thallium", // Thallium | Таллий
+    "bismuth", // Bismuth | Висмут
+    "thorium", // Thorium | Торий
+    "praseodymium", // Praseodymium | Празеодим
+    "samarium", // Samarium | Самарий
+    "platinumaloy", // Platinum Alloy | Платиновый сплав
+    "steel", // Steel | Сталь
+    "bertrandite", // Bertrandite | Бертрандит
+    "indite", // Indite | Индит
+    "gallite", // Gallite | Галлит
+    "coltan", // Coltan | Колтан
+    "uraninite", // Uraninite | Уранинит
+    "lepidolite", // Lepidolite | Лепидолит
+    "rutile", // Rutile | Рутил
+    "bauxite", // Bauxite | Боксит
+    "painite", // Painite | Пейнит
+    "cryolite", // Cryolite | Криолит
+    "goslarite", // Goslarite | Госларит
+    "moissanite", // Moissanite | Муассанит
+    "pyrophyllite", // Pyrophyllite | Пирофиллит
+    "taaffeite", // Taaffeite | Тааффеит
+    "jadeite", // Jadeite | Жадеит
+    "bromellite", // Bromellite | Бромеллит
+    "lowtemperaturediamond", // Low Temp. Diamonds | Низкотемпературные алмазы
+    "methanolmonohydratecrystals", // Methanol Monohydrate Crystals | Кристаллы моногидрата метанола
+    "lithiumhydroxide", // Lithium Hydroxide | Гидроксид лития
+    "methaneclathrate", // Methane Clathrate | Клатрат метана
+    "rhodplumsite", // Rhodplumsite | Родплумсайт
+    "serendibite", // Serendibite | Серендибит
+    "monazite", // Monazite | Монацит
+    "musgravite", // Musgravite | Мусгравит
+    "benitoite", // Benitoite | Бенитоит
+    "grandidierite", // Grandidierite | Грандидьерит
+    "alexandrite", // Alexandrite | Александрит
+    "opal", // Void Opal | Опал бездны
+    "haematite", // Haematite | Гематит
+    "water", // Water | Вода
+    "hydrogenfuel", // Hydrogen Fuel | Водородное топливо
+    "mineraloil", // Mineral Oil | Нефтепродукты
+    "explosives", // Explosives | Взрывчатка
+    "pesticides", // Pesticides | Пестициды
+    "deltaphoenicispalms", // Delta Phoenicis Palms | Фениксовые пальмы с Delta
+    "toxandjivirocide", // Toxandji Virocide | Токсанджийские вирициды
+    "hiporganophosphates", // Hip Organophosphates | Мощные органофосфаты
+    "korrokungpellets", // Koro Kung Pellets | Корокунгские катышки
+    "medbstarlube", // Medb Starlube | Звездная смазка с Medb
+    "syntheticreagents", // Synthetic Reagents | Синтетические реагенты
+    "nerveagents", // Nerve Agents | Агенты нервно-паралит. действия
+    "surfacestabilisers", // Surface Stabilisers | Стабилизаторы поверхности
+    "hydrogenperoxide", // Hydrogen Peroxide | Пероксид водорода
+    "liquidoxygen", // Liquid oxygen | Жидкий кислород
+    "rockforthfertiliser", // Rockforth Fertiliser | Удобрение Rockforth
+    "agronomictreatment", // Agronomic Treatment | Средство очистки почвы
+    "tritium", // Tritium | Тритий
+    "algae", // Algae | Водоросли
+    "fruitandvegetables", // Fruit and Vegetables | Фрукты и овощи
+    "grain", // Grain | Зерно
+    "animalmeat", // Animal Meat | Мясо животных
+    "fish", // Fish | Рыба
+    "foodcartridges", // Food Cartridges | Пищевые брикеты
+    "syntheticmeat", // Synthetic Meat | Синтетическое мясо
+    "tea", // Tea | Чай
+    "coffee", // Coffee | Кофе
+    "hip10175bushmeat", // HIP 10175 Bush Meat | Мясо лесной дичи с HIP 10175
+    "albinoquechuamammoth", // Albino Quechua Mammoth Meat | Мясо белого кечуанского мамонта
+    "utgaroarmillenialeggs", // Utgaroar Millennial Eggs | Миллениальные яйца с Utgaroar
+    "witchhaulkobebeef", // Witchhaul Kobe Beef | Мясо кобе с Witchhaul
+    "karsukilocusts", // Karsuki Locusts | Саранча с Karsuki
+    "giantirukamasnails", // Giant Irukama Snails | Огромные улитки с Irukama
+    "baltahsinevacuumkrill", // Baltah'sine Vacuum Krill | Вакуумный криль с Baltah'sine
+    "cetirabbits", // Ceti Rabbits | Кролики с Ceti
+    "anynacoffee", // Any Na Coffee | Кофе Any Na
+    "cd75catcoffee", // CD-75 Kitten Brand Coffee | Кошачий кофе CD-75
+    "gomanyauponcoffee", // Goman Yaupon Coffee | Кофе Goman Yaupon
+    "chieridanimarinepaste", // Chi Eridani Marine Paste | Морская паста с Chi Eridani
+    "esusekucaviar", // Esuseku Caviar | Эсусекусская осетровая икра
+    "livehecateseaworms", // Live Hecate Sea Worms | Живые морские черви с Hecate
+    "hip41181squid", // HIP Proto-Squid | Протокальмар с HIP
+    "coquimspongiformvictuals", // Coquim Spongiform Victuals | Губковые продукты с Coquim
+    "aerialedenapple", // Eden Apples Of Aerial | Райские яблоки с Aerial
+    "neritusberries", // Neritus Berries | Нерутские ягоды
+    "ochoengchillies", // Ochoeng Chillies | Перчик чили с Ochoeng
+    "deuringastruffles", // Deuringas Truffles | Трюфели с Deuringas
+    "hr7221wheat", // HR 7221 Wheat | Пшеница HR 7221
+    "jarouarice", // Jaroua Rice | Жаруйский рис
+    "sanumameat", // Sanuma Decorative Meat | Декоративное мясо с Sanuma
+    "ethgrezeteabuds", // Ethgreze Tea Buds | Чайные бутоны с Ethgreze
+    "ceremonialheiketea", // Ceremonial Heike Tea | Церемониальный чай Heike
+    "tanmarktranquiltea", // Tanmark Tranquil Tea | Успокаивающий чай Tanmark
+    "bakedgreebles", // Baked Greebles | Печеные гриблы
+    "cetiaepyornisegg", // Aepyornis Egg | Яйцо эпиорниса
+    "haidneblackbrew", // Haiden Black Brew | Гайденовский черный напиток
+    "lftvoidextractcoffee", // Void Extract Coffee | Кофе «Экстракт пустоты»
+    "ltthypersweet", // LTT Hyper Sweet | Гиперсладости LTT
+    "mechucoshightea", // Mechucos High Tea | Мечукосский кайфочай
+    "mokojingbeastfeast", // Mokojing Beast Feast | Мокоджингское зверское яство
+    "mukusubiichitinos", // Mukusubii Chitin-os | Мукусубские хитинос
+    "mulachigiantfungus", // Mulachi Giant Fungus | Гигатские грибы с Mulachi
+    "wheemetewheatcakes", // Wheemete Wheat Cakes | Уимитские пшеничные галеты
+    "aroucaconventualsweets", // Arouca Conventual Sweets | Монастырские сладости с Arouca
+    "fujintea", // Fujin Tea | Фудзинский чай
+    "orrerianviciousbrew", // Orrerian Vicious Brew | Оррерское жуткое пойло
+    "uszaiantreegrub", // Uszaian Tree Grub | Ушжаанский росток дерева
+    "disomacorn", // Diso Ma Corn | Зерна дисо ма
+    "bluemilk", // Azure Milk | Лазурное молоко
+    "leather", // Leather | Кожа
+    "naturalfabrics", // Natural Fabrics | Натуральная ткань
+    "syntheticfabrics", // Synthetic Fabrics | Синтетическая ткань
+    "belalansrayleather", // Belalans Ray Leather | Кожа белаланских скатов
+    "damnacarapaces", // Damna Carapaces | Панцири с Damna
+    "rapabaosnakeskins", // Rapa Bao Snake Skins | Змеиные шкуры с Rapa Bao
+    "vanayequirhinofur", // Vanayequi Ceratomorpha Fur | Мех носорогов с Vanayequi
+    "bankiamphibiousleather", // Banki Amphibious Leather | Кожа банкийских амфибий
+    "tiegfriessynthsilk", // Tiegfries Synth Silk | Тигфрайский синтешелк
+    "jotunmookah", // Jotun Mookah | Йотунская моока
+    "chameleoncloth", // Chameleon Cloth | Ткань-хамелеон
+    "conductivefabrics", // Conductive Fabrics | Проводящая ткань
+    "militarygradefabrics", // Military Grade Fabrics | Ткани военного класса
+    "polymers", // Polymers | Полимеры
+    "semiconductors", // Semiconductors | Полупроводники
+    "superconductors", // Superconductors | Сверхпроводники
+    "ceramiccomposites", // Ceramic Composites | Керамокомпозиты
+    "metaalloys", // Meta-Alloys | Метасплавы
+    "insulatingmembrane", // Insulating Membrane | Изолирующая мембрана
+    "cmmcomposite", // CMM Composite | CMM-композит
+    "coolinghoses", // Micro-weave Cooling Hoses | Шланги системы охлаждения малых диаметров
+    "neofabricinsulation", // Neofabric Insulation | Высокотехнологичная изоляция
+    "agriculturalmedicines", // Agri-Medicines | Ветмедикаменты
+    "performanceenhancers", // Performance Enhancers | Стимуляторы
+    "basicmedicines", // Basic Medicines | Основные лекарства
+    "progenitorcells", // Progenitor Cells | Прогениторные клетки
+    "combatstabilisers", // Combat Stabilisers | Боевые стабилизаторы
+    "kachiriginleaches", // Kachirigin Filter Leeches | Очищающие пиявки с Kachirigin
+    "aganipperush", // Aganippe Rush | Аганиппийский кайф
+    "terramaterbloodbores", // Terra Mater Blood Bores | Кровяные усилители с Terra Mater
+    "watersofshintara", // The Waters Of Shintara | Воды с Shintara
+    "honestypills", // Honesty Pills | Пилюли честности
+    "vherculisbodyrub", // V Herculis Body Rub | Скраб с V Herculis
+    "vegaslimweed", // Vega Slimweed | Водоросли для похудения с Vega
+    "pantaaprayersticks", // Pantaa Prayer Sticks | Пантаские молитвенные палочки
+    "alyabodilysoap", // Alya Body Soap | Алийское мыло для тела
+    "advancedmedicines", // Advanced Medicines | Новейшие лекарства
+    "nanomedicines", // Nanomedicines | Нанолекарства
+    "basicnarcotics", // Narcotics | Наркотики
+    "tobacco", // Tobacco | Табак
+    "beer", // Beer | Пиво
+    "wine", // Wine | Вино
+    "liquor", // Liquor | Спиртное
+    "eraninpearlwhisky", // Eranin Pearl Whisky | Эранинское жемчужное виски
+    "lavianbrandy", // Lavian Brandy | Лавианский бренди
+    "lyraeweed", // Lyrae Weed | Трава лираи
+    "onionhead", // Onionhead | Луковая головка
+    "tarachtorspice", // Tarach Spice | Таракская пряность
+    "wolf1301fesh", // Wolf Fesh | Волчья дурь
+    "konggaale", // Kongga Ale | Эль с Kongga
+    "wuthielokufroth", // Wuthielo Ku Froth | Пиво Ку с Wuthielo
+    "bastsnakegin", // Bast Snake Gin | Настойка из бастетовых змей
+    "thrutiscream", // Thrutis Cream | Трутисские сливки
+    "kamitracigars", // Kamitra Cigars | Сигара Kamitra
+    "rusanioldsmokey", // Rusani Old Smokey | Старые папиросы Rusani
+    "yasokondileaf", // Yaso Kondi Leaf | Лист ясо Конди
+    "chateaudeaegaeon", // Chateau De Aegaeon | Шато де Эгеон
+    "saxonwine", // Saxon Wine | Саксонское вино
+    "centaurimegagin", // Centauri Mega Gin | Кентаврский мега-джин
+    "motronaexperiencejelly", // Motrona Experience Jelly | Мотронское желе
+    "geawendancedust", // Geawen Dance Dust | Геавенская танцевальная пыль
+    "gerasiangueuzebeer", // Gerasian Gueuze Beer | Герасианское пиво гез
+    "burnhambiledistillate", // Burnham Bile Distillate | Бернхемский желчный дистиллят
+    "pavoniseargrubs", // Pavonis Ear Grubs | Павлинские ухочерви
+    "indibourbon", // Indi Bourbon | Инди-бурбон
+    "leestianeviljuice", // Leestian Evil Juice | Леестийский сок зла
+    "transgeniconionhead", // Lucan Onionhead | Луканская луковая головка
+    "bootlegliquor", // Bootleg Liquor | Самогон
+    "onionheada", // Onionhead Alpha Strain | Луковая головка, сорт альфа
+    "onionheadb", // Onionhead Beta Strain | Луковая головка, сорт бета
+    "animaleffigies", // Crom Silver Fesh | Кромская серебряная дурь
+    "harmasilversearum", // Harma Silver Sea Rum | Ром «Серебряное море Harma»
+    "apavietii", // Apa Vietii | Apa Vietii
+    "onionheadc", // Onionhead Gamma Strain | Луковая головка, сорт гамма
+    "powergenerators", // Power Generators | Электрогенераторы
+    "waterpurifiers", // Water Purifiers | Водоочистители
+    "heliostaticfurnaces", // Microbial Furnaces | Микробные печи
+    "mineralextractors", // Mineral Extractors | Экстракторы минералов
+    "cropharvesters", // Crop Harvesters | Уборочный комбайн
+    "marinesupplies", // Marine Equipment | Морское оборудование
+    "atmosphericextractors", // Atmospheric Processors | Атмосферный процессор
+    "volkhabbeedrones", // Volkhab Bee Drones | Дроны Volkhab Bee
+    "wulpahyperboresystems", // Wulpa Hyperbore Systems | Гипербурильные системы Wulpa
+    "noneuclidianexotanks", // Non Euclidian Exotanks | Неевклидовы экзобаки
+    "giantverrix", // Giant Verrix | Гигант Веррикс
+    "geologicalequipment", // Geological Equipment | Геологическое оборудование
+    "thermalcoolingunits", // Thermal Cooling Units | Термальные охладители
+    "buildingfabricators", // Building Fabricators | Строительные синтезаторы
+    "skimercomponents", // Skimmer Components | Детали оборон. беспилотников
+    "articulationmotors", // Articulation Motors | Шарнирные моторы
+    "hnshockmount", // HN Shock Mount | Разрядная установка HN
+    "emergencypowercells", // Emergency Power Cells | Аварийные энергоячейки
+    "powerconverter", // Power Converter | Преобразователь энергии
+    "powergridassembly", // Energy Grid Assembly | Электросеть в сборе
+    "powertransferconduits", // Power Transfer Bus | Энергообменная шина
+    "radiationbaffle", // Radiation Baffle | Отражатель излучения
+    "exhaustmanifold", // Exhaust Manifold | Выпускной коллектор
+    "reinforcedmountingplate", // Reinforced Mounting Plate | Усиленная монтажная плита
+    "heatsinkinterlink", // Heatsink Interlink | Радиаторный соединитель
+    "magneticemittercoil", // Magnetic Emitter Coil | Спираль магнитного излучателя
+    "modularterminals", // Modular Terminals | Модульные терминалы
+    "iondistributor", // Ion Distributor | Ионный распределитель
+    "computercomponents", // Computer Components | Компьютерные компоненты
+    "hazardousenvironmentsuits", // H.E. Suits | Защитные костюмы
+    "robotics", // Robotics | Роботы
+    "autofabricators", // Auto-Fabricators | Автосинтезаторы
+    "animalmonitors", // Animal Monitors | Мониторы фауны
+    "aquaponicsystems", // Aquaponic Systems | Аквапонные системы
+    "advancedcatalysers", // Advanced Catalysers | Улучшенные катализаторы
+    "terrainenrichmentsystems", // Land Enrichment Systems | Системы обогащения почвы
+    "resonatingseparators", // Resonating Separators | Резонансные сепараторы
+    "bioreducinglichen", // Bioreducing Lichen | Лишайник-биоредуктор
+    "xihecompanions", // Xihe Biomorphic Companions | Биоморфные спутники Xihe
+    "azcancriformula42", // AZ Cancri Formula 42 | Формула 42 AZ Cancri
+    "mutomimager", // Muon Imager | Мюонное видеоустройство
+    "structuralregulators", // Structural Regulators | Конструкционные регуляторы
+    "nanobreakers", // Nanobreakers | Нанопрерыватели
+    "telemetrysuite", // Telemetry Suite | Телеметрический комплект
+    "microcontrollers", // Micro Controllers | Микроконтроллеры
+    "diagnosticsensor", // Hardware Diagnostic Sensor | Сенсор диагностики оборудования
+    "medicaldiagnosticequipment", // Medical Diagnostic Equipment | Диагностическое медоборудование
+    "duradrives", // Duradrives | Дюрадрайвы
+    "classifiedexperimentalequipment", // Classified Experimental Equipment | Засекреченное экспериментальное оборудование
+    "personalweapons", // Personal Weapons | Личное оружие
+    "battleweapons", // Battle Weapons | Военное оружие
+    "reactivearmour", // Reactive Armour | Реактивная защита
+    "nonlethalweapons", // Non-Lethal Weapons | Нелетальное оружие
+    "borasetanipathogenetics", // Borasetani Pathogenetics | Боразетанские патогены
+    "hip118311swarm", // HIP 118311 Swarm | Рой HIP 118311
+    "holvaduellingblades", // Holva Duelling Blades | Хольванские дуэльные клинки
+    "kamorinhistoricweapons", // Kamorin Historic Weapons | Каморинское историческое оружие
+    "gilyasignatureweapons", // Gilya Signature Weapons | Именное оружие из системы Gilya
+    "landmines", // Landmines | Мины
+    "domesticappliances", // Domestic Appliances | Бытовая техника
+    "consumertechnology", // Consumer Technology | Потребительские товары
+    "clothing", // Clothing | Одежда
+    "alacarakmoskinart", // Alacarakmo Skin Art | Алакаракмовские татуировки
+    "eleuthermals", // Eleu Thermals | Элеусская теплая одежда
+    "eshuumbrellas", // Eshu Umbrellas | Зонтики Эшу
+    "karetiicouture", // Karetii Couture | Модные вещи от Karetii
+    "njangarisaddles", // Njangari Saddles | Седла Njangari
+    "kinagoinstruments", // Kinago Violins | Скрипки Kinago
+    "ngunamodernantiques", // Nguna Modern Antiques | Современные древности с Nguna
+    "rajukrustoves", // Rajukru Multi-Stoves | Мультипечи Rajukru
+    "tiolcewaste2pasteunits", // Tiolce Waste2Paste Units | Устройства «Отход-в-приход» Tiolce
+    "ophiuchiexinoartefacts", // Ophiuch Exino Artefacts | Артефакты офиух экзино
+    "anduligafireworks", // Anduliga Fire Works | Андулигские фейерверки
+    "havasupaidreamcatcher", // Havasupai Dream Catcher | Хавасупайский ловец снов
+    "uzumokulowgwings", // Uzumoku Low-G Wings | Узумокские крылья для малой гравитации
+    "altairianskin", // Altairian Skin | Альтаирская кожа
+    "taurichimes", // Tauri Chimes | Колокольчики с Tauri
+    "zeesszeantglue", // Zeessze Ant Grub Glue | Зесский муравьиный клей
+    "momusbogspaniel", // Momus Bog Spaniel | Момусовский болотный спаниель
+    "alieneggs", // Leathery Eggs | Кожистые яйца
+    "vidavantianlace", // Vidavantian Lace | Видавантийский шнурок
+    "jaquesquinentianstill", // Jaques Quinentian Still | Дистиллятор Жака Квиненциана
+    "soontillrelics", // Soontill Relics | Реликвии Сунтилла
+    "advert1", // Ultra-Compact Processor Prototypes | Экспериментальные ультракомпактные процессоры
+    "thehuttonmug", // The Hutton Mug | Кружка Hutton
+    "evacuationshelter", // Evacuation Shelter | Эвакуационное убежище
+    "survivalequipment", // Survival Equipment | Снаряжение для выживания
+    "shanscharisorchid", // Shan's Charis Orchid | Орхидея Shan Charis
+    "buckyballbeermats", // Buckyball Beer Mats | Подставка под пиво Buckyball
+    "biowaste", // Biowaste | Биоотходы
+    "chemicalwaste", // Chemical Waste | Радиоактивные материалы
+    "scrap", // Scrap | Утильсырье
+    "usscargorareartwork", // Rare Artwork | Редкие произведения искусства
+    "unknownartifact", // Thargoid Sensor | Таргоидский сенсор
+    "sap8corecontainer", // SAP 8 Core Container | Контейнер SAP 8 Core
+    "encripteddatastorage", // Encrypted Data Storage | Зашифрованный носитель данных
+    "comercialsamples", // Commercial Samples | Рекламные образцы
+    "tacticaldata", // Tactical Data | Тактические данные
+    "assaultplans", // Assault Plans | Планы атак
+    "encryptedcorrespondence", // Encrypted Correspondence | Шифрованная переписка
+    "diplomaticbag", // Diplomatic Bag | Дипломатическая сумка
+    "scientificresearch", // Scientific Research | Материалы исследования
+    "scientificsamples", // Scientific Samples | Научные образцы
+    "largeexplorationdatacash", // Large Survey Data Cache | Большой пакет с данными исследования
+    "smallexplorationdatacash", // Small Survey Data Cache | Малый пакет с данными исследования
+    "antiquejewellery", // Antique Jewellery | Древние ювелирные украшения
+    "preciousgems", // Precious Gems | Драгоценные камни
+    "earthrelics", // Earth Relics | Реликвии с Земли
+    "genebank", // Gene Bank | Генотека
+    "timecapsule", // Time Capsule | Капсула времени
+    "geologicalsamples", // Geological Samples | Образцы породы
+    "personalgifts", // Festive Gifts | Праздничные подарки
+    "crystallinespheres", // Crystalline Spheres | Прозрачные сферы
+    "unstabledatacore", // Unstable Data Core | Нестабильное ядро данных
+    "unknownartifact2", // Thargoid Probe | Таргоидский зонд
+    "datacore", // Data Core | Ядро данных
+    "galactictravelguide", // Galactic Travel Guide | Путеводитель галактического путешественника
+    "mysteriousidol", // Mysterious Idol | Таинственный идол
+    "spacepioneerrelics", // Space Pioneer Relics | Следы первопроходцев космоса
+    "fossilremnants", // Fossil Remnants | Ископаемые останки
+    "ancientrelic", // Guardian Relic | Реликвия Стражей
+    "ancientorb", // Guardian Orb | Сфера Стражей
+    "ancientcasket", // Guardian Casket | Шкатулка Стражей
+    "ancienttablet", // Guardian Tablet | Табличка Стражей
+    "ancienturn", // Guardian Urn | Урна Стражей
+    "ancienttotem", // Guardian Totem | Тотем Стражей
+    "unknownresin", // Thargoid Resin | Таргоидская смола
+    "unknownbiologicalmatter", // Thargoid Biological Matter | Таргоидская биомасса
+    "unknowntechnologysamples", // Thargoid Technology Samples | Образцы таргоидских технологий
+    "unknownartifact3", // Thargoid Link | Таргоидское звено
+    "thargoidheart", // Thargoid Heart | Таргоидское «сердце»
+    "thargoidtissuesampletype1", // Thargoid Cyclops Tissue Sample | Образец ткани таргоидского корабля «Циклоп»
+    "thargoidtissuesampletype2", // Thargoid Basilisk Tissue Sample | Образец ткани таргоидского корабля «Василиск»
+    "thargoidtissuesampletype3", // Thargoid Medusa Tissue Sample | Образец ткани таргоидского корабля «Медуза»
+    "thargoidscouttissuesample", // Thargoid Scout Tissue Sample | Образец тканей таргоида-разведчика
+    "ancientkey", // Ancient Key | Древний ключ
+    "thargoidtissuesampletype4", // Thargoid Hydra Tissue Sample | Образец ткани таргоидского корабля «Гидра»
+    "m_tissuesample_fluid", // Mollusc Fluid | Жидкость моллюска
+    "m_tissuesample_soft", // Mollusc Soft Tissue | Мягкие ткани моллюска
+    "m_tissuesample_nerves", // Mollusc Brain Tissue | Мозговое вещество моллюска
+    "s_tissuesample_cells", // Pod Core Tissue | Ткань ядра семянки
+    "s_tissuesample_surface", // Pod Dead Tissue | Мертвая ткань семянки
+    "s_tissuesample_core", // Pod Surface Tissue | Поверхностная ткань семянки
+    "p_particulatesample", // Anomaly Particles | Аномальные частицы
+    "s9_tissuesample_shell", // Pod Tissue | Ткань семянки
+    "m3_tissuesample_membrane", // Mollusc Membrane | Мембрана моллюска
+    "m3_tissuesample_mycelium", // Mollusc Mycelium | Мицелий моллюска
+    "m3_tissuesample_spores", // Mollusc Spores | Споры моллюска
+    "s6_tissuesample_mesoglea", // Pod Mesoglea | Мезоглея семянки
+    "s6_tissuesample_cells", // Pod Outer Tissue | Внешняя ткань семянки
+    "s6_tissuesample_coenosarc", // Pod Shell Tissue | Ткань оболочки семянки
+    "ancientrelictg", // Unclassified Relic | Неопознанная реликвия
+    "thargoidtissuesampletype5", // Thargoid Orthrus Tissue Sample | Образец ткани таргоидского корабля «Орф»
+    "thargoidgeneratortissuesample", // Caustic Tissue Sample | Образец едких тканей
+    "unocuppiedescapepod", // Unoccupied Escape Pod | Пустая спасательная капсула
+    "thargoidtissuesampletype6", // Thargoid Glaive Tissue Sample | Образец ткани таргоидского корабля «Глефа»
+    "thargoidtissuesampletype7", // Thargoid Scythe Tissue Sample | Образец ткани таргоидского корабля «Коса»
+    "thargoidtissuesampletype9a", // Titan Deep Tissue Sample | Образец глубокой ткани титана
+    "thargoidtissuesampletype9b", // Titan Tissue Sample | Образец ткани титана
+    "thargoidtissuesampletype9c", // Titan Partial Tissue Sample | Неполный образец ткани титана
+    "thargoidtissuesampletype10a", // Titan Maw Deep Tissue Sample | Образец глубокой ткани пасти титана
+    "thargoidtissuesampletype10b", // Titan Maw Tissue Sample | Образец ткани пасти титана
+    "thargoidtissuesampletype10c", // Titan Maw Partial Tissue Sample | Неполный образец ткани пасти титана
+    "unknownsack", // Protective Membrane Scrap | Остатки защитной мембраны
+    "coralsap", // Coral Sap | Коралловая смола
+    "unknownmineral", // Impure Spire Mineral | Неочищенный минерал со шпилей
+    "unknownrefinedmineral", // Semi-Refined Spire Mineral | Полуочищенный минерал со шпилей
+    "thargoidtitandrivecomponent", // Titan Drive Component | Компонент двигателя титана
+    "thargoidcystspecimen", // Cyst Specimen | Образец кисты
+    "thargoidbonefragments", // Bone Fragments | Фрагменты кости
+    "thargoidorgansample", // Organ Sample | Образец органа
+    "imperialslaves", // Imperial Slaves | Имперские рабы
+    "masterchefs", // Master Chefs | Мастер-шефы
+  ],
+}

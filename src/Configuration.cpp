@@ -11,6 +11,7 @@
 
 #define XML_H_IMPLEMENTATION
 #include <xml/xml.h>
+#include <filesystem>
 
 
 static cv::Vec3b from_json(const json5pp::value& v);
@@ -22,6 +23,10 @@ Configuration::Configuration() {
 }
 
 Configuration::~Configuration() {
+    if (hShutdownChangDirListenerEvent) {
+        SetEvent(hShutdownChangDirListenerEvent);
+        CloseHandle(hShutdownChangDirListenerEvent);
+    }
 }
 
 
@@ -53,14 +58,14 @@ bool Configuration::load() {
         }
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
-        if (auto tm = j_config.at("default-key-hold-time"); tm.is_integer())
+        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer())
             defaultKeyHoldTime = tm.as_integer();
-        if (auto tm = j_config.at("default-key-after-time"); tm.is_integer())
+        if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer())
             defaultKeyAfterTime = tm.as_integer();
-        if (auto tm = j_config.at("search-region-extent"); tm.is_integer())
+        if (auto& tm = j_config.at("search-region-extent"); tm.is_integer())
             searchRegionExtent = tm.as_integer();
         if (j_config.at("shortcuts").is_object()) {
-            auto obj = j_config.at("shortcuts");
+            auto& obj = j_config.at("shortcuts");
             parseShortcutConfig(Command::Start, "start", obj);
             parseShortcutConfig(Command::Pause, "pause", obj);
             parseShortcutConfig(Command::Stop,  "stop",  obj);
@@ -73,18 +78,29 @@ bool Configuration::load() {
             mEDSettingsPath = toUtf16(tm.as_string());
         if (auto tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
             mEDLogsPath = toUtf16(tm.as_string());
+        if (auto tm = j_config.at("tesseract-data-path"); tm.is_string())
+            mTesseractDataPath = tm.as_string();
 
+        loadGameSettings();
+        loadGameJournal(L""); // may change game language
+
+        loadCommodityDatabase(); // initialization depends on game language
+        //dumpCommodityDatabase();
+        mCommodityDatabaseUpdated = false;
+
+        loadMarket();
+        loadCalibration();
 
         if (!changeDirListener) {
-            changeDirListener = std::make_unique<CReadDirectoryChanges>(10);
+            changeDirListener = std::make_unique<CReadDirectoryChanges>(100);
             changeDirListener->Init();
             DWORD dirNotificationFlags = FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION;
             std::wstring dirname = mEDSettingsPath + LR"(\Options\Graphics\)";
             changeDirListener->AddDirectory(dirname, false, dirNotificationFlags);
+            changeDirListener->AddDirectory(mEDLogsPath, false, dirNotificationFlags);
+            hShutdownChangDirListenerEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+            changeDirThread = std::thread(&Configuration::changeDirThreadLoop, this);
         }
-
-        loadGameSettings();
-        loadCalibration();
     }
 
     Master& master = Master::getInstance();
@@ -161,7 +177,7 @@ bool Configuration::loadGameSettings() {
         LOG(ERROR) << "Cannot parse " << filename;
     }
     filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
-    std::ifstream ifs(filename);
+    std::ifstream ifs(filename, std::ifstream::in);
     if (ifs.is_open()) {
         std::string startPreset{std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
         filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\)" + trim(startPreset) + ".4.1.misc";
@@ -182,6 +198,69 @@ bool Configuration::loadGameSettings() {
         LOG(ERROR) << "Cannot parse " << filename;
     }
     return ok;
+}
+
+bool Configuration::loadGameJournal(std::wstring journalFilename) {
+    if (journalFilename.empty()) {
+        std::filesystem::path latestJournalFile;
+        auto newestTime = std::chrono::file_clock::time_point::min();
+        for (const auto &entry: std::filesystem::directory_iterator(mEDLogsPath)) {
+            if (!entry.is_regular_file())
+                continue;
+            auto &ep = entry.path();
+            if (ep.filename().string().starts_with("Journal.") && ep.extension() == ".log") {
+                auto lastWriteTime = std::filesystem::last_write_time(entry);
+                if (lastWriteTime > newestTime) {
+                    newestTime = lastWriteTime;
+                    latestJournalFile = ep;
+                }
+            }
+        }
+        journalFilename = latestJournalFile.wstring();
+    }
+    if (journalFilename.empty()) {
+        LOG(ERROR) << "Cannot find journal file in " << mEDLogsPath;
+        return false;
+    }
+
+    std::ifstream ifs(journalFilename, std::ifstream::in);
+    if (!ifs.is_open()) {
+        LOG(ERROR) << "Cannot open journal file" << mEDLogsPath;
+        return false;
+    }
+    mEDCurrentJournalFile = journalFilename;
+
+    // TODO: implement log file reading for events via a separate thread + poll
+    // But currently I only extract client language
+
+    std::string line;
+    getline(ifs, line);
+
+    std::string error;
+    auto jres = json::parse5(line, &error);
+    if (!jres.has_value()) {
+        LOG(ERROR) << "Error parsing journal file: " << error;
+        return false;
+    }
+    auto& j = jres.value();
+    if (!j.is_object() || !j.contains("event") || j["event"] != "Fileheader") {
+        LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << j;
+        return false;
+    }
+
+    auto gameLang = j["language"].as_string();
+    if (gameLang == "Russian/RU" || gameLang.ends_with("/RU"))
+        const_cast<Lang&>(this->lng) = RU;
+    else if (gameLang == "English/EN" || gameLang.ends_with("/EN"))
+        const_cast<Lang&>(this->lng) = EN;
+    else if (gameLang == "English/UK" || gameLang.ends_with("/UK"))
+        const_cast<Lang&>(this->lng) = EN;
+    else {
+        LOG(ERROR) << "Unsupported game language: " << gameLang;
+        const_cast<Lang&>(this->lng) = XX;
+    }
+
+    return true;
 }
 
 bool Configuration::loadCalibration() {
@@ -250,23 +329,7 @@ bool Configuration::saveCalibration() const {
     return true;
 }
 
-bool Configuration::checkReloadGameSettings() {
-    if (changeDirListener) {
-        bool needReload = false;
-        DWORD action;
-        std::wstring filename;
-        while (changeDirListener->Pop(action, filename)) {
-            if (filename.ends_with(L"Settings.xml"))
-                needReload = true;
-        }
-        if (needReload)
-            return loadGameSettings();
-    }
-    return true;
-}
-
 bool Configuration::checkResolutionSupported(cv::Size gameSize) {
-    checkReloadGameSettings();
     if (configFullScreen == FullScreenMode::Window)
         return true;
     cv::Size displaySize(configScreenWidth, configScreenHeight);
@@ -283,8 +346,7 @@ bool Configuration::checkResolutionSupported(cv::Size gameSize) {
     return true;
 }
 
-bool Configuration::checkNeedColorCalibration() {
-    checkReloadGameSettings();
+bool Configuration::checkNeedColorCalibration() const {
     if (std::abs(configDashboardGUIBrightness - calibrationDashboardGUIBrightness) > 0.001)
         return true;
     if (std::abs(configGammaOffset - calibrationGammaOffset) > 0.001)
@@ -301,40 +363,110 @@ std::string Configuration::getShortcutFor(Command cmd) const {
     return "";
 }
 
-Commodity& Configuration::getOrAddCommodity(Commodity&& c) {
-    if (c.commodityId) {
-        auto it = commodityById.find(c.commodityId);
-        if (it != commodityById.end())
-            return *it->second;
+CommodityCategory& Configuration::getOrAddCommodityCategory(CommodityCategory&& cc_add) {
+    std::string& nameId = cc_add.nameId;
+    if (nameId.starts_with("$MARKET_category_") && nameId.ends_with(";")) {
+        nameId = cc_add.nameId.substr(17, nameId.size() - 17 - 1);
     }
-    if (!c.name.empty()) {
-        auto it = commodityByName.find(c.name);
-        if (it != commodityByName.end())
-            return *it->second;
+    auto it = commodityCategoryMap.find(nameId);
+    if (it != commodityCategoryMap.end()) {
+        CommodityCategory& cc = *it->second;
+        for (int i=0; i < 2; i++) {
+            if (cc.translation[i].empty() && !cc_add.translation[i].empty()) {
+                cc.translation[i] = cc_add.translation[i];
+                mCommodityDatabaseUpdated = true;
+            }
+        }
+        return cc;
     }
-    allKnownCommodities.emplace_back(c);
-    Commodity& stored = allKnownCommodities.back();
-    commodityById[stored.commodityId] = &stored;
-    commodityByName[stored.name] = &stored;
-    return stored;
+    allKnownCommodityCategories.emplace_back(cc_add);
+    CommodityCategory& cc = allKnownCommodityCategories.back();
+    if (lng != XX)
+        cc.name = cc.translation[lng];
+    else
+        cc.name = cc.nameId;
+    cc.wide = toUtf16(cc.name);
+    commodityCategoryMap[nameId] = &cc;
+    if (changeDirListener)
+        LOG(ERROR) << "New CommodityCategory added: " << nameId;
+    return cc;
 }
 
-Commodity* Configuration::getCommodityByName(const std::string& name) {
-    auto it = commodityByName.find(name);
-    if (it != commodityByName.end())
+Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
+    std::string& nameId = c_add.nameId;
+    if (nameId.starts_with("$") && nameId.ends_with("_name;")) {
+        nameId = c_add.nameId.substr(1, nameId.size() - 7);
+    }
+    auto it = commodityMap.find(nameId);
+    if (it != commodityMap.end()) {
+        Commodity& c = *it->second;
+        for (int i=0; i < 2; i++) {
+            if (c.translation[i].empty() && !c_add.translation[i].empty()) {
+                c.translation[i] = c_add.translation[i];
+                mCommodityDatabaseUpdated = true;
+            }
+        }
+        return c;
+    }
+    allKnownCommodities.emplace_back(c_add);
+    Commodity& c = allKnownCommodities.back();
+    if (lng != XX)
+        c.name = c.translation[lng];
+    else
+        c.name = c.nameId;
+    c.wide = toUtf16(c.name);
+    commodityMap[nameId] = &c;
+    if (changeDirListener)
+        LOG(ERROR) << "New Commodity added: " << nameId;
+    return c;
+}
+
+CommodityCategory* Configuration::getCommodityCategoryByName(const std::string& name) {
+    auto it = commodityCategoryMap.find(name);
+    if (it != commodityCategoryMap.end())
         return it->second;
-    for (auto& c : allKnownCommodities) {
-        if (name == c.nameLocalized)
-            return &c;
+    for (auto& cc : allKnownCommodityCategories) {
+        if (name == cc.name)
+            return &cc;
     }
     return nullptr;
 }
-CargoCommodity* Configuration::getCargoByName(const std::string& name, bool fuzzy) {
+
+Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy) {
+    auto it = commodityMap.find(name);
+    if (it != commodityMap.end())
+        return it->second;
+    for (auto& c : allKnownCommodities) {
+        if (name == c.name)
+            return &c;
+    }
+    if (!fuzzy)
+        return nullptr;
+    int bestScore = -1;
+    int bestScoreIndex = -1;
+    std::wstring nameW = toUtf16(name);
+    FuzzyMatcher matcher(nameW);
+    for (int i=0; i < allKnownCommodities.size(); i++) {
+        int score = matcher.ScoreMatch(allKnownCommodities[i].wide);
+        if (score > bestScore) {
+            bestScore = score;
+            bestScoreIndex = i;
+        }
+    }
+    if (bestScore <= 0 || bestScore < nameW.size() * 0.8)
+        return nullptr;
+    int score = matcher.ScoreMatch(allKnownCommodities[bestScoreIndex].wide);
+    return &allKnownCommodities[bestScoreIndex];
+}
+
+std::shared_ptr<CargoCommodity> Configuration::getCargoByName(const std::string& name, bool fuzzy) {
+    std::scoped_lock lock(currentDataMutex);
     if (currentCargo.inventory.empty() || name.empty())
         return nullptr;
-    for (auto& c : currentCargo.inventory) {
-        if (name == c.commodity.name || name == c.commodity.nameLocalized)
-            return &c;
+    const auto& inv = currentCargo.inventory;
+    for (auto& c : inv) {
+        if (name == c->commodity.nameId || name == c->commodity.name)
+            return c;
     }
     if (!fuzzy)
         return nullptr;
@@ -342,8 +474,8 @@ CargoCommodity* Configuration::getCargoByName(const std::string& name, bool fuzz
     int bestCargoScoreIndex = -1;
     std::wstring nameW = toUtf16(name);
     FuzzyMatcher matcher(nameW);
-    for (int i=0; i < currentCargo.inventory.size(); i++) {
-        int score = matcher.ScoreMatch(currentCargo.inventory[i].commodity.nameLocalizedW);
+    for (int i=0; i < inv.size(); i++) {
+        int score = matcher.ScoreMatch(inv[i]->commodity.wide);
         if (score > bestCargoScore) {
             bestCargoScore = score;
             bestCargoScoreIndex = i;
@@ -353,8 +485,9 @@ CargoCommodity* Configuration::getCargoByName(const std::string& name, bool fuzz
         return nullptr;
     int bestMarketScore = -1;
     int bestMarketScoreIndex = -1;
-    for (int i=0; i < currentMarket.items.size(); i++) {
-        int score = matcher.ScoreMatch(currentMarket.items[i].commodity.nameLocalizedW);
+    const auto& cmi = currentMarket.items;
+    for (int i=0; i < cmi.size(); i++) {
+        int score = matcher.ScoreMatch(cmi[i]->commodity.wide);
         if (score > bestMarketScore) {
             bestMarketScore = score;
             bestMarketScoreIndex = i;
@@ -362,11 +495,11 @@ CargoCommodity* Configuration::getCargoByName(const std::string& name, bool fuzz
     }
     if (bestCargoScore < bestMarketScore)
         return nullptr;
-    return &currentCargo.inventory[bestCargoScore];
+    return inv[bestCargoScore];
 }
 
 bool Configuration::loadMarket() {
-    std::ifstream marketFile(mEDLogsPath + L"/Market.json");
+    std::ifstream marketFile(mEDLogsPath + L"/Market.json", std::ifstream::in);
     if (marketFile.fail()) {
         LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Market.json");
         return false;
@@ -382,6 +515,7 @@ bool Configuration::loadMarket() {
         LOG(ERROR) << "Timestamp parse failed, Market.json file corrupted?";
         return false;
     }
+
     Market market = {
             .timestamp = timestamp,
             .marketId = j_market.at("MarketID").as_integer(),
@@ -393,27 +527,27 @@ bool Configuration::loadMarket() {
     auto items = j_market.at("Items").as_array();
     for (auto& j_item : items) {
         auto item = j_item.as_object();
-        auto name = item.at("Name").as_string();
-        if (name.empty() || name[0] != '$' || !name.ends_with("_name;")) {
-            LOG(ERROR) << "Bad market commodity name: " << name;
-            continue;
-        }
-        name = name.substr(1,name.size()-7);
-        auto nameLocalized = item.at("Name_Localised").as_string();
-        auto nameLocalizedW = toUtf16(nameLocalized);
-        auto categoryLocalized = item.at("Category_Localised").as_string();
-        auto categoryLocalizedW = toUtf16(categoryLocalized);
-        Commodity commodity {
-                .commodityId = item.at("id").as_integer(),
-                .name = name,
-                .nameLocalized = nameLocalized,
-                .nameLocalizedW = nameLocalizedW,
-                .category = item.at("Category").as_string(),
-                .categoryLocalized = categoryLocalized,
-                .categoryLocalizedW = categoryLocalizedW,
-        };
-        MarketCommodity mc {
-                .commodity = getOrAddCommodity(std::move(commodity)),
+        std::array<std::string,2> translation;
+        if (lng == EN)
+            translation = {item.at("Category_Localised").as_string(),""};
+        if (lng == RU)
+            translation = {"",item.at("Category_Localised").as_string()};
+        CommodityCategory& cc = getOrAddCommodityCategory({
+                .nameId = item.at("Category").as_string(),
+                .translation = translation
+        });
+        if (lng == EN)
+            translation = {item.at("Name_Localised").as_string(),""};
+        if (lng == RU)
+            translation = {"",item.at("Name_Localised").as_string()};
+        Commodity& commodity = getOrAddCommodity({
+                .intId = item.at("id").as_integer(),
+                .nameId = item.at("Name").as_string(),
+                .categoryId = cc.nameId,
+                .translation = translation
+        });
+        auto mc = std::make_shared<MarketCommodity>(MarketCommodity({
+                .commodity = commodity,
                 .buyPrice = item.at("BuyPrice").as_int32(),
                 .sellPrice = item.at("SellPrice").as_int32(),
                 .meanPrice = item.at("MeanPrice").as_int32(),
@@ -424,15 +558,19 @@ bool Configuration::loadMarket() {
                 .isConsumer = item.at("Consumer").as_boolean(),
                 .isProducer = item.at("Producer").as_boolean(),
                 .isRare = item.at("Rare").as_boolean(),
-        };
+        }));
         market.items.push_back(mc);
     }
+    if (mCommodityDatabaseUpdated)
+        dumpCommodityDatabase();
+
+    std::scoped_lock lock(currentDataMutex);
     currentMarket = std::move(market);
     return true;
 }
 
 bool Configuration::loadCargo() {
-    std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json");
+    std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
     if (cargoFile.fail()) {
         LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
         return false;
@@ -462,27 +600,165 @@ bool Configuration::loadCargo() {
             LOG(ERROR) << "Bad cargo item name: " << name;
             continue;
         }
-        Commodity* c = getCommodityByName(name);
+        Commodity* c = getCommodityByName(name, false);
         if (!c) {
             LOG(ERROR) << "Unknown cargo item name: " << name;
             continue;
         }
-        CargoCommodity cc {
+        auto cc = std::make_shared<CargoCommodity>(CargoCommodity({
                 .commodity = *c,
                 .count = item.at("Count").as_integer(),
                 .stolen = item.at("Stolen").as_integer(),
-        };
+        }));
         cargo.inventory.push_back(cc);
     }
+    std::scoped_lock lock(currentDataMutex);
     currentCargo = std::move(cargo);
     return true;
 }
 
+bool Configuration::loadCommodityDatabase() {
+    std::ifstream dbf("commodity-database.json5");
+    if (!dbf)
+        return false;
+    std::stringstream buffer;
+    buffer << dbf.rdbuf();
+    std::string error;
+    auto j = json::parse5(buffer.str(), &error);
+    if (!j.has_value()) {
+        LOG(ERROR) << "Error loading commodity-database.json5: " << error;
+        return false;
+    }
+    for (auto& jcc : j.value().as_object()) {
+        if (jcc.first.contains("-order-"))
+            continue;
+        CommodityCategory cc_add;
+        cc_add.nameId = jcc.first;
+        auto& jv = jcc.second;
+        cc_add.translation[EN] = jv["en"].as_string();
+        cc_add.translation[RU] = jv["ru"].as_string();
+        CommodityCategory& cc = getOrAddCommodityCategory(std::move(cc_add));
+        for (auto& jc : jv["items"].as_object()) {
+            Commodity c_add;
+            c_add.nameId = jc.first;
+            auto& jv = jc.second;
+            c_add.intId = jv["id"].as_long();
+            c_add.categoryId = cc.nameId;
+            c_add.translation[EN] = jv["en"].as_string();
+            c_add.translation[RU] = jv["ru"].as_string();
+            getOrAddCommodity(std::move(c_add));
+        }
+    }
+    for (auto& jcc : j.value().as_object()) {
+        if (!jcc.first.contains("-order-"))
+            continue;
+        int idx1 = jcc.first.starts_with("market-") ? 0 : 1;
+        int idx2 = jcc.first.ends_with("-en") ? 0 : 1;
+        int64_t categoryOrder = 0;
+        CommodityCategory* curr_category = nullptr;
+        for (auto& jn : jcc.second.as_array()) {
+            if (jn.is_string()) {
+                curr_category = getCommodityCategoryByName(jn.as_string());
+                categoryOrder += 1000;
+                if (curr_category)
+                    curr_category->sortingOrder[idx1][idx2] = categoryOrder;
+                continue;
+            }
+            if (jn.is_array()) {
+                int64_t commodityOrder = categoryOrder + 1;
+                for (auto& jc : jn.as_array()) {
+                    auto c = getCommodityByName(jc.as_string(), false);
+                    if (c)
+                        c->sortingOrder[idx1][idx2] = commodityOrder;
+                    commodityOrder += 1;
+                }
+            }
+        }
+    }
+    mCommodityDatabaseUpdated = false;
+    return true;
+}
+
+bool Configuration::dumpCommodityDatabase() {
+    typedef json::value j;
+    std::ofstream wf("commodity-database.json5", std::ios::trunc | std::ios::binary);
+    wf << "{" << std::endl;
+    for (auto& ccit : commodityCategoryMap) {
+        auto& cc = *ccit.second;
+        wf << "  " << cc.nameId << ": {" << std::endl;
+        wf << "    en: " << j(cc.translation[EN]) << "," << std::endl;
+        wf << "    ru: " << j(cc.translation[RU]) << "," << std::endl;
+        wf << "    items: {" << std::endl;
+        for (auto& cit : commodityMap) {
+            auto& c = *cit.second;
+            if (c.categoryId != cc.nameId) continue;
+            wf << "      " << c.nameId << ": {" << std::endl;
+            wf << "        id: " << c.intId << "," << std::endl;
+            wf << "        en: " << j(c.translation[EN]) << "," << std::endl;
+            wf << "        ru: " << j(c.translation[RU]) << "," << std::endl;
+            wf << "      }," << std::endl;
+        }
+        wf << "    }," << std::endl;
+        wf << "  }," << std::endl;
+    }
+    for (int idx2=0; idx2 < 2; idx2++) {
+        std::string suffix = idx2==0 ? "-en" : "-ru";
+        std::vector<CommodityCategory *> ccv;
+        for (auto &cc: allKnownCommodityCategories)
+            ccv.push_back(&cc);
+        std::sort(ccv.begin(), ccv.end(), [idx2](CommodityCategory *a, CommodityCategory *b) {
+            return a->sortingOrder[0][idx2] < b->sortingOrder[0][idx2];
+        });
+        std::vector<Commodity *> cv;
+        for (auto &c: allKnownCommodities)
+            cv.push_back(&c);
+        std::sort(cv.begin(), cv.end(), [idx2](Commodity *a, Commodity *b) {
+            int ao = a->sortingOrder[0][idx2];
+            int bo = b->sortingOrder[0][idx2];
+            if (ao == 0) ao = a->intId;
+            if (bo == 0) bo = b->intId;
+            return ao < bo;
+        });
+        wf << "  'market-order" << suffix << "': [" << std::endl;
+        for (auto &cc: ccv) {
+            wf << "    " << j(cc->nameId) << ", // " << cc->translation[0] << " | " << cc->translation[1] << std::endl;
+            wf << "    [" << std::endl;
+            for (auto &c: cv) {
+                if (c->categoryId != cc->nameId) continue;
+                wf << "      " << j(c->nameId) << ", // " << c->translation[0] << " | " << c->translation[1] << std::endl;
+            }
+            wf << "    ]," << std::endl;
+        }
+        wf << "  ]," << std::endl;
+    }
+    for (int idx2=0; idx2 < 2; idx2++) {
+        std::string suffix = idx2==0 ? "-en" : "-ru";
+        std::vector<Commodity *> cv;
+        for (auto &c: allKnownCommodities)
+            cv.push_back(&c);
+        std::sort(cv.begin(), cv.end(), [idx2](Commodity *a, Commodity *b) {
+            int ao = a->sortingOrder[0][idx2];
+            int bo = b->sortingOrder[0][idx2];
+            if (ao == 0) ao = a->intId;
+            if (bo == 0) bo = b->intId;
+            return ao < bo;
+        });
+        wf << "  'carrier-order" << suffix << "': [" << std::endl;
+        for (auto &c: cv) {
+            wf << "    " << j(c->nameId) << ", // " << c->translation[0] << " | " << c->translation[1] << std::endl;
+        }
+        wf << "  ]," << std::endl;
+    }
+    wf << "}" << std::endl;
+    wf.close();
+    mCommodityDatabaseUpdated = false;
+    return true;
+}
+
 const char* Configuration::makeTesseractWordsFile() {
-    loadMarket();
     std::ofstream wf("tesseract-words.txt", std::ios::out | std::ios::trunc | std::ios::binary);
     for (auto& c : allKnownCommodities) {
-        std::istringstream iss(c.nameLocalized);
+        std::istringstream iss(c.name);
         std::string token;
         while (iss >> token) {
             wf << token << '\n';
@@ -490,6 +766,74 @@ const char* Configuration::makeTesseractWordsFile() {
     }
     wf.close();
     return "tesseract-words.txt";
+}
+
+static const char* ExplainAction(DWORD dwAction)
+{
+    switch (dwAction)
+    {
+    case FILE_ACTION_ADDED:
+        return "Added";
+    case FILE_ACTION_REMOVED:
+        return "Deleted";
+    case FILE_ACTION_MODIFIED:
+        return "Modified";
+    case FILE_ACTION_RENAMED_OLD_NAME:
+        return "Renamed From";
+    case FILE_ACTION_RENAMED_NEW_NAME:
+        return "Renamed To";
+    default:
+        return "BAD DATA";
+    }
+}
+
+void Configuration::changeDirThreadLoop() {
+    const HANDLE handles[] = {hShutdownChangDirListenerEvent, changeDirListener->GetWaitHandle()};
+
+    for(;;) {
+        DWORD rc = ::MsgWaitForMultipleObjectsEx(
+                        _countof(handles),
+                        handles,
+                        INFINITE,
+                        QS_ALLINPUT,
+                        MWMO_INPUTAVAILABLE | MWMO_ALERTABLE);
+        if (rc == WAIT_OBJECT_0)
+            break;
+        if (rc != (WAIT_OBJECT_0+1))
+            continue;
+
+        // We've received a notification in the queue.
+        bool needReloadSettings = false;
+        bool needReloadMarket = false;
+        bool needReloadCargo = false;
+        bool needOpenNewLog = false;
+        std::wstring newLogFilenameW;
+
+
+        DWORD action;
+        std::wstring filenameW;
+        changeDirListener->Pop(action, filenameW);
+        LOG(TRACE) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
+        if (filenameW.ends_with(L"Settings.xml"))
+            needReloadSettings = true;
+        if (filenameW.ends_with(L"Market.json"))
+            needReloadMarket = true;
+        if (filenameW.ends_with(L"Cargo.json"))
+            needReloadCargo = true;
+        if (action == FILE_ACTION_ADDED && filenameW.starts_with(L"Journal.") && filenameW.ends_with(L".log")) {
+            needOpenNewLog = true;
+            newLogFilenameW = filenameW;
+        }
+
+        if (needReloadSettings)
+            loadGameSettings();
+        if (needOpenNewLog)
+            loadGameJournal(newLogFilenameW);
+        if (needReloadMarket)
+            loadMarket();
+        if (needReloadCargo)
+            loadCargo();
+    }
 }
 
 using namespace widget;

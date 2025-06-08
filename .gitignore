@@ -17,3 +17,5 @@ tags
 CMakeSettings.json
 calibration.json5
 
+/ui/Dialogs.aps
+/config/tesseract-words.txt

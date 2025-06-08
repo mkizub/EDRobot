@@ -1,7 +1,6 @@
 [
   {
     name: 'scr-market',
-    detect: { img: "at_market.png", t: 0.7, at:[92, 57], ext:1 },
     have: [
       { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
       { name: 'btn-help', action: 'help', rect: [295,980,195,40] },
@@ -11,7 +10,10 @@
       { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
       { name: 'lst-goods', action: 'dlg-trade', rect: [369,250,425,721], row: 36, gap: 2, ocr: true },
       { name: 'mod-sell',
-        detect: { img: "at_market_sell.png", t: [0.6, 0.8], at:[245, 172] },
+        detect: [
+          { img: "at_market_sell.png", t: [0.6, 0.8], at:[245, 172] },
+          { img: "at_market.png", t: 0.7, at:[92, 57] },
+        ],
         have: [
           {
             name: 'dlg-trade',
@@ -49,7 +51,10 @@
         ]
       },
       { name: 'mod-buy',
-        detect: { img: "at_market_buy.png", t: [0.6, 0.8], at:[245, 172] },
+        detect: [
+          { img: "at_market_buy.png", t: [0.6, 0.8], at:[245, 172] },
+          { img: "at_market.png", t: 0.7, at:[92, 57] },
+        ],
         have: [
           {
             name: 'dlg-trade',
@@ -87,5 +92,19 @@
         ]
       }
     ],
+  },
+  {
+    name: 'scr-carrier-trade-mgr',
+    detect: [
+      { img: "at_carrier.png", t: [0.7,0.9], at:[1308,873] },
+      { img: "at_carrier_trade_mgr-ru.png", t: [0.7,0.9], at:[1403,855] },
+      { img: "at_market.png", t: 0.7, at:[92, 57] },
+    ],
+    have: [
+      { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
+      { name: 'btn-help', action: 'help', rect: [295,980,195,40] },
+      { name: 'btn-filter', action: 'dlg-filter', rect: [97,167,134,73] },
+      { name: 'lst-goods', action: 'dlg-setup', rect: [250,205,488,767], row: 36, gap: 2, ocr: true },
+    ]
   }
 ]
