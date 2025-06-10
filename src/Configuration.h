@@ -18,27 +18,19 @@ enum class WState : int { Normal, Focused, Active, Disabled };
 enum Lang { XX=-1, EN=0, RU=1 };
 
 class CReadDirectoryChanges;
+class Configuration;
 
-struct CommodityCategory {
+class CommodityCategory {
+    friend class Configuration;
+public:
     std::string nameId;
     std::string name;   // current localization
     std::wstring wide;  // same as 'name'
     std::array<std::string,2> translation;
-    unsigned sortingOrder[2][2];
 };
 
-struct Commodity {
-    int64_t intId;
-    std::string nameId;
-    std::string categoryId;
-    std::string name;   // current localization
-    std::wstring wide;  // same as 'name'
-    std::array<std::string,2> translation;
-    unsigned sortingOrder[2][2];
-};
-
-struct MarketCommodity {
-    Commodity& commodity;
+struct MarketLine {
+    std::chrono::time_point<std::chrono::utc_clock> timestamp;
     int buyPrice;
     int sellPrice;
     int meanPrice;
@@ -48,33 +40,52 @@ struct MarketCommodity {
     uint8_t demandBracket;
     bool isConsumer;
     bool isProducer;
-    bool isRare;
 };
 
-struct CargoCommodity {
-    Commodity& commodity;
-    int count;
-    int stolen;
+struct Commodity {
+    friend class Configuration;
+public:
+    int intId;
+    std::string nameId;
+    CommodityCategory* const category;
+    std::string name;   // current localization
+    std::wstring wide;  // same as 'name'
+    std::array<std::string,2> translation;
+    int carrierSortingOrder[2];
+
+    bool rare;
+
+    struct {
+        std::chrono::time_point<std::chrono::utc_clock> timestamp;
+        int count;
+        int stolen;
+    } ship;
+
+    struct {
+        std::chrono::time_point<std::chrono::utc_clock> timestamp;
+        int count;
+    } fc;
+
+    MarketLine market;
 };
-typedef std::shared_ptr<CargoCommodity> spCargoCommodity;
 
 struct Market {
-    Market& operator=(Market&& other) noexcept = default;
     std::chrono::time_point<std::chrono::utc_clock> timestamp;
     int64_t marketId;
     std::string stationName;
     std::string stationType;
     std::string starSystem;
-    std::vector<std::shared_ptr<MarketCommodity>> items;
+    std::unordered_map<Commodity*,MarketLine> items;
 };
+typedef std::shared_ptr<Market> spMarket;
 
-struct Cargo {
-    Cargo& operator=(Cargo&& other) noexcept = default;
+struct ShipCargo {
     std::chrono::time_point<std::chrono::utc_clock> timestamp;
     std::string vessel;
     int count {0};
-    std::vector<std::shared_ptr<CargoCommodity>> inventory;
+    std::vector<Commodity*> inventory;
 };
+typedef std::shared_ptr<ShipCargo> spShipCargo;
 
 class Configuration {
 public:
@@ -91,11 +102,14 @@ public:
     std::string getShortcutFor(Command cmd) const;
     CommodityCategory* getCommodityCategoryByName(const std::string& name);
     Commodity* getCommodityByName(const std::string& name, bool fuzzy);
-    std::shared_ptr<CargoCommodity> getCargoByName(const std::string& name, bool fuzzy);
 
     bool loadMarket();
     bool loadCargo();
     const char* makeTesseractWordsFile();
+
+    spMarket getCurrentMarket() const { return currentMarket; }
+    spShipCargo getCurrentCargo() const { return currentCargo; }
+    std::vector<Commodity*> getMarketInSellOrder();
 
     const Lang lng {XX};
 
@@ -148,9 +162,8 @@ private:
     std::unordered_map<std::string,CommodityCategory*> commodityCategoryMap;
     std::unordered_map<std::string,Commodity*> commodityMap;
 
-    std::mutex currentDataMutex;
-    Market currentMarket;
-    Cargo currentCargo;
+    std::atomic<spMarket> currentMarket;
+    std::atomic<spShipCargo> currentCargo;
 
 };
 

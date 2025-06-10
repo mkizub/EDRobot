@@ -15,14 +15,14 @@ struct ClassifyEnv;
 class EvalRect {
 public:
     EvalRect() = default;
-    virtual cv::Rect calcRect(const ClassifyEnv& detectorState) = 0;
+    virtual cv::Rect calcReferenceRect(const ClassifyEnv& detectorState) const = 0;
 };
 typedef std::shared_ptr<EvalRect> spEvalRect;
 
 class ConstRect : public EvalRect {
 public:
     ConstRect(cv::Rect rect) : mRect(rect) {}
-    cv::Rect calcRect(const ClassifyEnv& detectorState) override { return mRect; };
+    cv::Rect calcReferenceRect(const ClassifyEnv& detectorState) const override { return mRect; };
 
     cv::Rect mRect;
 };
@@ -34,6 +34,7 @@ struct ClassifyEnv {
     const cv::Size ReferenceScreenSize {1920, 1080};
     const cv::Point ReferenceScreenCenter {1920/2, 1080/2};
     // actual window size and position on image (screenshot)
+    const cv::Rect monitorRect;
     const cv::Rect captureRect;
     const cv::Rect captureCrop;
     // RGB color window image
@@ -43,7 +44,7 @@ struct ClassifyEnv {
     // image for debug drawing
     cv::Mat debugImage;
 
-    void init(const cv::Rect& captRect, const cv::Mat& imgColor, const cv::Mat& imgGray);
+    void init(const cv::Rect& monitorRect, const cv::Rect& captRect, const cv::Mat& imgColor, const cv::Mat& imgGray);
     void clear();
 
 private:
@@ -65,12 +66,13 @@ public:
     };
     struct ResultListRow {
         ResultListRow() = default;
-        ResultListRow(cv::Rect detRect, WState bs, std::string text)
-                : detectedRect(detRect), bs(bs), text(std::move(text))
+        ResultListRow(cv::Rect detRect, WState bs, std::string text, cv::Vec3d bg)
+                : detectedRect(detRect), bs(bs), text(std::move(text)), bgLuv(bg)
         {}
         cv::Rect detectedRect;  // detected rect in reference coordinates
         WState bs; // detected state
         std::string text;
+        cv::Vec3d bgLuv;
     };
     // a set of named detected rects
     std::vector<ResultRect> classifiedRects;
@@ -102,6 +104,17 @@ public:
 
     cv::Point cvtCapturedToReference(const cv::Point& point) const;
     cv::Rect  cvtCapturedToReference(const cv::Rect& rect) const;
+
+    cv::Rect calcReferenceRect(const spEvalRect& er) const {
+        if (!er)
+            return {};
+        return er->calcReferenceRect(*this);
+    }
+    cv::Rect calcCapturedRect(const spEvalRect& er) const {
+        if (!er)
+            return {};
+        return cvtReferenceToCaptured(calcReferenceRect(er));
+    }
 };
 
 class Template {

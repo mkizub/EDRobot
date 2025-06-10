@@ -9,7 +9,6 @@
 #include "Template.h"
 #include "UI.h"
 #include <synchapi.h>
-#include <magic_enum/magic_enum.hpp>
 
 void Task::preciseSleep(double seconds)const {
     using namespace std;
@@ -89,12 +88,19 @@ bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms) const {
     }
 }
 
-bool Task::sendMouseMove(const cv::Point& point, int pause_ms) const {
-    cv::Point screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
-    bool virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
-    screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+bool Task::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) const {
+    bool virtualDesktop = false;
+    int x = point.x;
+    int y = point.y;
+    if (absolute) {
+        virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
+        cv::Point screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+        screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+        x = screen.x;
+        y = screen.y;
+    }
     //LOG(INFO) << "sendMouseMove recalculated from reference " << point << " to screen " << screen;
-    if (!keyboard::sendMouseMoveTo(screen.x, screen.y, true, virtualDesktop))
+    if (!keyboard::sendMouseMoveTo(x, y, absolute, virtualDesktop))
         return false;
     sleep(pause_ms > 0 ? pause_ms : master.getDefaultKeyAfterTime());
     return true;
@@ -137,7 +143,7 @@ static int get_int(const json5pp::value& val, const json5pp::value& args, int df
 
 bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const {
     if (pos.is_string()) {
-        cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path() + ":" + pos.as_string());
+        cv::Rect rect = master.resolveWidgetReferenceRect(master.lastEDState().path() + ":" + pos.as_string());
         if (rect.empty()) {
             LOG(ERROR) << "Widget '" << pos << "' not found in current state";
             return false;
@@ -327,27 +333,39 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
     return false;
 }
 
-void Task::notifyProgress(const std::string& msg) {
+void Task::hardcodedStep(const char* step, DetectLevel level) {
+    json5pp::value parsed, args;
+    try {
+        std::stringstream in(step);
+        in >> json5pp::rule::json5() >> parsed;
+    } catch (...) {
+        LOG(ERROR) << "Failed to parse json " << step;
+        throw completed_error("hardcoded step failed");
+    }
+    if (!executeStep(parsed, args)) {
+        LOG(ERROR) << "Failed to execute " << step;
+        throw completed_error("hardcoded step failed");
+    }
+    master.detectEDState(level);
+}
+
+void Task::notifyProgress(const std::string& msg) const {
     LOG(INFO) << msg;
-    if (taskName.empty())
-        taskName = "EDRobot";
     UI::showToast(taskName, msg);
 }
-void Task::notifyError(const std::string& msg) {
+void Task::notifyError(const std::string& msg) const {
     LOG(ERROR) << msg;
-    if (taskName.empty())
-        taskName = "EDRobot";
     UI::showToast(taskName, msg);
 }
 
 TaskCalibrate::TaskCalibrate()
-    : mDetector(HistogramTemplate::CompareMode::RGB, cv::Rect(), cv::Vec3b())
+    : mDetector(HistogramTemplate::CompareMode::Luv, cv::Rect(), cv::Vec3b())
 {
     taskName = "Calibration";
 }
 
 void TaskCalibrate::recordButtonLuv(const char* button, WState bs) {
-    cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+button);
+    cv::Rect rect = master.resolveWidgetReferenceRect(master.lastEDState().path()+":"+button);
     if (rect.empty()) {
         LOG(ERROR) << "Cannot get rect of button '" << button << "'";
         return;
@@ -355,15 +373,15 @@ void TaskCalibrate::recordButtonLuv(const char* button, WState bs) {
     mDetector.mRect = rect;
     ClassifyEnv cEnv = master.lastEDState().cEnv; // copy
     mDetector.match(cEnv);
-    cv::Vec3b rgb = mDetector.mLastColor;
-    mButtonLuv[int(bs)].push_back(rgb2luv(rgb));
+    cv::Vec3b luv = mDetector.mLastColor;
+    mButtonLuv[int(bs)].push_back(luv);
     const char* names[] = {"Normal   ", "Focused  ", "Active   ", "Disabled "};
     LOG(INFO) << names[int(bs)] << " button: luv=" << mButtonLuv[int(bs)].back()
-              << " rgb=" << rgb << std::format(" 0x{:06x}", decodeRGB(rgb));
+              << " bgr=" << luv2rgb(luv) << " rgb=0x"<< std::format("{:06x}", decodeRGB(luv2rgb(luv)));
 }
 
 void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs) {
-    cv::Rect rect = master.resolveWidgetRect(master.lastEDState().path()+":"+list);
+    cv::Rect rect = master.resolveWidgetReferenceRect(master.lastEDState().path()+":"+list);
     if (rect.empty()) {
         LOG(ERROR) << "Cannot get rect of list '" << list << "'";
         return;
@@ -380,11 +398,11 @@ void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs
         cv::Rect refRect = cEnv.cvtCapturedToReference(cr.detectedRect);
         mDetector.mRect = refRect;
         mDetector.match(cEnv);
-        cv::Vec3b rgb = mDetector.mLastColor;
+        cv::Vec3b luv = mDetector.mLastColor;
         if (refRect.contains(mouse)) {
-            mLstRowLuv[int(WState::Focused)].push_back(rgb2luv(rgb));
+            mLstRowLuv[int(WState::Focused)].push_back(luv);
         } else {
-            colors.push_back(rgb2luv(rgb));
+            colors.push_back(luv);
             lums.push_back(colors.back()[0]);
         }
     }
@@ -409,29 +427,13 @@ void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs
     }
 }
 
-void TaskCalibrate::hardcodedStep(const char* step, DetectLevel level) {
-    json5pp::value parsed, args;
-    try {
-        std::stringstream in(step);
-        in >> json5pp::rule::json5() >> parsed;
-    } catch (...) {
-        LOG(ERROR) << "Failed to parse json " << step;
-        throw completed_error("hardcoded step failed");
-    }
-    if (!executeStep(parsed, args)) {
-        LOG(ERROR) << "Failed to execute " << step;
-        throw completed_error("hardcoded step failed");
-    }
-    master.detectEDState(level);
-}
-
 bool TaskCalibrate::calculateAverage(bool incomplete) {
     bool buttonSuccess = true;
-    for(auto bs : magic_enum::enum_values<WState>()) {
+    for(auto bs : enum_values<WState>()) {
         auto& luvState = mButtonLuv[int(bs)];
         int len = (int)luvState.size();
         if (!len) {
-            LOG(INFO) << "No samples for " << magic_enum::enum_name(bs) << " button color";
+            LOG(INFO) << "No samples for " << enum_name(bs) << " button color";
             if (!incomplete)
                 return false;
             continue;
@@ -444,19 +446,19 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
         cv::meanStdDev(colorsMatrix, meanS, stddevS);
         cv::Vec3b mean(meanS[0], meanS[1], meanS[2]);
         cv::Vec3d stddev(stddevS[0], stddevS[1], stddevS[2]);
-        LOG(INFO) << "Luv button color for " << magic_enum::enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
+        LOG(INFO) << "Luv button color for " << enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
         mButtonLuvAverage[int(bs)] = mean;
         if (stddevS[0] > 3 || stddevS[1] > 3 || stddevS[2] > 3) {
             buttonSuccess = false;
-            LOG(ERROR) << "Luv color for " << magic_enum::enum_name(bs) << ", has too high deviation " << stddev;
+            LOG(ERROR) << "Luv color for " << enum_name(bs) << ", has too high deviation " << stddev;
         }
     }
     bool lstRowSuccess = true;
-    for(auto bs : magic_enum::enum_values<WState>()) {
+    for(auto bs : enum_values<WState>()) {
         auto& luvState = mLstRowLuv[int(bs)];
         int len = (int)luvState.size();
         if (!len) {
-            LOG(INFO) << "No samples for " << magic_enum::enum_name(bs) << " list row color";
+            LOG(INFO) << "No samples for " << enum_name(bs) << " list row color";
             continue;
         }
         cv::Mat colorsMatrix(len, 1, CV_8UC3);
@@ -467,17 +469,23 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
         cv::meanStdDev(colorsMatrix, meanS, stddevS);
         cv::Vec3b mean(meanS[0], meanS[1], meanS[2]);
         cv::Vec3d stddev(stddevS[0], stddevS[1], stddevS[2]);
-        LOG(INFO) << "Luv list row color for " << magic_enum::enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
+        LOG(INFO) << "Luv list row color for " << enum_name(bs) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
         mLstRowLuvAverage[int(bs)] = mean;
         if (stddevS[0] > 3 || stddevS[1] > 3 || stddevS[2] > 3) {
             lstRowSuccess = false;
-            LOG(ERROR) << "Luv color for " << magic_enum::enum_name(bs) << ", has too high deviation " << stddev;
+            LOG(ERROR) << "Luv color for " << enum_name(bs) << ", has too high deviation " << stddev;
         }
     }
     std::array<cv::Vec3b,4> lstRowLuvAverage;
     for (int i=0; i < 4; i++) {
-        if (mLstRowLuvAverage[i] == cv::Vec3b::zeros())
-            lstRowLuvAverage[i] = mButtonLuvAverage[i];
+        if (mLstRowLuvAverage[i] == cv::Vec3b::zeros()) {
+            if (i == int(WState::Normal))
+                lstRowLuvAverage[i] = mButtonLuvAverage[i] * 1.3;
+            if (i == int(WState::Focused))
+                lstRowLuvAverage[i] = mButtonLuvAverage[i];
+            if (i == int(WState::Active))
+                lstRowLuvAverage[i] = mButtonLuvAverage[i] * 1.3;
+        }
         else
             lstRowLuvAverage[i] = mLstRowLuvAverage[i];
     }
@@ -618,16 +626,16 @@ bool TaskCalibrate::run() {
                 cv::Point mouse = master.lastEDState().cEnv.cvtCapturedToReference(
                         (cr.detectedRect.tl() + cr.detectedRect.br()) / 2);
                 sendMouseMove(mouse, 300);
-                master.detectEDState(DetectLevel::ListRowStates);
+                master.detectEDState(DetectLevel::ListRows);
                 recordLstRowLuv("lst-goods", mouse, WState::Normal);
-                if (mLstRowLuv[int(WState::Normal)].size() > 30)
+                if (mLstRowLuv[int(WState::Normal)].size() > 35)
                     break;
             }
         }
 
         calculateAverage(true);
+        master.detectEDState(DetectLevel::ListRows);
 
-        master.detectEDState(DetectLevel::ListRowStates);
         const ClassifyEnv::ResultListRow* list_rows[4];
         if (!getRowsByState(list_rows))
             return false;
@@ -646,10 +654,10 @@ bool TaskCalibrate::run() {
             cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
             std::ostringstream goto_str;
             goto_str << "{goto:" << row_point << ", after:500}";
-            hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRowStates);
+            hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRows);
             LOG(INFO) << "State " << master.lastEDState();
         }
-
+        master.detectEDState(DetectLevel::ListRows);
         if (!getRowsByState(list_rows))
             return false;
         row_to_test = list_rows[int(WState::Focused)];
@@ -658,7 +666,7 @@ bool TaskCalibrate::run() {
             return false;
         }
 
-        hardcodedStep("[{key:'space', after:1000},"
+        hardcodedStep("[{key:'space', after:2000},"
                       "{check:'scr-market:mod-sell:dlg-trade:*'},"
                       "{goto:'btn-more', after:500}]", DetectLevel::Buttons);
         LOG(INFO) << "State " << master.lastEDState();
@@ -672,7 +680,7 @@ bool TaskCalibrate::run() {
                       "{check:'scr-market:mod-sell'},"
                       "{click:'btn-to-buy', after:1000},"
                       "{check:'scr-market:mod-buy'},"
-                      "{goto:'btn-help', after:500}]", DetectLevel::ListRowStates);
+                      "{goto:'btn-help', after:500}]", DetectLevel::ListRows);
         LOG(INFO) << "State " << master.lastEDState() << " expected focused 'btn-help'";
 
         recordButtonLuv("btn-exit", WState::Normal);
@@ -691,7 +699,7 @@ bool TaskCalibrate::run() {
                 cv::Point mouse = master.lastEDState().cEnv.cvtCapturedToReference(
                         (cr.detectedRect.tl() + cr.detectedRect.br()) / 2);
                 sendMouseMove(mouse, 300);
-                master.detectEDState(DetectLevel::ListRowStates);
+                master.detectEDState(DetectLevel::ListRows);
                 recordLstRowLuv("lst-goods", mouse, WState::Active);
                 if (mLstRowLuv[int(WState::Active)].size() > 30)
                     break;
@@ -699,6 +707,7 @@ bool TaskCalibrate::run() {
         }
 
         calculateAverage(true);
+        master.detectEDState(DetectLevel::ListRows);
 
         if (!getRowsByState(list_rows))
             return false;
@@ -713,13 +722,13 @@ bool TaskCalibrate::run() {
             cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
             std::ostringstream goto_str;
             goto_str << "{goto:" << row_point << ", after:500}";
-            hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRowStates);
+            hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRows);
             LOG(INFO) << "State " << master.lastEDState();
         }
 
-        hardcodedStep("[{key:'space', after:1000},"
+        hardcodedStep("[{key:'space', after:2000},"
                       "{check:'scr-market:mod-buy:dlg-trade:*'},"
-                      "{goto:'btn-more', after:1000}]", DetectLevel::Buttons);
+                      "{goto:'btn-more', after:500}]", DetectLevel::Buttons);
         LOG(INFO) << "State " << master.lastEDState();
 
         recordButtonLuv("btn-exit", WState::Normal);
@@ -756,49 +765,140 @@ bool TaskSell::run() {
     }
     taskActions = master.getTaskActions("TaskSell");
     try {
-        notifyProgress(std_format(_("Start selling {} times by {} item(s)"), mSells, mItems));
-        auto actionArgs = json5pp::object({{"$items", mItems}});
-        while (mSells > 0) {
-            master.detectEDState(DetectLevel::Buttons);
-            if (master.isEDStateMatch("scr-market:mod-sell")) {
-                LOG(INFO) << "At market sell, execute action 'start'";
-                bool ok = executeAction("start");
-                if (!ok) {
-                    notifyError(_("Step 'sell-start' failed, aborting"));
-                    break;
-                }
-                continue;
-            }
-            else if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
-                LOG(INFO) << "At market sell dialog, execute action 'sell-some'";
-                bool ok = executeAction("sell-some", actionArgs);
-                if (!ok) {
-                    LOG(WARNING) << "Step 'sell-some' not successful, recovering";
-                    for (int i=0; i < 3; i++) {
-                        master.detectEDState(DetectLevel::Buttons);
-                        if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
-                            LOG(WARNING) << "Step 'sell-some' not successful, retrying";
-                            executeAction("restart");
-                        }
-                        else if (master.isEDStateMatch("scr-market:mod-sell")) {
-                            LOG(INFO) << "Recovered to state 'scr-market:mod-sell'";
-                            ok = true;
+        for (int sellAllItems=0; sellAllItems < 20; sellAllItems++) {
+            int sellItems = 0;
+            Commodity* currCommodity = mCommodity;
+            if (!currCommodity) {
+                // sell all we can
+                auto cargo = master.getConfiguration()->getCurrentCargo();
+                if (cargo) {
+                    for (auto commodity: cargo->inventory) {
+                        sellItems = master.canSell(commodity);
+                        if (sellItems > 0) {
+                            currCommodity = commodity;
                             break;
                         }
                     }
-                    if (!ok) {
-                        notifyError(_("Step 'sell-some' not successful, cannot recover"));
-                        break;
-                    }
                 }
-                if (ok)
-                    mSells -= 1;
-                continue;
+            } else {
+                sellItems = master.canSell(currCommodity);
             }
-            else {
-                notifyError(std_format(_("Unknown state '{}', aborting trade task"), master.lastEDState().to_string()));
+            sellItems = std::min(mTotal, sellItems);
+            if (!sellItems) {
+                notifyProgress(_("Sold everything we can"));
                 done = true;
-                return false;
+                return true;
+            }
+
+            notifyProgress(std_format(_("Start selling {} by {} item(s)"), sellItems, mItems));
+            auto actionArgs = json5pp::object({{"$items", mItems}});
+            while (sellItems > 0) {
+                master.detectEDState(DetectLevel::ListOcrFocusedRow);
+                if (master.isEDStateMatch("scr-market:mod-buy")) {
+                    // go to sell mode
+                    hardcodedStep("{click:'btn-to-sell', after: 1000}", DetectLevel::None);
+                    continue;
+                }
+                if (master.isEDStateMatch("scr-market:mod-sell")) {
+                    auto it = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
+                    if (it == master.lastEDState().cEnv.classifiedListRows.end()) {
+                        notifyError(_("Cannot detect state of 'lst-goods', aborting"));
+                        done = true;
+                        return false;
+                    }
+                    const ClassifyEnv::ResultListRow* focusedRow = nullptr;
+                    for (auto &r: it->second) {
+                        if (r.bs == WState::Focused) {
+                            focusedRow = &r;
+                            LOG(INFO) << "Focused row text: " << focusedRow->text;
+                        }
+                        if (r.text == currCommodity->name) {
+                            LOG(INFO) << "Row with text '" << r.text << "' found";
+                            if (r.bs == WState::Focused) {
+                                LOG(INFO) << "Pressing 'space'";
+                                sendKey("space", 0, 500);
+                                continue;
+                            } else {
+                                LOG(INFO) << "Not focused, using mouse click";
+                                cv::Rect rect = master.lastEDState().cEnv.cvtCapturedToReference(r.detectedRect);
+                                sendMouseClick((rect.tl() + rect.br()) / 2, 0, 500);
+                            }
+                            continue;
+                        }
+                    }
+                    if (!focusedRow) {
+                        LOG(INFO) << "No focused row found, moving mouse to the list area";
+                        cv::Rect rect = master.resolveWidgetReferenceRect("lst-goods");
+                        int x = rect.x+rect.width/2;
+                        int y = rect.y - 20;
+                        sendMouseClick({x,y}, 0, 500);
+                        for (int i=0; i < 10; i++)
+                            sendMouseMove({0, 10}, 25, false);
+                        continue;
+                    }
+                    Commodity* focusedCommodity = master.getConfiguration()->getCommodityByName(focusedRow->text, true);
+                    if (!focusedCommodity) {
+                        notifyError(_("Cannot detect commodities in 'lst-goods', aborting"));
+                        done = true;
+                        return false;
+                    }
+
+                    int focusedIdx = -1;
+                    int needIdx = -1;
+                    std::vector<Commodity *> sellTable = master.getConfiguration()->getMarketInSellOrder();
+                    for (int idx = 0; idx < sellTable.size(); idx++) {
+                        auto &c = sellTable[idx];
+                        if (c == focusedCommodity)
+                            focusedIdx = idx;
+                        if (c == currCommodity)
+                            needIdx = idx;
+                    }
+                    if (needIdx >= 0 && focusedIdx >= 0) {
+                        LOG(INFO) << "Distance is "<<(needIdx - focusedIdx)<<" lines from focused '" << sellTable[focusedIdx]->name << " to " << currCommodity->name;
+                        if (needIdx < focusedIdx) {
+                            for (int cnt=0; cnt < focusedIdx-needIdx; cnt++)
+                                sendKey("up");
+                        } else {
+                            for (int cnt=0; cnt < needIdx-focusedIdx; cnt++)
+                                sendKey("down");
+                        }
+                        continue;
+                    }
+                    notifyError(_("Cannot detect commodities in 'lst-goods', aborting"));
+                    done = true;
+                    return false;
+                } else if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
+                    LOG(INFO) << "At market sell dialog, execute action 'sell-some'";
+                    bool ok = executeAction("sell-some", actionArgs);
+                    if (!ok) {
+                        LOG(WARNING) << "Step 'sell-some' not successful, recovering";
+                        for (int i = 0; i < 3; i++) {
+                            master.detectEDState(DetectLevel::Buttons);
+                            if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
+                                LOG(WARNING) << "Step 'sell-some' not successful, retrying";
+                                executeAction("restart");
+                            } else if (master.isEDStateMatch("scr-market:mod-sell")) {
+                                LOG(INFO) << "Recovered to state 'scr-market:mod-sell'";
+                                ok = true;
+                                break;
+                            }
+                        }
+                        if (!ok) {
+                            notifyError(_("Step 'sell-some' not successful, cannot recover"));
+                            break;
+                        }
+                    }
+                    if (ok) {
+                        mTotal -= mItems;
+                        sellItems -= mItems;
+                    }
+                    continue;
+                } else {
+                    notifyError(
+                            std_format(_("Unknown state '{}', aborting trade task"), master.lastEDState().to_string()));
+                    done = true;
+                    return false;
+                }
             }
         }
     } catch (completed_error& e) {

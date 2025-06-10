@@ -45,6 +45,11 @@ void pasteToClipboard(const std::string& text) {
     GlobalFree(hg);
 }
 
+std::string trim(const char* source) {
+    if (!source || !*source)
+        return {};
+    return trim(std::string(source));
+}
 std::string trim(const std::string & source) {
     std::string s(source);
     s.erase(0,s.find_first_not_of(" \n\r\t"));
@@ -56,6 +61,20 @@ std::wstring trim(const std::wstring & source) {
     std::wstring s(source);
     s.erase(0,s.find_first_not_of(L" \n\r\t"));
     s.erase(s.find_last_not_of(L" \n\r\t")+1);
+    return s;
+}
+
+std::string trimWithPunktuation(const std::string & source) {
+    std::string s(source);
+    s.erase(0,s.find_first_not_of(" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>?"));
+    s.erase(s.find_last_not_of(" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>?")+1);
+    return s;
+}
+
+std::wstring trimWithPunktuation(const std::wstring & source) {
+    std::wstring s(source);
+    s.erase(0,s.find_first_not_of(L" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>«»?"));
+    s.erase(s.find_last_not_of(L" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>«»?")+1);
     return s;
 }
 

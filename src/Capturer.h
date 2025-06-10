@@ -19,6 +19,7 @@ public:
     cv::Mat getColorImage();
     cv::Mat getGrayImage();
     cv::Rect getCaptureRect();
+    cv::Rect getMonitorVirtualRect();
 
 private:
     static void InitCapturers();

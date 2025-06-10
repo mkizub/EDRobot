@@ -11,6 +11,7 @@ set(OpenCV_ROOT "${VCPKG_INSTALLED_DIR}/x64-windows/share/opencv4")
 find_package(OpenCV REQUIRED)
 
 find_package(Tesseract CONFIG REQUIRED)
+find_package(rapidfuzz CONFIG REQUIRED)
 
 #find_package(Gettext REQUIRED)
 find_library(GETTEXT_LIBRARIES intl iconv)
@@ -18,7 +19,7 @@ find_library(GETTEXT_LIBRARIES intl iconv)
 
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
-add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE)
+add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
 if (MSVC)
     add_compile_options(-Zc:__cplusplus)
 endif()
@@ -68,7 +69,7 @@ target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/i
 target_include_directories(EDRobot PRIVATE thirdparty)
 #target_include_directories(EDRobot PRIVATE ${GETTEXT_INCLUDE_DIR})
 target_link_libraries(EDRobot ${GETTEXT_LIBRARIES})
-target_link_libraries(EDRobot ${OpenCV_LIBS} Tesseract::libtesseract winmm shcore) # cpptrace::cpptrace msimg32
+target_link_libraries(EDRobot ${OpenCV_LIBS} rapidfuzz::rapidfuzz Tesseract::libtesseract winmm shcore) # cpptrace::cpptrace msimg32
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot cpptrace::cpptrace)
 endif()

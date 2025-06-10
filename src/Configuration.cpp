@@ -6,15 +6,17 @@
 #include "Configuration.h"
 #include "Keyboard.h"
 #include <dirlistener/ReadDirectoryChanges.h>
-#include <magic_enum/magic_enum.hpp>
-#include <FuzzyMatcher/FuzzyMatcher.h>
+//#include <FuzzyMatcher/FuzzyMatcher.h>
+#include <rapidfuzz/fuzz.hpp>
 
 #define XML_H_IMPLEMENTATION
 #include <xml/xml.h>
 #include <filesystem>
 
 
-static cv::Vec3b from_json(const json5pp::value& v);
+static cv::Vec3b color_from_json(const json::value& v);
+static void from_json(const json::value& j, cv::Rect& r);
+
 static void from_json(const json5pp::value& j, Template*& o);
 static void from_json(const json5pp::value& j, cv::Rect& r);
 static widget::Widget* from_json(const json5pp::value& j, widget::Widget* parent);
@@ -89,6 +91,7 @@ bool Configuration::load() {
         mCommodityDatabaseUpdated = false;
 
         loadMarket();
+        loadCargo();
         loadCalibration();
 
         if (!changeDirListener) {
@@ -169,7 +172,7 @@ bool Configuration::loadGameSettings() {
         if (auto node = xml_node_find_tag(rootNode, "FOV", true); node && node->text)
             configFOV = atof(node->text);
         if (auto node = xml_node_find_tag(rootNode, "GammaOffset", true); node && node->text)
-            configGammaOffset = atol(node->text);
+            configGammaOffset = atof(node->text);
         xml_node_free(rootNode);
         rootNode = nullptr;
     } else {
@@ -264,28 +267,44 @@ bool Configuration::loadGameJournal(std::wstring journalFilename) {
 }
 
 bool Configuration::loadCalibration() {
-    std::ifstream calibrationFile("calibration.json5");
-    if (calibrationFile.fail()) {
-        LOG(ERROR) << "File calibration.json5 not exists";
+    std::ifstream ifs("calibration.json5");
+    if (!ifs)
+        return false;
+    std::stringstream buffer;
+    buffer << ifs.rdbuf();
+    std::string error;
+    auto res = json::parse5(buffer.str(), &error);
+    if (!res.has_value()) {
+        LOG(ERROR) << "Error loading calibration.json5: " << error;
         return false;
     }
-    auto x = json5pp::parse5(calibrationFile).as_object();
-    if (x.at("dashboardGUIBrightness").is_number())
-        calibrationDashboardGUIBrightness = x.at("dashboardGUIBrightness").as_number();
-    if (x.at("gammaOffset").is_number())
-        calibrationGammaOffset = x.at("gammaOffset").as_number();
-    if (x.at("screenWidth").is_integer())
-        calibrationScreenWidth = x.at("screenWidth").as_integer();
-    if (x.at("screenHeight").is_integer())
-        calibrationScreenHeight = x.at("screenHeight").as_integer();
-    mButtonLuv[int(WState::Normal)] = rgb2luv(from_json(x.at("normalButton")));
-    mButtonLuv[int(WState::Focused)] = rgb2luv(from_json(x.at("focusedButton")));
-    mButtonLuv[int(WState::Active)] = rgb2luv(from_json(x.at("activeToggle")));
-    mButtonLuv[int(WState::Disabled)] = rgb2luv(from_json(x.at("disabledButton")));
-    mLstRowLuv[int(WState::Normal)] = rgb2luv(from_json(x.at("normalRow")));
-    mLstRowLuv[int(WState::Focused)] = rgb2luv(from_json(x.at("focusedRow")));
-    mLstRowLuv[int(WState::Active)] = rgb2luv(from_json(x.at("activeRow")));
-    mLstRowLuv[int(WState::Disabled)] = rgb2luv(from_json(x.at("disabledRow")));
+    auto j = res.value();
+    if (j.at("dashboardGUIBrightness").is_number())
+        calibrationDashboardGUIBrightness = j.at("dashboardGUIBrightness").as_double();
+    if (j.at("gammaOffset").is_number())
+        calibrationGammaOffset = j.at("gammaOffset").as_double();
+    if (j.at("screenWidth").is_number())
+        calibrationScreenWidth = j.at("screenWidth").as_integer();
+    if (j.at("screenHeight").is_number())
+        calibrationScreenHeight = j.at("screenHeight").as_integer();
+    std::optional<FullScreenMode> fullScreenMode;
+    if (j.contains("fullScreen")) {
+        if (j.at("fullScreen").is_string())
+            fullScreenMode = enum_cast<FullScreenMode>(j.at("fullScreen").as_string());
+        else if (j.at("fullScreen").is_number())
+            fullScreenMode = enum_cast<FullScreenMode>(j.at("fullScreen").as_integer());
+        if (fullScreenMode.has_value())
+            calibrationFullScreen = fullScreenMode.value();
+    }
+
+    mButtonLuv[int(WState::Normal)] = rgb2luv(color_from_json(j.at("normalButton")));
+    mButtonLuv[int(WState::Focused)] = rgb2luv(color_from_json(j.at("focusedButton")));
+    mButtonLuv[int(WState::Active)] = rgb2luv(color_from_json(j.at("activeToggle")));
+    mButtonLuv[int(WState::Disabled)] = rgb2luv(color_from_json(j.at("disabledButton")));
+    mLstRowLuv[int(WState::Normal)] = rgb2luv(color_from_json(j.at("normalRow")));
+    mLstRowLuv[int(WState::Focused)] = rgb2luv(color_from_json(j.at("focusedRow")));
+    mLstRowLuv[int(WState::Active)] = rgb2luv(color_from_json(j.at("activeRow")));
+    mLstRowLuv[int(WState::Disabled)] = rgb2luv(color_from_json(j.at("disabledRow")));
     LOG(INFO) << "Calibration data loaded from 'calibration.json5'";
     return true;
 }
@@ -302,29 +321,26 @@ void Configuration::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLu
 }
 
 bool Configuration::saveCalibration() const {
-    json5pp::value x = json5pp::object(
-            {
-                    {"dashboardGUIBrightness", configDashboardGUIBrightness},
-                    {"gammaOffset", configGammaOffset},
-                    {"screenWidth", configScreenWidth},
-                    {"screenHeight", configScreenHeight},
-                    {"normalButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Normal)])))},
-                    {"focusedButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Focused)])))},
-                    {"activeToggle", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Active)])))},
-                    {"disabledButton", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Disabled)])))},
-                    {"normalRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Normal)])))},
-                    {"focusedRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Focused)])))},
-                    {"activeRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Active)])))},
-                    {"disabledRow", std::format("#{:06x}", decodeRGB(luv2rgb(mButtonLuv[int(WState::Disabled)])))},
-            });
-    std::ofstream calibrationFile;
-    calibrationFile.open("calibration.json5");
-    if (!calibrationFile.is_open()) {
-        LOG(INFO) << "Cannot open 'calibration.json5' to save calibration";
-        return false;
-    }
-    calibrationFile << json5pp::rule::json5() << json5pp::rule::space_indent<>() << x;
-    calibrationFile.close();
+    typedef json::value j;
+    std::ofstream wf("calibration.json5", std::ios::trunc | std::ios::binary);
+    wf << "{" << std::endl;
+    wf << "  dashboardGUIBrightness: " << configDashboardGUIBrightness << "," << std::endl;
+    wf << "  gammaOffset:   " << configGammaOffset << "," << std::endl;
+    wf << "  screenWidth:   " << configScreenWidth << ","  << std::endl;
+    wf << "  screenHeight:  " << configScreenHeight << ","  << std::endl;
+    wf << "  fullScreen:    " << enum_underlying<FullScreenMode>(configFullScreen) << ", // '" << enum_name<FullScreenMode>(configFullScreen) << "'"  << std::endl;
+    wf << "  // button colors " << std::endl;
+    wf << "  normalButton:  " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Normal)]))) << " // Luv " << mButtonLuv[int(WState::Normal)] << std::endl;
+    wf << "  focusedButton: " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Focused)]))) << " // Luv " << mButtonLuv[int(WState::Focused)] << std::endl;
+    wf << "  activeToggle:  " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Active)]))) << " // Luv " << mButtonLuv[int(WState::Active)] << std::endl;
+    wf << "  disabledButton:" << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Disabled)]))) << " // Luv " << mButtonLuv[int(WState::Disabled)] << std::endl;
+    wf << "  // list row colors " << std::endl;
+    wf << "  normalRow:     " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Normal)]))) << " // Luv " << mLstRowLuv[int(WState::Normal)] << std::endl;
+    wf << "  focusedRow:    " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Focused)]))) << " // Luv " << mLstRowLuv[int(WState::Focused)] << std::endl;
+    wf << "  activeRow:     " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Active)]))) << " // Luv " << mLstRowLuv[int(WState::Active)] << std::endl;
+    wf << "  disabledRow:   " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Disabled)]))) << " // Luv " << mLstRowLuv[int(WState::Disabled)] << std::endl;
+    wf << "}" << std::endl;
+    wf.close();
     LOG(INFO) << "Calibration data saved to 'calibration.json5'";
     return true;
 }
@@ -442,72 +458,70 @@ Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy
     }
     if (!fuzzy)
         return nullptr;
-    int bestScore = -1;
+
+    double bestScore = -1;
     int bestScoreIndex = -1;
-    std::wstring nameW = toUtf16(name);
-    FuzzyMatcher matcher(nameW);
+    std::wstring nameW = trimWithPunktuation(toUtf16(name));
     for (int i=0; i < allKnownCommodities.size(); i++) {
-        int score = matcher.ScoreMatch(allKnownCommodities[i].wide);
+        double score = rapidfuzz::fuzz::ratio(nameW, allKnownCommodities[i].wide);
         if (score > bestScore) {
             bestScore = score;
             bestScoreIndex = i;
         }
     }
-    if (bestScore <= 0 || bestScore < nameW.size() * 0.8)
+    if (bestScore < 70)
         return nullptr;
-    int score = matcher.ScoreMatch(allKnownCommodities[bestScoreIndex].wide);
     return &allKnownCommodities[bestScoreIndex];
 }
 
-std::shared_ptr<CargoCommodity> Configuration::getCargoByName(const std::string& name, bool fuzzy) {
-    std::scoped_lock lock(currentDataMutex);
-    if (currentCargo.inventory.empty() || name.empty())
-        return nullptr;
-    const auto& inv = currentCargo.inventory;
-    for (auto& c : inv) {
-        if (name == c->commodity.nameId || name == c->commodity.name)
-            return c;
-    }
-    if (!fuzzy)
-        return nullptr;
-    int bestCargoScore = -1;
-    int bestCargoScoreIndex = -1;
-    std::wstring nameW = toUtf16(name);
-    FuzzyMatcher matcher(nameW);
-    for (int i=0; i < inv.size(); i++) {
-        int score = matcher.ScoreMatch(inv[i]->commodity.wide);
-        if (score > bestCargoScore) {
-            bestCargoScore = score;
-            bestCargoScoreIndex = i;
+std::vector<Commodity*> Configuration::getMarketInSellOrder() {
+    std::vector<Commodity*> out;
+    if (lng != RU)
+        return out;
+    spMarket market = currentMarket.load();
+    if (!market)
+        return out;
+    bool isFC = (market->stationType == "FleetCarrier");
+    // add everything we can sell, then sort according to market order
+    for (auto& c : allKnownCommodities) {
+        if (!market->items.contains(&c))
+            continue;
+        if (isFC) {
+            if (c.market.demand > 0)
+                out.push_back(&c);
+        } else {
+            if (c.market.isConsumer || c.ship.count > c.ship.stolen)
+                out.push_back(&c);
         }
     }
-    if (bestCargoScore <= 0 || bestCargoScore < nameW.size() * 0.8)
-        return nullptr;
-    int bestMarketScore = -1;
-    int bestMarketScoreIndex = -1;
-    const auto& cmi = currentMarket.items;
-    for (int i=0; i < cmi.size(); i++) {
-        int score = matcher.ScoreMatch(cmi[i]->commodity.wide);
-        if (score > bestMarketScore) {
-            bestMarketScore = score;
-            bestMarketScoreIndex = i;
-        }
-    }
-    if (bestCargoScore < bestMarketScore)
-        return nullptr;
-    return inv[bestCargoScore];
+    const int l = lng;
+    std::sort(out.begin(), out.end(), [l](Commodity* a, Commodity* b) {
+        int cmp = a->category->wide.compare(b->category->wide);
+        if (cmp < 0)
+            return true;
+        if (cmp > 0)
+            return false;
+        return a->wide < b->wide;
+    });
+    return out;
 }
 
 bool Configuration::loadMarket() {
-    std::ifstream marketFile(mEDLogsPath + L"/Market.json", std::ifstream::in);
-    if (marketFile.fail()) {
-        LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Market.json");
+    json5pp::value j_market;
+    try {
+        std::ifstream marketFile(mEDLogsPath + L"/Market.json", std::ifstream::in);
+        if (marketFile.fail()) {
+            LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Market.json");
+            return false;
+        }
+        j_market = json5pp::parse5(marketFile);
+        marketFile.close();
+    } catch (...) {
+        LOG(ERROR) << "Failed to read/parse Market.json";
         return false;
     }
-    auto j_market = json5pp::parse5(marketFile);
     if (!j_market)
         return false;
-    marketFile.close();
     std::chrono::time_point<std::chrono::utc_clock> timestamp;
     std::istringstream iss(j_market.at("timestamp").as_string());
     iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
@@ -516,14 +530,13 @@ bool Configuration::loadMarket() {
         return false;
     }
 
-    Market market = {
+    spMarket market = std::shared_ptr<Market>(new Market{
             .timestamp = timestamp,
             .marketId = j_market.at("MarketID").as_integer(),
             .stationName = j_market.at("StationName").as_string(),
             .stationType = j_market.at("StationType").as_string(),
             .starSystem = j_market.at("StarSystem").as_string(),
-    };
-    market.items.reserve(400);
+    });
     auto items = j_market.at("Items").as_array();
     for (auto& j_item : items) {
         auto item = j_item.as_object();
@@ -543,42 +556,52 @@ bool Configuration::loadMarket() {
         Commodity& commodity = getOrAddCommodity({
                 .intId = item.at("id").as_integer(),
                 .nameId = item.at("Name").as_string(),
-                .categoryId = cc.nameId,
-                .translation = translation
+                .category = &cc,
+                .translation = translation,
+                .rare = item.at("Rare").as_boolean()
         });
-        auto mc = std::make_shared<MarketCommodity>(MarketCommodity({
-                .commodity = commodity,
-                .buyPrice = item.at("BuyPrice").as_int32(),
-                .sellPrice = item.at("SellPrice").as_int32(),
-                .meanPrice = item.at("MeanPrice").as_int32(),
-                .stock = item.at("Stock").as_int32(),
-                .demand = item.at("Demand").as_int32(),
-                .stockBracket = (uint8_t)item.at("StockBracket").as_integer(),
-                .demandBracket = (uint8_t)item.at("DemandBracket").as_integer(),
-                .isConsumer = item.at("Consumer").as_boolean(),
-                .isProducer = item.at("Producer").as_boolean(),
-                .isRare = item.at("Rare").as_boolean(),
-        }));
-        market.items.push_back(mc);
+        MarketLine& ml = commodity.market;
+        ml.timestamp = timestamp;
+        ml.buyPrice = item.at("BuyPrice").as_int32();
+        ml.sellPrice = item.at("SellPrice").as_int32();
+        ml.meanPrice = item.at("MeanPrice").as_int32();
+        ml.stock = item.at("Stock").as_int32();
+        ml.demand = item.at("Demand").as_int32();
+        ml.stockBracket = (uint8_t)item.at("StockBracket").as_integer();
+        ml.demandBracket = (uint8_t)item.at("DemandBracket").as_integer();
+        ml.isConsumer = item.at("Consumer").as_boolean();
+        ml.isProducer = item.at("Producer").as_boolean();
+        market->items.emplace(&commodity, ml);
     }
     if (mCommodityDatabaseUpdated)
         dumpCommodityDatabase();
 
-    std::scoped_lock lock(currentDataMutex);
-    currentMarket = std::move(market);
+    currentMarket.exchange(market);
+    std::chrono::time_point<std::chrono::utc_clock> zero_time;
+    for (auto& c : allKnownCommodities) {
+        if (c.market.timestamp > zero_time && c.market.timestamp < timestamp) {
+            c.market = {};
+        }
+    }
     return true;
 }
 
 bool Configuration::loadCargo() {
-    std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
-    if (cargoFile.fail()) {
-        LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
+    json5pp::value j_cargo;
+    try {
+        std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
+        if (cargoFile.fail()) {
+            LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
+            return false;
+        }
+        j_cargo = json5pp::parse5(cargoFile);
+        cargoFile.close();
+    } catch (...) {
+        LOG(ERROR) << "Failed to read/parse Cargo.json";
         return false;
     }
-    auto j_cargo = json5pp::parse5(cargoFile);
     if (!j_cargo)
         return false;
-    cargoFile.close();
     std::chrono::time_point<std::chrono::utc_clock> timestamp;
     std::istringstream iss(j_cargo.at("timestamp").as_string());
     iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
@@ -586,12 +609,11 @@ bool Configuration::loadCargo() {
         LOG(ERROR) << "Timestamp parse failed, Cargo.json file corrupted?";
         return false;
     }
-    Cargo cargo = {
+    spShipCargo cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
             .timestamp = timestamp,
             .vessel = j_cargo.at("Vessel").as_string(),
             .count = j_cargo.at("Count").as_integer(),
-    };
-    cargo.inventory.reserve(20);
+    }));
     auto items = j_cargo.at("Inventory").as_array();
     for (auto& j_item : items) {
         auto item = j_item.as_object();
@@ -605,15 +627,18 @@ bool Configuration::loadCargo() {
             LOG(ERROR) << "Unknown cargo item name: " << name;
             continue;
         }
-        auto cc = std::make_shared<CargoCommodity>(CargoCommodity({
-                .commodity = *c,
-                .count = item.at("Count").as_integer(),
-                .stolen = item.at("Stolen").as_integer(),
-        }));
-        cargo.inventory.push_back(cc);
+        c->ship.timestamp = timestamp;
+        c->ship.count = item.at("Count").as_integer();
+        c->ship.stolen = item.at("Stolen").as_integer();
+        cargo->inventory.push_back(c);
     }
-    std::scoped_lock lock(currentDataMutex);
-    currentCargo = std::move(cargo);
+    currentCargo.exchange(cargo);
+    std::chrono::time_point<std::chrono::utc_clock> zero_time;
+    for (auto& c : allKnownCommodities) {
+        if (c.ship.timestamp > zero_time && c.ship.timestamp < timestamp) {
+            c.ship = {};
+        }
+    }
     return true;
 }
 
@@ -639,39 +664,27 @@ bool Configuration::loadCommodityDatabase() {
         cc_add.translation[RU] = jv["ru"].as_string();
         CommodityCategory& cc = getOrAddCommodityCategory(std::move(cc_add));
         for (auto& jc : jv["items"].as_object()) {
-            Commodity c_add;
-            c_add.nameId = jc.first;
             auto& jv = jc.second;
-            c_add.intId = jv["id"].as_long();
-            c_add.categoryId = cc.nameId;
-            c_add.translation[EN] = jv["en"].as_string();
-            c_add.translation[RU] = jv["ru"].as_string();
+            Commodity c_add{
+                    .intId = jv["id"].as_long(),
+                    .nameId = jc.first,
+                    .category = &cc,
+                    .translation = {jv["en"].as_string(), jv["ru"].as_string()}
+            };
             getOrAddCommodity(std::move(c_add));
         }
     }
     for (auto& jcc : j.value().as_object()) {
         if (!jcc.first.contains("-order-"))
             continue;
-        int idx1 = jcc.first.starts_with("market-") ? 0 : 1;
-        int idx2 = jcc.first.ends_with("-en") ? 0 : 1;
-        int64_t categoryOrder = 0;
-        CommodityCategory* curr_category = nullptr;
+        Lang l = jcc.first.ends_with("-en") ? EN : RU;
         for (auto& jn : jcc.second.as_array()) {
-            if (jn.is_string()) {
-                curr_category = getCommodityCategoryByName(jn.as_string());
-                categoryOrder += 1000;
-                if (curr_category)
-                    curr_category->sortingOrder[idx1][idx2] = categoryOrder;
-                continue;
-            }
-            if (jn.is_array()) {
-                int64_t commodityOrder = categoryOrder + 1;
-                for (auto& jc : jn.as_array()) {
-                    auto c = getCommodityByName(jc.as_string(), false);
-                    if (c)
-                        c->sortingOrder[idx1][idx2] = commodityOrder;
-                    commodityOrder += 1;
-                }
+            int64_t commodityOrder = 1;
+            for (auto& jc : jn.as_array()) {
+                auto c = getCommodityByName(jc.as_string(), false);
+                if (c)
+                    c->carrierSortingOrder[l] = commodityOrder;
+                commodityOrder += 1;
             }
         }
     }
@@ -691,7 +704,7 @@ bool Configuration::dumpCommodityDatabase() {
         wf << "    items: {" << std::endl;
         for (auto& cit : commodityMap) {
             auto& c = *cit.second;
-            if (c.categoryId != cc.nameId) continue;
+            if (c.category != &cc) continue;
             wf << "      " << c.nameId << ": {" << std::endl;
             wf << "        id: " << c.intId << "," << std::endl;
             wf << "        en: " << j(c.translation[EN]) << "," << std::endl;
@@ -701,44 +714,14 @@ bool Configuration::dumpCommodityDatabase() {
         wf << "    }," << std::endl;
         wf << "  }," << std::endl;
     }
-    for (int idx2=0; idx2 < 2; idx2++) {
-        std::string suffix = idx2==0 ? "-en" : "-ru";
-        std::vector<CommodityCategory *> ccv;
-        for (auto &cc: allKnownCommodityCategories)
-            ccv.push_back(&cc);
-        std::sort(ccv.begin(), ccv.end(), [idx2](CommodityCategory *a, CommodityCategory *b) {
-            return a->sortingOrder[0][idx2] < b->sortingOrder[0][idx2];
-        });
+    for (int l=0; l < 2; l++) {
+        std::string suffix = l==EN ? "-en" : "-ru";
         std::vector<Commodity *> cv;
         for (auto &c: allKnownCommodities)
             cv.push_back(&c);
-        std::sort(cv.begin(), cv.end(), [idx2](Commodity *a, Commodity *b) {
-            int ao = a->sortingOrder[0][idx2];
-            int bo = b->sortingOrder[0][idx2];
-            if (ao == 0) ao = a->intId;
-            if (bo == 0) bo = b->intId;
-            return ao < bo;
-        });
-        wf << "  'market-order" << suffix << "': [" << std::endl;
-        for (auto &cc: ccv) {
-            wf << "    " << j(cc->nameId) << ", // " << cc->translation[0] << " | " << cc->translation[1] << std::endl;
-            wf << "    [" << std::endl;
-            for (auto &c: cv) {
-                if (c->categoryId != cc->nameId) continue;
-                wf << "      " << j(c->nameId) << ", // " << c->translation[0] << " | " << c->translation[1] << std::endl;
-            }
-            wf << "    ]," << std::endl;
-        }
-        wf << "  ]," << std::endl;
-    }
-    for (int idx2=0; idx2 < 2; idx2++) {
-        std::string suffix = idx2==0 ? "-en" : "-ru";
-        std::vector<Commodity *> cv;
-        for (auto &c: allKnownCommodities)
-            cv.push_back(&c);
-        std::sort(cv.begin(), cv.end(), [idx2](Commodity *a, Commodity *b) {
-            int ao = a->sortingOrder[0][idx2];
-            int bo = b->sortingOrder[0][idx2];
+        std::sort(cv.begin(), cv.end(), [l](Commodity *a, Commodity *b) {
+            int64_t ao = a->carrierSortingOrder[l];
+            int64_t bo = b->carrierSortingOrder[l];
             if (ao == 0) ao = a->intId;
             if (bo == 0) bo = b->intId;
             return ao < bo;
@@ -756,13 +739,17 @@ bool Configuration::dumpCommodityDatabase() {
 }
 
 const char* Configuration::makeTesseractWordsFile() {
-    std::ofstream wf("tesseract-words.txt", std::ios::out | std::ios::trunc | std::ios::binary);
+    std::set<std::wstring> allWords;
     for (auto& c : allKnownCommodities) {
-        std::istringstream iss(c.name);
-        std::string token;
-        while (iss >> token) {
-            wf << token << '\n';
+        std::wistringstream iss(c.wide);
+        std::wstring word;
+        while (iss >> word) {
+            allWords.insert(trimWithPunktuation(word));
         }
+    }
+    std::ofstream wf("tesseract-words.txt", std::ios::out | std::ios::trunc | std::ios::binary);
+    for (auto& w : allWords) {
+        wf << toUtf8(w) << '\n';
     }
     wf.close();
     return "tesseract-words.txt";
@@ -812,18 +799,21 @@ void Configuration::changeDirThreadLoop() {
 
         DWORD action;
         std::wstring filenameW;
-        changeDirListener->Pop(action, filenameW);
-        LOG(TRACE) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
-        if (filenameW.ends_with(L"Settings.xml"))
-            needReloadSettings = true;
-        if (filenameW.ends_with(L"Market.json"))
-            needReloadMarket = true;
-        if (filenameW.ends_with(L"Cargo.json"))
-            needReloadCargo = true;
-        if (action == FILE_ACTION_ADDED && filenameW.starts_with(L"Journal.") && filenameW.ends_with(L".log")) {
-            needOpenNewLog = true;
-            newLogFilenameW = filenameW;
+        while (changeDirListener->Pop(action, filenameW)) {
+            LOG(TRACE) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
+            if (filenameW.ends_with(L"Settings.xml"))
+                needReloadSettings = true;
+            if (filenameW.ends_with(L"Market.json"))
+                needReloadMarket = true;
+            if (filenameW.ends_with(L"Cargo.json"))
+                needReloadCargo = true;
+            if (action == FILE_ACTION_ADDED && filenameW.starts_with(L"Journal.") && filenameW.ends_with(L".log")) {
+                needOpenNewLog = true;
+                newLogFilenameW = filenameW;
+            }
         }
+
+        Sleep(500);
 
         if (needReloadSettings)
             loadGameSettings();
@@ -838,7 +828,25 @@ void Configuration::changeDirThreadLoop() {
 
 using namespace widget;
 
-static cv::Vec3b from_json(const json5pp::value& v) {
+static cv::Vec3b color_from_json(const json::value& v) {
+    unsigned rgb = 0;
+    if (v.is_number())
+        rgb = v.as_unsigned();
+    else if (v.is_array()) {
+        unsigned r = v.as_array().at(0).as_unsigned();
+        unsigned g = v.as_array().at(1).as_unsigned();
+        unsigned b = v.as_array().at(2).as_unsigned();
+        rgb = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
+    }
+    else if (v.is_string()) {
+        auto s = v.as_string();
+        if (s.size() == 7 && s[0] == '#')
+            rgb = std::stol(s.substr(1), nullptr, 16);
+    }
+    return encodeRGB(rgb);
+}
+
+static cv::Vec3b color_from_json(const json5pp::value& v) {
     unsigned rgb = 0;
     if (v.is_integer())
         rgb = v.as_integer();
@@ -934,6 +942,22 @@ static void from_json(const json5pp::value& j, Template*& o) {
             o = new SequenceTemplate(std::move(oracles));
         return;
     }
+}
+
+static void from_json(const json::value& j, cv::Rect& r) {
+    if (j.is_null()) {
+        LOG(WARNING) << "No rect provided";
+        return;
+    }
+    if (!j.is_array() || j.as_array().size() != 4) {
+        LOG(ERROR) << "rect must be an array of [x,y,width,height] int numbers";
+        return;
+    }
+    auto arr = j.as_array();
+    r.x = arr[0].as_integer();
+    r.y = arr[1].as_integer();
+    r.width = arr[2].as_integer();
+    r.height = arr[3].as_integer();
 }
 
 static void from_json(const json5pp::value& j, cv::Rect& r) {

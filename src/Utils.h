@@ -10,8 +10,11 @@
 extern std::string getErrorMessage();
 extern std::string getErrorMessage(unsigned errorCode);
 extern void pasteToClipboard(const std::string& text);
+extern std::string trim(const char* source);
 extern std::string trim(const std::string & source);
 extern std::wstring trim(const std::wstring & source);
+extern std::string trimWithPunktuation(const std::string & source);
+extern std::wstring trimWithPunktuation(const std::wstring & source);
 extern std::string toString(const char* buffer, size_t size);
 extern std::wstring toString(const wchar_t* buffer, size_t size);
 extern std::string toUtf8(const wchar_t* buffer, size_t size);

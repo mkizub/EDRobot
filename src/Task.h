@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include "pch.h"
 
 #ifndef EDROBOT_TASK_H
@@ -13,7 +15,7 @@
 
 class Task {
 public:
-    Task() : master(Master::getInstance()) {}
+    Task() : master(Master::getInstance()), taskName("EDRobot Task") {}
     virtual ~Task() = default;
     virtual bool run() = 0;
     void stop() { done = true; };
@@ -30,7 +32,7 @@ protected:
     void preciseSleep(double seconds) const;
     void sleep(int milliseconds) const;
     bool sendKey(const std::string& name, int delay_ms = 35, int pause_ms = 50) const;
-    bool sendMouseMove(const cv::Point& point, int pause_ms = 50) const;
+    bool sendMouseMove(const cv::Point& point, int pause_ms = 50, bool absolute = true) const;
     bool sendMouseClick(const cv::Point& point, int delay_ms = 35, int pause_ms = 50) const;
     bool decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const;
     void check_completed() const {
@@ -40,9 +42,10 @@ protected:
     bool executeAction(const std::string& actionName, const json5pp::value& args);
     bool executeStep(const json5pp::value& step, const json5pp::value& args);
     bool executeWait(const json5pp::value& step, const json5pp::value& args);
+    void hardcodedStep(const char* step, DetectLevel level);
 
-    void notifyProgress(const std::string& msg);
-    void notifyError(const std::string& msg);
+    void notifyProgress(const std::string& msg) const;
+    void notifyError(const std::string& msg) const;
 
     std::string taskName;
     json5pp::value taskActions;
@@ -61,7 +64,6 @@ private:
     std::array<std::vector<cv::Vec3b>,4> mLstRowLuv;
     void recordButtonLuv(const char* button, WState bs);
     void recordLstRowLuv(const char* list, cv::Point mouse, WState bs);
-    void hardcodedStep(const char* step, DetectLevel level);
     bool getRowsByState(const ClassifyEnv::ResultListRow** rows);
     bool calculateAverage(bool incomplete);
     std::array<cv::Vec3b,4> mButtonLuvAverage;
@@ -71,15 +73,15 @@ private:
 
 class TaskSell final : public Task {
 public:
-    TaskSell(const Commodity* commodity, int sells, int items)
-        : mCommodity(commodity), mSells(sells), mItems(items)
+    TaskSell(Commodity* commodity, int total, int items)
+        : mCommodity(commodity), mTotal(total), mItems(items)
     {
         taskName = "Selling";
     }
     bool run() final;
 private:
-    const Commodity* mCommodity;
-    int mSells;
+    Commodity* mCommodity;
+    int mTotal;
     int mItems;
 };
 

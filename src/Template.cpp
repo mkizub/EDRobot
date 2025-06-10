@@ -8,8 +8,9 @@
 #include <format>
 #include <iomanip>
 
-void ClassifyEnv::init(const cv::Rect& captRect, const cv::Mat& imgColor, const cv::Mat& imgGray) {
+void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, const cv::Mat& imgColor, const cv::Mat& imgGray) {
     ClassifyEnv* self = const_cast<ClassifyEnv*>(this);
+    const_cast<cv::Rect&>(monitorRect) = monRect;
     const_cast<cv::Rect&>(captureRect) = captRect;
     const_cast<cv::Rect&>(captureCrop) = cv::Rect(cv::Point(), captureRect.size());
     const_cast<cv::Mat&>(imageColor) = imgColor;
@@ -27,6 +28,7 @@ void ClassifyEnv::init(const cv::Rect& captRect, const cv::Mat& imgColor, const 
 }
 
 void ClassifyEnv::clear() {
+    const_cast<cv::Rect&>(monitorRect) = cv::Rect();
     const_cast<cv::Rect&>(captureRect) = cv::Rect();
     const_cast<cv::Rect&>(captureCrop) = cv::Rect();
     const_cast<cv::Mat&>(imageColor) = cv::Mat();
@@ -39,7 +41,7 @@ void ClassifyEnv::clear() {
 }
 
 cv::Point ClassifyEnv::cvtReferenceToDesktop(const cv::Point& point) const {
-    return cvtReferenceToCaptured(point) + captureRect.tl();
+    return monitorRect.tl() + captureRect.tl() + cvtReferenceToCaptured(point);
 }
 
 cv::Point ClassifyEnv::cvtReferenceToCaptured(const cv::Point& point) const {
@@ -261,7 +263,7 @@ ImageTemplate::ImageTemplate(const std::string& name, const std::string& filenam
 double ImageTemplate::match(ClassifyEnv& env) {
     if (!this->referenceRect)
         return 0;
-    cv::Rect referenceRect = this->referenceRect->calcRect(env);
+    cv::Rect referenceRect = env.calcReferenceRect(this->referenceRect);
     if (referenceRect.empty())
         return 0;
     cv::Mat image = env.imageGray;

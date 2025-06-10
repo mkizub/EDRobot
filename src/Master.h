@@ -20,7 +20,7 @@ namespace tesseract {
 }
 
 enum class DetectLevel {
-    Buttons, ListRows, ListRowStates, ListOcrFocusedRow, ListOcrAllRows
+    None, Screen, Buttons, ListRows, ListOcrFocusedRow
 };
 enum class Command {
     NoOp,
@@ -64,11 +64,14 @@ public:
     const UIState& lastEDState() { return mLastEDState; }
     bool isEDStateMatch(const std::string& state);
     const json5pp::value& getTaskActions(const std::string& action);
-    cv::Rect resolveWidgetRect(const std::string& name);
+    cv::Rect resolveWidgetReferenceRect(const std::string& name);
     Configuration* getConfiguration() const { return mConfiguration.get(); }
     int getDefaultKeyHoldTime() const { return mConfiguration->defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return mConfiguration->defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return mConfiguration->searchRegionExtent; }
+
+    int canSell(Commodity* commodity) const;
+    const ClassifyEnv::ResultListRow* getFocusedRow(const std::string& lst_name);
 
     void pushCommand(Command cmd);
     void pushDevRectScreenshotCommand(cv::Rect rect);
@@ -104,10 +107,10 @@ private:
     bool isForeground();
     static void runCurrentTask();
 
-    const ClassifyEnv::ResultListRow* getFocusedRow(const std::string& lst_name);
     std::vector<std::string> parseState(const std::string& name);
     double detectButtonState(const widget::Widget* item);
     void detectListState(const widget::List* item, DetectLevel level);
+    int ocrMarketText(cv::Mat& grayImage, cv::Rect, std::string& text); // returns confidence 0..100, result it trimmed
     widget::Widget* detectAllButtonsStates(const widget::Widget* parent, DetectLevel level);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
@@ -123,7 +126,8 @@ private:
     HWND hWndED;
     cv::Mat colorED;
     cv::Mat grayED;
-    cv::Rect mCaptureRect; // in virtual desktop coordinated
+    cv::Rect mCaptureRect; // in captured image coordinated
+    cv::Rect mMonitorRect; // in virtual desktop coordinated
     UIState mLastEDState;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForDigits;

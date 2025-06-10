@@ -191,7 +191,7 @@ int Master::initializeInternal(std::string ocr_dir) {
     {
         const char* tesseractLang = "eng";
         if (mConfiguration->lng == RU)
-            tesseractLang = "rus+eng";
+            tesseractLang = "edo";
         mTesseractApiForMarket = std::make_unique<tesseract::TessBaseAPI>();
         const std::vector<std::string> vars_vec{"user_words_file"};
         const std::vector<std::string> vars_values{mConfiguration->makeTesseractWordsFile()};
@@ -315,7 +315,7 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
     auto keyMapping = self.mConfiguration->keyMapping;
     auto cmd = keyMapping.find(std::make_pair(toLower(name),flags));
     if (cmd != keyMapping.end()) {
-        LOG(INFO) << "Command " << magic_enum::enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
+        LOG(INFO) << "Command " << enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
         self.pushCommand(cmd->second);
     }
 }
@@ -427,12 +427,12 @@ bool Master::startCalibration() {
 const ClassifyEnv::ResultListRow* Master::getFocusedRow(const std::string& lst_name) {
     auto it_rows = mLastEDState.cEnv.classifiedListRows.find(lst_name);
     if (it_rows == mLastEDState.cEnv.classifiedListRows.end()) {
-        LOG(ERROR) << _("Rows in list are not detected");
+        LOG(ERROR) << "Rows in list are not detected";
         return nullptr;
     }
     auto &classified_rows = it_rows->second;
     if (classified_rows.empty()) {
-        LOG(ERROR) << _("Rows in list are not detected");
+        LOG(ERROR) << "Rows in list are not detected";
         return nullptr;
     }
     for (auto &row: classified_rows) {
@@ -442,13 +442,28 @@ const ClassifyEnv::ResultListRow* Master::getFocusedRow(const std::string& lst_n
     return nullptr;
 }
 
+int Master::canSell(Commodity* commodity) const {
+    if (!commodity)
+        return 0;
+    if (commodity->ship.count <= commodity->ship.stolen)
+        return 0;
+    spMarket market = mConfiguration->currentMarket.load();
+    if (!market)
+        return 0;
+    if (market->stationType == "FleetCarrier") {
+        return std::min(commodity->ship.count, commodity->market.demand);
+    }
+    return commodity->ship.count - commodity->ship.stolen;
+}
+
 bool Master::startTrade() {
     if (!mConfiguration->loadMarket()) {
         UI::showToast(_("Cannot sell"), _("Cannot load market"));
         return false;
     }
 
-    if (!mConfiguration->loadCargo() || mConfiguration->currentCargo.count <= 0) {
+    spShipCargo shipCargo = mConfiguration->getCurrentCargo();
+    if (!shipCargo || shipCargo->count <= 0) {
         UI::showToast(_("Cannot sell"), _("Ship cargo empty"));
         return false;
     }
@@ -458,24 +473,29 @@ bool Master::startTrade() {
     if (isEDStateMatch("scr-market:mod-sell")) {
         auto row = getFocusedRow("lst-goods");
         if (row) {
-            spCargoCommodity cc = mConfiguration->getCargoByName(row->text, true);
-            if (cc)
-                cargo_name = cc->commodity.name;
+            Commodity* c = mConfiguration->getCommodityByName(row->text, true);
+            if (c)
+                cargo_name = c->name;
         }
     }
 
     int total = 0;
     int chunk = 1;
-    bool res = UI::askSellInput(total, chunk, cargo_name, mConfiguration->currentCargo);
+    bool res = UI::askSellInput(total, chunk, cargo_name);
     if (!res || total <= 0 || chunk <= 0)
         return false;
-    int sells = (int)std::ceil(double(total) / double(chunk));
 
     if (!preInitTask())
         return false;
 
+    Commodity* commodity = nullptr;
+    if (!cargo_name.empty()) {
+        commodity = mConfiguration->getCommodityByName(cargo_name, false);
+        LOG(INFO) << "Internal error, cannot find cargo for: " << cargo_name;
+        return false;
+    }
     LOG(INFO) << "Staring new trade task";
-    currentTask = std::make_unique<TaskSell>(nullptr, sells, chunk);
+    currentTask = std::make_unique<TaskSell>(commodity, total, chunk);
     currentTaskThread = std::thread(Master::runCurrentTask);
     return true;
 }
@@ -518,13 +538,13 @@ const json5pp::value& Master::getTaskActions(const std::string& action) {
     return it->second;
 }
 
-cv::Rect Master::resolveWidgetRect(const std::string& name) {
+cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) {
     Widget* item = getCfgItem(name);
     if (!item) {
         LOG(ERROR) << "Widget '" << name << "' not found";
         return {};
     }
-    auto r = item->calcRect(mLastEDState.cEnv);
+    auto r = mLastEDState.cEnv.calcReferenceRect(item->rect);
     if (r.empty()) {
         LOG(ERROR) << "Widget has no rect";
         return {};
@@ -566,6 +586,8 @@ Widget* Master::getCfgItem(std::string state) {
     if (state.empty())
         return nullptr;
     auto names = parseState(state);
+    if (names.size() == 1 && !state.starts_with("scr-"))
+        names = parseState(mLastEDState.path() + ":" + state);
     int idx = 0;
     Widget* item = mScreensRoot.get();
     for (auto& name : names) {
@@ -589,8 +611,9 @@ Widget* Master::matchWithSubItems(Widget* item) {
     if (!item->oracle) {
         for (Widget* m : item->have) {
             if (m->tp == WidgetType::Mode) {
-                if (matchItem(m))
-                    return m;
+                Widget* res = matchWithSubItems(m);
+                if (res)
+                    return res;
             }
         }
         return nullptr;
@@ -635,18 +658,16 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv& env) {
             LOG(ERROR) << "Cannot capture screen for debug match";
             return false;
         }
-        env.init(captureRect, imageColor, imageGray);
+        env.init(mMonitorRect, captureRect, imageColor, imageGray);
         for (auto &screen: mScreensRoot->have) {
-            if (screen->oracle) {
-                env.imageColor.copyTo(env.debugImage);
-                debugTemplates(screen, env);
-                el::Loggers::flushAll();
-                std::string fname = "debug-match-"+screen->name+".png";
-                //cv::imwrite(fname, env.debugImage);
-                cv::imshow(fname, env.debugImage);
-                cv::waitKey();
-                env.debugImage.release();
-            }
+            env.imageColor.copyTo(env.debugImage);
+            debugTemplates(screen, env);
+            el::Loggers::flushAll();
+            std::string fname = "debug-match-"+screen->name+".png";
+            //cv::imwrite(fname, env.debugImage);
+            cv::imshow(fname, env.debugImage);
+            cv::waitKey();
+            env.debugImage.release();
         }
         cv::destroyAllWindows();
         env.clear();
@@ -664,13 +685,14 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv& env) {
     }
 }
 
+static const int USE_EROSION = 0;
+
 void Master::drawButton(widget::Widget* item) {
     if (!(item->tp == WidgetType::Button || item->tp == WidgetType::Spinner || item->tp == WidgetType::List))
         return;
-    cv::Rect rect = item->calcRect(mLastEDState.cEnv);
+    cv::Rect rect = mLastEDState.cEnv.calcCapturedRect(item->rect);
     if (rect.empty())
         return;
-    rect = mLastEDState.cEnv.cvtReferenceToCaptured(rect);
     cv::Mat& debugImage = mLastEDState.cEnv.debugImage;
     cv::Scalar color(200, 80, 80);
     int size = (item == mLastEDState.focused) ? 2 : 1;
@@ -691,33 +713,47 @@ void Master::drawButton(widget::Widget* item) {
     if (item->tp == WidgetType::List) {
         List* lst = static_cast<List*>(item);
         ////////////////////////////////////////////////
-        unsigned buttonGrayColor = rgb2gray(luv2rgb(mConfiguration->mLstRowLuv[int(WState::Normal)]));
+        cv::Vec3b normColor = mConfiguration->mLstRowLuv[int(WState::Normal)];
+        if (normColor == cv::Vec3b::zeros())
+            normColor = mConfiguration->mButtonLuv[int(WState::Normal)];
+        if (normColor == cv::Vec3b::zeros())
+            normColor = cv::Vec3b(10,95,130);
+        unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
         cv::Mat listImage(grayED, rect);
 
-        //cv::imshow("List image: " + mLastEDState.path(), listImage);
+        cv::imshow("List image: " + mLastEDState.path(), listImage);
 
-        cv::Mat thresholdedImage;
-        cv::threshold(listImage, thresholdedImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
+        cv::Mat thrImage;
+        cv::Mat erodedImage;
+        cv::threshold(listImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
+        cv::imshow("Threshold image: " + mLastEDState.path(), thrImage);
+        if (USE_EROSION > 0) {
+            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+            cv::erode(thrImage, erodedImage, kernel, cv::Point(-1, -1), USE_EROSION, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+            cv::imshow("Eroded image: " + mLastEDState.path(), erodedImage);
+        } else {
+            erodedImage = thrImage;
+        }
 
-        //cv::imshow("Threshold image: " + mLastEDState.path(), thresholdedImage);
+        auto expected_row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
+        double minArea =  rect.width * expected_row_height * 0.75;
 
         std::vector<cv::Rect> detectedRows;
         std::vector<std::vector<cv::Point>> contours;
-        cv::findContoursLinkRuns(thresholdedImage, contours);
+        cv::findContoursLinkRuns(erodedImage, contours);
         for (const auto &contour: contours) {
             std::vector<cv::Point> convex;
             cv::convexHull(contour, convex);
             if (convex.size() >= 4) {
                 std::vector<cv::Point> approx;
                 cv::approxPolyN(convex, approx, 4, 5, true);
-                auto row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
-                if (cv::contourArea(approx) > rect.width * (row_height-2)) {
+                if (cv::contourArea(approx) > minArea) {
                     cv::Rect bbox = cv::boundingRect(approx);
-                    if (bbox.height < row_height * 1.5) {
+                    if (bbox.height < expected_row_height * 1.5) {
                         detectedRows.push_back(bbox);
                         cv::rectangle(debugImage, bbox + rect.tl(), cv::Scalar(0, 255, 0), 1);
                     } else {
-                        int count = (int)std::floor(0.1 + double(bbox.height) / double(row_height));
+                        int count = (int)std::floor(0.1 + double(bbox.height) / double(expected_row_height));
                         int split_height = bbox.height / count;
                         for (int i=0; i < count; i++) {
                             cv::Rect bb(bbox.x, bbox.y+(i*split_height), bbox.width, split_height-2);
@@ -729,24 +765,14 @@ void Master::drawButton(widget::Widget* item) {
             }
         }
 
-        if (mTesseractApiForMarket) {
-            for (auto &r: detectedRows) {
-                cv::Mat rowImage(listImage, r);
-                mTesseractApiForMarket->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
-                char *outText = mTesseractApiForMarket->GetUTF8Text();
-                LOG(INFO) << "OCR Output: " << outText;
-                delete outText;
-            }
-        }
+        //cv::imshow("Contour image: " + mLastEDState.path(), debugImage);
 
-        //cv::imshow("Contour image: " + mLastEDState.path(), contourDebugImage);
-
-        //cv::waitKey();
-        //cv::destroyAllWindows();
+        cv::waitKey();
+        cv::destroyAllWindows();
     }
 }
 bool Master::debugButtons() {
-    detectEDState(DetectLevel::ListOcrAllRows);
+    detectEDState(DetectLevel::ListRows);
     const widget::Widget* widget = mLastEDState.widget;
     mLastEDState.cEnv.debugImage = colorED.clone();
     if (widget) {
@@ -798,56 +824,28 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     }
     rect -= captureRect.tl();
 
-    std::string text;
-    std::string name;
-    if (mTesseractApiForMarket) {
-        cv::Mat imgOcr(imgGray, rect);
-        mTesseractApiForMarket->SetImage(imgOcr.data, imgOcr.cols, imgOcr.rows, 1, imgOcr.step);
-        char* ocrText = mTesseractApiForMarket->GetUTF8Text();
-        text = trim(ocrText);
-        delete ocrText;
-        LOG(INFO) << "OCR text for selected rect " << rect << ": " << text;
-        std::transform(text.begin(), text.end(), text.begin(),[](unsigned char c){ return std::isspace(c) ? ' ' : c; });
-        Commodity* commodity = mConfiguration->getCommodityByName(text, true);
-        if (commodity) {
-            name = commodity->nameId;
-            if (mConfiguration->lng != EN)  // they capitalize text
-                text = commodity->name;
-        } else {
-            name.clear();
-            text.clear();
-        }
-    }
-
     cv::imwrite("debug-rect-gray.png", cv::Mat(imgGray, rect));
     cv::imwrite("debug-rect-color.png", cv::Mat(imgColor, rect));
-    if (!name.empty()) {
-        int histSize = 256;
-        float range[]{0, 256};
-        const float* histRange[]{range};
-        cv::Mat imgOcr(imgGray, rect);
-        //cv::Mat hist;
-        //cv::calcHist(&imgOcr, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
-        //int maxLoc[4]{};
-        //cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-        //int backgroundColor = maxLoc[0];
-        //cv::Mat imgThr;
-        //cv::threshold(imgOcr, imgThr, backgroundColor+1, 255, cv::THRESH_TOZERO_INV);
-        //cv::Mat imgNorm;
-        //cv::normalize(imgThr, imgNorm, backgroundColor+1, 255, cv::NORM_MINMAX); // cv::NORM_L1
 
-        std::string lng;
-        if (mConfiguration->lng == RU)
-            lng = "-rus";
-        else if (mConfiguration->lng == EN)
-            lng = "-eng";
-        else
-            lng = "-xxx";
-        cv::imwrite(name + lng + ".png", imgOcr);
-        std::ofstream wf(name+lng+".gt.txt", std::ios::trunc | std::ios::binary);
-        if (wf.is_open()) {
-            wf << text;
-            wf.close();
+    std::string text;
+    if (Master::ocrMarketText(imgGray, rect, text) > 30) {
+        Commodity *commodity = mConfiguration->getCommodityByName(text, true);
+        if (commodity) {
+            if (mConfiguration->lng != EN)  // they capitalize text
+                text = commodity->name;
+            std::string lng;
+            if (mConfiguration->lng == RU)
+                lng = "-rus";
+            else if (mConfiguration->lng == EN)
+                lng = "-eng";
+            else
+                lng = "-xxx";
+            cv::imwrite(commodity->nameId + lng + ".png", cv::Mat(imgGray, rect));
+            std::ofstream wf(commodity->nameId + lng + ".gt.txt", std::ios::trunc | std::ios::binary);
+            if (wf.is_open()) {
+                wf << text;
+                wf.close();
+            }
         }
     }
     return true;
@@ -856,7 +854,7 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
 double Master::detectButtonState(const widget::Widget* item) {
     if (!item)
         return 0;
-    cv::Rect r = item->calcRect(mLastEDState.cEnv);
+    cv::Rect r = mLastEDState.cEnv.calcReferenceRect(item->rect);
     if (r.empty())
         return 0;
     int x = r.x + r.width - 36;
@@ -881,32 +879,46 @@ double Master::detectButtonState(const widget::Widget* item) {
 void Master::detectListState(const widget::List* lst, DetectLevel level) {
     if (!lst)
         return;
-    cv::Rect rect = lst->calcRect(mLastEDState.cEnv);
+    cv::Rect rect =  mLastEDState.cEnv.calcCapturedRect(lst->rect);
     if (rect.empty())
         return;
 
-    unsigned buttonGrayColor = rgb2gray(luv2rgb(mConfiguration->mLstRowLuv[int(WState::Normal)]));
+    cv::Vec3b normColor = mConfiguration->mLstRowLuv[int(WState::Normal)];
+    if (normColor == cv::Vec3b::zeros())
+        normColor = mConfiguration->mButtonLuv[int(WState::Normal)];
+    if (normColor == cv::Vec3b::zeros())
+        normColor = cv::Vec3b(10,95,130);
+    unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
     cv::Mat grayImage(grayED, rect);
 
-    cv::Mat thresholdedImage;
-    cv::threshold(grayImage, thresholdedImage, buttonGrayColor * 0.75, 255, cv::THRESH_BINARY);
+    cv::Mat thrImage;
+    cv::threshold(grayImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
+    cv::Mat erodedImage;
+    if (USE_EROSION > 0) {
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+        cv::erode(thrImage, erodedImage, kernel, cv::Point(-1, -1), USE_EROSION, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+    } else {
+        erodedImage = thrImage;
+    }
+
+    auto expected_row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
+    double minArea =  rect.width * (expected_row_height-2*USE_EROSION) * 0.75;
 
     std::vector<cv::Rect> detectedRows;
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContoursLinkRuns(thresholdedImage, contours);
+    cv::findContoursLinkRuns(erodedImage, contours);
     for (const auto &contour: contours) {
         std::vector<cv::Point> convex;
         cv::convexHull(contour, convex);
         if (convex.size() >= 4) {
             std::vector<cv::Point> approx;
             cv::approxPolyN(convex, approx, 4, 5, true);
-            auto row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
-            if (cv::contourArea(approx) > rect.width * (row_height-2)) {
+            if (cv::contourArea(approx) > minArea) {
                 cv::Rect bbox = cv::boundingRect(approx);
-                if (bbox.height < row_height * 1.5) {
+                if (bbox.height < expected_row_height * 1.5) {
                     detectedRows.push_back(bbox);
                 } else {
-                    int count = (int)std::floor(0.1 + double(bbox.height) / double(row_height));
+                    int count = (int)std::floor(0.1 + double(bbox.height) / double(expected_row_height));
                     int split_height = bbox.height / count;
                     for (int i=0; i < count; i++) {
                         cv::Rect bb(bbox.x, bbox.y+(i*split_height), bbox.width, split_height-1);
@@ -917,34 +929,75 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         }
     }
 
+    //cv::waitKey();
+    //cv::destroyAllWindows();
+
     std::vector<ClassifyEnv::ResultListRow> rows;
 
     for (auto& r : detectedRows) {
         WState bs = WState::Disabled;
-        if (level >= DetectLevel::ListRowStates) {
-            int x = rect.x + r.x + r.width - 36;
-            int y = rect.y + r.y + r.height / 2 - 8;
-            mLstRowStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
-            mLstRowStateDetector->classify(mLastEDState.cEnv);
-            auto& values = mLstRowStateDetector->mLastValues;
-            int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
-            double value = values[idx];
-            if (value > 0.90)
-                bs = (WState)idx;
-        }
+        int x = rect.x + r.x + r.width - 36;
+        int y = rect.y + r.y + r.height / 2 - 8;
+        mLstRowStateDetector->mRect = mLastEDState.cEnv.cvtCapturedToReference(cv::Rect(cv::Point(x,y), cv::Size(16,16)));
+        mLstRowStateDetector->classify(mLastEDState.cEnv);
+        cv::Vec3b bgLuv = mLstRowStateDetector->mLastColor;
+        auto& values = mLstRowStateDetector->mLastValues;
+        int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
+        double value = values[idx];
+        if (value > 0.90)
+            bs = (WState)idx;
+
         std::string text;
-        if (mTesseractApiForMarket && (level >= DetectLevel::ListOcrAllRows || (bs == WState::Focused && level >= DetectLevel::ListOcrFocusedRow))) {
-            cv::Mat rowImage(grayImage, r);
-            mTesseractApiForMarket->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
-            char* ocrText = mTesseractApiForMarket->GetUTF8Text();
-            text = trim(ocrText);
-            delete ocrText;
-            LOG(INFO) << "OCR text: " << text;
+        if (mTesseractApiForMarket && bs == WState::Focused && level >= DetectLevel::ListOcrFocusedRow) {
+            ocrMarketText(grayImage, r, text);
         }
-        rows.emplace_back(r+rect.tl(), bs, text);
+        rows.emplace_back(r+rect.tl(), bs, text, bgLuv);
     }
 
     mLastEDState.cEnv.classifiedListRows[lst->name] = rows;
+}
+
+int Master::ocrMarketText(cv::Mat& grayImage, cv::Rect rect, std::string& text) {
+    text.clear();
+    if (!mTesseractApiForMarket)
+        return 0;
+    cv::Mat rowImage(grayImage, rect);
+    mTesseractApiForMarket->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
+    char *outText = mTesseractApiForMarket->GetUTF8Text();
+    text = trim(outText);
+    int outConf = mTesseractApiForMarket->MeanTextConf();
+    delete[] outText;
+    if (outConf > 30) {
+        LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "%";
+        return outConf;
+    }
+
+    // try hard - detect background, and if it's dark - threshold and invert the image
+    int histSize = 256;
+    float range[]{0, 256}; //the upper boundary is exclusive
+    const float* histRange[]{range};
+    cv::Mat hist;
+    cv::calcHist(&rowImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+    int maxLoc[4]{};
+    cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+    int background = maxLoc[0] + 5;
+    if (background > 127)
+        return 0;
+
+    cv::Mat invertedImage;
+    cv::bitwise_not(rowImage, invertedImage);
+    cv::Mat thrImage;
+    cv::threshold(invertedImage, thrImage, 255 - background, 255, cv::THRESH_BINARY);
+    mTesseractApiForMarket->SetImage(thrImage.data, thrImage.cols, thrImage.rows, 1, thrImage.step);
+    outText = mTesseractApiForMarket->GetUTF8Text();
+    text = trim(outText);
+    outConf = mTesseractApiForMarket->MeanTextConf();
+    delete[] outText;
+    if (outConf > 30) {
+        LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "% (retried with negative)";
+        return outConf;
+    }
+    return 0;
 }
 
 Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel level) {
@@ -976,12 +1029,14 @@ Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel
 }
 const UIState& Master::detectEDState(DetectLevel level) {
     mLastEDState.clear();
+    if (level == DetectLevel::None)
+        return mLastEDState;
     // make screenshot
     if (!captureWindow(mCaptureRect, colorED, grayED)) {
         LOG(ERROR) << "Cannot capture screen";
         return mLastEDState;
     }
-    mLastEDState.cEnv.init(mCaptureRect, colorED, grayED);
+    mLastEDState.cEnv.init(mMonitorRect, mCaptureRect, colorED, grayED);
 
     // detect screen and widget
     for (auto& screen : mScreensRoot->have) {
@@ -998,17 +1053,19 @@ const UIState& Master::detectEDState(DetectLevel level) {
         return mLastEDState;
     }
 
-    if (mButtonStateDetector) {
-        // detect focused button
-        const Widget *focused = detectAllButtonsStates(mLastEDState.widget, level);
-        if (focused) {
-            mLastEDState.focused = focused;
-            LOG(DEBUG) << "Detected focused button: " << focused->name;
+    if (level >= DetectLevel::Buttons) {
+        if (mButtonStateDetector) {
+            // detect focused button
+            const Widget *focused = detectAllButtonsStates(mLastEDState.widget, level);
+            if (focused) {
+                mLastEDState.focused = focused;
+                LOG(DEBUG) << "Detected focused button: " << focused->name;
+            } else {
+                LOG(DEBUG) << "Focused button not detected";
+            }
         } else {
-            LOG(DEBUG) << "Focused button not detected";
+            LOG(ERROR) << "Colors not calibrated, cannot detect focused widget";
         }
-    } else {
-        LOG(DEBUG) << "Colors not calibrated, cannot detect focused widget";
     }
 
     LOG(INFO) << "Detected UI state: " << mLastEDState;
@@ -1083,6 +1140,8 @@ bool Master::captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& gr
     if (!capturer->captureDisplay())
         return false;
     captureRect = capturer->getCaptureRect();
+    if (&colorImg == &colorED)
+        mMonitorRect = capturer->getMonitorVirtualRect();
     colorImg = capturer->getColorImage();
     //cv::imwrite("captured-window-color.png", colorImg);
     grayImg = capturer->getGrayImage();

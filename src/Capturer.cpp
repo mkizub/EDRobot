@@ -208,6 +208,13 @@ cv::Rect Capturer::getCaptureRect() {
     return cv::Rect(lt, rb);
 }
 
+cv::Rect Capturer::getMonitorVirtualRect() {
+    cv::Point lt {monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top};
+    cv::Point rb {monitorInfo.rcMonitor.right, monitorInfo.rcMonitor.bottom};
+    return cv::Rect(lt, rb);
+}
+
+
 bool Capturer::captureDisplay() {
     if (!hdcMem)
         initBuffers();

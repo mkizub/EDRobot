@@ -29,7 +29,6 @@ static bool dlgResult;
 static int sellTotal;
 static int sellChunk;
 static std::string sellCargo;
-static const Cargo* shipCargo;
 static std::wstring sellCargoAll;
 static std::wstring popupTitle;
 static std::wstring popupText;
@@ -154,14 +153,12 @@ bool showCalibrationDialog(const std::string& line1) {
 }
 
 
-bool askSellInput(int &total, int &chunk, std::string& commodity, const Cargo& cargo) {
+bool askSellInput(int &total, int &chunk, std::string& commodity) {
     sellTotal = total;
     sellChunk = chunk;
     sellCargo = commodity;
-    shipCargo = &cargo;
     HINSTANCE hInstance = GetModuleHandle(nullptr);
     DialogBoxW(hInstance, MAKEINTRESOURCE(IDD_SELLBOX), nullptr, SellProc);
-    shipCargo = nullptr;
     if (dlgResult) {
         total = sellTotal;
         chunk = sellChunk;
@@ -299,12 +296,13 @@ INT_PTR CALLBACK SellProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         sellCargoAll = str;
         std::wstring select = str;
         int err = SendMessage(hItems, CB_ADDSTRING, 0L, (LPARAM)str.c_str());
+        auto shipCargo = Master::getInstance().getConfiguration()->getCurrentCargo();
         if (shipCargo) {
             sellTotal = shipCargo->count;
             for (auto& c : shipCargo->inventory) {
-                str = c->commodity.wide;
+                str = c->wide;
                 SendMessage(hItems, CB_ADDSTRING, 0L, (LPARAM)str.c_str());
-                if (c->commodity.name == sellCargo) {
+                if (c->name == sellCargo) {
                     select = str;
                     sellTotal = shipCargo->count;
                 }
@@ -348,10 +346,11 @@ INT_PTR CALLBACK SellProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             sellTotal = GetDlgItemInt(hDlg, IDC_EDIT_TOTAL, &translated, FALSE);
             sellChunk = GetDlgItemInt(hDlg, IDC_EDIT_ITEMS, &translated, FALSE);
             int index = SendDlgItemMessage(hDlg, IDC_COMBO_ITEMS, CB_GETCURSEL, 0L, 0L);
+            auto shipCargo = Master::getInstance().getConfiguration()->getCurrentCargo();
             if (index <= 0 || !shipCargo || index > shipCargo->inventory.size()) {
                 sellCargo = "";
             } else {
-                sellCargo = shipCargo->inventory[index-1]->commodity.name;
+                sellCargo = shipCargo->inventory[index-1]->name;
             }
             if (LOWORD(wParam) == IDOK) {
                 dlgResult = true;

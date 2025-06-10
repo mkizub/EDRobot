@@ -364,6 +364,8 @@ bool sendMouseMoveTo(int x, int y, bool absolute, bool virtualDesk) {
         if (virtualDesk) {
             // see https://stackoverflow.com/questions/62759122/calculate-normalized-coordinates-for-sendinput-in-a-multi-monitor-environment
             flags |= MOUSEEVENTF_VIRTUALDESK;
+            x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
+            y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
             x = MulDiv(x, 65536, GetSystemMetrics(SM_CXVIRTUALSCREEN));
             y = MulDiv(y, 65536, GetSystemMetrics(SM_CYVIRTUALSCREEN));
         } else {

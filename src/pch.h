@@ -28,6 +28,7 @@
 
 #define ELPP_PERFORMANCE_MICROSECONDS
 #define ELPP_STL_LOGGING
+//#define ELPP_THREAD_SAFE
 // #define ELPP_FEATURE_CRASH_LOG -- Stack trace not available for MinGW GCC
 #define ELPP_LOG_STD_ARRAY
 #define ELPP_LOG_UNORDERED_MAP
@@ -47,6 +48,8 @@ std::string std_format(std::string_view rt_fmt_str, Args&&... args) {
     return std::vformat(rt_fmt_str, std::make_format_args(args...));
 }
 
+#include <magic_enum/magic_enum.hpp>
+using namespace magic_enum;
 
 #include "Utils.h"
 #include "Configuration.h"
