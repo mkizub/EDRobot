@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include "UI.h"
+#include "ui/UIManager.h"
 #include "Configuration.h"
 
 INITIALIZE_EASYLOGGINGPP
@@ -32,8 +33,9 @@ int main(int argc, char *argv[]) {
         Configuration* cfg = master.getConfiguration();
         std::string msg1 = std_format(_("Press '{}' key to start selling"), cfg->getShortcutFor(Command::Start));
         std::string msg2 = std_format(_("Press '{}' to stop"), cfg->getShortcutFor(Command::Stop));
-        UI::showStartupDialog(msg1, msg2);
-        //UI::showToast(gettext(L"EDRobot"), _(L"xxx"));
+        std::string msg = msg1 + "\n\n" + msg2;
+        UIManager::getInstance().showStartupDialog(msg);
+        //UI::showToast(gettext("EDRobot"), _("xxx"));
         Master::getInstance().loop();
     }
     UI::shutdownUI();

@@ -11,7 +11,6 @@ set(OpenCV_ROOT "${VCPKG_INSTALLED_DIR}/x64-windows/share/opencv4")
 find_package(OpenCV REQUIRED)
 
 find_package(Tesseract CONFIG REQUIRED)
-find_package(rapidfuzz CONFIG REQUIRED)
 
 #find_package(Gettext REQUIRED)
 find_library(GETTEXT_LIBRARIES intl iconv)
@@ -44,7 +43,6 @@ add_executable(EDRobot
         src/Task.h
         src/Template.cpp
         src/Template.h
-        src/UI.cpp
         src/UI.h
         src/Utils.cpp
         src/Utils.h
@@ -57,11 +55,25 @@ add_executable(EDRobot
         thirdparty/dirlistener/ReadDirectoryChangesPrivate.h
         thirdparty/dirlistener/ThreadSafeQueue.h
         thirdparty/CLI11/CLI11.hpp
-        thirdparty/FuzzyMatcher/FuzzyMatcher.cpp
-        thirdparty/FuzzyMatcher/FuzzyMatcher.h
-        #thirdparty/wintoast/wintoastlib.cpp
-        #thirdparty/wintoast/wintoastlib.h
         thirdparty/xml/xml.h
+        src/FuzzyMatch.cpp
+        src/FuzzyMatch.h
+        src/ui/UIToast.cpp
+        src/ui/UIToast.h
+        src/ui/UIManager.cpp
+        src/ui/UIManager.h
+        src/ui/UIStartupDialog.cpp
+        src/ui/UIStartupDialog.h
+        src/ui/UISellInput.cpp
+        src/ui/UISellInput.h
+        src/ui/UICalibration.cpp
+        src/ui/UICalibration.h
+        src/ui/UISelectRect.cpp
+        src/ui/UISelectRect.h
+        src/ui/UIDialog.cpp
+        src/ui/UIDialog.h
+        src/ui/UIWindow.cpp
+        src/ui/UIWindow.h
 )
 #target_precompile_headers(EDRobot PUBLIC pch.h)
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
@@ -69,7 +81,7 @@ target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/i
 target_include_directories(EDRobot PRIVATE thirdparty)
 #target_include_directories(EDRobot PRIVATE ${GETTEXT_INCLUDE_DIR})
 target_link_libraries(EDRobot ${GETTEXT_LIBRARIES})
-target_link_libraries(EDRobot ${OpenCV_LIBS} rapidfuzz::rapidfuzz Tesseract::libtesseract winmm shcore) # cpptrace::cpptrace msimg32
+target_link_libraries(EDRobot ${OpenCV_LIBS} Tesseract::libtesseract winmm shcore) # cpptrace::cpptrace msimg32
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot cpptrace::cpptrace)
 endif()

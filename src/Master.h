@@ -56,6 +56,10 @@ struct UIState {
 
 class Master {
 public:
+    static const wchar_t ED_WINDOW_NAME[];
+    static const wchar_t ED_WINDOW_CLASS[];
+    static const wchar_t ED_WINDOW_EXE[];
+
     static Master& getInstance();
 
     int initialize(int argc, char* argv[]);
@@ -141,6 +145,8 @@ private:
 
     std::thread currentTaskThread;
     std::unique_ptr<Task> currentTask;
+
+    int mSellChunk {1};
 };
 
 

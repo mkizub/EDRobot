@@ -8,6 +8,7 @@
 #include "Keyboard.h"
 #include "Template.h"
 #include "UI.h"
+#include "FuzzyMatch.h"
 #include <synchapi.h>
 
 void Task::preciseSleep(double seconds)const {
@@ -765,6 +766,7 @@ bool TaskSell::run() {
     }
     taskActions = master.getTaskActions("TaskSell");
     try {
+        FuzzyMatch matcher;
         for (int sellAllItems=0; sellAllItems < 20; sellAllItems++) {
             int sellItems = 0;
             Commodity* currCommodity = mCommodity;
@@ -784,7 +786,7 @@ bool TaskSell::run() {
                 sellItems = master.canSell(currCommodity);
             }
             sellItems = std::min(mTotal, sellItems);
-            if (!sellItems) {
+            if (sellItems <= 0) {
                 notifyProgress(_("Sold everything we can"));
                 done = true;
                 return true;
@@ -807,13 +809,18 @@ bool TaskSell::run() {
                         return false;
                     }
                     const ClassifyEnv::ResultListRow* focusedRow = nullptr;
+                    const Commodity* focusedCommodity = nullptr;
                     for (auto &r: it->second) {
+                        const Commodity* rowCommodity = master.getConfiguration()->getCommodityByName(r.text, true);
                         if (r.bs == WState::Focused) {
                             focusedRow = &r;
-                            LOG(INFO) << "Focused row text: " << focusedRow->text;
+                            LOG(INFO) << "Focused row text: " << toUtf8(focusedRow->text);
+                            focusedCommodity = rowCommodity;
+                            if (focusedCommodity)
+                                LOG(INFO) << "Focused commodity: " << focusedCommodity->name;
                         }
-                        if (r.text == currCommodity->name) {
-                            LOG(INFO) << "Row with text '" << r.text << "' found";
+                        if (rowCommodity == currCommodity) {
+                            LOG(INFO) << "Row with required commodity found";
                             if (r.bs == WState::Focused) {
                                 LOG(INFO) << "Pressing 'space'";
                                 sendKey("space", 0, 500);
@@ -836,7 +843,6 @@ bool TaskSell::run() {
                             sendMouseMove({0, 10}, 25, false);
                         continue;
                     }
-                    Commodity* focusedCommodity = master.getConfiguration()->getCommodityByName(focusedRow->text, true);
                     if (!focusedCommodity) {
                         notifyError(_("Cannot detect commodities in 'lst-goods', aborting"));
                         done = true;

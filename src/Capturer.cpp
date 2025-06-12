@@ -76,7 +76,7 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
                     }
                 } else {
                     c->captureHwnd = nullptr;
-                    c->captureRect = {0, 0, c->screenWidth, c->screenHeight};
+                    c->captureRect = c->monitorInfo.rcMonitor;
                 }
                 return c.get();
             }
@@ -203,8 +203,8 @@ cv::Mat Capturer::getGrayImage() {
 }
 
 cv::Rect Capturer::getCaptureRect() {
-    cv::Point lt {captureRect.left, captureRect.top};
-    cv::Point rb {captureRect.right, captureRect.bottom};
+    cv::Point lt {captureRect.left - monitorInfo.rcMonitor.left, captureRect.top - monitorInfo.rcMonitor.top};
+    cv::Point rb {captureRect.right - monitorInfo.rcMonitor.left, captureRect.bottom - monitorInfo.rcMonitor.top};
     return cv::Rect(lt, rb);
 }
 

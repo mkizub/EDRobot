@@ -66,12 +66,12 @@ public:
     };
     struct ResultListRow {
         ResultListRow() = default;
-        ResultListRow(cv::Rect detRect, WState bs, std::string text, cv::Vec3d bg)
+        ResultListRow(cv::Rect detRect, WState bs, std::wstring text, cv::Vec3d bg)
                 : detectedRect(detRect), bs(bs), text(std::move(text)), bgLuv(bg)
         {}
         cv::Rect detectedRect;  // detected rect in reference coordinates
         WState bs; // detected state
-        std::string text;
+        std::wstring text;
         cv::Vec3d bgLuv;
     };
     // a set of named detected rects

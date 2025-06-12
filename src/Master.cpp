@@ -48,9 +48,9 @@
 #endif
 
 
-const wchar_t ED_WINDOW_NAME[] = L"Elite - Dangerous (CLIENT)";
-const wchar_t ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
-const wchar_t ED_WINDOW_EXE[] = L"EliteDangerous64.exe";
+const wchar_t Master::ED_WINDOW_NAME[] = L"Elite - Dangerous (CLIENT)";
+const wchar_t Master::ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
+const wchar_t Master::ED_WINDOW_EXE[] = L"EliteDangerous64.exe";
 
 using namespace widget;
 
@@ -250,6 +250,14 @@ Master::Master() {
 Master::~Master() {
     keyboard::stop();
     stopTrade();
+    if (mTesseractApiForMarket) {
+        mTesseractApiForMarket->End();
+        mTesseractApiForMarket.reset();
+    }
+    if (mTesseractApiForDigits) {
+        mTesseractApiForDigits->End();
+        mTesseractApiForDigits.reset();
+    }
 }
 
 
@@ -400,8 +408,11 @@ bool Master::preInitTask(bool checkCalibration) {
     if (!ok)
         return false;
     if (checkCalibration && mConfiguration->checkNeedColorCalibration()) {
-        UI::showCalibrationDialog(_("Color calibration required"));
-        return false;
+        bool agree = UIManager::getInstance().askCalibrationDialog(_("Color calibration required"));
+        if (agree) {
+            pushCommand(Command::Calibrate);
+            return false;
+        }
     }
 
     Sleep(200); // wait for dialog to dissappear
@@ -462,38 +473,40 @@ bool Master::startTrade() {
         return false;
     }
 
-    spShipCargo shipCargo = mConfiguration->getCurrentCargo();
-    if (!shipCargo || shipCargo->count <= 0) {
-        UI::showToast(_("Cannot sell"), _("Ship cargo empty"));
-        return false;
-    }
 
-    std::string cargo_name;
-    detectEDState(DetectLevel::ListOcrFocusedRow);
-    if (isEDStateMatch("scr-market:mod-sell")) {
-        auto row = getFocusedRow("lst-goods");
-        if (row) {
-            Commodity* c = mConfiguration->getCommodityByName(row->text, true);
-            if (c)
-                cargo_name = c->name;
-        }
-    }
+//    std::string cargo_name;
+//    detectEDState(DetectLevel::ListOcrFocusedRow);
+//    if (isEDStateMatch("scr-market:mod-sell")) {
+//        auto row = getFocusedRow("lst-goods");
+//        if (row) {
+//            Commodity* c = mConfiguration->getCommodityByName(row->text, true);
+//            if (c)
+//                cargo_name = c->name;
+//        }
+//    }
 
     int total = 0;
-    int chunk = 1;
-    bool res = UI::askSellInput(total, chunk, cargo_name);
+    int chunk = mSellChunk;
+    Commodity* commodity = nullptr;
+    bool res = UI::askSellInput(total, chunk, commodity);
     if (!res || total <= 0 || chunk <= 0)
         return false;
+    mSellChunk = chunk;
+
+//    spShipCargo shipCargo = mConfiguration->getCurrentCargo();
+//    if (!shipCargo || shipCargo->count <= 0) {
+//        UI::showToast(_("Cannot sell"), _("Ship cargo empty"));
+//        return false;
+//    }
 
     if (!preInitTask())
         return false;
 
-    Commodity* commodity = nullptr;
-    if (!cargo_name.empty()) {
-        commodity = mConfiguration->getCommodityByName(cargo_name, false);
-        LOG(INFO) << "Internal error, cannot find cargo for: " << cargo_name;
-        return false;
-    }
+//    if (!cargo_name.empty()) {
+//        commodity = mConfiguration->getCommodityByName(cargo_name, false);
+//        LOG(INFO) << "Internal error, cannot find cargo for: " << cargo_name;
+//        return false;
+//    }
     LOG(INFO) << "Staring new trade task";
     currentTask = std::make_unique<TaskSell>(commodity, total, chunk);
     currentTaskThread = std::thread(Master::runCurrentTask);
@@ -929,9 +942,6 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         }
     }
 
-    //cv::waitKey();
-    //cv::destroyAllWindows();
-
     std::vector<ClassifyEnv::ResultListRow> rows;
 
     for (auto& r : detectedRows) {
@@ -951,7 +961,7 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         if (mTesseractApiForMarket && bs == WState::Focused && level >= DetectLevel::ListOcrFocusedRow) {
             ocrMarketText(grayImage, r, text);
         }
-        rows.emplace_back(r+rect.tl(), bs, text, bgLuv);
+        rows.emplace_back(r+rect.tl(), bs, toUtf16(text), bgLuv);
     }
 
     mLastEDState.cEnv.classifiedListRows[lst->name] = rows;

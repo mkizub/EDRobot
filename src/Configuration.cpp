@@ -5,9 +5,8 @@
 #include "pch.h"
 #include "Configuration.h"
 #include "Keyboard.h"
+#include "FuzzyMatch.h"
 #include <dirlistener/ReadDirectoryChanges.h>
-//#include <FuzzyMatcher/FuzzyMatcher.h>
-#include <rapidfuzz/fuzz.hpp>
 
 #define XML_H_IMPLEMENTATION
 #include <xml/xml.h>
@@ -28,6 +27,8 @@ Configuration::~Configuration() {
     if (hShutdownChangDirListenerEvent) {
         SetEvent(hShutdownChangDirListenerEvent);
         CloseHandle(hShutdownChangDirListenerEvent);
+        if (changeDirThread.joinable())
+            changeDirThread.join();
     }
 }
 
@@ -449,6 +450,8 @@ CommodityCategory* Configuration::getCommodityCategoryByName(const std::string& 
 }
 
 Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy) {
+    if (name.empty())
+        return nullptr;
     auto it = commodityMap.find(name);
     if (it != commodityMap.end())
         return it->second;
@@ -458,12 +461,23 @@ Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy
     }
     if (!fuzzy)
         return nullptr;
+    return getCommodityByName(toUtf16(name), true);
+}
+Commodity* Configuration::getCommodityByName(const std::wstring& name, bool fuzzy) {
+    if (name.empty())
+        return nullptr;
+    for (auto& c : allKnownCommodities) {
+        if (name == c.wide)
+            return &c;
+    }
+    if (!fuzzy)
+        return nullptr;
 
     double bestScore = -1;
     int bestScoreIndex = -1;
-    std::wstring nameW = trimWithPunktuation(toUtf16(name));
+    FuzzyMatch matcher;
     for (int i=0; i < allKnownCommodities.size(); i++) {
-        double score = rapidfuzz::fuzz::ratio(nameW, allKnownCommodities[i].wide);
+        double score = matcher.ratio(name, allKnownCommodities[i].wide);
         if (score > bestScore) {
             bestScore = score;
             bestScoreIndex = i;

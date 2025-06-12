@@ -7,17 +7,17 @@
 #ifndef EDROBOT_UI_H
 #define EDROBOT_UI_H
 
+#include "ui/UIManager.h"
 
 namespace UI {
 
-bool initializeUI();
-void shutdownUI();
-bool showToast(const std::string& title, const std::string& text);
-bool showStartupDialog(const std::string& line1, const std::string& line2);
-bool showCalibrationDialog(const std::string& line1);
-bool askSellInput(int& total, int& chunk, std::string& commodity);
-bool askSelectRectWindow();
-
+inline bool initializeUI() { return UIManager::getInstance().initialize(); }
+inline void shutdownUI() { UIManager::getInstance().shutdown(); }
+inline bool showToast(const std::string& title, const std::string& text) { return UIManager::getInstance().showToast(title, text); }
+inline bool showStartupDialog(const std::string& text) { return UIManager::getInstance().showStartupDialog(text); }
+inline bool showCalibrationDialog(const std::string& text) { return UIManager::getInstance().askCalibrationDialog(text); }
+inline bool askSellInput(int& total, int& chunk, Commodity*& commodity) { return UIManager::getInstance().askSellInput(total, chunk, commodity); }
+inline bool askSelectRectWindow() { return UIManager::getInstance().askSelectRectWindow(); }
 
 }
 

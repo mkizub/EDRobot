@@ -445,7 +445,8 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             //LOG(DEBUG) << "intercepted key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
         } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
             auto vkCode = pKeyBoard->vkCode;
-            if (INTERCEPT_VK_KEY_SET.contains(vkCode)) {
+            auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
+            if (!isInjected && INTERCEPT_VK_KEY_SET.contains(vkCode)) {
                 //LOG(DEBUG) << "intercepted key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
                 int flags = 0;
                 if (GetKeyState(VK_SHIFT) & 0x8000) flags |= SHIFT;
