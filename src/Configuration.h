@@ -13,7 +13,7 @@
 
 enum class Command;
 
-enum class WState : int { Normal, Focused, Active, Disabled };
+enum class WState : int { Unknown=-1, Normal=0, Focused=1, Active=2, Disabled=3 };
 
 enum Lang { XX=-1, EN=0, RU=1 };
 

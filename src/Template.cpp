@@ -37,7 +37,7 @@ void ClassifyEnv::clear() {
     needScaling_ = false;
     scaleToCaptured_ = 1;
     captureCenter = ReferenceScreenCenter;
-    classifiedRects.clear();
+    classified.clear();
 }
 
 cv::Point ClassifyEnv::cvtReferenceToDesktop(const cv::Point& point) const {
@@ -104,11 +104,11 @@ double SequenceTemplate::match(ClassifyEnv& env) {
 }
 
 double SequenceTemplate::classify(ClassifyEnv& env) {
-    const auto sz = env.classifiedRects.size();
+    const auto sz = env.classified.size();
     double result = match(env);
     if (result < 0.96) {
-        while (sz < env.classifiedRects.size())
-            env.classifiedRects.pop_back();
+        while (sz < env.classified.size())
+            env.classified.pop_back();
     }
     return result;
 }
@@ -307,7 +307,8 @@ double ImageTemplate::match(ClassifyEnv& env) {
     LOG(DEBUG) << "match result: " << std::setprecision(3) << maxVal << " for " << filename;
     if (!name.empty() && maxVal >= threshold_min) {
         matchedCaptureOffset = maxLoc - (captureRect.tl() - matchRect.tl());
-        env.classifiedRects.emplace_back(maxVal, name, referenceRect, referenceRect + env.scaleToReference(matchedCaptureOffset));
+        env.classified.emplace_back(ClsDetType::TemplateDetected, name, referenceRect + env.scaleToReference(matchedCaptureOffset));
+        env.classified.back().u.templ.referenceRect = referenceRect;
     }
     return maxVal;
 }

@@ -20,6 +20,7 @@ private:
     UISelectRect();
 
     bool createWindow() final;
+    void windowCreated() final;
 
     void onPaint() final;
     INT_PTR onMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) final;

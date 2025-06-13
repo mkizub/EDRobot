@@ -21,27 +21,30 @@
               {
                 name: 'mod-less',
                 detect: [
-                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[700, 170], ext: [0,20] },
+                  // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
+                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[700, 170], ext: [0,20], name: "sdtl" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[700, 714], ext: [0,30,10], name: "sdil" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [714,"848+sdil.oy",241,38] },
+                  { name: 'btn-exit', action: 'close', rect: [714,"848+sdil.oy",242,38] },
                   { name: 'btn-more', action: 'mod-more', rect: [965,"848+sdil.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [714,"575+sdil.oy",490,60] },
                   { name: 'spn-amount', rect: [715,"348+sdil.oy",490,61] },
+                  { name: 'lbl-commodity', rect: [777,"298+sdtl.oy",428,"43-sdtl.oy+sdil.oy"], invert: true, row: 41}
                 ]
               },
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[500, 170], ext: [0,20] },
+                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[500, 170], ext: [0,20], name: "sdtm" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[500, 714], ext: [0,30,10], name: "sdim" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [509,"848+sdim.oy",241,38] },
-                  { name: 'btn-more', action: 'mod-less', rect: [762,"848+sdim.oy",240,38] },
+                  { name: 'btn-exit', action: 'close', rect: [509,"848+sdim.oy",242,38] },
+                  { name: 'btn-more', action: 'mod-less', rect: [762,"848+sdim.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"575+sdim.oy",490,60] },
                   { name: 'spn-amount', rect: [510,"349+sdim.oy",493,59] },
+                  { name: 'lbl-commodity', rect: [573,"298+sdtm.oy",430,"43-sdtm.oy+sdim.oy"], invert: true, row: 41 },
                   { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"809+sdim.oy",382,76] },
                   { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,350,"482+sdim.oy"], row: 44, gap: 2, ocr: false }
                 ]
@@ -62,28 +65,31 @@
               {
                 name: 'mod-less',
                 detect: [
-                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[700, 172], ext: [0,20] },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[707, 701], ext: [0,30], name: "bdil" }
+                  // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
+                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[704, 185], ext: [0,20], name: "bdtl" },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[707, 701], ext: [0,30,10], name: "bdil" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [712,"831+bdil.oy",244,41] },
-                  { name: 'btn-more', action: 'mod-more', rect: [964,"831+bdil.oy",244,41] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [712,"560+bdil.oy",496,64] },
-                  { name: 'spn-amount', rect: [712,"360+bdil.oy",496,64]},
+                  { name: 'btn-exit', action: 'close', rect: [712,"832+bdil.oy",242,38] },
+                  { name: 'btn-more', action: 'mod-more', rect: [964,"832+bdil.oy",242,38] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [712,"560+bdil.oy",490,60] },
+                  { name: 'spn-amount', rect: [712,"360+bdil.oy",496,60]},
+                  { name: 'lbl-commodity', rect: [778,"310+bdtl.oy",432,"43-bdtl.oy+bdil.oy"], invert: true, row: 41 }
                 ]
               },
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[500, 172], ext: [0,20] },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[505, 710], ext: [0,30], name: "bdim" }
+                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[501, 185], ext: [0,20], name: "bdtm" },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[504, 701], ext: [0,30,10], name: "bdim" }
                 ],
                 have: [
-                  { name: 'btn-exit', action: 'close', rect: [509,"842+bdim.oy",244,38] },
-                  { name: 'btn-more', action: 'mod-less', rect: [761,"842+bdim.oy",244,38] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [508,"568+bdim.oy",496,64] },
-                  { name: 'spn-amount', rect: [510,"371+bdim.oy",494,62] },
-                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1027,"804+bdim.oy",384,76] },
+                  { name: 'btn-exit', action: 'close', rect: [509,"832+bdim.oy",242,38] },
+                  { name: 'btn-more', action: 'mod-less', rect: [761,"832+bdim.oy",242,38] },
+                  { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"560+bdim.oy",490,60] },
+                  { name: 'spn-amount', rect: [510,"360+bdim.oy",494,62] },
+                  { name: 'lbl-commodity', rect: [573,"310+bdtm.oy",432,"43-bdtm.oy+bdim.oy"], invert: true, row: 41 },
+                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"796+bdim.oy",382,76] },
                   { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,310,350,"486+bdim.oy"], row: 44, gap: 2, ocr: false }
                 ]
               }

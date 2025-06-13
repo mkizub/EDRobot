@@ -9,6 +9,7 @@
 #include "Task.h"
 #include "Template.h"
 #include "Capturer.h"
+#include "FuzzyMatch.h"
 #include <memory>
 #include <fstream>
 #include <string>
@@ -293,6 +294,9 @@ void Master::loop() {
             case Command::DebugButtons:
                 debugButtons();
                 break;
+            case Command::DebugFindAllCommodities:
+                debugFindAllCommodities();
+                break;
             case Command::DevRectScreenshot:
                 debugRectScreenshot(cmd);
                 break;
@@ -435,20 +439,65 @@ bool Master::startCalibration() {
 }
 
 
-const ClassifyEnv::ResultListRow* Master::getFocusedRow(const std::string& lst_name) {
-    auto it_rows = mLastEDState.cEnv.classifiedListRows.find(lst_name);
-    if (it_rows == mLastEDState.cEnv.classifiedListRows.end()) {
-        LOG(ERROR) << "Rows in list are not detected";
+const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
+    Widget* widget = getCfgItem(lbl_name);
+    if (!widget) {
+        LOG(ERROR) << "Widget '" << lbl_name << "' not found";
         return nullptr;
     }
-    auto &classified_rows = it_rows->second;
-    if (classified_rows.empty()) {
-        LOG(ERROR) << "Rows in list are not detected";
+    if (widget->tp != WidgetType::Label) {
+        LOG(ERROR) << "Widget '" << lbl_name << "' is not a label";
         return nullptr;
     }
-    for (auto &row: classified_rows) {
-        if (row.bs == WState::Focused)
-            return &row;
+    Label* lbl = (Label*)widget;
+    ClassifiedRect* cr = nullptr;
+    for (auto& it : mLastEDState.cEnv.classified) {
+        if (it.cdt == ClsDetType::Widget && it.u.widg.widget == widget) {
+            cr = &it;
+            break;
+        }
+    }
+    if (!cr) {
+        LOG(ERROR) << "Label '" << lbl_name << "' was not detected on screen";
+        return nullptr;
+    }
+
+    cv::Rect rect = mLastEDState.cEnv.cvtReferenceToCaptured(cr->detectedRect);
+
+    std::string text;
+    int ocr_conf = 0;
+    if (!lbl->row_height.has_value() || lbl->row_height.value() <= 0) {
+        ocr_conf = ocrMarketText(grayED, rect, text, lbl->invert);
+    } else {
+        int row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
+        int lines = (int)std::round(double(rect.height) / double(row_height));
+        row_height = (int)std::round(rect.height / lines);
+        int ocr_conf_sum = 0;
+        for (int l=0; l < lines; l++) {
+            cv::Rect r (rect.x, rect.y+l*row_height, rect.width, row_height);
+            std::string line;
+            ocr_conf_sum += ocrMarketText(grayED, r, line, lbl->invert);
+            if (l > 0)
+                text += " ";
+            text += line;
+        }
+        ocr_conf = ocr_conf_sum / lines;
+    }
+    const Commodity* commodity = nullptr;
+    if (ocr_conf > 30) {
+        LOG(DEBUG) << "Label text OCR: '" << text << "' conf=" << ocr_conf << "%";
+        commodity = mConfiguration->getCommodityByName(text, true);
+    }
+    LOG_IF(!commodity,ERROR) << "Commodity '" << text << "' not found";
+    return commodity;
+}
+
+const ClassifiedRect* Master::getFocusedRow(const std::string& lst_name) {
+    for (auto& it : mLastEDState.cEnv.classified) {
+        if (it.cdt != ClsDetType::ListRow)
+            continue;
+        if (it.u.lrow.ws == WState::Focused && it.u.lrow.list && it.u.lrow.list->name == lst_name)
+            return &it;
     }
     return nullptr;
 }
@@ -467,11 +516,126 @@ int Master::canSell(Commodity* commodity) const {
     return commodity->ship.count - commodity->ship.stolen;
 }
 
-bool Master::startTrade() {
-    if (!mConfiguration->loadMarket()) {
-        UI::showToast(_("Cannot sell"), _("Cannot load market"));
-        return false;
+const Commodity* Master::ocrMarketRowCommodity(ClassifiedRect* cr) {
+    if (cr->cdt != ClsDetType::ListRow)
+        return nullptr;
+    if (cr->u.lrow.commodity)
+        return cr->u.lrow.commodity;
+    if (cr->text.empty()) {
+        cv::Rect rect = mLastEDState.cEnv.cvtReferenceToCaptured(cr->detectedRect);
+        if (ocrMarketText(grayED, rect, cr->text) > 30) {
+            cr->u.lrow.commodity = mConfiguration->getCommodityByName(cr->text, true);
+        } else {
+            cr->text.clear();
+        }
+    } else {
+        cr->u.lrow.commodity = mConfiguration->getCommodityByName(cr->text, true);
     }
+    return cr->u.lrow.commodity;
+}
+
+bool Master::approximateSellListCommodities(const std::string& lst_name, std::vector<CommodityMatch>* verify) {
+    std::vector<ClassifiedRect*> rows;
+    for (auto& cr : mLastEDState.cEnv.classified) {
+        if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != lst_name)
+            continue;
+        rows.push_back(&cr);
+    }
+    if (rows.empty())
+        return false;
+    ClassifiedRect* first = nullptr;
+    ClassifiedRect* last = nullptr;
+    for (auto lr : rows) {
+        if (lr->u.lrow.commodity == nullptr && !lr->text.empty())
+            lr->u.lrow.commodity = mConfiguration->getCommodityByName(lr->text, true);
+        if (lr->u.lrow.commodity && !first)
+            first = lr;
+        if (lr->u.lrow.commodity)
+            last = lr;
+    }
+    for (auto lr : rows) {
+        if (lr->u.lrow.commodity == nullptr && !lr->text.empty())
+            lr->u.lrow.commodity = mConfiguration->getCommodityByName(lr->text, true);
+    }
+    if (!first) {
+        for (auto lr: rows) {
+            if (ocrMarketRowCommodity(lr)) {
+                first = lr;
+                break;
+            }
+        }
+    }
+    if (!last) {
+        for (auto lr : rows | std::views::reverse) {
+            if (ocrMarketRowCommodity(lr)) {
+                last = lr;
+                break;
+            }
+        }
+    }
+    std::vector<Commodity*> sellTable = mConfiguration->getMarketInSellOrder();
+    if (!first || !last)
+        return false;
+    {
+        auto it_table = std::find_if(sellTable.begin(), sellTable.end(), [first](Commodity* c) { return c == first->u.lrow.commodity; });
+        if (it_table == sellTable.end())
+            return false;
+        auto it_rows = std::find(rows.begin(), rows.end(), first);
+        if (it_rows == rows.end())
+            return false;
+        for (; it_rows >= rows.begin(); --it_rows, --it_table) {
+            if ((*it_rows)->u.lrow.commodity && (*it_rows)->u.lrow.commodity != *it_table)
+                return false;
+            (*it_rows)->u.lrow.commodity = *it_table;
+            if (it_rows == rows.begin())
+                break;
+        }
+        it_table = std::find_if(sellTable.begin(), sellTable.end(), [first](Commodity* c) { return c == first->u.lrow.commodity; });
+        it_rows = std::find(rows.begin(), rows.end(), first);
+        for (; it_rows != rows.end(); ++it_rows, ++it_table) {
+            if ((*it_rows)->u.lrow.commodity && (*it_rows)->u.lrow.commodity != *it_table)
+                return false;
+            (*it_rows)->u.lrow.commodity = *it_table;
+        }
+    }
+
+    if (verify) {
+        FuzzyMatch matcher;
+        for (auto lr: rows) {
+            int idx = std::find(rows.begin(), rows.end(), lr) - rows.begin();
+            if (!lr->u.lrow.commodity) {
+                LOG(INFO) << "Commodity for row # " << std::to_string(idx) << " not detected and not deduced";
+                verify->emplace_back(nullptr, 0, 0);
+                continue;
+            }
+            cv::Rect rect = mLastEDState.cEnv.cvtReferenceToCaptured(lr->detectedRect);
+            std::string text;
+            int ocr_conf = ocrMarketText(grayED, rect, text);
+            int fuzzy_conf = 0;
+            if (ocr_conf > 30) {
+                std::string match;
+                if (text == lr->u.lrow.commodity->name) {
+                    match = "EXACT";
+                    fuzzy_conf = 100;
+                } else {
+                    fuzzy_conf = (int)matcher.ratio(toUtf16(text), lr->u.lrow.commodity->wide);
+                    match = std::to_string(fuzzy_conf) + "%";
+                }
+                LOG(INFO) << "OCR for row # " << std::to_string(idx) << " found: '" << text
+                          << "' have to be '" << lr->u.lrow.commodity->name << "; match: " << match;
+            }
+            verify->emplace_back(lr->u.lrow.commodity, ocr_conf, fuzzy_conf);
+        }
+    }
+
+    return true;
+}
+
+bool Master::startTrade() {
+//    if (!mConfiguration->loadMarket()) {
+//        UI::showToast(_("Cannot sell"), _("Cannot load market"));
+//        return false;
+//    }
 
 
 //    std::string cargo_name;
@@ -517,6 +681,15 @@ bool Master::stopTrade() {
     LOG_IF(currentTask, INFO) << "Stop trading";
     clearCurrentTask();
     return false;
+}
+
+bool Master::debugFindAllCommodities() {
+    if (!preInitTask())
+        return false;
+    LOG(INFO) << "Staring new debug task";
+    currentTask = std::make_unique<TaskDebugFindAllCommodities>();
+    currentTaskThread = std::thread(Master::runCurrentTask);
+    return true;
 }
 
 void Master::runCurrentTask() {
@@ -701,7 +874,7 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv& env) {
 static const int USE_EROSION = 0;
 
 void Master::drawButton(widget::Widget* item) {
-    if (!(item->tp == WidgetType::Button || item->tp == WidgetType::Spinner || item->tp == WidgetType::List))
+    if (!(item->tp == WidgetType::Button || item->tp == WidgetType::Spinner || item->tp == WidgetType::Label || item->tp == WidgetType::List))
         return;
     cv::Rect rect = mLastEDState.cEnv.calcCapturedRect(item->rect);
     if (rect.empty())
@@ -721,6 +894,38 @@ void Master::drawButton(widget::Widget* item) {
         p1.x = rect.br().x - rect.height;
         p2.x = p1.x;
         cv::line(debugImage, p1, p2, color, size);
+        return;
+    }
+    if (item->tp == WidgetType::Label) {
+        Label* lbl = (Label*)item;
+        std::string text;
+        int ocr_conf = 0;
+        if (!lbl->row_height.has_value() || lbl->row_height.value() <= 0) {
+            ocr_conf = ocrMarketText(grayED, rect, text, lbl->invert);
+        } else {
+            int row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
+            int lines = (int)std::round(double(rect.height) / double(row_height));
+            row_height = (int)std::round(rect.height / lines);
+            int ocr_conf_sum = 0;
+            for (int l=0; l < lines; l++) {
+                cv::Rect r (rect.x, rect.y+l*row_height, rect.width, row_height);
+                std::string line;
+                ocr_conf_sum += ocrMarketText(grayED, r, line, lbl->invert);
+                if (l > 0)
+                    text += " ";
+                text += line;
+                cv::line(debugImage, cv::Point(r.x, r.y+r.height), r.br(), color, size);
+            }
+            ocr_conf = ocr_conf_sum / lines;
+        }
+        //std::wstring wide = toUtf16(text);
+        //if (ocr_conf > 30) {
+            LOG(ERROR) << "Label text OCR: '" << text << "' conf=" << ocr_conf << "%";
+            auto commodity = mConfiguration->getCommodityByName(text, true);
+            LOG(ERROR) << "Label commodity: " << (commodity ? commodity->name : "(not found)");
+        //} else {
+        //    LOG(ERROR) << "Label text not recognized, ocr: '" << text << "' conf=" << ocr_conf << "%";
+        //}
         return;
     }
     if (item->tp == WidgetType::List) {
@@ -864,37 +1069,45 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     return true;
 }
 
-double Master::detectButtonState(const widget::Widget* item) {
+WState Master::detectButtonState(const widget::Widget* item) {
     if (!item)
-        return 0;
+        return WState::Unknown;
     cv::Rect r = mLastEDState.cEnv.calcReferenceRect(item->rect);
     if (r.empty())
-        return 0;
+        return WState::Unknown;
     int x = r.x + r.width - 36;
     int y = r.y + r.height / 2 - 8;
     if (item->tp == WidgetType::Spinner)
         x -= r.height + 10;
+    mLastEDState.cEnv.classified.emplace_back(ClsDetType::Widget, item->name, r);
+    ClassifiedRect& clsBtnRect = mLastEDState.cEnv.classified.back();
+    clsBtnRect.u.widg.widget = item;
     mButtonStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
     mButtonStateDetector->classify(mLastEDState.cEnv);
     auto& values = mButtonStateDetector->mLastValues;
     int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
     double value = values[idx];
-    if (value > 0.90) {
-        WState bs = (WState)idx;
-        mLastEDState.cEnv.classifiedButtonStates[item->name] = bs;
-        LOG_IF(bs == WState::Focused, INFO) << "Focused: " << item->name;
-        LOG_IF(bs == WState::Disabled, INFO) << "Disabld: " << item->name;
-        return value;
+    WState ws = WState::Unknown;
+    if (value > 0.80) {
+        ws = enum_cast<WState>(idx).value();
+        clsBtnRect.u.widg.ws = ws;
+        LOG_IF(ws == WState::Focused, INFO) << "Focused: " << item->name;
+        LOG_IF(ws == WState::Disabled, INFO) << "Disabld: " << item->name;
     }
-    return 0;
+    return ws;
 }
 
 void Master::detectListState(const widget::List* lst, DetectLevel level) {
     if (!lst)
         return;
-    cv::Rect rect =  mLastEDState.cEnv.calcCapturedRect(lst->rect);
+    cv::Rect listReferenceRect = mLastEDState.cEnv.calcReferenceRect(lst->rect);
+    cv::Rect rect =  mLastEDState.cEnv.cvtReferenceToCaptured(listReferenceRect);
     if (rect.empty())
         return;
+
+    mLastEDState.cEnv.classified.emplace_back(ClsDetType::Widget, lst->name, listReferenceRect);
+    ClassifiedRect& clsListRect = mLastEDState.cEnv.classified.back();
+    clsListRect.u.widg.widget = lst;
 
     cv::Vec3b normColor = mConfiguration->mLstRowLuv[int(WState::Normal)];
     if (normColor == cv::Vec3b::zeros())
@@ -942,10 +1155,8 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         }
     }
 
-    std::vector<ClassifyEnv::ResultListRow> rows;
-
     for (auto& r : detectedRows) {
-        WState bs = WState::Disabled;
+        WState ws = WState::Unknown;
         int x = rect.x + r.x + r.width - 36;
         int y = rect.y + r.y + r.height / 2 - 8;
         mLstRowStateDetector->mRect = mLastEDState.cEnv.cvtCapturedToReference(cv::Rect(cv::Point(x,y), cv::Size(16,16)));
@@ -955,75 +1166,87 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
         double value = values[idx];
         if (value > 0.90)
-            bs = (WState)idx;
+            ws = enum_cast<WState>(idx).value();
 
         std::string text;
-        if (mTesseractApiForMarket && bs == WState::Focused && level >= DetectLevel::ListOcrFocusedRow) {
+        if (mTesseractApiForMarket && ws == WState::Focused && level >= DetectLevel::ListOcrFocusedRow) {
             ocrMarketText(grayImage, r, text);
         }
-        rows.emplace_back(r+rect.tl(), bs, toUtf16(text), bgLuv);
-    }
 
-    mLastEDState.cEnv.classifiedListRows[lst->name] = rows;
+        cv::Rect rowReferenceRect = mLastEDState.cEnv.cvtCapturedToReference(r+rect.tl());
+        mLastEDState.cEnv.classified.emplace_back(ClsDetType::ListRow, text, rowReferenceRect);
+        ClassifiedRect& clsRowRect = mLastEDState.cEnv.classified.back();
+        clsRowRect.u.lrow.list = lst;
+        clsRowRect.u.lrow.ws = ws;
+        if (ws == WState::Focused)
+            clsListRect.u.widg.ws = WState::Focused;
+    }
 }
 
-int Master::ocrMarketText(cv::Mat& grayImage, cv::Rect rect, std::string& text) {
+int Master::ocrMarketText(cv::Mat& grayImage, cv::Rect rect, std::string& text, std::optional<bool> invert) {
     text.clear();
     if (!mTesseractApiForMarket)
         return 0;
     cv::Mat rowImage(grayImage, rect);
-    mTesseractApiForMarket->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
-    char *outText = mTesseractApiForMarket->GetUTF8Text();
-    text = trim(outText);
-    int outConf = mTesseractApiForMarket->MeanTextConf();
-    delete[] outText;
-    if (outConf > 30) {
-        LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "%";
-        return outConf;
+    int outConf = 0;
+    if (!invert.has_value() || !invert.value()) {
+        mTesseractApiForMarket->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
+        char *outText = mTesseractApiForMarket->GetUTF8Text();
+        text = trim(outText);
+        outConf = mTesseractApiForMarket->MeanTextConf();
+        delete[] outText;
+        if (outConf > 30) {
+            LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "%";
+            return outConf;
+        }
     }
 
-    // try hard - detect background, and if it's dark - threshold and invert the image
-    int histSize = 256;
-    float range[]{0, 256}; //the upper boundary is exclusive
-    const float* histRange[]{range};
-    cv::Mat hist;
-    cv::calcHist(&rowImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
-    int maxLoc[4]{};
-    cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-    int background = maxLoc[0] + 5;
-    if (background > 127)
-        return 0;
+    if (!invert.has_value() || invert.value()) {
+        // try hard - detect background, and if it's dark - threshold and invert the image
+        int histSize = 256;
+        float range[]{0, 256}; //the upper boundary is exclusive
+        const float *histRange[]{range};
+        cv::Mat hist;
+        cv::calcHist(&rowImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+        int maxLoc[4]{};
+        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+        int background = maxLoc[0] + 5;
+        if (background > 127)
+            return 0;
 
-    cv::Mat invertedImage;
-    cv::bitwise_not(rowImage, invertedImage);
-    cv::Mat thrImage;
-    cv::threshold(invertedImage, thrImage, 255 - background, 255, cv::THRESH_BINARY);
-    mTesseractApiForMarket->SetImage(thrImage.data, thrImage.cols, thrImage.rows, 1, thrImage.step);
-    outText = mTesseractApiForMarket->GetUTF8Text();
-    text = trim(outText);
-    outConf = mTesseractApiForMarket->MeanTextConf();
-    delete[] outText;
-    if (outConf > 30) {
-        LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "% (retried with negative)";
-        return outConf;
+        cv::Mat invertedImage;
+        cv::bitwise_not(rowImage, invertedImage);
+        cv::Mat thrImage;
+        cv::threshold(invertedImage, thrImage, 255 - background, 255, cv::THRESH_BINARY);
+        mTesseractApiForMarket->SetImage(thrImage.data, thrImage.cols, thrImage.rows, 1, thrImage.step);
+        char *outText = mTesseractApiForMarket->GetUTF8Text();
+        text = trim(outText);
+        outConf = mTesseractApiForMarket->MeanTextConf();
+        delete[] outText;
+        if (outConf > 30) {
+            LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "% (retried with negative)";
+            return outConf;
+        }
     }
-    return 0;
+    return outConf;
 }
 
 Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel level) {
     if (!parent)
         return nullptr;
     widget::Widget* focused = nullptr;
-    double focused_value = 0;
     for (Widget* item : parent->have) {
         if (item->tp == WidgetType::Button || item->tp == WidgetType::Spinner) {
-            double value = detectButtonState(item);
-            if (mLastEDState.cEnv.classifiedButtonStates[item->name] == WState::Focused) {
-                if (!focused || value > focused_value) {
+            WState ws = detectButtonState(item);
+            if (ws == WState::Focused) {
+                if (!focused)
                     focused = item;
-                    focused_value = value;
-                }
             }
+        }
+        if (item->tp == WidgetType::Label) {
+            cv::Rect r = mLastEDState.cEnv.calcReferenceRect(item->rect);
+            mLastEDState.cEnv.classified.emplace_back(ClsDetType::Widget, item->name, r);
+            mLastEDState.cEnv.classified.back().u.widg.widget = item;
         }
         if (item->tp == WidgetType::List && level >= DetectLevel::ListRows) {
             detectListState(dynamic_cast<List*>(item), level);
@@ -1033,7 +1256,7 @@ Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel
     if (parent->tp == WidgetType::Mode) {
         parent_focused = detectAllButtonsStates(parent->parent, level);
     }
-    if (focused && focused_value > 0.96)
+    if (focused)
         return focused;
     return parent_focused;
 }

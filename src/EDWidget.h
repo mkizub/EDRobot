@@ -9,12 +9,8 @@
 
 namespace widget {
 
-enum class WidgetState {
-    Normal, Focused, Activated, Disabled
-};
-
 enum class WidgetType {
-    Button, Spinner, List, Mode, Dialog, Screen, Root
+    Label, Button, Spinner, List, ListRow, Mode, Dialog, Screen, Root
 };
 
 struct Widget {
@@ -36,6 +32,12 @@ struct Widget {
 
 };
 
+struct Label : public Widget {
+    Label(const std::string& name, Widget* parent) : Widget(WidgetType::Label, name, parent) {}
+    std::optional<int> row_height;
+    std::optional<bool> invert;
+};
+
 struct Button : public Widget {
     Button(const std::string& name, Widget* parent) : Widget(WidgetType::Button, name, parent) {}
 };
@@ -50,6 +52,10 @@ struct List : public Widget {
     int row_height {36};
     int row_gap {2};
     bool ocr {false};
+};
+
+struct ListRow : public Widget {
+    ListRow(const std::string& name, List* parent) : Widget(WidgetType::ListRow, name, parent) {}
 };
 
 struct Mode : public Widget {

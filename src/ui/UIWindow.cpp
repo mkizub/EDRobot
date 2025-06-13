@@ -31,7 +31,7 @@ INT_PTR CALLBACK UIWindow::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LP
     return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-bool UIWindow::registerClass(const wchar_t* windowClass) {
+bool UIWindow::registerClass(const wchar_t* windowClass, bool popup) {
     static std::set<const wchar_t*> registeredClasses;
     if (registeredClasses.contains(windowClass))
         return true;
@@ -42,11 +42,13 @@ bool UIWindow::registerClass(const wchar_t* windowClass) {
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
-    wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    if (!popup) {
+        wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
+    }
     wc.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
     wc.lpszClassName = windowClass;
-    wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
     if (!RegisterClassEx(&wc)) {
         LOG(ERROR) << "Failed to register window class '" << toUtf8(windowClass) << "'; error: " << getErrorMessage();
         return false;
@@ -61,7 +63,7 @@ UIWindow::UIWindow(const wchar_t *windowClass)
     , hMonitor(nullptr)
     , hWnd(nullptr)
 {
-    registerClass(windowClass);
+    //registerClass(windowClass);
 }
 
 cv::Rect UIWindow::calcWindowRect(int align, cv::Point winOffset, cv::Size winSize) {
@@ -199,13 +201,14 @@ void UIWindow::windowLoopProc(std::shared_ptr<UIWindow> spWnd, StartLock* startL
 
     ShowWindow(spWnd->hWnd, SW_SHOW);
     UpdateWindow(spWnd->hWnd);
-    SetForegroundWindow(spWnd->hWnd);
 
     {
         std::lock_guard<std::mutex> lock(startLock->mMutex);
         startLock->started = true;
         startLock->mCond.notify_all();
     }
+
+    spWnd->windowCreated();
 
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0)) {

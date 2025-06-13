@@ -32,6 +32,7 @@ enum class Command {
     Calibrate,
     DebugTemplates,
     DebugButtons,
+    DebugFindAllCommodities,
     DevRectSelect,
     DevRectScreenshot,
     Shutdown,
@@ -52,6 +53,12 @@ struct UIState {
     ClassifyEnv cEnv;
     friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
     std::string to_string() const;
+};
+
+struct CommodityMatch {
+    const Commodity* commodity;
+    int ocr_conf;
+    int fuzzy_conf;
 };
 
 class Master {
@@ -75,7 +82,9 @@ public:
     int getSearchRegionExtent() const { return mConfiguration->searchRegionExtent; }
 
     int canSell(Commodity* commodity) const;
-    const ClassifyEnv::ResultListRow* getFocusedRow(const std::string& lst_name);
+    const Commodity* getLabelCommodity(const std::string& lbl_name);
+    const ClassifiedRect* getFocusedRow(const std::string& lst_name);
+    bool approximateSellListCommodities(const std::string& lst_name, std::vector<CommodityMatch>* verify = nullptr);
 
     void pushCommand(Command cmd);
     void pushDevRectScreenshotCommand(cv::Rect rect);
@@ -112,9 +121,10 @@ private:
     static void runCurrentTask();
 
     std::vector<std::string> parseState(const std::string& name);
-    double detectButtonState(const widget::Widget* item);
+    WState detectButtonState(const widget::Widget* item);
     void detectListState(const widget::List* item, DetectLevel level);
-    int ocrMarketText(cv::Mat& grayImage, cv::Rect, std::string& text); // returns confidence 0..100, result it trimmed
+    int ocrMarketText(cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
+    const Commodity* ocrMarketRowCommodity(ClassifiedRect* cr);
     widget::Widget* detectAllButtonsStates(const widget::Widget* parent, DetectLevel level);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
@@ -124,6 +134,7 @@ private:
     void drawButton(widget::Widget* item);
     bool debugButtons();
     bool debugRectScreenshot(pCommand& cmd);
+    bool debugFindAllCommodities();
 
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;

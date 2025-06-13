@@ -191,7 +191,7 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
     const json5pp::value &disabled = step.at("disabled");
     auto start = std::chrono::system_clock::now();
     auto now = start;
-    int during = 1000;
+    int during = 3000;
     int period = 250;
     if (step.at("during").is_integer())
         during = std::max(100, step.at("during").as_integer());
@@ -206,15 +206,23 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
         if (ok) {
             bool ok_focus = true;
             if (focus.is_string()) {
-                auto& cbs = master.lastEDState().cEnv.classifiedButtonStates;
-                auto it = cbs.find(focus.as_string());
-                ok_focus = (it != cbs.end() && it->second == WState::Focused);
+                ok_focus = false;
+                for (auto& cr : master.lastEDState().cEnv.classified) {
+                    if (cr.cdt == ClsDetType::Widget && cr.u.widg.ws == WState::Focused && cr.u.widg.widget->name == focus.as_string()) {
+                        ok_focus = true;
+                        break;
+                    }
+                }
             }
             bool ok_disabled = true;
             if (disabled.is_string()) {
-                auto& cbs = master.lastEDState().cEnv.classifiedButtonStates;
-                auto it = cbs.find(disabled.as_string());
-                ok_disabled = (it != cbs.end() && it->second == WState::Disabled);
+                ok_disabled = false;
+                for (auto& cr : master.lastEDState().cEnv.classified) {
+                    if (cr.cdt == ClsDetType::Widget && cr.u.widg.ws == WState::Disabled && cr.u.widg.widget->name == disabled.as_string()) {
+                        ok_disabled = true;
+                        break;
+                    }
+                }
             }
             ok = ok_focus && ok_disabled;
             if (ok)
@@ -388,15 +396,12 @@ void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs
         return;
     }
     ClassifyEnv cEnv = master.lastEDState().cEnv; // copy
-    auto& rows = cEnv.classifiedListRows[list];
-    if (rows.empty()) {
-        LOG(ERROR) << "Cannot get rows of list '" << list << "'";
-        return;
-    }
     std::vector<cv::Vec3b> colors;
     std::vector<double> lums;
-    for (auto& cr : rows) {
-        cv::Rect refRect = cEnv.cvtCapturedToReference(cr.detectedRect);
+    for (auto& cr : cEnv.classified) {
+        if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != list)
+            continue;
+        cv::Rect refRect = cr.detectedRect;
         mDetector.mRect = refRect;
         mDetector.match(cEnv);
         cv::Vec3b luv = mDetector.mLastColor;
@@ -494,23 +499,17 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
     return buttonSuccess;
 }
 
-bool TaskCalibrate::getRowsByState(const ClassifyEnv::ResultListRow** rows) {
+bool TaskCalibrate::getRowsByState(const ClassifiedRect** rows) {
     for (int i=0; i < 4; i++)
         rows[i] = nullptr;
-    auto it_rows = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
-    if (it_rows == master.lastEDState().cEnv.classifiedListRows.end()) {
-        notifyError(_("Rows in commodity list are not detected, calibration fails"));
-        return false;
-    }
-    auto &classified_rows = it_rows->second;
-    if (classified_rows.empty()) {
-        notifyError(_("Rows in commodity list are not detected, calibration fails"));
-        return false;
-    }
-    const ClassifyEnv::ResultListRow *row_to_test = nullptr;
-    for (auto &row: classified_rows) {
-        if (rows[int(row.bs)] == nullptr)
-            rows[int(row.bs)] = &row;
+    for (auto &row: master.lastEDState().cEnv.classified) {
+        if (row.cdt != ClsDetType::ListRow || row.u.lrow.list->name != "lst-goods")
+            continue;
+        WState ws = row.u.lrow.ws;
+        if (ws == WState::Unknown)
+            continue;
+        if (rows[int(ws)] == nullptr)
+            rows[int(ws)] = &row;
     }
     return true;
 }
@@ -619,13 +618,10 @@ bool TaskCalibrate::run() {
         // Detect normal list rows in sell market
         //
         {
-            auto it = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
-            std::vector<ClassifyEnv::ResultListRow> rows;
-            if (it != master.lastEDState().cEnv.classifiedListRows.end())
-                rows = it->second;
-            for (auto &cr: rows) {
-                cv::Point mouse = master.lastEDState().cEnv.cvtCapturedToReference(
-                        (cr.detectedRect.tl() + cr.detectedRect.br()) / 2);
+            for (auto &cr: master.lastEDState().cEnv.classified) {
+                if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
+                    continue;
+                cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
                 sendMouseMove(mouse, 300);
                 master.detectEDState(DetectLevel::ListRows);
                 recordLstRowLuv("lst-goods", mouse, WState::Normal);
@@ -637,10 +633,10 @@ bool TaskCalibrate::run() {
         calculateAverage(true);
         master.detectEDState(DetectLevel::ListRows);
 
-        const ClassifyEnv::ResultListRow* list_rows[4];
+        const ClassifiedRect* list_rows[4];
         if (!getRowsByState(list_rows))
             return false;
-        const ClassifyEnv::ResultListRow* row_to_test = list_rows[int(WState::Normal)];
+        const ClassifiedRect* row_to_test = list_rows[int(WState::Normal)];
         if (!row_to_test) {
             notifyError(_("Cannot find commodity to test sell dialog, calibration fails"));
             return false;
@@ -651,7 +647,7 @@ bool TaskCalibrate::run() {
         //
 
         {
-            cv::Rect row_rect = uiState.cEnv.cvtCapturedToReference(row_to_test->detectedRect);
+            auto& row_rect = row_to_test->detectedRect;
             cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
             std::ostringstream goto_str;
             goto_str << "{goto:" << row_point << ", after:500}";
@@ -692,17 +688,14 @@ bool TaskCalibrate::run() {
         // Detect activated list rows in sell market
         //
         {
-            auto it = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
-            std::vector<ClassifyEnv::ResultListRow> rows;
-            if (it != master.lastEDState().cEnv.classifiedListRows.end())
-                rows = it->second;
-            for (auto &cr: rows) {
-                cv::Point mouse = master.lastEDState().cEnv.cvtCapturedToReference(
-                        (cr.detectedRect.tl() + cr.detectedRect.br()) / 2);
+            for (auto &cr: master.lastEDState().cEnv.classified) {
+                if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
+                    continue;
+                cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
                 sendMouseMove(mouse, 300);
                 master.detectEDState(DetectLevel::ListRows);
                 recordLstRowLuv("lst-goods", mouse, WState::Active);
-                if (mLstRowLuv[int(WState::Active)].size() > 30)
+                if (mLstRowLuv[int(WState::Active)].size() > 35)
                     break;
             }
         }
@@ -719,7 +712,7 @@ bool TaskCalibrate::run() {
         }
 
         {
-            cv::Rect row_rect = uiState.cEnv.cvtCapturedToReference(row_to_test->detectedRect);
+            auto& row_rect = row_to_test->detectedRect;
             cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
             std::ostringstream goto_str;
             goto_str << "{goto:" << row_point << ", after:500}";
@@ -802,32 +795,35 @@ bool TaskSell::run() {
                     continue;
                 }
                 if (master.isEDStateMatch("scr-market:mod-sell")) {
-                    auto it = master.lastEDState().cEnv.classifiedListRows.find("lst-goods");
-                    if (it == master.lastEDState().cEnv.classifiedListRows.end()) {
-                        notifyError(_("Cannot detect state of 'lst-goods', aborting"));
+                    if (!master.approximateSellListCommodities("lst-goods")) {
+                        notifyError(_("Cannot detect commodities in 'lst-goods', aborting"));
                         done = true;
                         return false;
                     }
-                    const ClassifyEnv::ResultListRow* focusedRow = nullptr;
+                    const ClassifiedRect* focusedRow = nullptr;
                     const Commodity* focusedCommodity = nullptr;
-                    for (auto &r: it->second) {
-                        const Commodity* rowCommodity = master.getConfiguration()->getCommodityByName(r.text, true);
-                        if (r.bs == WState::Focused) {
-                            focusedRow = &r;
-                            LOG(INFO) << "Focused row text: " << toUtf8(focusedRow->text);
+                    for (auto &cr: master.lastEDState().cEnv.classified) {
+                        if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
+                            continue;
+                        const Commodity* rowCommodity = cr.u.lrow.commodity;
+                        if (!rowCommodity)
+                            rowCommodity = master.getConfiguration()->getCommodityByName(cr.text, true);
+                        if (cr.u.lrow.ws == WState::Focused) {
+                            focusedRow = &cr;
+                            LOG(INFO) << "Focused row text: " << focusedRow->text;
                             focusedCommodity = rowCommodity;
                             if (focusedCommodity)
                                 LOG(INFO) << "Focused commodity: " << focusedCommodity->name;
                         }
                         if (rowCommodity == currCommodity) {
                             LOG(INFO) << "Row with required commodity found";
-                            if (r.bs == WState::Focused) {
+                            if (cr.u.lrow.ws == WState::Focused) {
                                 LOG(INFO) << "Pressing 'space'";
                                 sendKey("space", 0, 500);
                                 continue;
                             } else {
                                 LOG(INFO) << "Not focused, using mouse click";
-                                cv::Rect rect = master.lastEDState().cEnv.cvtCapturedToReference(r.detectedRect);
+                                cv::Rect rect = cr.detectedRect;
                                 sendMouseClick((rect.tl() + rect.br()) / 2, 0, 500);
                             }
                             continue;
@@ -874,6 +870,13 @@ bool TaskSell::run() {
                     done = true;
                     return false;
                 } else if (master.isEDStateMatch("scr-market:mod-sell:dlg-trade:*")) {
+                    LOG(INFO) << "At market sell dialog, checking commodity '" << currCommodity->name << "'";
+                    auto lblCommodity = master.getLabelCommodity("lbl-commodity");
+                    if (lblCommodity != currCommodity) {
+                        notifyError(_("Wrong sell dialog commodity, aborting"));
+                        executeAction("restart");
+                        continue;
+                    }
                     LOG(INFO) << "At market sell dialog, execute action 'sell-some'";
                     bool ok = executeAction("sell-some", actionArgs);
                     if (!ok) {
@@ -912,4 +915,170 @@ bool TaskSell::run() {
     }
     done = true;
     return true;
+}
+
+bool TaskDebugFindAllCommodities::run() {
+    std::vector<Commodity *> sellTable = master.getConfiguration()->getMarketInSellOrder();
+    if (sellTable.empty()) {
+        notifyError("Empty market?");
+        done = true;
+        return false;
+    }
+    struct VerifyStats {
+        int ocr_min_conf = 100;
+        int ocr_max_conf = 0;
+        int fuzzy_min_conf = 100;
+        int fuzzy_max_conf = 0;
+        int total_samples = 0;
+    };
+    std::map<const Commodity*,VerifyStats> verifyMap;
+    int verifyUnrecognized = 0;
+
+    std::vector<Commodity *> checkCommoditiesTable = sellTable;
+    int passed = 0;
+    int failed = 0;
+    int left = sellTable.size();
+    std::srand(std::time({}));
+    while (!checkCommoditiesTable.empty()) {
+        int checkIdx = std::rand() % checkCommoditiesTable.size();
+        Commodity *commodity = checkCommoditiesTable[checkIdx];
+        try {
+            std::vector<CommodityMatch> verify;
+            bool ok = checkCommodity(commodity, &verify);
+            if (!ok)
+                failed += 1;
+            else
+                passed += 1;
+            left -= 1;
+            notifyError("Test for commodity '"+commodity->name+"' "+(ok?" PASSED\n":" FAILED\n")+
+                        "Progress: "+std::to_string(passed)+" passed and "+std::to_string(failed)+" failed\n"+
+                        "left "+std::to_string(left)+" out of "+std::to_string(sellTable.size()));
+            std::erase(checkCommoditiesTable, commodity);
+            for (auto& v : verify) {
+                if (!v.commodity) {
+                    verifyUnrecognized += 1;
+                    continue;
+                }
+                auto& vs = verifyMap[v.commodity];
+                if (v.ocr_conf < vs.ocr_min_conf)
+                    vs.ocr_min_conf = v.ocr_conf;
+                if (v.ocr_conf > vs.ocr_max_conf)
+                    vs.ocr_max_conf = v.ocr_conf;
+                if (v.fuzzy_conf < vs.fuzzy_min_conf)
+                    vs.fuzzy_min_conf = v.fuzzy_conf;
+                if (v.fuzzy_conf > vs.fuzzy_max_conf)
+                    vs.fuzzy_max_conf = v.fuzzy_conf;
+                vs.total_samples += 1;
+            }
+        } catch (...) {
+            notifyError("Not all commodities were checked");
+            done = true;
+            return false;
+        }
+    }
+
+    LOG(INFO) << "OCR/Fuzzy match statistic:";
+    for (auto c : sellTable) {
+        auto& vs = verifyMap[c];
+        LOG(INFO) << "  '" << c->name << "': ocr=" << vs.ocr_min_conf << ".." << vs.ocr_min_conf
+                  << "; fuzzy=" << vs.fuzzy_min_conf << ".." << vs.fuzzy_max_conf;
+    }
+    LOG(INFO) << "  totally unrecognized: " << verifyUnrecognized;
+
+    Sleep(1000);
+    done = true;
+    if (checkCommoditiesTable.empty()) {
+        notifyProgress("All commodities verified");
+        return true;
+    } else {
+        notifyError("Cannot verify all commodities");
+        return false;
+    }
+}
+
+bool TaskDebugFindAllCommodities::checkCommodity(Commodity* currCommodity, std::vector<CommodityMatch>* verify) {
+    for (;;) {
+        master.detectEDState(DetectLevel::ListOcrFocusedRow);
+        if (!master.isEDStateMatch("scr-market:mod-sell")) {
+            notifyError("Not in sale market?");
+            return false;
+        }
+        if (!master.approximateSellListCommodities("lst-goods", verify)) {
+            notifyError("Cannot detect commodities in 'lst-goods', aborting");
+            return false;
+        }
+        const ClassifiedRect* focusedRow = nullptr;
+        const Commodity* focusedCommodity = nullptr;
+        for (auto &cr: master.lastEDState().cEnv.classified) {
+            if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
+                continue;
+            const Commodity* rowCommodity = cr.u.lrow.commodity;
+            if (!rowCommodity)
+                rowCommodity = master.getConfiguration()->getCommodityByName(cr.text, true);
+            if (cr.u.lrow.ws == WState::Focused) {
+                focusedRow = &cr;
+                LOG(INFO) << "Focused row text: " << focusedRow->text;
+                focusedCommodity = rowCommodity;
+                if (focusedCommodity)
+                    LOG(INFO) << "Focused commodity: " << focusedCommodity->name;
+            }
+            if (focusedCommodity == currCommodity) {
+                LOG(INFO) << "Row with required commodity '" << focusedCommodity->name << "' found";
+                break;
+            }
+        }
+        if (!focusedRow) {
+            LOG(INFO) << "No focused row found, moving mouse to the list area";
+            cv::Rect rect = master.resolveWidgetReferenceRect("lst-goods");
+            int x = rect.x+rect.width/2;
+            int y = rect.y - 20;
+            sendMouseClick({x,y}, 0, 500);
+            for (int i=0; i < 10; i++)
+                sendMouseMove({0, 10}, 25, false);
+            continue;
+        }
+        if (!focusedCommodity) {
+            notifyError("Cannot detect commodities in 'lst-goods', aborting");
+            return false;
+        }
+        if (focusedCommodity == currCommodity) {
+            hardcodedStep("[{key:'space', after:2000},"
+                          "{check:'scr-market:mod-sell:dlg-trade:*'},"
+                          "{goto:'btn-exit', after:500}]",
+                          DetectLevel::Buttons);
+            const Commodity* dlgCommodity = master.getLabelCommodity("lbl-commodity");
+            if (dlgCommodity != currCommodity) {
+                notifyError("Dialog commodity mismatch");
+                Sleep(3000);
+            }
+            hardcodedStep("[{ key: 'space' },"
+                          "{ wait: 'scr-market:mod-sell', during: 3000 }]",
+                          DetectLevel::Buttons);
+            return (dlgCommodity == currCommodity);
+        }
+
+        int focusedIdx = -1;
+        int needIdx = -1;
+        std::vector<Commodity *> sellTable = master.getConfiguration()->getMarketInSellOrder();
+        for (int idx = 0; idx < sellTable.size(); idx++) {
+            auto &c = sellTable[idx];
+            if (c == focusedCommodity)
+                focusedIdx = idx;
+            if (c == currCommodity)
+                needIdx = idx;
+        }
+        if (needIdx >= 0 && focusedIdx >= 0) {
+            LOG(INFO) << "Distance is "<<(needIdx - focusedIdx)<<" lines from focused '" << sellTable[focusedIdx]->name << "' to '" << currCommodity->name << "'";
+            if (needIdx < focusedIdx) {
+                for (int cnt=0; cnt < focusedIdx-needIdx; cnt++)
+                    sendKey("up");
+            } else {
+                for (int cnt=0; cnt < needIdx-focusedIdx; cnt++)
+                    sendKey("down");
+            }
+            continue;
+        }
+        notifyError("Cannot detect commodities in 'lst-goods', aborting");
+        return false;
+    }
 }

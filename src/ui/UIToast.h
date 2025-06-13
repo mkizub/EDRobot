@@ -21,6 +21,7 @@ private:
 
     void showText(const std::wstring& title, const std::wstring& text);
     bool createWindow() final;
+    void windowCreated() final;
 
     INT_PTR onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) final;
     void onPaint() final;

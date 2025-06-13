@@ -13,14 +13,14 @@ protected:
     UIWindow(const wchar_t* windowClass);
     virtual ~UIWindow() = default;
 
-    const int ALIGN_LEFT    = 0x1;
-    const int ALIGN_RIGHT   = 0x2;
-    const int ALIGN_TOP     = 0x4;
-    const int ALIGN_BOTTOM  = 0x8;
+    const int ALIGN_LEFT       = 0x1;
+    const int ALIGN_RIGHT      = 0x2;
+    const int ALIGN_TOP        = 0x4;
+    const int ALIGN_BOTTOM     = 0x8;
     const int ALIGN_FULLSCREEN = 0x10;
 
     static INT_PTR CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-    static bool registerClass(const wchar_t* windowClass);
+    static bool registerClass(const wchar_t* windowClass, bool popup);
 
     inline RECT toRECT(cv::Rect& r) {
         return {r.x, r.y, r.br().x, r.br().y};
@@ -38,6 +38,7 @@ protected:
     void show();
 
     virtual bool createWindow() = 0;
+    virtual void windowCreated() {}
 
     virtual INT_PTR onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
     virtual void onPaint() = 0;

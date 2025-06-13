@@ -91,5 +91,10 @@ bool UISellInput::onCommand(HWND hDlg, WORD cmd) {
         UIManager::getInstance().askSelectRectWindow();
         return (INT_PTR) TRUE;
     }
+    if (cmd == ID_DEVELOPER_DEBUGFINDALLSELLCOMMODITIES) {
+        EndDialog(hDlg, IDCANCEL);
+        Master::getInstance().pushCommand(Command::DebugFindAllCommodities);
+        return (INT_PTR) TRUE;
+    }
     return false;
 }

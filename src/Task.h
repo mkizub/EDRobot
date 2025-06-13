@@ -64,7 +64,7 @@ private:
     std::array<std::vector<cv::Vec3b>,4> mLstRowLuv;
     void recordButtonLuv(const char* button, WState bs);
     void recordLstRowLuv(const char* list, cv::Point mouse, WState bs);
-    bool getRowsByState(const ClassifyEnv::ResultListRow** rows);
+    bool getRowsByState(const ClassifiedRect** rows);
     bool calculateAverage(bool incomplete);
     std::array<cv::Vec3b,4> mButtonLuvAverage;
     std::array<cv::Vec3b,4> mLstRowLuvAverage;
@@ -83,6 +83,16 @@ private:
     Commodity* mCommodity;
     int mTotal;
     int mItems;
+};
+
+class TaskDebugFindAllCommodities final : public Task {
+public:
+    TaskDebugFindAllCommodities() {
+        taskName = "TaskDebugFindAllCommodities";
+    }
+    bool run() final;
+private:
+    bool checkCommodity(Commodity* commodity, std::vector<CommodityMatch>* verify);
 };
 
 #endif //EDROBOT_TASK_H

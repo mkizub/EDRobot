@@ -136,38 +136,39 @@ static int getIntValue(const std::string_view& view, const ClassifyEnv& env) {
         LOG(ERROR) << "Unknown identifier in expression: " << view;
         return 0;
     }
-    const ClassifyEnv::ResultRect* rr = nullptr;
+    const ClassifiedRect* cr = nullptr;
     const std::string_view& name = view.substr(0,dot);
-    for (auto& cr : env.classifiedRects) {
-        if (name == cr.name) {
-            rr = &cr;
+    for (auto& it : env.classified) {
+        if (it.cdt == ClsDetType::TemplateDetected && name == it.text) {
+            cr = &it;
+            break;
         }
     }
-    if (!rr) {
-        LOG(ERROR) << "Identifier " << name << " not found in classified rects";
+    if (!cr) {
+        LOG(ERROR) << "Identifier for detector '" << name << "' not found in classified rects";
         return 0;
     }
     const std::string_view& field = view.substr(dot+1);
     if (field == "x" || field == "l" || field == "left")
-        return rr->detectedRect.x;
+        return cr->detectedRect.x;
     if (field == "y" || field == "t" || field == "top")
-        return rr->detectedRect.y;
+        return cr->detectedRect.y;
     if (field == "w" || field == "width")
-        return rr->detectedRect.width;
+        return cr->detectedRect.width;
     if (field == "h" || field == "height")
-        return rr->detectedRect.height;
+        return cr->detectedRect.height;
     if (field == "r" || field == "right")
-        return rr->detectedRect.br().x;
+        return cr->detectedRect.br().x;
     if (field == "b" || field == "bottom")
-        return rr->detectedRect.br().y;
+        return cr->detectedRect.br().y;
     if (field == "cx" || field == "center_x")
-        return rr->detectedRect.x + rr->detectedRect.width/2;
+        return cr->detectedRect.x + cr->detectedRect.width/2;
     if (field == "cy" || field == "center_y")
-        return rr->detectedRect.y + rr->detectedRect.height/2;
+        return cr->detectedRect.y + cr->detectedRect.height/2;
     if (field == "ox" || field == "offset_x")
-        return rr->detectedRect.x - rr->referenceRect.x;
+        return cr->detectedRect.x - cr->u.templ.referenceRect.x;
     if (field == "oy" || field == "offset_y")
-        return rr->detectedRect.y - rr->referenceRect.y;
+        return cr->detectedRect.y - cr->u.templ.referenceRect.y;
     LOG(ERROR) << "Field " << field << " not known, use x,y,w,h,l,t,r,b and cx,cy, ox, oy";
     return 0;
 }

@@ -42,6 +42,7 @@ BEGIN
         MENUITEM "&Сохранить конфигурацию",     ID_DEV_SAVECONFIG
         MENUITEM "&Загрузить конфигурацию",     ID_DEV_RELOADCONFIG
         MENUITEM "Выбрать прямоугольник",       ID_DEV_SELECT_RECT
+        MENUITEM "Отладка найти все продаваемые товары", ID_DEVELOPER_DEBUGFINDALLSELLCOMMODITIES
     END
     POPUP "&Помощь"
     BEGIN
@@ -166,6 +167,7 @@ BEGIN
         MENUITEM "&Save Config",                ID_DEV_SAVECONFIG
         MENUITEM "&Reload Config",              ID_DEV_RELOADCONFIG
         MENUITEM "Select Rectangle",            ID_DEV_SELECT_RECT
+        MENUITEM "Debug Find All Sell Commodities", ID_DEVELOPER_DEBUGFINDALLSELLCOMMODITIES
     END
     POPUP "&Help"
     BEGIN

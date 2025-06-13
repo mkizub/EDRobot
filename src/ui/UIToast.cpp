@@ -5,13 +5,14 @@
 #include "../pch.h"
 
 #include "UIToast.h"
+#include <CommCtrl.h>
 
 static std::weak_ptr<UIToast> gInstance;
 static const wchar_t* gWindowClass = L"ShowPopupMessageWindowClass";
 static const wchar_t* gWindowName = L"EDRobot Toast";
 
 bool UIToast::initialize() {
-    return UIWindow::registerClass(gWindowClass);
+    return UIWindow::registerClass(gWindowClass, true);
 }
 
 std::shared_ptr<UIToast> UIToast::getInstance() {
@@ -24,6 +25,10 @@ std::shared_ptr<UIToast> UIToast::getInstance() {
 }
 
 UIToast::UIToast() : UIWindow(gWindowClass) {
+//    WNDCLASSEX wc {};
+//    wc.cbSize = sizeof(WNDCLASSEX);
+//    if (GetClassInfoEx(nullptr, L"tooltips_class32", &wc))
+//        LOG(INFO) << "Tooltip: style=" << wc.style;
 }
 
 UIToast::~UIToast() {
@@ -44,6 +49,10 @@ bool UIToast::createWindow() {
     float transparency_percentage = 0.60f;
     SetLayeredWindowAttributes(hWnd, 0, (BYTE) (255 * transparency_percentage), LWA_ALPHA);
     return true;
+}
+
+void UIToast::windowCreated() {
+    PostMessage(hWnd, WM_CANCELMODE, 0, 0);
 }
 
 void UIToast::onPaint() {
@@ -109,6 +118,8 @@ void UIToast::showText(const std::wstring& title, const std::wstring& text) {
 }
 
 INT_PTR UIToast::onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    if (message == WM_NCHITTEST)
+        return HTNOWHERE;
     if (message == WM_TIMER) {
         if (mAnimationProgress < mAnimationTime) {
             mAnimationProgress = GetTickCount64() - mAnimationStartTick;

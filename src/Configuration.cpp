@@ -483,7 +483,7 @@ Commodity* Configuration::getCommodityByName(const std::wstring& name, bool fuzz
             bestScoreIndex = i;
         }
     }
-    if (bestScore < 70)
+    if (bestScore < 60)
         return nullptr;
     return &allKnownCommodities[bestScoreIndex];
 }
@@ -692,14 +692,14 @@ bool Configuration::loadCommodityDatabase() {
         if (!jcc.first.contains("-order-"))
             continue;
         Lang l = jcc.first.ends_with("-en") ? EN : RU;
+        int64_t commodityOrder = 1;
         for (auto& jn : jcc.second.as_array()) {
-            int64_t commodityOrder = 1;
-            for (auto& jc : jn.as_array()) {
-                auto c = getCommodityByName(jc.as_string(), false);
-                if (c)
-                    c->carrierSortingOrder[l] = commodityOrder;
-                commodityOrder += 1;
-            }
+            if (!jn.is_string())
+                continue;
+            auto c = getCommodityByName(jn.as_string(), false);
+            if (c)
+                c->carrierSortingOrder[l] = commodityOrder;
+            commodityOrder += 1;
         }
     }
     mCommodityDatabaseUpdated = false;
@@ -712,7 +712,7 @@ bool Configuration::dumpCommodityDatabase() {
     wf << "{" << std::endl;
     for (auto& ccit : commodityCategoryMap) {
         auto& cc = *ccit.second;
-        wf << "  " << cc.nameId << ": {" << std::endl;
+        wf << "  '" << cc.nameId << "': {" << std::endl;
         wf << "    en: " << j(cc.translation[EN]) << "," << std::endl;
         wf << "    ru: " << j(cc.translation[RU]) << "," << std::endl;
         wf << "    items: {" << std::endl;
@@ -1018,6 +1018,15 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
         auto btn = new Spinner(name, parent);
         child = btn;
         child->setRect(jo.at("rect"));
+    }
+    else if (name.starts_with("lbl-")) {
+        auto lbl = new Label(name, parent);
+        child = lbl;
+        child->setRect(jo.at("rect"));
+        if (jo.contains("row") && jo.at("row").is_integer())
+            lbl->row_height = jo.at("row").as_integer();
+        if (jo.contains("invert") && jo.at("invert").is_boolean())
+            lbl->invert = jo.at("invert").as_boolean();
     }
     else if (name.starts_with("lst-")) {
         auto lst = new List(name, parent);

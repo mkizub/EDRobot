@@ -11,12 +11,12 @@
       exec: [
         { loop: 3, action: { key: "up" } }, //{ goto: "spn-amount", after: 100 },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount" },
-        { key: "left", hold: { wait: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount", disabled: "btn-commit", during: 3000, peeriod: 100 } },
+        { key: "left", hold: { wait: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount", disabled: "btn-commit", during: 3000, period: 100 } },
         { loop: "$items", action: {key: "right"} },
         { key: "down" }, // { goto: "btn-commit" },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-commit" },
         { key: "space" },
-        { wait: "scr-market:mod-sell", during: 3000, peeriod: 100 }
+        { wait: "scr-market:mod-sell", during: 3000, period: 100 }
       ]
     },
     "sell-all": {
@@ -31,7 +31,7 @@
         { key: "space", hold: 35, after: 1500, focus: "btn-commit" }, // { goto: "btn-commit" },
         { check: "scr-market:mod-sell:dlg-trade:*" },
         { key: "space", after: 1500 },
-        { wait: "scr-market:mod-sell", during: 3000, peeriod: 250 }
+        { wait: "scr-market:mod-sell", during: 3000, period: 250 }
       ]
     },
     restart: {

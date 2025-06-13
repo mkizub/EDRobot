@@ -4,12 +4,19 @@
 
 #pragma once
 
+#include <utility>
+
 #include "pch.h"
 
 #ifndef EDROBOT_TEMPLATE_H
 #define EDROBOT_TEMPLATE_H
 
 struct ClassifyEnv;
+
+namespace widget {
+class Widget;
+class List;
+}
 
 // Rect evaluator
 class EvalRect {
@@ -28,6 +35,36 @@ public:
 };
 
 extern spEvalRect makeEvalRect(json5pp::value jv, int width=0, int height=0);
+
+enum class ClsDetType {
+    TemplateDetected,   // rect is detected by Template, text is the name of the template
+    Widget,             // rect is assumed to be a widget
+    ListRow,            // rect is a list row (maybe commodity list)
+};
+
+struct ClassifiedRect {
+    ClassifiedRect() = default;
+    ClassifiedRect(ClsDetType cdt, std::string txt, cv::Rect detRect)
+            : cdt(cdt), text(std::move(txt)), detectedRect(detRect), u{}
+    {}
+    ClsDetType cdt;
+    std::string text;         // name of Template that detected this rect, or a text recognized by OCR, etc
+    cv::Rect detectedRect;    // actually detected rect in reference coordinates
+    union {
+        struct {
+            cv::Rect referenceRect;   // originally expected rect in reference coordinates
+        } templ;
+        struct {
+            mutable WState ws;        // detected state for widgets
+            mutable const widget::Widget* widget;
+        } widg;
+        struct {
+            mutable WState ws;        // detected state for commodity row
+            mutable const widget::List* list;
+            mutable const Commodity* commodity;
+        } lrow;
+    } u;
+};
 
 struct ClassifyEnv {
     // in configuration all numbers are specified for reference screen size
@@ -54,30 +91,8 @@ private:
     cv::Point captureCenter;
 
 public:
-    struct ResultRect {
-        ResultRect() = default;
-        ResultRect(double rat, const std::string& nm, cv::Rect refRect, cv::Rect detRect)
-            : rate(rat), name(nm), referenceRect(refRect), detectedRect(detRect)
-        {}
-        double rate{};          // [0..1] probability returned by Template::classify()
-        std::string name;       // name of Template that detected this rect
-        cv::Rect referenceRect; // original rect in reference coordinates
-        cv::Rect detectedRect;  // detected rect in reference coordinates
-    };
-    struct ResultListRow {
-        ResultListRow() = default;
-        ResultListRow(cv::Rect detRect, WState bs, std::wstring text, cv::Vec3d bg)
-                : detectedRect(detRect), bs(bs), text(std::move(text)), bgLuv(bg)
-        {}
-        cv::Rect detectedRect;  // detected rect in reference coordinates
-        WState bs; // detected state
-        std::wstring text;
-        cv::Vec3d bgLuv;
-    };
-    // a set of named detected rects
-    std::vector<ResultRect> classifiedRects;
-    std::unordered_map<std::string,WState> classifiedButtonStates;
-    std::unordered_map<std::string,std::vector<ResultListRow>> classifiedListRows;
+    // a list of classified detected rects
+    std::vector<ClassifiedRect> classified;
 
 
     cv::Point scaleToCaptured(const cv::Point& point) const {
