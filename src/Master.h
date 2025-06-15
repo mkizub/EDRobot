@@ -33,6 +33,7 @@ enum class Command {
     DebugTemplates,
     DebugButtons,
     DebugFindAllCommodities,
+    DebugCompass,
     DevRectSelect,
     DevRectScreenshot,
     Shutdown,
@@ -110,6 +111,7 @@ private:
     void popCommand(pCommand& cmd);
 
     bool captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& grayImg);
+    bool captureWindowDX11();
 
     void showNotification(pCommand& cmd);
     bool preInitTask(bool checkCalibration=true);
@@ -135,6 +137,7 @@ private:
     bool debugButtons();
     bool debugRectScreenshot(pCommand& cmd);
     bool debugFindAllCommodities();
+    bool debugCompass();
 
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
@@ -149,6 +152,7 @@ private:
     std::unique_ptr<Configuration> mConfiguration;
     std::unique_ptr<HistogramTemplate> mButtonStateDetector;
     std::unique_ptr<HistogramTemplate> mLstRowStateDetector;
+    std::unique_ptr<CompassDetector> mCompassDetector;
 
     std::queue<pCommand> mCommandQueue;
     std::mutex mCommandMutex;

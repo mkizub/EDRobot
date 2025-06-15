@@ -25,6 +25,8 @@
 #include <format>
 #include <variant>
 #include <chrono>
+#define _USE_MATH_DEFINES
+#include <cmath>
 
 #define ELPP_PERFORMANCE_MICROSECONDS
 #define ELPP_STL_LOGGING

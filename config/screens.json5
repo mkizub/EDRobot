@@ -11,7 +11,7 @@
       { name: 'lst-goods', action: 'dlg-trade', rect: [369,250,425,721], row: 36, gap: 2, ocr: true },
       { name: 'mod-sell',
         detect: [
-          { img: "at_market_sell.png", t: [0.6, 0.8], at:[245, 172] },
+          { img: "at_market_sell-ru.png", t: [0.6, 0.8], at:[245, 172] },
           { img: "at_market.png", t: 0.7, at:[92, 57] },
         ],
         have: [
@@ -22,7 +22,7 @@
                 name: 'mod-less',
                 detect: [
                   // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
-                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[700, 170], ext: [0,20], name: "sdtl" },
+                  { img: "at_market_sell_dialog-ru.png", t: [0.6, 0.9], at:[700, 170], ext: [0,20], name: "sdtl" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[700, 714], ext: [0,30,10], name: "sdil" }
                 ],
                 have: [
@@ -36,7 +36,7 @@
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_sell_dialog.png", t: [0.6, 0.9], at:[500, 170], ext: [0,20], name: "sdtm" },
+                  { img: "at_market_sell_dialog-ru.png", t: [0.6, 0.9], at:[500, 170], ext: [0,20], name: "sdtm" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[500, 714], ext: [0,30,10], name: "sdim" }
                 ],
                 have: [
@@ -55,7 +55,7 @@
       },
       { name: 'mod-buy',
         detect: [
-          { img: "at_market_buy.png", t: [0.6, 0.8], at:[245, 172] },
+          { img: "at_market_buy-ru.png", t: [0.6, 0.8], at:[245, 172] },
           { img: "at_market.png", t: 0.7, at:[92, 57] },
         ],
         have: [
@@ -66,7 +66,7 @@
                 name: 'mod-less',
                 detect: [
                   // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
-                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[704, 185], ext: [0,20], name: "bdtl" },
+                  { img: "at_market_buy_dialog-ru.png", t: [0.6, 0.9], at:[704, 185], ext: [0,20], name: "bdtl" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[707, 701], ext: [0,30,10], name: "bdil" }
                 ],
                 have: [
@@ -80,7 +80,7 @@
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_buy_dialog.png", t: [0.6, 0.9], at:[501, 185], ext: [0,20], name: "bdtm" },
+                  { img: "at_market_buy_dialog-ru.png", t: [0.6, 0.9], at:[501, 185], ext: [0,20], name: "bdtm" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[504, 701], ext: [0,30,10], name: "bdim" }
                 ],
                 have: [
@@ -112,5 +112,12 @@
       { name: 'btn-filter', action: 'dlg-filter', rect: [97,167,134,73] },
       { name: 'lst-goods', action: 'dlg-setup', rect: [250,205,488,767], row: 36, gap: 2, ocr: true },
     ]
-  }
+  },
+//  {
+//    name: 'scr-space',
+//    detect: [
+//      { img: "space_compass.png", t: [0.4,0.8], at:[679,803], ext: [50,40], scale: [0.05,0.949,1.051], edge: true },
+//      { img: "space_target.png", t: [0.4,0.8], at:[900,480], ext: [300,380,300,120], scale: [0.05,0.949,1.051], edge: true },
+//    ],
+//  }
 ]

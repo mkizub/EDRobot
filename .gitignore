@@ -8,9 +8,9 @@
 *.pyc
 *.user
 *~
-*.png
 Thumbs.db
 tags
+/tmp/
 /cmake-build/
 /vs-build/
 /vcpkg_installed/
@@ -19,3 +19,4 @@ calibration.json5
 
 /ui/Dialogs.aps
 /config/tesseract-words.txt
+/config/*.png

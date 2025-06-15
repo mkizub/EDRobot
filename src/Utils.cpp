@@ -13,14 +13,14 @@ std::string getErrorMessage() {
     return getErrorMessage(GetLastError());
 }
 std::string getErrorMessage(unsigned errorCode) {
-    TCHAR messageBuffer[256];
+    TCHAR messageBuffer[1024];
     size_t size = FormatMessage(
             FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
             nullptr,
             errorCode,
             MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
             messageBuffer,
-            0,
+            sizeof(messageBuffer),
             nullptr
     );
 #ifdef UNICODE

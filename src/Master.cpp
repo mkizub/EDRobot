@@ -9,6 +9,7 @@
 #include "Task.h"
 #include "Template.h"
 #include "Capturer.h"
+#include "CaptureDX11.h"
 #include "FuzzyMatch.h"
 #include <memory>
 #include <fstream>
@@ -171,6 +172,8 @@ int Master::initialize(int argc, char* argv[]) {
         LOG(ERROR) << "Exception in initialization: " << GET_EXCEPTION_STACK_TRACE;
         return 1;
     }
+
+    //captureWindowDX11();
     return 0;
 }
 int Master::initializeInternal(std::string ocr_dir) {
@@ -218,6 +221,10 @@ int Master::initializeInternal(std::string ocr_dir) {
             mTesseractApiForDigits->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
         }
     }
+
+    cv::Mat compassImage;
+    spEvalRect compassRect = std::make_shared<ConstRect>(cv::Rect(679,803,71,71));
+    mCompassDetector = std::make_unique<CompassDetector>(compassImage, compassRect);
 
     std::vector<std::string> keys;
     for (auto& m : mConfiguration->keyMapping)
@@ -296,6 +303,9 @@ void Master::loop() {
                 break;
             case Command::DebugFindAllCommodities:
                 debugFindAllCommodities();
+                break;
+            case Command::DebugCompass:
+                debugCompass();
                 break;
             case Command::DevRectScreenshot:
                 debugRectScreenshot(cmd);
@@ -461,6 +471,7 @@ const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
         LOG(ERROR) << "Label '" << lbl_name << "' was not detected on screen";
         return nullptr;
     }
+
 
     cv::Rect rect = mLastEDState.cEnv.cvtReferenceToCaptured(cr->detectedRect);
 
@@ -989,6 +1000,7 @@ void Master::drawButton(widget::Widget* item) {
         cv::destroyAllWindows();
     }
 }
+
 bool Master::debugButtons() {
     detectEDState(DetectLevel::ListRows);
     const widget::Widget* widget = mLastEDState.widget;
@@ -1005,6 +1017,18 @@ bool Master::debugButtons() {
     cv::waitKey();
     cv::destroyAllWindows();
     mLastEDState.cEnv.debugImage = cv::Mat();
+    return true;
+}
+
+bool Master::debugCompass() {
+    detectEDState(DetectLevel::Screen);
+    ClassifyEnv cEnv = mLastEDState.cEnv; // copy
+    cEnv.debugImage = cEnv.imageColor.clone();
+    mCompassDetector->debugMatch(cEnv);
+    cv::imshow(mLastEDState.path(), cEnv.debugImage);
+    cv::waitKey();
+    cv::destroyAllWindows();
+    cEnv.debugImage = cv::Mat();
     return true;
 }
 
@@ -1379,5 +1403,18 @@ bool Master::captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& gr
     //cv::imwrite("captured-window-color.png", colorImg);
     grayImg = capturer->getGrayImage();
     //cv::imwrite("captured-window-gray.png", grayImg);
+    return true;
+}
+
+bool Master::captureWindowDX11() {
+    if (!isForeground()) {
+        LOG(WARNING) << "Elite Dangerous is not foreground; hWndED=" << std::format("0x{}", (void*)hWndED);
+        //return false;
+    }
+    CaptureDX11 *capturer = CaptureDX11::getEDCapturer(hWndED);
+    if (!capturer)
+        return false;
+    capturer->playWindow();
+    delete capturer;
     return true;
 }

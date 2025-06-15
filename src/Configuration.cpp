@@ -41,7 +41,9 @@ bool Configuration::load() {
             {{"printscreen",0}, Command::Start},
             {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
             {{"printscreen",keyboard::CTRL|keyboard::WIN}, Command::DebugButtons},
-            {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect}
+            {{"c",keyboard::CTRL|keyboard::ALT}, Command::DebugCompass},
+            {{"c",keyboard::CTRL|keyboard::ALT|keyboard::SHIFT}, Command::DebugCompass},
+            {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect},
     };
 
     {
@@ -814,7 +816,7 @@ void Configuration::changeDirThreadLoop() {
         DWORD action;
         std::wstring filenameW;
         while (changeDirListener->Pop(action, filenameW)) {
-            LOG(TRACE) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
+            //LOG(TRACE) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
             if (filenameW.ends_with(L"Settings.xml"))
                 needReloadSettings = true;
             if (filenameW.ends_with(L"Market.json"))
@@ -935,9 +937,26 @@ static void from_json(const json5pp::value& j, Template*& o) {
             std::string name;
             if (j.at("name").is_string())
                 name = j.at("name").as_string();
-            o = new ImageTemplate(name, filename, image, screenRect, extLT, extRB, tmin, tmax);
-
-            //t: [0.5, 0.9], rect:[500, 170], ext: [4,4,300,4]
+            bool edge = false;
+            if (j.at("edge").is_boolean())
+                edge = j.at("edge").as_boolean();
+            double scaleStep = 1;
+            double scaleMin = 1;
+            double scaleMax = 1;
+            if (j.at("scale").is_array()) {
+                auto& arr = j.at("scale").as_array();
+                scaleStep = arr[0].as_number();
+                scaleMin = arr[1].as_number();
+                scaleMax = arr[2].as_number();
+                if (scaleMin > scaleMax) {
+                    std::swap(scaleMin, scaleMax);
+                }
+            }
+            if (scaleStep != 1) {
+                o = new ImageMultiScaleTemplate(name, filename, image, scaleMin, scaleMax, scaleStep, edge, screenRect, extLT, extRB, tmin, tmax);
+            } else {
+                o = new ImageTemplate(name, filename, image, edge, screenRect, extLT, extRB, tmin, tmax);
+            }
         }
         return;
     }

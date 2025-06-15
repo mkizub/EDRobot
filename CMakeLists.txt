@@ -19,9 +19,7 @@ find_library(GETTEXT_LIBRARIES intl iconv)
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
-if (MSVC)
-    add_compile_options(-Zc:__cplusplus)
-endif()
+add_compile_options(/Zc:__cplusplus /await)
 
 find_package(cpptrace CONFIG REQUIRED)
 
@@ -74,6 +72,8 @@ add_executable(EDRobot
         src/ui/UIDialog.h
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
+        src/CaptureDXGI.cpp
+        src/CaptureDX11.h
 )
 #target_precompile_headers(EDRobot PUBLIC pch.h)
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
@@ -81,7 +81,8 @@ target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/i
 target_include_directories(EDRobot PRIVATE thirdparty)
 #target_include_directories(EDRobot PRIVATE ${GETTEXT_INCLUDE_DIR})
 target_link_libraries(EDRobot ${GETTEXT_LIBRARIES})
-target_link_libraries(EDRobot ${OpenCV_LIBS} Tesseract::libtesseract winmm shcore) # cpptrace::cpptrace msimg32
+target_link_libraries(EDRobot ${OpenCV_LIBS} Tesseract::libtesseract) # cpptrace::cpptrace msimg32
+target_link_libraries(EDRobot dxgi d3d11 winmm shcore)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot cpptrace::cpptrace)
 endif()
