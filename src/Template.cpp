@@ -8,89 +8,6 @@
 #include <format>
 #include <iomanip>
 
-void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, const cv::Mat& imgColor, const cv::Mat& imgGray) {
-    ClassifyEnv* self = const_cast<ClassifyEnv*>(this);
-    const_cast<cv::Rect&>(monitorRect) = monRect;
-    const_cast<cv::Rect&>(captureRect) = captRect;
-    const_cast<cv::Rect&>(captureCrop) = cv::Rect(cv::Point(), captureRect.size());
-    const_cast<cv::Mat&>(imageColor) = imgColor;
-    const_cast<cv::Mat&>(imageGray) = imgGray;
-    if (captureRect.size() != ReferenceScreenSize) {
-        double x_scale = double(captureRect.width) / ReferenceScreenSize.width;
-        double y_scale = double(captureRect.height) / ReferenceScreenSize.height;
-        scaleToCaptured_ = std::min(x_scale, y_scale);
-        needScaling_ = true;
-    } else {
-        needScaling_ = false;
-        scaleToCaptured_ = 1;
-    }
-    captureCenter = cv::Point(captureRect.size()) / 2;
-}
-
-void ClassifyEnv::clear() {
-    const_cast<cv::Rect&>(monitorRect) = cv::Rect();
-    const_cast<cv::Rect&>(captureRect) = cv::Rect();
-    const_cast<cv::Rect&>(captureCrop) = cv::Rect();
-    const_cast<cv::Mat&>(imageColor) = cv::Mat();
-    const_cast<cv::Mat&>(imageGray) = cv::Mat();
-    const_cast<cv::Mat&>(debugImage) = cv::Mat();
-    needScaling_ = false;
-    scaleToCaptured_ = 1;
-    captureCenter = ReferenceScreenCenter;
-    classified.clear();
-}
-
-cv::Point ClassifyEnv::cvtReferenceToDesktop(const cv::Point& point) const {
-    return monitorRect.tl() + captureRect.tl() + cvtReferenceToCaptured(point);
-}
-
-cv::Point ClassifyEnv::cvtReferenceToCaptured(const cv::Point& point) const {
-    cv::Point screenPoint(point);
-    if (needScaling_) {
-        cv::Point relative = screenPoint - ReferenceScreenCenter;
-        relative *= scaleToCaptured_;
-        screenPoint = relative + captureCenter;
-    }
-    return screenPoint;
-}
-cv::Rect  ClassifyEnv::cvtReferenceToCaptured(const cv::Rect& rect) const {
-    cv::Rect screenRect(rect);
-    if (needScaling_) {
-        cv::Point lt_rel = screenRect.tl() - ReferenceScreenCenter;
-        cv::Point rb_rel = screenRect.br() - ReferenceScreenCenter;
-        lt_rel *= scaleToCaptured_;
-        rb_rel *= scaleToCaptured_;
-        cv::Point lt = lt_rel + captureCenter;
-        cv::Point rb = rb_rel + captureCenter;
-        screenRect = cv::Rect(lt, rb);
-    }
-    return screenRect;
-}
-
-cv::Point ClassifyEnv::cvtCapturedToReference(const cv::Point& point) const {
-    cv::Point referencePoint(point);
-    if (needScaling_) {
-        cv::Point lt_rel = referencePoint - captureCenter;
-        lt_rel /= scaleToCaptured_;
-        cv::Point lt = lt_rel + ReferenceScreenCenter;
-        referencePoint = lt;
-    }
-    return referencePoint;
-}
-cv::Rect  ClassifyEnv::cvtCapturedToReference(const cv::Rect& rect) const {
-    cv::Rect referenceRect(rect);
-    if (needScaling_) {
-        cv::Point lt_rel = referenceRect.tl() - captureCenter;
-        cv::Point rb_rel = referenceRect.br() - captureCenter;
-        lt_rel /= scaleToCaptured_;
-        rb_rel /= scaleToCaptured_;
-        cv::Point lt = lt_rel + ReferenceScreenCenter;
-        cv::Point rb = rb_rel + ReferenceScreenCenter;
-        referenceRect = cv::Rect(lt,rb);
-    }
-    return referenceRect;
-}
-
 double SequenceTemplate::match(ClassifyEnv& env) {
     double sum = 0;
     for (auto& oracle : oracles) {
@@ -164,14 +81,10 @@ double HistogramTemplate::match(ClassifyEnv& env) {
     std::vector<cv::Mat> imagePlanes;
     if (mMode == CompareMode::Gray) {
         colorPlanes = 1;
-        if (env.imageGray.empty())
-            return 0;
-        imagePlanes.push_back(env.imageGray);
+        imagePlanes.push_back(env.getGrayImage());
     } else {
         colorPlanes = 3;
-        if (env.imageColor.empty())
-            return 0;
-        cv::split(env.imageColor, imagePlanes);
+        cv::split(env.getColorImage(), imagePlanes);
     }
     unsigned resultColor = 0;
     for (auto i=0; i < colorPlanes; i++) {
@@ -289,28 +202,28 @@ double BaseImageTemplate::debugMatch(ClassifyEnv &env) {
               "; offset: " << env.scaleToReference(matchedCaptureOffset);
     if (value >= threshold_max) {
         cv::Scalar color(96, 255, 96);
-        cv::rectangle(env.debugImage, captureRect.tl(), captureRect.br(), color, 1);
-        cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 1);
+        cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
+        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
         return 1;
     }
     if (value < threshold_min) {
         cv::Scalar color(96, 96, 255);
-        cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 1);
+        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
         cv::Point lt = matchRect.tl();
         cv::Point rb = matchRect.br();
-        cv::line(env.debugImage, lt, rb, color, 1);
+        cv::line(env.getDebugImage(), lt, rb, color, 1);
         cv::Point lb = cv::Point(matchRect.tl().x, matchRect.br().y);
         cv::Point rt = cv::Point(matchRect.br().x, matchRect.tl().y);
-        cv::line(env.debugImage, lb, rt, color, 1);
+        cv::line(env.getDebugImage(), lb, rt, color, 1);
         return 0;
     }
     double result = toResult(value);
     cv::Scalar color(96, 210, 210);
-    cv::rectangle(env.debugImage, captureRect.tl(), captureRect.br(), color, 1);
-    cv::rectangle(env.debugImage, matchRect.tl(), matchRect.br(), color, 1);
+    cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
+    cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
     cv::Point lt = matchRect.tl();
     cv::Point rb = matchRect.br();
-    cv::line(env.debugImage, lt, rb, color, 1);
+    cv::line(env.getDebugImage(), lt, rb, color, 1);
     return result;
 }
 
@@ -367,7 +280,7 @@ double ImageTemplate::match(ClassifyEnv& env) {
     cv::Rect referenceRect = env.calcReferenceRect(this->referenceRect);
     if (referenceRect.empty())
         return 0;
-    cv::Mat image = templImage.channels()==1 ? env.imageGray : env.imageColor;
+    cv::Mat image = templImage.channels()==1 ? env.getGrayImage() : env.getColorImage();
     if (image.empty())
         return 0;
     if (env.getScale() != preprocessedTemplateScale) {
@@ -429,7 +342,7 @@ double ImageMultiScaleTemplate::match(ClassifyEnv &env) {
     cv::Rect referenceRect = env.calcReferenceRect(this->referenceRect);
     if (referenceRect.empty())
         return 0;
-    cv::Mat image = templImage.channels() == 1 ? env.imageGray : env.imageColor;
+    cv::Mat image = templImage.channels() == 1 ? env.getGrayImage() : env.getColorImage();
     if (image.empty())
         return 0;
     if (scales.empty() || env.getScale() != preprocessedTemplateScale) {
@@ -552,8 +465,6 @@ double CompassDetector::match(ClassifyEnv &env) {
     cv::Rect referenceRect = env.calcReferenceRect(this->referenceRect);
     if (referenceRect.empty())
         return 0;
-    if (env.imageColor.empty())
-        return 0;
     if (compassScales.empty() || env.getScale() != preprocessedTemplateScale) {
         preprocessedTemplateScale = env.getScale();
         preprocessedLaplacian = false;
@@ -596,7 +507,7 @@ double CompassDetector::match(ClassifyEnv &env) {
                          captureRect.br() + env.scaleToCaptured(extendRB));
     matchRect &= env.captureCrop;
 
-    cv::Mat imageFiltered = cv::Mat(env.imageColor, matchRect);
+    cv::Mat imageFiltered = cv::Mat(env.getColorImage(), matchRect);
 
     int bestScaleIdx = -1;
     double bestScaleVal = 0;
@@ -644,7 +555,7 @@ double CompassDetector::match(ClassifyEnv &env) {
     cv::Size bestDotSize;
 
     cv::Point dotMatchedCaptureOffset;
-    imageFiltered = cv::Mat(env.imageColor, captureRect);
+    imageFiltered = cv::Mat(env.getColorImage(), captureRect);
 
 //    cv::imshow("Detected compass", imageFiltered);
 //    cv::imshow("Dot fwd compass", compassDots[0].templImage);
@@ -738,7 +649,7 @@ void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenc
     cv::createTrackbar("SMax",windowName,&sMax,255);
     cv::createTrackbar("VMax",windowName,&vMax,255);
 
-    cv::Mat img = cv::Mat(env.imageColor, matchRect);
+    cv::Mat img = cv::Mat(env.getColorImage(), matchRect);
     cv::Mat output = img;
 
     while(1) {
@@ -774,11 +685,11 @@ double CompassDetector::debugMatch(ClassifyEnv& env) {
             color = {255, 96, 96};
         else
             color = {96, 96, 255};
-        cv::rectangle(env.debugImage, dotCaptureRect.tl(), dotCaptureRect.br(), color, 1);
+        cv::rectangle(env.getDebugImage(), dotCaptureRect.tl(), dotCaptureRect.br(), color, 1);
         std::string text = std::format("{}/{}/{}", int(lastTgtPitch), int(lastTgtYaw), int(lastTgtRoll));
         cv::Point orig = captureRect.tl() + cv::Point(0,-10);
         color = {254,254,254};
-        cv::putText(env.debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1, color);
+        cv::putText(env.getDebugImage(), text, orig, cv::FONT_HERSHEY_PLAIN, 1, color);
     }
     return value;
 }

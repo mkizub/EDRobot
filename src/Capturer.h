@@ -13,21 +13,24 @@ class Capturer {
 public:
     static Capturer* getEDCapturer(HWND hwnd);
 
+    virtual ~Capturer() = default;
 
-    ~Capturer();
-    bool captureDisplay();
-    cv::Mat getColorImage();
-    cv::Mat getGrayImage();
-    cv::Rect getCaptureRect();
-    cv::Rect getMonitorVirtualRect();
+    virtual bool start() { atomicIsStarted.exchange(true); return true; };
+    virtual bool stop() { atomicIsStarted.exchange(false); return true; };
+    virtual upFrame capture(upFrame&& recycle) = 0;
 
-private:
-    static void InitCapturers();
-    static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData);
-    Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor);
-    void initBuffers();
+    virtual cv::Rect getCaptureRect();
+    virtual cv::Rect getMonitorVirtualRect();
 
-    const bool isHdcScreenCreated;
+    [[nodiscard]] bool isStarted() { return atomicIsStarted.load(); };
+
+    virtual void recycle(Frame* frame) const = 0;
+
+protected:
+    Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx);
+    virtual bool trySetup(HWND hWnd, RECT& captRect);
+
+    // should be const, but I'm lazy to make all const_cast in the initializer
     MONITORINFOEX monitorInfo;
     double dpiScaleX;
     double dpiScaleY;
@@ -35,14 +38,16 @@ private:
     int screenWidth;
     int screenHeight;
     HMONITOR hMonitor;
-    HDC hdcScreen;
-    HDC hdcMem;
-    HBITMAP hBitmap;
-    BITMAPINFOHEADER bitmapInfoHeader;
-    HWND captureHwnd;
+    HWND hWndED;
     RECT captureRect;
-    cv::Mat capturedImage;
-    cv::Mat grayImage;
+    std::atomic<bool> atomicIsStarted;
+
+private:
+    static std::vector<std::unique_ptr<Capturer>> AllCapturers;
+    static Capturer *DefaultCapturer;
+
+    static void InitCapturers();
+    static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData);
 };
 
 

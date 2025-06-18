@@ -17,6 +17,7 @@ INT_PTR CALLBACK UIWindow::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LP
     if (uiWindow) {
         switch (message) {
         case WM_DESTROY:
+            uiWindow->onDestroy();
             SetWindowLongPtr(hWnd, GWLP_USERDATA, 0);
             PostQuitMessage(0);
             return 0L;
@@ -200,15 +201,14 @@ void UIWindow::windowLoopProc(std::shared_ptr<UIWindow> spWnd, StartLock* startL
     }
 
     ShowWindow(spWnd->hWnd, SW_SHOW);
-    UpdateWindow(spWnd->hWnd);
-
     {
         std::lock_guard<std::mutex> lock(startLock->mMutex);
         startLock->started = true;
         startLock->mCond.notify_all();
     }
-
     spWnd->windowCreated();
+
+    UpdateWindow(spWnd->hWnd);
 
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0)) {

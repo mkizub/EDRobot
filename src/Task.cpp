@@ -7,7 +7,7 @@
 #include "Task.h"
 #include "Keyboard.h"
 #include "Template.h"
-#include "UI.h"
+#include "ui/UIManager.h"
 #include "FuzzyMatch.h"
 #include <synchapi.h>
 
@@ -95,8 +95,8 @@ bool Task::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) co
     int y = point.y;
     if (absolute) {
         virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
-        cv::Point screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
-        screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+        cv::Point screen = master.cEnv().cvtReferenceToDesktop(point);
+        screen = master.cEnv().cvtReferenceToDesktop(point);
         x = screen.x;
         y = screen.y;
     }
@@ -108,7 +108,7 @@ bool Task::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) co
 }
 
 bool Task::sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) const {
-    cv::Point screen = master.lastEDState().cEnv.cvtReferenceToDesktop(point);
+    cv::Point screen = master.cEnv().cvtReferenceToDesktop(point);
     bool virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
     //LOG(INFO) << "sendMouseClick recalculated from reference " << point << " to screen " << screen;
     if (!keyboard::sendMouseMoveTo(screen.x, screen.y, true, virtualDesktop))
@@ -207,7 +207,7 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
             bool ok_focus = true;
             if (focus.is_string()) {
                 ok_focus = false;
-                for (auto& cr : master.lastEDState().cEnv.classified) {
+                for (auto& cr : master.cEnv().classified) {
                     if (cr.cdt == ClsDetType::Widget && cr.u.widg.ws == WState::Focused && cr.u.widg.widget->name == focus.as_string()) {
                         ok_focus = true;
                         break;
@@ -217,7 +217,7 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
             bool ok_disabled = true;
             if (disabled.is_string()) {
                 ok_disabled = false;
-                for (auto& cr : master.lastEDState().cEnv.classified) {
+                for (auto& cr : master.cEnv().classified) {
                     if (cr.cdt == ClsDetType::Widget && cr.u.widg.ws == WState::Disabled && cr.u.widg.widget->name == disabled.as_string()) {
                         ok_disabled = true;
                         break;
@@ -360,11 +360,11 @@ void Task::hardcodedStep(const char* step, DetectLevel level) {
 
 void Task::notifyProgress(const std::string& msg) const {
     LOG(INFO) << msg;
-    UI::showToast(taskName, msg);
+    UIManager::showToast(taskName, msg);
 }
 void Task::notifyError(const std::string& msg) const {
     LOG(ERROR) << msg;
-    UI::showToast(taskName, msg);
+    UIManager::showToast(taskName, msg);
 }
 
 TaskCalibrate::TaskCalibrate()
@@ -379,8 +379,10 @@ void TaskCalibrate::recordButtonLuv(const char* button, WState bs) {
         LOG(ERROR) << "Cannot get rect of button '" << button << "'";
         return;
     }
+    ClassifyEnv cEnv;
+    if (!master.captureWindow(cEnv))
+        return;
     mDetector.mRect = rect;
-    ClassifyEnv cEnv = master.lastEDState().cEnv; // copy
     mDetector.match(cEnv);
     cv::Vec3b luv = mDetector.mLastColor;
     mButtonLuv[int(bs)].push_back(luv);
@@ -395,7 +397,9 @@ void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs
         LOG(ERROR) << "Cannot get rect of list '" << list << "'";
         return;
     }
-    ClassifyEnv cEnv = master.lastEDState().cEnv; // copy
+    ClassifyEnv cEnv;
+    if (!master.captureWindow(cEnv))
+        return;
     std::vector<cv::Vec3b> colors;
     std::vector<double> lums;
     for (auto& cr : cEnv.classified) {
@@ -502,7 +506,7 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
 bool TaskCalibrate::getRowsByState(const ClassifiedRect** rows) {
     for (int i=0; i < 4; i++)
         rows[i] = nullptr;
-    for (auto &row: master.lastEDState().cEnv.classified) {
+    for (auto &row: master.cEnv().classified) {
         if (row.cdt != ClsDetType::ListRow || row.u.lrow.list->name != "lst-goods")
             continue;
         WState ws = row.u.lrow.ws;
@@ -618,7 +622,7 @@ bool TaskCalibrate::run() {
         // Detect normal list rows in sell market
         //
         {
-            for (auto &cr: master.lastEDState().cEnv.classified) {
+            for (auto &cr: master.cEnv().classified) {
                 if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                     continue;
                 cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
@@ -688,7 +692,7 @@ bool TaskCalibrate::run() {
         // Detect activated list rows in sell market
         //
         {
-            for (auto &cr: master.lastEDState().cEnv.classified) {
+            for (auto &cr: master.cEnv().classified) {
                 if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                     continue;
                 cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
@@ -802,7 +806,7 @@ bool TaskSell::run() {
                     }
                     const ClassifiedRect* focusedRow = nullptr;
                     const Commodity* focusedCommodity = nullptr;
-                    for (auto &cr: master.lastEDState().cEnv.classified) {
+                    for (auto &cr: master.cEnv().classified) {
                         if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                             continue;
                         const Commodity* rowCommodity = cr.u.lrow.commodity;
@@ -1009,7 +1013,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity* currCommodity, std::
         }
         const ClassifiedRect* focusedRow = nullptr;
         const Commodity* focusedCommodity = nullptr;
-        for (auto &cr: master.lastEDState().cEnv.classified) {
+        for (auto &cr: master.cEnv().classified) {
             if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                 continue;
             const Commodity* rowCommodity = cr.u.lrow.commodity;

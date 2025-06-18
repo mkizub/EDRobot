@@ -18,14 +18,16 @@ class UIManager {
 public:
     static UIManager& getInstance();
 
-    bool initialize();
-    bool shutdown();
+    static bool initialize();
+    static bool shutdown();
 
-    bool showStartupDialog(const std::string& message);
-    bool showToast(const std::string& title, const std::string& text);
-    bool askSellInput(int& total, int& chunk, Commodity*& commodity);
-    bool askCalibrationDialog(const std::string& line1);
-    bool askSelectRectWindow();
+    static bool showStartupDialog(const std::string& message);
+    static bool showToast(const std::string& title, const std::string& text);
+    static bool showDebugWindow();
+    static bool postToDebugWindow(const cv::Mat& image);
+    static bool askSellInput(int& total, int& chunk, Commodity*& commodity);
+    static bool askCalibrationDialog(const std::string& line1);
+    static bool askSelectRectWindow();
 
 };
 

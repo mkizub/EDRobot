@@ -40,6 +40,7 @@ protected:
     virtual bool createWindow() = 0;
     virtual void windowCreated() {}
 
+    virtual void onDestroy() {};
     virtual INT_PTR onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
     virtual void onPaint() = 0;
 

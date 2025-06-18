@@ -1,7 +1,6 @@
 #include "pch.h"
 
-#include <stdlib.h>
-#include "UI.h"
+#include <cstdlib>
 #include "ui/UIManager.h"
 #include "Configuration.h"
 
@@ -34,11 +33,12 @@ int main(int argc, char *argv[]) {
         std::string msg1 = std_format(_("Press '{}' key to start selling"), cfg->getShortcutFor(Command::Start));
         std::string msg2 = std_format(_("Press '{}' to stop"), cfg->getShortcutFor(Command::Stop));
         std::string msg = msg1 + "\n\n" + msg2;
-        UIManager::getInstance().showStartupDialog(msg);
-        //UI::showToast(gettext("EDRobot"), _("xxx"));
+        UIManager::showStartupDialog(msg);
+        //UIManager::showToast(gettext("EDRobot"), _("xxx"));
         Master::getInstance().loop();
     }
-    UI::shutdownUI();
+    LOG(INFO) << "Shutdown";
+    UIManager::shutdown();
     el::Loggers::flushAll();
     return err;
 }

@@ -4,12 +4,11 @@
 
 #include "pch.h"
 
-#include "UI.h"
+#include "ui/UIManager.h"
 #include "Keyboard.h"
 #include "Task.h"
 #include "Template.h"
 #include "Capturer.h"
-#include "CaptureDX11.h"
 #include "FuzzyMatch.h"
 #include <memory>
 #include <fstream>
@@ -104,9 +103,9 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
 }
 
 void UIState::clear() {
+    valid = false;
     widget = nullptr;
     focused = nullptr;
-    cEnv.clear();
 }
 
 const std::string& UIState::path() const {
@@ -173,7 +172,6 @@ int Master::initialize(int argc, char* argv[]) {
         return 1;
     }
 
-    //captureWindowDX11();
     return 0;
 }
 int Master::initializeInternal(std::string ocr_dir) {
@@ -181,7 +179,10 @@ int Master::initializeInternal(std::string ocr_dir) {
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
-    UI::initializeUI();
+    LOG(INFO) << "Initializing UI";
+    UIManager::initialize();
+    LOG(INFO) << "Initializing OpenCV";
+    rgb2luv(encodeRGB(0x123456));
 
     mConfiguration = std::make_unique<Configuration>();
     mConfiguration->load();
@@ -193,6 +194,7 @@ int Master::initializeInternal(std::string ocr_dir) {
         ocr_dir = "tessdata";
 
     {
+        LOG(INFO) << "Initializing Tesseract OCR for commodities";
         const char* tesseractLang = "eng";
         if (mConfiguration->lng == RU)
             tesseractLang = "edo";
@@ -210,6 +212,7 @@ int Master::initializeInternal(std::string ocr_dir) {
     }
 
     {
+        LOG(INFO) << "Initializing Tesseract OCR for numbers";
         mTesseractApiForDigits = std::make_unique<tesseract::TessBaseAPI>();
         const std::vector<std::string> vars_vec{"tessedit_char_whitelist"};
         const std::vector<std::string> vars_values{"0123456789+-/."};
@@ -222,10 +225,12 @@ int Master::initializeInternal(std::string ocr_dir) {
         }
     }
 
+    LOG(INFO) << "Initializing compass detector";
     cv::Mat compassImage;
     spEvalRect compassRect = std::make_shared<ConstRect>(cv::Rect(679,803,71,71));
     mCompassDetector = std::make_unique<CompassDetector>(compassImage, compassRect);
 
+    LOG(INFO) << "Setup keyboard hooks";
     std::vector<std::string> keys;
     for (auto& m : mConfiguration->keyMapping)
         keys.push_back(m.first.first);
@@ -252,12 +257,15 @@ void Master::initButtonStateDetector() {
 
 Master::Master() {
     mScreensRoot = std::make_unique<widget::Root>();
-    hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
 }
 
 Master::~Master() {
     keyboard::stop();
     stopTrade();
+    if (mCapturer) {
+        mCapturer->stop();
+        mCapturer = nullptr;
+    }
     if (mTesseractApiForMarket) {
         mTesseractApiForMarket->End();
         mTesseractApiForMarket.reset();
@@ -271,6 +279,7 @@ Master::~Master() {
 
 void Master::loop() {
     TRY {
+        LOG(INFO) << "Starting EDRobot task loop";
         while (true) {
             pCommand cmd;
             popCommand(cmd);
@@ -293,10 +302,8 @@ void Master::loop() {
             case Command::Calibrate:
                 startCalibration();
                 break;
-            case Command::DebugTemplates: {
-                    ClassifyEnv env;
-                    debugTemplates(nullptr, env);
-                }
+            case Command::DebugTemplates:
+                debugTemplates(nullptr, nullptr);
                 break;
             case Command::DebugButtons:
                 debugButtons();
@@ -307,11 +314,17 @@ void Master::loop() {
             case Command::DebugCompass:
                 debugCompass();
                 break;
+            case Command::DebugWindow:
+                debugWindow();
+                break;
             case Command::DevRectScreenshot:
                 debugRectScreenshot(cmd);
                 break;
             case Command::DevRectSelect:
-                UI::askSelectRectWindow();
+                UIManager::askSelectRectWindow();
+                break;
+            case Command::ResetCapturer:
+                resetCapturer();
                 break;
             case Command::Shutdown:
                 clearCurrentTask();
@@ -371,11 +384,11 @@ struct CommandNotify : public CommandEntry {
 
 void Master::notifyProgress(const std::string& title, const std::string& text) {
     LOG(INFO) << title << ": " << text;
-    UI::showToast(title, text);
+    UIManager::showToast(title, text);
 }
 void Master::notifyError(const std::string& title, const std::string& text) {
     LOG(ERROR) << title << ": " << text;
-    UI::showToast(title, text);
+    UIManager::showToast(title, text);
 }
 
 struct CommandDevRestScreenshot : public CommandEntry {
@@ -401,7 +414,7 @@ void Master::popCommand(pCommand& cmd) {
 void Master::showNotification(pCommand& cmd) {
     CommandNotify* c = dynamic_cast<CommandNotify*>(cmd.get());
     if (c)
-        UI::showToast(c->title, c->text);
+        UIManager::showToast(c->title, c->text);
 }
 
 bool Master::preInitTask(bool checkCalibration) {
@@ -410,19 +423,14 @@ bool Master::preInitTask(bool checkCalibration) {
         clearCurrentTask();
     }
 
-    hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
-    if (!hWndED) {
-        LOG(ERROR) << "Window [class " << ED_WINDOW_CLASS << "; name " << ED_WINDOW_NAME << "] not found" ;
-        return false;
-    }
-    Capturer *capturer = Capturer::getEDCapturer(hWndED);
+    auto capturer = getCapturer();
     if (!capturer)
         return false;
     bool ok = mConfiguration->checkResolutionSupported(capturer->getCaptureRect().size());
     if (!ok)
         return false;
     if (checkCalibration && mConfiguration->checkNeedColorCalibration()) {
-        bool agree = UIManager::getInstance().askCalibrationDialog(_("Color calibration required"));
+        bool agree = UIManager::askCalibrationDialog(_("Color calibration required"));
         if (agree) {
             pushCommand(Command::Calibrate);
             return false;
@@ -461,7 +469,7 @@ const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
     }
     Label* lbl = (Label*)widget;
     ClassifiedRect* cr = nullptr;
-    for (auto& it : mLastEDState.cEnv.classified) {
+    for (auto& it : mClassifyEnv.classified) {
         if (it.cdt == ClsDetType::Widget && it.u.widg.widget == widget) {
             cr = &it;
             break;
@@ -473,21 +481,21 @@ const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
     }
 
 
-    cv::Rect rect = mLastEDState.cEnv.cvtReferenceToCaptured(cr->detectedRect);
+    cv::Rect rect = mClassifyEnv.cvtReferenceToCaptured(cr->detectedRect);
 
     std::string text;
     int ocr_conf = 0;
     if (!lbl->row_height.has_value() || lbl->row_height.value() <= 0) {
-        ocr_conf = ocrMarketText(grayED, rect, text, lbl->invert);
+        ocr_conf = ocrMarketText(mClassifyEnv.getGrayImage(), rect, text, lbl->invert);
     } else {
-        int row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
+        int row_height = mClassifyEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
         int lines = (int)std::round(double(rect.height) / double(row_height));
         row_height = (int)std::round(rect.height / lines);
         int ocr_conf_sum = 0;
         for (int l=0; l < lines; l++) {
             cv::Rect r (rect.x, rect.y+l*row_height, rect.width, row_height);
             std::string line;
-            ocr_conf_sum += ocrMarketText(grayED, r, line, lbl->invert);
+            ocr_conf_sum += ocrMarketText(mClassifyEnv.getGrayImage(), r, line, lbl->invert);
             if (l > 0)
                 text += " ";
             text += line;
@@ -504,7 +512,7 @@ const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
 }
 
 const ClassifiedRect* Master::getFocusedRow(const std::string& lst_name) {
-    for (auto& it : mLastEDState.cEnv.classified) {
+    for (auto& it : mClassifyEnv.classified) {
         if (it.cdt != ClsDetType::ListRow)
             continue;
         if (it.u.lrow.ws == WState::Focused && it.u.lrow.list && it.u.lrow.list->name == lst_name)
@@ -533,8 +541,8 @@ const Commodity* Master::ocrMarketRowCommodity(ClassifiedRect* cr) {
     if (cr->u.lrow.commodity)
         return cr->u.lrow.commodity;
     if (cr->text.empty()) {
-        cv::Rect rect = mLastEDState.cEnv.cvtReferenceToCaptured(cr->detectedRect);
-        if (ocrMarketText(grayED, rect, cr->text) > 30) {
+        cv::Rect rect = mClassifyEnv.cvtReferenceToCaptured(cr->detectedRect);
+        if (ocrMarketText(mClassifyEnv.getGrayImage(), rect, cr->text) > 30) {
             cr->u.lrow.commodity = mConfiguration->getCommodityByName(cr->text, true);
         } else {
             cr->text.clear();
@@ -547,7 +555,7 @@ const Commodity* Master::ocrMarketRowCommodity(ClassifiedRect* cr) {
 
 bool Master::approximateSellListCommodities(const std::string& lst_name, std::vector<CommodityMatch>* verify) {
     std::vector<ClassifiedRect*> rows;
-    for (auto& cr : mLastEDState.cEnv.classified) {
+    for (auto& cr : mClassifyEnv.classified) {
         if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != lst_name)
             continue;
         rows.push_back(&cr);
@@ -619,9 +627,9 @@ bool Master::approximateSellListCommodities(const std::string& lst_name, std::ve
                 verify->emplace_back(nullptr, 0, 0);
                 continue;
             }
-            cv::Rect rect = mLastEDState.cEnv.cvtReferenceToCaptured(lr->detectedRect);
+            cv::Rect rect = mClassifyEnv.cvtReferenceToCaptured(lr->detectedRect);
             std::string text;
-            int ocr_conf = ocrMarketText(grayED, rect, text);
+            int ocr_conf = ocrMarketText(mClassifyEnv.getGrayImage(), rect, text);
             int fuzzy_conf = 0;
             if (ocr_conf > 30) {
                 std::string match;
@@ -644,7 +652,7 @@ bool Master::approximateSellListCommodities(const std::string& lst_name, std::ve
 
 bool Master::startTrade() {
 //    if (!mConfiguration->loadMarket()) {
-//        UI::showToast(_("Cannot sell"), _("Cannot load market"));
+//        UIManager::showToast(_("Cannot sell"), _("Cannot load market"));
 //        return false;
 //    }
 
@@ -663,14 +671,14 @@ bool Master::startTrade() {
     int total = 0;
     int chunk = mSellChunk;
     Commodity* commodity = nullptr;
-    bool res = UI::askSellInput(total, chunk, commodity);
+    bool res = UIManager::askSellInput(total, chunk, commodity);
     if (!res || total <= 0 || chunk <= 0)
         return false;
     mSellChunk = chunk;
 
 //    spShipCargo shipCargo = mConfiguration->getCurrentCargo();
 //    if (!shipCargo || shipCargo->count <= 0) {
-//        UI::showToast(_("Cannot sell"), _("Ship cargo empty"));
+//        UIManager::showToast(_("Cannot sell"), _("Ship cargo empty"));
 //        return false;
 //    }
 
@@ -741,7 +749,7 @@ cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) {
         LOG(ERROR) << "Widget '" << name << "' not found";
         return {};
     }
-    auto r = mLastEDState.cEnv.calcReferenceRect(item->rect);
+    auto r = mClassifyEnv.calcReferenceRect(item->rect);
     if (r.empty()) {
         LOG(ERROR) << "Widget has no rect";
         return {};
@@ -829,7 +837,7 @@ Widget* Master::matchWithSubItems(Widget* item) {
 bool Master::matchItem(Widget* item) {
     if (!item || !item->oracle)
         return false;
-    return item->oracle->classify(mLastEDState.cEnv);
+    return item->oracle->classify(mClassifyEnv);
 }
 
 bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
@@ -847,31 +855,27 @@ bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
     return item->oracle->debugMatch(env) >= 0.8;
 }
 
-bool Master::debugTemplates(Widget* item, ClassifyEnv& env) {
-    if (item == nullptr && env.debugImage.empty()) {
-        cv::Rect captureRect;
-        cv::Mat imageColor, imageGray;
-        if (!captureWindow(captureRect, imageColor, imageGray)) {
+bool Master::debugTemplates(Widget* item, ClassifyEnv* env) {
+    if (!env) {
+        ClassifyEnv debugEnv;
+        if (!captureWindow(debugEnv)) {
             LOG(ERROR) << "Cannot capture screen for debug match";
             return false;
         }
-        env.init(mMonitorRect, captureRect, imageColor, imageGray);
         for (auto &screen: mScreensRoot->have) {
-            env.imageColor.copyTo(env.debugImage);
-            debugTemplates(screen, env);
+            debugTemplates(screen, &debugEnv);
             el::Loggers::flushAll();
             std::string fname = "debug-match-"+screen->name+".png";
             //cv::imwrite(fname, env.debugImage);
-            cv::imshow(fname, env.debugImage);
+            cv::imshow(fname, debugEnv.getDebugImage());
             cv::waitKey();
-            env.debugImage.release();
         }
         cv::destroyAllWindows();
-        env.clear();
+        debugEnv.clear();
         el::Loggers::flushAll();
         return true;
     } else {
-        if (debugMatchItem(item, env)) {
+        if (debugMatchItem(item, *env)) {
             bool ok = false;
             for (Widget* i : item->have) {
                 ok |= debugTemplates(i, env);
@@ -887,10 +891,10 @@ static const int USE_EROSION = 0;
 void Master::drawButton(widget::Widget* item) {
     if (!(item->tp == WidgetType::Button || item->tp == WidgetType::Spinner || item->tp == WidgetType::Label || item->tp == WidgetType::List))
         return;
-    cv::Rect rect = mLastEDState.cEnv.calcCapturedRect(item->rect);
+    cv::Rect rect = mClassifyEnv.calcCapturedRect(item->rect);
     if (rect.empty())
         return;
-    cv::Mat& debugImage = mLastEDState.cEnv.debugImage;
+    cv::Mat& debugImage = mClassifyEnv.getDebugImage();
     cv::Scalar color(200, 80, 80);
     int size = (item == mLastEDState.focused) ? 2 : 1;
     cv::rectangle(debugImage, rect.tl(), rect.br(), color, size);
@@ -912,16 +916,16 @@ void Master::drawButton(widget::Widget* item) {
         std::string text;
         int ocr_conf = 0;
         if (!lbl->row_height.has_value() || lbl->row_height.value() <= 0) {
-            ocr_conf = ocrMarketText(grayED, rect, text, lbl->invert);
+            ocr_conf = ocrMarketText(mClassifyEnv.getGrayImage(), rect, text, lbl->invert);
         } else {
-            int row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
+            int row_height = mClassifyEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
             int lines = (int)std::round(double(rect.height) / double(row_height));
             row_height = (int)std::round(rect.height / lines);
             int ocr_conf_sum = 0;
             for (int l=0; l < lines; l++) {
                 cv::Rect r (rect.x, rect.y+l*row_height, rect.width, row_height);
                 std::string line;
-                ocr_conf_sum += ocrMarketText(grayED, r, line, lbl->invert);
+                ocr_conf_sum += ocrMarketText(mClassifyEnv.getGrayImage(), r, line, lbl->invert);
                 if (l > 0)
                     text += " ";
                 text += line;
@@ -948,7 +952,7 @@ void Master::drawButton(widget::Widget* item) {
         if (normColor == cv::Vec3b::zeros())
             normColor = cv::Vec3b(10,95,130);
         unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
-        cv::Mat listImage(grayED, rect);
+        cv::Mat listImage(mClassifyEnv.getGrayImage(), rect);
 
         cv::imshow("List image: " + mLastEDState.path(), listImage);
 
@@ -964,7 +968,7 @@ void Master::drawButton(widget::Widget* item) {
             erodedImage = thrImage;
         }
 
-        auto expected_row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
+        auto expected_row_height = mClassifyEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
         double minArea =  rect.width * expected_row_height * 0.75;
 
         std::vector<cv::Rect> detectedRows;
@@ -1004,7 +1008,6 @@ void Master::drawButton(widget::Widget* item) {
 bool Master::debugButtons() {
     detectEDState(DetectLevel::ListRows);
     const widget::Widget* widget = mLastEDState.widget;
-    mLastEDState.cEnv.debugImage = colorED.clone();
     if (widget) {
         for (Widget* item : widget->have)
             drawButton(item);
@@ -1013,23 +1016,46 @@ bool Master::debugButtons() {
                 drawButton(item);
         }
     }
-    cv::imshow(mLastEDState.path(), mLastEDState.cEnv.debugImage);
-    cv::waitKey();
-    cv::destroyAllWindows();
-    mLastEDState.cEnv.debugImage = cv::Mat();
+    if (mDuplicateToDebugWindow) {
+        if (!UIManager::postToDebugWindow(mClassifyEnv.getDebugImage()))
+            mDuplicateToDebugWindow = false;
+    }
+    if (!mDuplicateToDebugWindow) {
+        cv::imshow(mLastEDState.path(), mClassifyEnv.getDebugImage());
+        cv::waitKey();
+        cv::destroyAllWindows();
+    }
     return true;
 }
 
 bool Master::debugCompass() {
-    detectEDState(DetectLevel::Screen);
-    ClassifyEnv cEnv = mLastEDState.cEnv; // copy
-    cEnv.debugImage = cEnv.imageColor.clone();
-    mCompassDetector->debugMatch(cEnv);
-    cv::imshow(mLastEDState.path(), cEnv.debugImage);
-    cv::waitKey();
-    cv::destroyAllWindows();
-    cEnv.debugImage = cv::Mat();
+    ClassifyEnv debugEnv;
+    if (!captureWindow(debugEnv)) {
+        LOG(ERROR) << "Cannot capture screen to debug compass";
+        return false;
+    }
+    mCompassDetector->debugMatch(debugEnv);
+    if (mDuplicateToDebugWindow) {
+        if (!UIManager::postToDebugWindow(debugEnv.getDebugImage()))
+            mDuplicateToDebugWindow = false;
+    }
+    if (!mDuplicateToDebugWindow) {
+        cv::imshow(mLastEDState.path(), debugEnv.getDebugImage());
+        cv::waitKey();
+        cv::destroyAllWindows();
+    }
     return true;
+}
+
+bool Master::debugWindow() {
+    detectEDState(DetectLevel::Screen);
+    if (UIManager::showDebugWindow()) {
+        mDuplicateToDebugWindow = UIManager::postToDebugWindow(mClassifyEnv.getDebugImage());
+        return true;
+    } else {
+        mDuplicateToDebugWindow = false;
+        return true;
+    }
 }
 
 bool Master::debugRectScreenshot(pCommand& cmd) {
@@ -1054,23 +1080,22 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
             return false;
         }
     }
-    cv::Rect captureRect;
-    cv::Mat imgColor, imgGray;
-    if (!captureWindow(captureRect, imgColor, imgGray)) {
-        LOG(ERROR) << "Cannot capture screen";
+    ClassifyEnv debugEnv;
+    if (!captureWindow(debugEnv)) {
+        LOG(ERROR) << "Cannot capture screen for screenshot";
         return false;
     }
-    if ((rect & captureRect) != rect) {
+    if ((rect & debugEnv.captureRect) != rect) {
         LOG(ERROR) << "Cannot make screenshot because dev rect is beyond of game client area";
         return false;
     }
-    rect -= captureRect.tl();
+    rect -= debugEnv.captureRect.tl();
 
-    cv::imwrite("debug-rect-gray.png", cv::Mat(imgGray, rect));
-    cv::imwrite("debug-rect-color.png", cv::Mat(imgColor, rect));
+    cv::imwrite("debug-rect-gray.png", cv::Mat(debugEnv.getGrayImage(), rect));
+    cv::imwrite("debug-rect-color.png", cv::Mat(debugEnv.getColorImage(), rect));
 
     std::string text;
-    if (Master::ocrMarketText(imgGray, rect, text) > 30) {
+    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 30) {
         Commodity *commodity = mConfiguration->getCommodityByName(text, true);
         if (commodity) {
             if (mConfiguration->lng != EN)  // they capitalize text
@@ -1082,7 +1107,7 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
                 lng = "-eng";
             else
                 lng = "-xxx";
-            cv::imwrite(commodity->nameId + lng + ".png", cv::Mat(imgGray, rect));
+            cv::imwrite(commodity->nameId + lng + ".png", cv::Mat(debugEnv.getGrayImage(), rect));
             std::ofstream wf(commodity->nameId + lng + ".gt.txt", std::ios::trunc | std::ios::binary);
             if (wf.is_open()) {
                 wf << text;
@@ -1096,18 +1121,18 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
 WState Master::detectButtonState(const widget::Widget* item) {
     if (!item)
         return WState::Unknown;
-    cv::Rect r = mLastEDState.cEnv.calcReferenceRect(item->rect);
+    cv::Rect r = mClassifyEnv.calcReferenceRect(item->rect);
     if (r.empty())
         return WState::Unknown;
     int x = r.x + r.width - 36;
     int y = r.y + r.height / 2 - 8;
     if (item->tp == WidgetType::Spinner)
         x -= r.height + 10;
-    mLastEDState.cEnv.classified.emplace_back(ClsDetType::Widget, item->name, r);
-    ClassifiedRect& clsBtnRect = mLastEDState.cEnv.classified.back();
+    mClassifyEnv.classified.emplace_back(ClsDetType::Widget, item->name, r);
+    ClassifiedRect& clsBtnRect = mClassifyEnv.classified.back();
     clsBtnRect.u.widg.widget = item;
     mButtonStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
-    mButtonStateDetector->classify(mLastEDState.cEnv);
+    mButtonStateDetector->classify(mClassifyEnv);
     auto& values = mButtonStateDetector->mLastValues;
     int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
     double value = values[idx];
@@ -1124,13 +1149,13 @@ WState Master::detectButtonState(const widget::Widget* item) {
 void Master::detectListState(const widget::List* lst, DetectLevel level) {
     if (!lst)
         return;
-    cv::Rect listReferenceRect = mLastEDState.cEnv.calcReferenceRect(lst->rect);
-    cv::Rect rect =  mLastEDState.cEnv.cvtReferenceToCaptured(listReferenceRect);
+    cv::Rect listReferenceRect = mClassifyEnv.calcReferenceRect(lst->rect);
+    cv::Rect rect =  mClassifyEnv.cvtReferenceToCaptured(listReferenceRect);
     if (rect.empty())
         return;
 
-    mLastEDState.cEnv.classified.emplace_back(ClsDetType::Widget, lst->name, listReferenceRect);
-    ClassifiedRect& clsListRect = mLastEDState.cEnv.classified.back();
+    mClassifyEnv.classified.emplace_back(ClsDetType::Widget, lst->name, listReferenceRect);
+    ClassifiedRect& clsListRect = mClassifyEnv.classified.back();
     clsListRect.u.widg.widget = lst;
 
     cv::Vec3b normColor = mConfiguration->mLstRowLuv[int(WState::Normal)];
@@ -1139,7 +1164,7 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
     if (normColor == cv::Vec3b::zeros())
         normColor = cv::Vec3b(10,95,130);
     unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
-    cv::Mat grayImage(grayED, rect);
+    cv::Mat grayImage(mClassifyEnv.getGrayImage(), rect);
 
     cv::Mat thrImage;
     cv::threshold(grayImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
@@ -1151,7 +1176,7 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         erodedImage = thrImage;
     }
 
-    auto expected_row_height = mLastEDState.cEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
+    auto expected_row_height = mClassifyEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
     double minArea =  rect.width * (expected_row_height-2*USE_EROSION) * 0.75;
 
     std::vector<cv::Rect> detectedRows;
@@ -1183,8 +1208,8 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         WState ws = WState::Unknown;
         int x = rect.x + r.x + r.width - 36;
         int y = rect.y + r.y + r.height / 2 - 8;
-        mLstRowStateDetector->mRect = mLastEDState.cEnv.cvtCapturedToReference(cv::Rect(cv::Point(x,y), cv::Size(16,16)));
-        mLstRowStateDetector->classify(mLastEDState.cEnv);
+        mLstRowStateDetector->mRect = mClassifyEnv.cvtCapturedToReference(cv::Rect(cv::Point(x,y), cv::Size(16,16)));
+        mLstRowStateDetector->classify(mClassifyEnv);
         cv::Vec3b bgLuv = mLstRowStateDetector->mLastColor;
         auto& values = mLstRowStateDetector->mLastValues;
         int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
@@ -1197,9 +1222,9 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
             ocrMarketText(grayImage, r, text);
         }
 
-        cv::Rect rowReferenceRect = mLastEDState.cEnv.cvtCapturedToReference(r+rect.tl());
-        mLastEDState.cEnv.classified.emplace_back(ClsDetType::ListRow, text, rowReferenceRect);
-        ClassifiedRect& clsRowRect = mLastEDState.cEnv.classified.back();
+        cv::Rect rowReferenceRect = mClassifyEnv.cvtCapturedToReference(r+rect.tl());
+        mClassifyEnv.classified.emplace_back(ClsDetType::ListRow, text, rowReferenceRect);
+        ClassifiedRect& clsRowRect = mClassifyEnv.classified.back();
         clsRowRect.u.lrow.list = lst;
         clsRowRect.u.lrow.ws = ws;
         if (ws == WState::Focused)
@@ -1207,7 +1232,7 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
     }
 }
 
-int Master::ocrMarketText(cv::Mat& grayImage, cv::Rect rect, std::string& text, std::optional<bool> invert) {
+int Master::ocrMarketText(const cv::Mat& grayImage, cv::Rect rect, std::string& text, std::optional<bool> invert) {
     text.clear();
     if (!mTesseractApiForMarket)
         return 0;
@@ -1268,9 +1293,9 @@ Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel
             }
         }
         if (item->tp == WidgetType::Label) {
-            cv::Rect r = mLastEDState.cEnv.calcReferenceRect(item->rect);
-            mLastEDState.cEnv.classified.emplace_back(ClsDetType::Widget, item->name, r);
-            mLastEDState.cEnv.classified.back().u.widg.widget = item;
+            cv::Rect r = mClassifyEnv.calcReferenceRect(item->rect);
+            mClassifyEnv.classified.emplace_back(ClsDetType::Widget, item->name, r);
+            mClassifyEnv.classified.back().u.widg.widget = item;
         }
         if (item->tp == WidgetType::List && level >= DetectLevel::ListRows) {
             detectListState(dynamic_cast<List*>(item), level);
@@ -1286,14 +1311,15 @@ Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel
 }
 const UIState& Master::detectEDState(DetectLevel level) {
     mLastEDState.clear();
-    if (level == DetectLevel::None)
-        return mLastEDState;
     // make screenshot
-    if (!captureWindow(mCaptureRect, colorED, grayED)) {
+    if (!captureWindow(mClassifyEnv)) {
         LOG(ERROR) << "Cannot capture screen";
+        mLastEDState.valid = false;
         return mLastEDState;
     }
-    mLastEDState.cEnv.init(mMonitorRect, mCaptureRect, colorED, grayED);
+    mLastEDState.valid = true;
+    if (level == DetectLevel::None)
+        return mLastEDState;
 
     // detect screen and widget
     for (auto& screen : mScreensRoot->have) {
@@ -1386,35 +1412,87 @@ bool Master::isEDStateMatch(const std::string& state) {
     return true;
 }
 
-bool Master::captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& grayImg) {
-    if (!isForeground()) {
-        LOG(WARNING) << "Elite Dangerous is not foreground; hWndED=" << std::format("0x{}", (void*)hWndED);
-        //return false;
+void CALLBACK Master::edDestroyedEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD idEventThread, DWORD dwmsEventTime) {
+    Master& self = getInstance();
+    if (event == EVENT_OBJECT_DESTROY && hwnd == self.hWndED && idChild == CHILDID_SELF) {
+        LOG(ERROR) << "Elite Dangerous window closed";
+        self.pushCommand(Command::ResetCapturer);
     }
-    Capturer *capturer = Capturer::getEDCapturer(hWndED);
-    if (!capturer)
-        return false;
-    if (!capturer->captureDisplay())
-        return false;
-    captureRect = capturer->getCaptureRect();
-    if (&colorImg == &colorED)
-        mMonitorRect = capturer->getMonitorVirtualRect();
-    colorImg = capturer->getColorImage();
-    //cv::imwrite("captured-window-color.png", colorImg);
-    grayImg = capturer->getGrayImage();
-    //cv::imwrite("captured-window-gray.png", grayImg);
-    return true;
 }
 
-bool Master::captureWindowDX11() {
-    if (!isForeground()) {
-        LOG(WARNING) << "Elite Dangerous is not foreground; hWndED=" << std::format("0x{}", (void*)hWndED);
-        //return false;
+void CALLBACK Master::edMovedEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD idEventThread, DWORD dwmsEventTime) {
+    Master& self = getInstance();
+    if (event == EVENT_OBJECT_LOCATIONCHANGE && hwnd == self.hWndED && idChild == CHILDID_SELF) {
+        RECT wr;
+        GetWindowRect(hwnd, &wr);
+        RECT er = self.mRectED;
+        if ((wr.right-wr.left) != (er.right-er.left) || (wr.bottom-wr.top) != (er.bottom-er.top)) {
+            LOG(ERROR) << "Elite Dangerous window size changed";
+            self.pushCommand(Command::ResetCapturer);
+            return;
+        }
+        HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (!hMonitor || hMonitor != self.hMonitorED) {
+            LOG(ERROR) << "Elite Dangerous moved to another monitor";
+            self.pushCommand(Command::ResetCapturer);
+        }
     }
-    CaptureDX11 *capturer = CaptureDX11::getEDCapturer(hWndED);
+}
+
+Capturer* Master::getCapturer() {
+    if (!hWndED) {
+        HWND hWnd = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
+        if (hWnd) {
+            resetCapturer();
+            hWndED = hWnd;
+            hMonitorED = MonitorFromWindow(hWndED, MONITOR_DEFAULTTONEAREST);
+            GetWindowRect(hWndED, &mRectED);
+            DWORD processId;
+            DWORD threadId = GetWindowThreadProcessId(hWndED, &processId);
+            SetWinEventHook(
+                    EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
+                    nullptr, edDestroyedEventProc, processId, 0, WINEVENT_OUTOFCONTEXT
+            );
+            SetWinEventHook(
+                    EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
+                    nullptr, edMovedEventProc, processId, 0, WINEVENT_OUTOFCONTEXT
+            );
+        }
+    }
+    if (!mCapturer) {
+        mCapturer = Capturer::getEDCapturer(hWndED);
+        if (!mCapturer)
+            return nullptr;
+        mCapturer->start();
+    }
+    return mCapturer;
+}
+
+void Master::resetCapturer() {
+    hWndED = nullptr;
+    hMonitorED = nullptr;
+    if (mCapturer) {
+        mCapturer->stop();
+        mCapturer = nullptr;
+    }
+}
+
+
+bool Master::captureWindow(ClassifyEnv& env) {
+    auto capturer = getCapturer();
     if (!capturer)
         return false;
-    capturer->playWindow();
-    delete capturer;
-    return true;
+
+    //if (!isForeground()) {
+    //    LOG(WARNING) << "Elite Dangerous is not foreground; hWndED=" << std::format("{}", (void*)hWndED);
+    //    //return false;
+    //}
+
+    upFrame recycle;
+    env.mFrame.swap(recycle);
+    recycle = capturer->capture(std::move(recycle));
+    cv::Rect captureRect = capturer->getCaptureRect();
+    cv::Rect monitorRect = capturer->getMonitorVirtualRect();
+    env.init(monitorRect, captureRect, std::move(recycle));
+    return env.mFrame && env.mFrame->valid();
 }

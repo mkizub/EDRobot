@@ -27,12 +27,14 @@ add_executable(EDRobot
         src/pch.cpp
         src/pch.h
         src/main.cpp
-        src/Capturer.cpp
-        src/Capturer.h
+        src/ClassifyEnv.cpp
+        src/ClassifyEnv.h
         src/Configuration.cpp
         src/Configuration.h
         src/EDWidget.cpp
         src/EDWidget.h
+        src/FuzzyMatch.cpp
+        src/FuzzyMatch.h
         src/Keyboard.cpp
         src/Keyboard.h
         src/Master.cpp
@@ -41,21 +43,9 @@ add_executable(EDRobot
         src/Task.h
         src/Template.cpp
         src/Template.h
-        src/UI.h
         src/Utils.cpp
         src/Utils.h
-        ui/Dialogs.rc
-        thirdparty/easylogging/easylogging++.cc
-        thirdparty/easylogging/easylogging++.h
-        thirdparty/dirlistener/ReadDirectoryChanges.cpp
-        thirdparty/dirlistener/ReadDirectoryChanges.h
-        thirdparty/dirlistener/ReadDirectoryChangesPrivate.cpp
-        thirdparty/dirlistener/ReadDirectoryChangesPrivate.h
-        thirdparty/dirlistener/ThreadSafeQueue.h
-        thirdparty/CLI11/CLI11.hpp
-        thirdparty/xml/xml.h
-        src/FuzzyMatch.cpp
-        src/FuzzyMatch.h
+
         src/ui/UIToast.cpp
         src/ui/UIToast.h
         src/ui/UIManager.cpp
@@ -72,8 +62,28 @@ add_executable(EDRobot
         src/ui/UIDialog.h
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
-        src/CaptureDXGI.cpp
-        src/CaptureDX11.h
+
+        src/Capturer.h
+        src/capture/Capturer.cpp
+        src/capture/CapturerWin32.cpp
+        src/capture/CapturerWin32.h
+        src/capture/CaptureWinRT.cpp
+        src/capture/CapturerWinRT.h
+
+        src/ui/UIDebug.cpp
+        src/ui/UIDebug.h
+
+        ui/Dialogs.rc
+
+        thirdparty/easylogging/easylogging++.cc
+        thirdparty/easylogging/easylogging++.h
+        thirdparty/dirlistener/ReadDirectoryChanges.cpp
+        thirdparty/dirlistener/ReadDirectoryChanges.h
+        thirdparty/dirlistener/ReadDirectoryChangesPrivate.cpp
+        thirdparty/dirlistener/ReadDirectoryChangesPrivate.h
+        thirdparty/dirlistener/ThreadSafeQueue.h
+        thirdparty/CLI11/CLI11.hpp
+        thirdparty/xml/xml.h
 )
 #target_precompile_headers(EDRobot PUBLIC pch.h)
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
@@ -82,7 +92,7 @@ target_include_directories(EDRobot PRIVATE thirdparty)
 #target_include_directories(EDRobot PRIVATE ${GETTEXT_INCLUDE_DIR})
 target_link_libraries(EDRobot ${GETTEXT_LIBRARIES})
 target_link_libraries(EDRobot ${OpenCV_LIBS} Tesseract::libtesseract) # cpptrace::cpptrace msimg32
-target_link_libraries(EDRobot dxgi d3d11 winmm shcore)
+target_link_libraries(EDRobot dxgi d3d11 winmm shcore dwmapi d2d1) # windowsapp
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot cpptrace::cpptrace)
 endif()

@@ -55,6 +55,7 @@ using namespace magic_enum;
 
 #include "Utils.h"
 #include "Configuration.h"
+#include "ClassifyEnv.h"
 #include "Template.h"
 #include "EDWidget.h"
 #include "Master.h"

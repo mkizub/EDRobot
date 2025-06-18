@@ -10,6 +10,7 @@
 #include "UISellInput.h"
 #include "UICalibration.h"
 #include "UISelectRect.h"
+#include "UIDebug.h"
 
 UIManager &UIManager::getInstance() {
     static UIManager uiManager;
@@ -24,6 +25,7 @@ bool UIManager::initialize() {
     bool ok = true;
     ok &= UIToast::initialize();
     ok &= UISelectRect::initialize();
+    ok &= UIDebug::initialize();
     return ok;
 }
 
@@ -69,3 +71,18 @@ bool UIManager::askSelectRectWindow() {
     return true;
 }
 
+bool UIManager::showDebugWindow() {
+    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance();
+    if (!wnd)
+        return false;
+    wnd->show();
+    return true;
+}
+
+bool UIManager::postToDebugWindow(const cv::Mat& image) {
+    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance();
+    if (!wnd)
+        return false;
+    wnd->showImage(image);
+    return true;
+}

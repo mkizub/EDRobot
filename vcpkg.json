@@ -6,7 +6,7 @@
     "name" : "cpptrace"
   }, {
     "name" : "opencv4",
-    "features" : [ "win32ui", "highgui", "intrinsics", "thread", "jpeg", "png", "ipp", "tbb", "contrib", "world" ],
+    "features" : [ "win32ui", "highgui", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "world" ],
     "default-features" : false
   }, {
     "name" : "gettext",

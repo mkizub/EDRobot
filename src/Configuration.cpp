@@ -44,6 +44,7 @@ bool Configuration::load() {
             {{"c",keyboard::CTRL|keyboard::ALT}, Command::DebugCompass},
             {{"c",keyboard::CTRL|keyboard::ALT|keyboard::SHIFT}, Command::DebugCompass},
             {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect},
+            {{"[",keyboard::CTRL|keyboard::ALT}, Command::DebugWindow},
     };
 
     {
@@ -76,6 +77,8 @@ bool Configuration::load() {
             parseShortcutConfig(Command::Stop,  "stop",  obj);
             parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
             parseShortcutConfig(Command::DebugButtons,    "debug-buttons",  obj);
+            parseShortcutConfig(Command::DebugCompass,    "debug-compass",  obj);
+            parseShortcutConfig(Command::DebugWindow,     "debug-window",  obj);
             parseShortcutConfig(Command::DevRectSelect,   "dev-rect-select",  obj);
             parseShortcutConfig(Command::Shutdown,  "shutdown",  obj);
         }
@@ -97,6 +100,7 @@ bool Configuration::load() {
         loadCargo();
         loadCalibration();
 
+        LOG(INFO) << "Setting journal directory listener";
         if (!changeDirListener) {
             changeDirListener = std::make_unique<CReadDirectoryChanges>(100);
             changeDirListener->Init();
@@ -109,6 +113,7 @@ bool Configuration::load() {
         }
     }
 
+    LOG(INFO) << "Setting actions.json5 and screens.json5";
     Master& master = Master::getInstance();
     {
         std::ifstream ifs_config("actions.json5");
@@ -207,6 +212,7 @@ bool Configuration::loadGameSettings() {
 }
 
 bool Configuration::loadGameJournal(std::wstring journalFilename) {
+    LOG(INFO) << "Loading game journal";
     if (journalFilename.empty()) {
         std::filesystem::path latestJournalFile;
         auto newestTime = std::chrono::file_clock::time_point::min();
@@ -270,6 +276,7 @@ bool Configuration::loadGameJournal(std::wstring journalFilename) {
 }
 
 bool Configuration::loadCalibration() {
+    LOG(INFO) << "Loading calibration.json5";
     std::ifstream ifs("calibration.json5");
     if (!ifs)
         return false;
@@ -523,6 +530,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
 }
 
 bool Configuration::loadMarket() {
+    LOG(INFO) << "Loading Market.json";
     json5pp::value j_market;
     try {
         std::ifstream marketFile(mEDLogsPath + L"/Market.json", std::ifstream::in);
@@ -659,6 +667,7 @@ bool Configuration::loadCargo() {
 }
 
 bool Configuration::loadCommodityDatabase() {
+    LOG(INFO) << "Loading commodity database";
     std::ifstream dbf("commodity-database.json5");
     if (!dbf)
         return false;

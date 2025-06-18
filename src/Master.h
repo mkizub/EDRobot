@@ -14,6 +14,7 @@
 #include "EDWidget.h"
 
 class Task;
+class Capturer;
 
 namespace tesseract {
     class TessBaseAPI;
@@ -34,8 +35,10 @@ enum class Command {
     DebugButtons,
     DebugFindAllCommodities,
     DebugCompass,
+    DebugWindow,
     DevRectSelect,
     DevRectScreenshot,
+    ResetCapturer,
     Shutdown,
 };
 
@@ -49,9 +52,9 @@ struct UIState {
     UIState() = default;
     void clear();
     const std::string& path() const;
+    bool valid;
     const widget::Widget* widget;
     const widget::Widget* focused;
-    ClassifyEnv cEnv;
     friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
     std::string to_string() const;
 };
@@ -72,8 +75,10 @@ public:
 
     int initialize(int argc, char* argv[]);
     void loop();
+    bool captureWindow(ClassifyEnv& env);
     const UIState& detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastEDState; }
+    const ClassifyEnv& cEnv() { return mClassifyEnv; };
     bool isEDStateMatch(const std::string& state);
     const json5pp::value& getTaskActions(const std::string& action);
     cv::Rect resolveWidgetReferenceRect(const std::string& name);
@@ -110,8 +115,10 @@ private:
     void pushCommand(CommandEntry* cmd);
     void popCommand(pCommand& cmd);
 
-    bool captureWindow(cv::Rect& captureRect, cv::Mat& colorImg, cv::Mat& grayImg);
-    bool captureWindowDX11();
+    Capturer* getCapturer();
+    void resetCapturer();
+    static void CALLBACK edDestroyedEventProc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
+    static void CALLBACK edMovedEventProc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
 
     void showNotification(pCommand& cmd);
     bool preInitTask(bool checkCalibration=true);
@@ -125,28 +132,34 @@ private:
     std::vector<std::string> parseState(const std::string& name);
     WState detectButtonState(const widget::Widget* item);
     void detectListState(const widget::List* item, DetectLevel level);
-    int ocrMarketText(cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
+    int ocrMarketText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
     const Commodity* ocrMarketRowCommodity(ClassifiedRect* cr);
     widget::Widget* detectAllButtonsStates(const widget::Widget* parent, DetectLevel level);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
     bool matchItem(widget::Widget* item);
-    bool debugTemplates(widget::Widget* item, ClassifyEnv& env);
+    bool debugTemplates(widget::Widget* item, ClassifyEnv* env);
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
     void drawButton(widget::Widget* item);
     bool debugButtons();
     bool debugRectScreenshot(pCommand& cmd);
     bool debugFindAllCommodities();
     bool debugCompass();
+    bool debugWindow();
 
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
     HWND hWndED;
-    cv::Mat colorED;
-    cv::Mat grayED;
-    cv::Rect mCaptureRect; // in captured image coordinated
-    cv::Rect mMonitorRect; // in virtual desktop coordinated
+    HMONITOR hMonitorED;
+    RECT mRectED;
+
+    cv::UMat mCapturedED;
+    Capturer* mCapturer {nullptr};
+    //cv::Rect mCaptureRect; // in captured image coordinated
+    //cv::Rect mMonitorRect; // in virtual desktop coordinated
     UIState mLastEDState;
+    ClassifyEnv mClassifyEnv;
+    bool mDuplicateToDebugWindow {false};
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForDigits;
     std::unique_ptr<Configuration> mConfiguration;
