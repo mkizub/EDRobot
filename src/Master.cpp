@@ -257,6 +257,7 @@ void Master::initButtonStateDetector() {
 
 Master::Master() {
     mScreensRoot = std::make_unique<widget::Root>();
+    mLoopWakeup = std::chrono::milliseconds(1000);
 }
 
 Master::~Master() {
@@ -285,6 +286,7 @@ void Master::loop() {
             popCommand(cmd);
             switch (cmd->command) {
             case Command::NoOp:
+                debugWindowUpdate();
                 break;
             case Command::TaskFinished:
                 clearCurrentTask();
@@ -406,9 +408,14 @@ void Master::pushDevRectScreenshotCommand(cv::Rect rect) {
 
 void Master::popCommand(pCommand& cmd) {
     std::unique_lock<std::mutex> lock(mCommandMutex);
-    mCommandCond.wait(lock, [this]() { return !mCommandQueue.empty(); });
-    std::swap(cmd, mCommandQueue.front());
-    mCommandQueue.pop();
+    mCommandCond.wait_for(lock, mLoopWakeup, [this]() { return !mCommandQueue.empty(); });
+    if (!mCommandQueue.empty()) {
+        std::swap(cmd, mCommandQueue.front());
+        mCommandQueue.pop();
+    } else {
+        pCommand nop = std::make_unique<CommandEntry>(Command::NoOp);
+        std::swap(cmd, nop);
+    }
 }
 
 void Master::showNotification(pCommand& cmd) {
@@ -714,6 +721,8 @@ bool Master::debugFindAllCommodities() {
 void Master::runCurrentTask() {
     Master& self = getInstance();
     TRY {
+        std::string threadName = "Task: " + self.currentTask->getTaskName();
+        SetThreadDescription(GetCurrentThread(), toUtf16(threadName).c_str());
         bool ok = self.currentTask->run();
         self.pushCommand(Command::TaskFinished);
     } CATCH (const std::exception& e) {
@@ -865,12 +874,12 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv* env) {
         for (auto &screen: mScreensRoot->have) {
             debugTemplates(screen, &debugEnv);
             el::Loggers::flushAll();
-            std::string fname = "debug-match-"+screen->name+".png";
+            //std::string fname = "debug-match-"+screen->name+".png";
             //cv::imwrite(fname, env.debugImage);
-            cv::imshow(fname, debugEnv.getDebugImage());
-            cv::waitKey();
+            //cv::imshow(fname, debugEnv.getDebugImage());
+            //cv::waitKey();
         }
-        cv::destroyAllWindows();
+        //cv::destroyAllWindows();
         debugEnv.clear();
         el::Loggers::flushAll();
         return true;
@@ -954,7 +963,7 @@ void Master::drawButton(widget::Widget* item) {
         unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
         cv::Mat listImage(mClassifyEnv.getGrayImage(), rect);
 
-        cv::imshow("List image: " + mLastEDState.path(), listImage);
+        //cv::imshow("List image: " + mLastEDState.path(), listImage);
 
         cv::Mat thrImage;
         cv::Mat erodedImage;
@@ -1000,8 +1009,8 @@ void Master::drawButton(widget::Widget* item) {
 
         //cv::imshow("Contour image: " + mLastEDState.path(), debugImage);
 
-        cv::waitKey();
-        cv::destroyAllWindows();
+        //cv::waitKey();
+        //cv::destroyAllWindows();
     }
 }
 
@@ -1017,14 +1026,14 @@ bool Master::debugButtons() {
         }
     }
     if (mDuplicateToDebugWindow) {
-        if (!UIManager::postToDebugWindow(mClassifyEnv.getDebugImage()))
+        if (!UIManager::postToDebugWindow(mClassifyEnv.getColorImage(), mClassifyEnv.getDebugImage()))
             mDuplicateToDebugWindow = false;
     }
-    if (!mDuplicateToDebugWindow) {
-        cv::imshow(mLastEDState.path(), mClassifyEnv.getDebugImage());
-        cv::waitKey();
-        cv::destroyAllWindows();
-    }
+//    if (!mDuplicateToDebugWindow) {
+//        cv::imshow(mLastEDState.path(), mClassifyEnv.getDebugImage());
+//        cv::waitKey();
+//        cv::destroyAllWindows();
+//    }
     return true;
 }
 
@@ -1035,27 +1044,41 @@ bool Master::debugCompass() {
         return false;
     }
     mCompassDetector->debugMatch(debugEnv);
+    mDuplicateToDebugWindow = UIManager::showDebugWindow();
     if (mDuplicateToDebugWindow) {
-        if (!UIManager::postToDebugWindow(debugEnv.getDebugImage()))
+        if (!UIManager::postToDebugWindow(debugEnv.getColorImage(), debugEnv.getDebugImage()))
             mDuplicateToDebugWindow = false;
     }
-    if (!mDuplicateToDebugWindow) {
-        cv::imshow(mLastEDState.path(), debugEnv.getDebugImage());
-        cv::waitKey();
-        cv::destroyAllWindows();
-    }
+//    if (!mDuplicateToDebugWindow) {
+//        cv::imshow(mLastEDState.path(), debugEnv.getDebugImage());
+//        cv::waitKey();
+//        cv::destroyAllWindows();
+//    }
     return true;
 }
 
 bool Master::debugWindow() {
     detectEDState(DetectLevel::Screen);
     if (UIManager::showDebugWindow()) {
-        mDuplicateToDebugWindow = UIManager::postToDebugWindow(mClassifyEnv.getDebugImage());
+        mDuplicateToDebugWindow = UIManager::postToDebugWindow(mClassifyEnv.getColorImage());
         return true;
     } else {
         mDuplicateToDebugWindow = false;
         return true;
     }
+}
+
+bool Master::debugWindowUpdate() {
+    if (!hWndED)
+        return false;
+    mDuplicateToDebugWindow = UIManager::hasDebugWindow();
+    if (!mDuplicateToDebugWindow)
+        return false;
+    if (!captureWindow(mClassifyEnv)) {
+        LOG(ERROR) << "Cannot capture window";
+        return false;
+    }
+    return UIManager::postToDebugWindow(mClassifyEnv.getColorImage());
 }
 
 bool Master::debugRectScreenshot(pCommand& cmd) {
@@ -1412,51 +1435,12 @@ bool Master::isEDStateMatch(const std::string& state) {
     return true;
 }
 
-void CALLBACK Master::edDestroyedEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD idEventThread, DWORD dwmsEventTime) {
-    Master& self = getInstance();
-    if (event == EVENT_OBJECT_DESTROY && hwnd == self.hWndED && idChild == CHILDID_SELF) {
-        LOG(ERROR) << "Elite Dangerous window closed";
-        self.pushCommand(Command::ResetCapturer);
-    }
-}
-
-void CALLBACK Master::edMovedEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD idEventThread, DWORD dwmsEventTime) {
-    Master& self = getInstance();
-    if (event == EVENT_OBJECT_LOCATIONCHANGE && hwnd == self.hWndED && idChild == CHILDID_SELF) {
-        RECT wr;
-        GetWindowRect(hwnd, &wr);
-        RECT er = self.mRectED;
-        if ((wr.right-wr.left) != (er.right-er.left) || (wr.bottom-wr.top) != (er.bottom-er.top)) {
-            LOG(ERROR) << "Elite Dangerous window size changed";
-            self.pushCommand(Command::ResetCapturer);
-            return;
-        }
-        HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        if (!hMonitor || hMonitor != self.hMonitorED) {
-            LOG(ERROR) << "Elite Dangerous moved to another monitor";
-            self.pushCommand(Command::ResetCapturer);
-        }
-    }
-}
-
 Capturer* Master::getCapturer() {
     if (!hWndED) {
         HWND hWnd = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
         if (hWnd) {
             resetCapturer();
             hWndED = hWnd;
-            hMonitorED = MonitorFromWindow(hWndED, MONITOR_DEFAULTTONEAREST);
-            GetWindowRect(hWndED, &mRectED);
-            DWORD processId;
-            DWORD threadId = GetWindowThreadProcessId(hWndED, &processId);
-            SetWinEventHook(
-                    EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
-                    nullptr, edDestroyedEventProc, processId, 0, WINEVENT_OUTOFCONTEXT
-            );
-            SetWinEventHook(
-                    EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
-                    nullptr, edMovedEventProc, processId, 0, WINEVENT_OUTOFCONTEXT
-            );
         }
     }
     if (!mCapturer) {
@@ -1470,7 +1454,6 @@ Capturer* Master::getCapturer() {
 
 void Master::resetCapturer() {
     hWndED = nullptr;
-    hMonitorED = nullptr;
     if (mCapturer) {
         mCapturer->stop();
         mCapturer = nullptr;

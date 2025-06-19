@@ -99,6 +99,9 @@ public:
     bool saveCalibration() const;
     bool checkResolutionSupported(cv::Size gameSize);
     bool checkNeedColorCalibration() const;
+    bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
+    bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
+    bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
     std::string getShortcutFor(Command cmd) const;
     CommodityCategory* getCommodityCategoryByName(const std::string& name);
     Commodity* getCommodityByName(const std::string& name, bool fuzzy);
@@ -119,7 +122,7 @@ private:
 
     void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
     bool loadCalibration();
-    bool loadGameSettings();
+    bool loadGameSettings(bool initial);
     bool loadGameJournal(std::wstring journalFilename);
     bool loadCommodityDatabase();
     bool dumpCommodityDatabase();
@@ -134,6 +137,9 @@ private:
     int defaultKeyHoldTime = 35;
     int defaultKeyAfterTime = 50;
     int searchRegionExtent = 10;
+    bool capturerWin32Disabled = false;
+    bool capturerWinRTDisabled = false;
+    bool capturerDXGIDisabled = false;
     std::string mTesseractDataPath;
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;

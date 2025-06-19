@@ -22,7 +22,7 @@ private:
     friend class Capturer;
     friend class FrameWinRT;
     CapturerWinRT(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor);
-    bool trySetup(HWND hWnd, RECT& captRect) override;
+    bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) override;
 
     void OnFrameArrived(
             winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const& sender,
@@ -31,7 +31,7 @@ private:
             winrt::Windows::Graphics::Capture::GraphicsCaptureItem const& sender,
             winrt::Windows::Foundation::IInspectable const&);
 
-    void copyTexture(FrameWinRT* frame, winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame nextFrame);
+    void copyTexture(FrameWinRT* myFrame, winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame& captureFrame);
 
     winrt::com_ptr<ID3D11Device> m_d3dDevice;
     winrt::com_ptr<ID3D11DeviceContext> m_d3dContext;
@@ -39,10 +39,9 @@ private:
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool {nullptr};
     winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session {nullptr};
     winrt::event_token m_frameArrived;
+    //winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame m_nextFrame {nullptr};
+    FrameWinRT* m_frame {nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame m_nextFrame {nullptr};
-    int captureWidth {};
-    int captureHeight {};
-    D3D11_TEXTURE2D_DESC mStagingTextureDesc;
 
     mutable std::deque<Frame*> recycledFrames;
 

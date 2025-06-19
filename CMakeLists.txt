@@ -84,6 +84,8 @@ add_executable(EDRobot
         thirdparty/dirlistener/ThreadSafeQueue.h
         thirdparty/CLI11/CLI11.hpp
         thirdparty/xml/xml.h
+        src/capture/CapturerDXGI.cpp
+        src/capture/CapturerDXGI.h
 )
 #target_precompile_headers(EDRobot PUBLIC pch.h)
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})

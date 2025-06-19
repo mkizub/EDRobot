@@ -30,10 +30,18 @@ void ClassifyEnv::clear() {
     const_cast<cv::Rect&>(captureRect) = cv::Rect();
     const_cast<cv::Rect&>(captureCrop) = cv::Rect();
     mFrame.reset();
+    mDebugOverlay = cv::Mat();
     needScaling_ = false;
     scaleToCaptured_ = 1;
     captureCenter = ReferenceScreenCenter;
     classified.clear();
+}
+
+cv::Mat& ClassifyEnv::getDebugImage() const {
+    if (!mDebugOverlay.empty())
+        return mDebugOverlay;
+    mDebugOverlay = cv::Mat(captureRect.size(), CV_8UC4, cv::Vec4b::zeros());
+    return mDebugOverlay;
 }
 
 cv::Point ClassifyEnv::cvtReferenceToDesktop(const cv::Point& point) const {

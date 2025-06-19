@@ -7,6 +7,13 @@
 #ifndef EDROBOT_UTILS_H
 #define EDROBOT_UTILS_H
 
+inline RECT toRECT(cv::Rect& r) {
+    return {r.x, r.y, r.br().x, r.br().y};
+}
+inline cv::Rect fromRECT(RECT& r) {
+    return {r.left, r.top, r.right-r.left, r.bottom-r.top};
+}
+
 extern std::string getErrorMessage();
 extern std::string getErrorMessage(unsigned errorCode);
 extern void pasteToClipboard(const std::string& text);

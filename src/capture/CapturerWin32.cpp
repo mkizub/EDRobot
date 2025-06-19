@@ -8,28 +8,25 @@
 
 class FrameWin32 : public Frame {
 public:
-    FrameWin32(CapturerWin32* owner, cv::Size size);
+    FrameWin32(CapturerWin32* owner);
     ~FrameWin32() override;
     bool valid() const override;
     const cv::UMat& getColorTexture() const override;
     const cv::Mat& getColorImage() const override;
     const cv::Mat& getGrayImage() const override;
-          cv::Mat& getDebugImage() const override;
 
     void cleanup();
 
     mutable cv::UMat colorTexture;
     mutable cv::Mat colorImage;
     mutable cv::Mat grayImage;
-    mutable cv::Mat debugImage;
     mutable bool colorTextureValid {false};
     mutable bool colorImageValid {false};
     mutable bool grayImageValid {false};
-    mutable bool debugIMageValid {false};
 };
 
-FrameWin32::FrameWin32(CapturerWin32* owner, cv::Size size)
-        : Frame(owner, size)
+FrameWin32::FrameWin32(CapturerWin32* owner)
+        : Frame(owner, owner->captureVirtRect.size())
 {
     colorImage.create(size, CV_8UC4);
     colorImageValid = true;
@@ -49,7 +46,6 @@ void FrameWin32::cleanup() {
         colorTextureValid = false;
     }
     grayImageValid = false;
-    debugIMageValid = false;
 }
 
 const cv::UMat& FrameWin32::getColorTexture() const {
@@ -70,14 +66,6 @@ const cv::Mat& FrameWin32::getGrayImage() const {
         grayImageValid = true;
     }
     return grayImage;
-}
-
-cv::Mat& FrameWin32::getDebugImage() const {
-    if (!debugIMageValid) {
-        colorImage.copyTo(debugImage);
-        debugIMageValid = true;
-    }
-    return debugImage;
 }
 
 CapturerWin32::CapturerWin32(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor)
@@ -114,11 +102,14 @@ void CapturerWin32::recycle(Frame *p) const {
     recycledFrames.push_back(p);
 }
 
-bool CapturerWin32::trySetup(HWND hWnd, RECT &captRect) {
+bool CapturerWin32::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) {
     if (!hWnd)
         return false;
     this->hWndED = hWnd;
-    this->captureRect = captRect;
+    this->windowVirtRect = windowRect;
+    this->captureVirtRect = clientRect;
+    this->titleHeight = clientRect.y - windowRect.y;
+    this->borderWidth = clientRect.x - windowRect.x;
     return true;
 }
 
@@ -173,11 +164,11 @@ bool CapturerWin32::trySetup(HWND hWnd, RECT &captRect) {
 bool CapturerWin32::start() {
     stop();
     hdcMem = CreateCompatibleDC(hdcScreen);
-    hBitmap = CreateCompatibleBitmap(hdcScreen, screenWidth, screenHeight);
+    hBitmap = CreateCompatibleBitmap(hdcScreen, captureVirtRect.width, captureVirtRect.height);
     memset(&bitmapInfoHeader, 0, sizeof(bitmapInfoHeader));
     bitmapInfoHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bitmapInfoHeader.biWidth = screenWidth;
-    bitmapInfoHeader.biHeight = -screenHeight;  // Negative height to flip the image vertically
+    bitmapInfoHeader.biWidth = captureVirtRect.width;
+    bitmapInfoHeader.biHeight = -captureVirtRect.height;  // Negative height to flip the image vertically
     bitmapInfoHeader.biPlanes = 1;
     bitmapInfoHeader.biBitCount = 32;
     bitmapInfoHeader.biCompression = BI_RGB;
@@ -195,6 +186,10 @@ bool CapturerWin32::stop() {
         DeleteDC(hdcMem);
         hdcMem = nullptr;
     }
+    while (!recycledFrames.empty()) {
+        delete (FrameWin32*)recycledFrames.back();
+        recycledFrames.pop_back();
+    }
     return Capturer::stop();
 }
 
@@ -203,21 +198,40 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
         return {};
     auto hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
 
-    int ok = BitBlt(hdcMem, 0, 0, screenWidth, screenHeight, hdcScreen, 0, 0, SRCCOPY);
+    if (captureVirtRect != monitorVirtRect) {
+        // window mode, get current captureVirtRect
+        RECT windowRECT;
+        BOOL ok = GetWindowRect(hWndED, &windowRECT);
+        if (!ok) {
+            LOG_IF(!this->isDefaultCapturer(),ERROR) << "Cannot get window for capturer";
+        } else {
+            cv::Rect wRect = fromRECT(windowRECT);
+            if (wRect != windowVirtRect) {
+                windowVirtRect.x = wRect.x;
+                windowVirtRect.y = wRect.y;
+                captureVirtRect.x = wRect.x + borderWidth;
+                captureVirtRect.y = wRect.y + titleHeight;
+            }
+        }
+    }
+
+    cv::Rect blitRect = captureVirtRect;
+    blitRect &= monitorVirtRect;
+    blitRect -= monitorVirtRect.tl();
+    int ok = BitBlt(hdcMem, 0, 0, blitRect.width, blitRect.height, hdcScreen, blitRect.x, blitRect.y, SRCCOPY);
     if (!ok) {
         LOG(ERROR) << "BitBlt failed: " << getErrorMessage();
         return {};
     }
 
     std::unique_lock<std::mutex> lock(mCaptureMutex);
-    cv::Size size(screenWidth, screenHeight);
     FrameWin32* frame;
-    if (recycle && recycle->owner == this && recycle->size == size) {
+    if (recycle && recycle->owner == this && recycle->size == captureVirtRect.size()) {
         frame = (FrameWin32*)recycle.release();
         frame->cleanup();
     } else {
         if (recycledFrames.empty()) {
-            frame = new FrameWin32(this, size);
+            frame = new FrameWin32(this);
         } else {
             frame = (FrameWin32*)recycledFrames.back();
             recycledFrames.pop_back();
@@ -226,10 +240,29 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
     }
     assert (frame->colorImageValid);
 
-    // TODO: align start and lines if window is out of monitor borders
-    int lines = GetDIBits(hdcMem, hBitmap, 0, screenHeight, frame->colorImage.data, (BITMAPINFO*)&bitmapInfoHeader, DIB_RGB_COLORS);
-    LOG_IF(lines != screenHeight, ERROR) << "GetDIBits failed: " << getErrorMessage();
-    //cv::imwrite("captured-screen.png", mat);
+    int lines = 0;
+    if (blitRect.size() == captureVirtRect.size()) {
+        lines = GetDIBits(hdcMem, hBitmap, 0, blitRect.height, frame->colorImage.data,
+                              (BITMAPINFO *) &bitmapInfoHeader, DIB_RGB_COLORS);
+        LOG_IF(lines != blitRect.height, ERROR) << "GetDIBits failed: " << getErrorMessage();
+    } else {
+        frame->colorImage.setTo(cv::Vec4b::zeros());
+        cv::Point orig;
+        if (captureVirtRect.x < monitorVirtRect.x)
+            orig.x = monitorVirtRect.x - captureVirtRect.x;
+        if (captureVirtRect.y < monitorVirtRect.y)
+            orig.y = monitorVirtRect.y - captureVirtRect.y;
+        BITMAPINFOHEADER bInfoHeader = bitmapInfoHeader;
+        bInfoHeader.biWidth = blitRect.width;
+        for (int y=0; y < blitRect.height; y++) {
+            uchar* data_ptr = frame->colorImage.ptr(blitRect.height-1-y-orig.y, orig.x);
+            int l = GetDIBits(hdcMem, hBitmap, y, 1, data_ptr, (BITMAPINFO *) &bInfoHeader, DIB_RGB_COLORS);
+            if (l == 1)
+                lines += 1;
+        }
+    }
+    LOG_IF(lines != blitRect.height, ERROR) << "GetDIBits failed: " << getErrorMessage();
+    cv::imwrite("captured-screen.png", frame->colorImage);
 
     SelectObject(hdcMem, hOldBitmap);
     return upFrame(frame);

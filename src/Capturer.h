@@ -19,31 +19,35 @@ public:
     virtual bool stop() { atomicIsStarted.exchange(false); return true; };
     virtual upFrame capture(upFrame&& recycle) = 0;
 
-    virtual cv::Rect getCaptureRect();
-    virtual cv::Rect getMonitorVirtualRect();
+    cv::Rect getCaptureRect();
+    cv::Rect getMonitorVirtualRect();
 
-    [[nodiscard]] bool isStarted() { return atomicIsStarted.load(); };
+    [[nodiscard]] bool isStarted() { return atomicIsStarted.load(); }
+    [[nodiscard]] bool isDefaultCapturer() { return this == DefaultCapturer; }
 
     virtual void recycle(Frame* frame) const = 0;
 
 protected:
     Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx);
-    virtual bool trySetup(HWND hWnd, RECT& captRect);
+    virtual bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect);
 
     // should be const, but I'm lazy to make all const_cast in the initializer
-    MONITORINFOEX monitorInfo;
     double dpiScaleX;
     double dpiScaleY;
-    bool needScaling;
-    int screenWidth;
-    int screenHeight;
+    cv::Rect monitorVirtRect; // in virtual desktop coordinates
+    cv::Rect windowVirtRect;
+    cv::Rect captureVirtRect; // in virtual desktop coordinates
+    int titleHeight;
+    int borderWidth;
     HMONITOR hMonitor;
     HWND hWndED;
-    RECT captureRect;
+    MONITORINFOEX monitorInfo;
     std::atomic<bool> atomicIsStarted;
 
 private:
-    static std::vector<std::unique_ptr<Capturer>> AllCapturers;
+    static std::vector<std::unique_ptr<class CapturerWin32>> Win32Capturers;
+    static std::vector<std::unique_ptr<class CapturerWinRT>> WinRTCapturers;
+    static std::vector<std::unique_ptr<class CapturerDXGI>> DXGICapturers;
     static Capturer *DefaultCapturer;
 
     static void InitCapturers();

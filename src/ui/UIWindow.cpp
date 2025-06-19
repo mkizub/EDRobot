@@ -32,7 +32,7 @@ INT_PTR CALLBACK UIWindow::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LP
     return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-bool UIWindow::registerClass(const wchar_t* windowClass, bool popup) {
+bool UIWindow::registerClass(const wchar_t* windowClass, bool popup, bool no_bg) {
     static std::set<const wchar_t*> registeredClasses;
     if (registeredClasses.contains(windowClass))
         return true;
@@ -48,7 +48,10 @@ bool UIWindow::registerClass(const wchar_t* windowClass, bool popup) {
         wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
         wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
     }
-    wc.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
+    if (no_bg)
+        wc.hbrBackground = (HBRUSH) NULL_BRUSH;
+    else
+        wc.hbrBackground = (HBRUSH) (COLOR_WINDOW + 1);
     wc.lpszClassName = windowClass;
     if (!RegisterClassEx(&wc)) {
         LOG(ERROR) << "Failed to register window class '" << toUtf8(windowClass) << "'; error: " << getErrorMessage();
@@ -116,6 +119,7 @@ HWND UIWindow::createWindow(const wchar_t *windowName, DWORD dwExStyle, DWORD dw
 }
 
 HWND UIWindow::createWindow(const wchar_t *windowName, DWORD dwExStyle, DWORD dwStyle, cv::Rect rect) {
+    SetThreadDescription(GetCurrentThread(), windowName);
     if (!hMonitor) {
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(monitorInfo);
@@ -150,16 +154,7 @@ void UIWindow::moveWindow(int dx, int dy) {
         return;
     cv::Rect tmp = fromRECT(windowRect);
     tmp += cv::Point(dx, dy);
-    if ((tmp & mMonitorFullRect) != tmp) {
-        if (tmp.x < mMonitorFullRect.x)
-            tmp.x = mMonitorFullRect.x;
-        if (tmp.br().x > mMonitorFullRect.br().x)
-            tmp.x = mMonitorFullRect.br().x - tmp.width;
-        if (tmp.y < mMonitorFullRect.y)
-            tmp.y = mMonitorFullRect.y;
-        if (tmp.br().y > mMonitorFullRect.br().y)
-            tmp.y = mMonitorFullRect.br().y - tmp.height;
-    }
+    fitToMonitor(tmp);
     MoveWindow(hWnd, tmp.x, tmp.y, tmp.width, tmp.height, TRUE);
 }
 
@@ -173,6 +168,20 @@ void UIWindow::resizeWindow(int dw, int dh, int min_size) {
     tmp &= mMonitorFullRect;
     MoveWindow(hWnd, tmp.x, tmp.y, tmp.width, tmp.height, TRUE);
 }
+
+void UIWindow::fitToMonitor(cv::Rect& wr) {
+    if ((wr & mMonitorFullRect) != wr) {
+        if (wr.br().x > mMonitorFullRect.br().x)
+            wr.x = mMonitorFullRect.br().x - wr.width;
+        if (wr.x < mMonitorFullRect.x)
+            wr.x = mMonitorFullRect.x;
+        if (wr.br().y > mMonitorFullRect.br().y)
+            wr.y = mMonitorFullRect.br().y - wr.height;
+        if (wr.y < mMonitorFullRect.y)
+            wr.y = mMonitorFullRect.y;
+    }
+}
+
 
 INT_PTR UIWindow::onMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
     return (LRESULT) DefWindowProc(hwnd, message, wParam, lParam);

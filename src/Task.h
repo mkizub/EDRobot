@@ -19,6 +19,7 @@ public:
     virtual ~Task() = default;
     virtual bool run() = 0;
     void stop() { done = true; };
+    const std::string& getTaskName() { return taskName; }
 
     Master& master;
 

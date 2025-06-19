@@ -20,16 +20,11 @@ protected:
     const int ALIGN_FULLSCREEN = 0x10;
 
     static INT_PTR CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-    static bool registerClass(const wchar_t* windowClass, bool popup);
+    static bool registerClass(const wchar_t* windowClass, bool popup, bool no_bg);
 
-    inline RECT toRECT(cv::Rect& r) {
-        return {r.x, r.y, r.br().x, r.br().y};
-    }
-    inline cv::Rect fromRECT(RECT& r) {
-        return {r.left, r.top, r.right-r.left, r.bottom-r.top};
-    }
     void moveWindow(int dx, int dy);
     void resizeWindow(int dw, int dh, int min_size);
+    void fitToMonitor(cv::Rect& windowRect);
 
     HWND createWindow(const wchar_t* windowName, DWORD dwExStyle, DWORD dwStyle, cv::Rect rect);
     HWND createWindow(const wchar_t* windowName, DWORD dwExStyle, DWORD dwStyle, int align, cv::Point offset, cv::Size size);

@@ -19,12 +19,13 @@ public:
     ~UIDebug() final;
 private:
     friend class UIManager;
-    static std::shared_ptr<UIDebug> getInstance();
+    static std::shared_ptr<UIDebug> getInstance(bool create);
     static bool initialize();
 
     UIDebug();
 
-    void showImage(const cv::Mat& image);
+    void setGameImage(const cv::Mat& image);
+    void setDebugOverlay(const cv::Mat& overlay);
 
     bool createWindow() final;
     void windowCreated() final;
@@ -33,16 +34,25 @@ private:
     INT_PTR onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) final;
     void onPaint() final;
 
-    cv::Size outputSize;
+    void resizeWindow();
+
+    float mOutputScale = 0.5f;
+    float mDPIScale = 1.0f;
+    cv::Size mGameSize;
+    cv::Size mOutputSize;
 
     ID2D1Factory* pD2DFactory {nullptr};
     ID2D1HwndRenderTarget* pRenderTarget {nullptr};
     ID2D1SolidColorBrush* pBrush {nullptr};
-    ID2D1Bitmap* pBitmap;
+    ID2D1Bitmap* pGameBitmap {nullptr};
+    ID2D1Bitmap* pOverlayBitmap {nullptr};
 
-    std::mutex mMutex; // protect current image
-    cv::Mat cvImage;
-    bool imageUpdated {false};
+    std::recursive_mutex mMutex; // protect current image
+    cv::Mat mGameImage;
+    cv::Mat mDebugOverlay;
+    bool mGameImageUpdated {false};
+    bool mDebugOverlayUpdated {false};
+    bool mDebugOverlayPresent {false};
 
 };
 

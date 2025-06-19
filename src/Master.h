@@ -117,8 +117,6 @@ private:
 
     Capturer* getCapturer();
     void resetCapturer();
-    static void CALLBACK edDestroyedEventProc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
-    static void CALLBACK edMovedEventProc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
 
     void showNotification(pCommand& cmd);
     bool preInitTask(bool checkCalibration=true);
@@ -146,12 +144,11 @@ private:
     bool debugFindAllCommodities();
     bool debugCompass();
     bool debugWindow();
+    bool debugWindowUpdate();
 
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
     HWND hWndED;
-    HMONITOR hMonitorED;
-    RECT mRectED;
 
     cv::UMat mCapturedED;
     Capturer* mCapturer {nullptr};
@@ -160,6 +157,7 @@ private:
     UIState mLastEDState;
     ClassifyEnv mClassifyEnv;
     bool mDuplicateToDebugWindow {false};
+    std::chrono::milliseconds mLoopWakeup;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForDigits;
     std::unique_ptr<Configuration> mConfiguration;

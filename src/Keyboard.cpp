@@ -479,6 +479,7 @@ void loop() {
         nativeThreadId = 0;
         return;
     }
+    SetThreadDescription(GetCurrentThread(), L"Keyboard interceptor");
 
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0)) {

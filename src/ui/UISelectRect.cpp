@@ -14,7 +14,7 @@ static const wchar_t* gWindowClass = L"SelectRectWindowClass";
 static const wchar_t* gWindowName = L"EDRobot Rect Selector";
 
 bool UISelectRect::initialize() {
-    return UIWindow::registerClass(gWindowClass, false);
+    return UIWindow::registerClass(gWindowClass, false, false);
 }
 
 std::shared_ptr<UISelectRect> UISelectRect::getInstance() {

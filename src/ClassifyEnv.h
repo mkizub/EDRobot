@@ -28,7 +28,6 @@ public:
     virtual const cv::UMat& getColorTexture() const = 0;
     virtual const cv::Mat& getColorImage() const = 0;
     virtual const cv::Mat& getGrayImage() const = 0;
-    virtual       cv::Mat& getDebugImage() const = 0; // TODO: removed and use abstract painter
 
     static void recycle(Frame* p);
 
@@ -108,7 +107,7 @@ struct ClassifyEnv {
     [[nodiscard]] const cv::UMat& getColorTexture() const { return mFrame->getColorTexture(); };
     [[nodiscard]] const cv::Mat&  getColorImage()   const { return mFrame->getColorImage();   };
     [[nodiscard]] const cv::Mat&  getGrayImage()    const { return mFrame->getGrayImage();    };
-    [[nodiscard]] cv::Mat&        getDebugImage()   const { return mFrame->getDebugImage();   };
+    [[nodiscard]] cv::Mat&        getDebugImage()   const;
 
 private:
     friend class Master;
@@ -117,6 +116,7 @@ private:
     double scaleToCaptured_ {1};
     cv::Point captureCenter;
     upFrame mFrame;
+    mutable cv::Mat mDebugOverlay;
 
 public:
     // a list of classified detected rects

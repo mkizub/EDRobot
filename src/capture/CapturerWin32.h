@@ -21,9 +21,10 @@ public:
 
 private:
     friend class Capturer;
+    friend class FrameWin32;
 
     CapturerWin32(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor);
-    bool trySetup(HWND hWnd, RECT& captRect) override;
+    bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) override;
 
     bool isHdcScreenCreated;
     HDC hdcScreen;

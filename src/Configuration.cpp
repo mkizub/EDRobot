@@ -45,6 +45,7 @@ bool Configuration::load() {
             {{"c",keyboard::CTRL|keyboard::ALT|keyboard::SHIFT}, Command::DebugCompass},
             {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect},
             {{"[",keyboard::CTRL|keyboard::ALT}, Command::DebugWindow},
+            {{"]",keyboard::CTRL|keyboard::ALT}, Command::ResetCapturer},
     };
 
     {
@@ -88,8 +89,15 @@ bool Configuration::load() {
             mEDLogsPath = toUtf16(tm.as_string());
         if (auto tm = j_config.at("tesseract-data-path"); tm.is_string())
             mTesseractDataPath = tm.as_string();
+        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
+            capturerWin32Disabled = tm.as_boolean();
+        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
+            capturerWinRTDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
+            capturerDXGIDisabled = tm.as_boolean();
 
-        loadGameSettings();
+
+        loadGameSettings(true);
         loadGameJournal(L""); // may change game language
 
         loadCommodityDatabase(); // initialization depends on game language
@@ -155,19 +163,32 @@ void Configuration::parseShortcutConfig(Command command, const std::string& name
     }
 }
 
-bool Configuration::loadGameSettings() {
+bool Configuration::loadGameSettings(bool initial) {
     LOG(INFO) << "Loading game settings";
     bool ok = true;
+    bool needCapturerReset = false;
     std::string filename;
     filename = toUtf8(mEDSettingsPath) + R"(\Options\Graphics\DisplaySettings.xml)";
     XMLNode* rootNode = xml_parse_file(filename.c_str());
     if (rootNode) {
-        if (auto node = xml_node_find_tag(rootNode, "ScreenWidth", true); node && node->text)
-            configScreenWidth = atol(node->text);
-        if (auto node = xml_node_find_tag(rootNode, "ScreenHeight", true); node && node->text)
-            configScreenHeight = atol(node->text);
-        if (auto node = xml_node_find_tag(rootNode, "FullScreen", true); node && node->text)
-            configFullScreen = (FullScreenMode)atoi(node->text);
+        if (auto node = xml_node_find_tag(rootNode, "ScreenWidth", true); node && node->text) {
+            int width = atol(node->text);
+            if (!initial && width != configScreenWidth)
+                needCapturerReset = true;
+            configScreenWidth = width;
+        }
+        if (auto node = xml_node_find_tag(rootNode, "ScreenHeight", true); node && node->text) {
+            int height = atol(node->text);
+            if (!initial && height != configScreenHeight)
+                needCapturerReset = true;
+            configScreenHeight = height;
+        }
+        if (auto node = xml_node_find_tag(rootNode, "FullScreen", true); node && node->text) {
+            FullScreenMode mode = (FullScreenMode) atoi(node->text);
+            if (!initial && mode != configFullScreen)
+                needCapturerReset = true;
+            configFullScreen = mode;
+        }
         xml_node_free(rootNode);
         rootNode = nullptr;
     } else {
@@ -208,6 +229,10 @@ bool Configuration::loadGameSettings() {
         ok = false;
         LOG(ERROR) << "Cannot parse " << filename;
     }
+
+    if (needCapturerReset)
+        Master::getInstance().pushCommand(Command::ResetCapturer);
+
     return ok;
 }
 
@@ -800,6 +825,8 @@ static const char* ExplainAction(DWORD dwAction)
 }
 
 void Configuration::changeDirThreadLoop() {
+    SetThreadDescription(GetCurrentThread(), L"Directory listener");
+
     const HANDLE handles[] = {hShutdownChangDirListenerEvent, changeDirListener->GetWaitHandle()};
 
     for(;;) {
@@ -841,7 +868,7 @@ void Configuration::changeDirThreadLoop() {
         Sleep(500);
 
         if (needReloadSettings)
-            loadGameSettings();
+            loadGameSettings(false);
         if (needOpenNewLog)
             loadGameJournal(newLogFilenameW);
         if (needReloadMarket)

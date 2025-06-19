@@ -71,8 +71,13 @@ bool UIManager::askSelectRectWindow() {
     return true;
 }
 
+bool UIManager::hasDebugWindow() {
+    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance(false);
+    return bool(wnd);
+}
+
 bool UIManager::showDebugWindow() {
-    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance();
+    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance(true);
     if (!wnd)
         return false;
     wnd->show();
@@ -80,9 +85,18 @@ bool UIManager::showDebugWindow() {
 }
 
 bool UIManager::postToDebugWindow(const cv::Mat& image) {
-    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance();
+    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance(false);
     if (!wnd)
         return false;
-    wnd->showImage(image);
+    wnd->setGameImage(image);
+    return true;
+}
+
+bool UIManager::postToDebugWindow(const cv::Mat& image, const cv::Mat& overlay) {
+    std::shared_ptr<UIDebug> wnd = UIDebug::getInstance(false);
+    if (!wnd)
+        return false;
+    wnd->setGameImage(image);
+    wnd->setDebugOverlay(overlay);
     return true;
 }

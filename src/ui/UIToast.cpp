@@ -12,7 +12,7 @@ static const wchar_t* gWindowClass = L"ShowPopupMessageWindowClass";
 static const wchar_t* gWindowName = L"EDRobot Toast";
 
 bool UIToast::initialize() {
-    return UIWindow::registerClass(gWindowClass, true);
+    return UIWindow::registerClass(gWindowClass, true, false);
 }
 
 std::shared_ptr<UIToast> UIToast::getInstance() {
