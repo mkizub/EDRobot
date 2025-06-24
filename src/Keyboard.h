@@ -28,6 +28,9 @@ void intercept(const std::vector<std::string>& keys);
 void start(KeyboardCollbackFn callback);
 void stop();
 
+int getScanCode(const std::string& key_name);
+bool sendKeyDown(const GameKey& gk);
+bool sendKeyUp(const GameKey& gk);
 bool sendKeyDown(const std::string& key_name);
 bool sendKeyUp(const std::string& key_name);
 bool sendMouseMoveTo(int x, int y, bool absolute, bool virtualDesk);

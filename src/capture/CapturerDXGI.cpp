@@ -388,25 +388,24 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             captureRect.width = monitorVirtRect.width - captureRect.x;
         if (captureRect.y + captureRect.height > monitorVirtRect.height)
             captureRect.height = monitorVirtRect.height - captureRect.y;
-        for (int r=0; r < captureRect.height; r++) {
-            int src_y = r+captureRect.y;
-            if (src_y < 0)
-                continue;
-            int dst_y = r;
+        int row0 = captureRect.y >= 0 ? 0 : -captureRect.y;
+        int src_x = captureRect.x;
+        int src_w = captureRect.width;
+        int dst_x = 0;
+        if (src_x < 0) {
+            dst_x = -src_x;
+            src_w += src_x;
+            src_x = 0;
+        }
+        int src_y = row0 + captureRect.y;
+        uchar* src_ptr = (uchar*)frame->mStagingMappedTex.pData;
+        src_ptr += src_x * 4 + src_y * frame->mStagingMappedTex.RowPitch;
+        uchar* dst_ptr = frame->colorImage.ptr(row0, dst_x);
 
-            int src_x = captureRect.x;
-            int src_w = captureRect.width;
-            int dst_x = 0;
-            if (src_x < 0) {
-                dst_x = -src_x;
-                src_w += src_x;
-                src_x = 0;
-            }
-            uchar* src_ptr = (uchar*)frame->mStagingMappedTex.pData;
-            src_ptr += src_x * 4 + src_y * frame->mStagingMappedTex.RowPitch;
-            uchar* dst_ptr = frame->colorImage.ptr(dst_y, dst_x);
-
+        for (int dst_y=row0; dst_y < captureRect.height; dst_y++) {
             memcpy(dst_ptr, src_ptr, src_w*4);
+            src_ptr += frame->mStagingMappedTex.RowPitch;
+            dst_ptr += frame->colorImage.step;
         }
 
         m_d3dContext->Unmap(frame->mStagingTexture, 0);

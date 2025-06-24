@@ -50,10 +50,10 @@ cv::Rect Widget::calcReferenceRect(const ClassifyEnv& env) const {
 class ExprRect : public EvalRect {
 public:
     ExprRect(const json5pp::value& source);
-    cv::Rect calcReferenceRect(const ClassifyEnv& env) const override;
+    cv::Rect calcReferenceRect(const ResolvedEnv& env) const override;
 
 private:
-    int eval(const spAst& ast, const ClassifyEnv& env) const;
+    int eval(const spAst& ast, const ResolvedEnv& env) const;
 
     static peg::parser& initParser();
 
@@ -91,7 +91,7 @@ ExprRect::ExprRect(const json5pp::value& src)
     }
 }
 
-cv::Rect ExprRect::calcReferenceRect(const ClassifyEnv& env) const {
+cv::Rect ExprRect::calcReferenceRect(const ResolvedEnv& env) const {
     cv::Rect rect;
     for (int i=0; i < 4; i++) {
         int* ptr = &rect.x;
@@ -126,7 +126,7 @@ peg::parser& ExprRect::initParser() {
     return parser;
 }
 
-static int getIntValue(const std::string_view& view, const ClassifyEnv& env) {
+static int getIntValue(const std::string_view& view, const ResolvedEnv& env) {
     size_t dot = view.find('.');
     if (dot == std::string_view::npos) {
         if (equalsIgnoreCase(view, "ScreenWidth"))
@@ -173,7 +173,7 @@ static int getIntValue(const std::string_view& view, const ClassifyEnv& env) {
     return 0;
 }
 
-int ExprRect::eval(const spAst& ast, const ClassifyEnv& env) const {
+int ExprRect::eval(const spAst& ast, const ResolvedEnv& env) const {
     if (ast->name == "Num") {
         return ast->token_to_number<int>();
     }

@@ -7,6 +7,10 @@
 #include "Keyboard.h"
 #include "FuzzyMatch.h"
 #include <dirlistener/ReadDirectoryChanges.h>
+#ifdef DEBUG
+# undef DEBUG
+#endif
+
 
 #define XML_H_IMPLEMENTATION
 #include <xml/xml.h>
@@ -39,6 +43,7 @@ bool Configuration::load() {
     keyMapping = {
             {{"esc",0}, Command::Stop},
             {{"printscreen",0}, Command::Start},
+            {{"scrolllock",0}, Command::Resume},
             {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
             {{"printscreen",keyboard::CTRL|keyboard::WIN}, Command::DebugButtons},
             {{"c",keyboard::CTRL|keyboard::ALT}, Command::DebugCompass},
@@ -71,10 +76,13 @@ bool Configuration::load() {
             defaultKeyAfterTime = tm.as_integer();
         if (auto& tm = j_config.at("search-region-extent"); tm.is_integer())
             searchRegionExtent = tm.as_integer();
+        if (auto& tm = j_config.at("auto-pause"); tm.is_boolean())
+            autoPause = tm.as_boolean();
         if (j_config.at("shortcuts").is_object()) {
             auto& obj = j_config.at("shortcuts");
             parseShortcutConfig(Command::Start, "start", obj);
             parseShortcutConfig(Command::Pause, "pause", obj);
+            parseShortcutConfig(Command::Resume, "resume", obj);
             parseShortcutConfig(Command::Stop,  "stop",  obj);
             parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
             parseShortcutConfig(Command::DebugButtons,    "debug-buttons",  obj);
@@ -97,8 +105,9 @@ bool Configuration::load() {
             capturerDXGIDisabled = tm.as_boolean();
 
 
+        preloadGameJournal(); // game language & version
         loadGameSettings(true);
-        loadGameJournal(L""); // may change game language
+        //loadGameJournal(L""); // may change game language
 
         loadCommodityDatabase(); // initialization depends on game language
         //dumpCommodityDatabase();
@@ -106,6 +115,7 @@ bool Configuration::load() {
 
         loadMarket();
         loadCargo();
+        loadGameStatus();
         loadCalibration();
 
         LOG(INFO) << "Setting journal directory listener";
@@ -163,61 +173,144 @@ void Configuration::parseShortcutConfig(Command command, const std::string& name
     }
 }
 
+std::string Configuration::filenameFromPreset(std::string base, std::string preset, const char* ext) {
+    std::string filename = base + trim(preset);
+    if (isOdyssey) {
+        if (std::filesystem::exists(filename + ".4.2." + ext))
+            filename = filename + ".4.2." + ext;
+        else
+            filename = filename + ".4.1." + ext;
+    } else {
+        filename = filename + ".4.0." + ext;
+    }
+    return filename;
+}
+
+const KeyBindings& Configuration::getGameKeyBindings(const std::string& name) const {
+    static KeyBindings undefined;
+    const std::unordered_map<std::string,KeyBindings>* map = nullptr;
+    switch (guiFocus) {
+    case NoFocus:
+    case Right:
+    case Left:
+    case Chat:
+    case Role:
+    case FSS:
+    case SAA:
+        map = &keyBindingsShip;
+        break;
+    case Services:
+    case GalaxyMap:
+    case SystemMap:
+    case Orrery:
+    case Codex:
+        map = &keyBindingsGeneric;
+        break;
+    }
+    if (map) {
+        auto it = map->find(name);
+        if (it != map->end())
+            return it->second;
+    }
+    return undefined;
+}
+
+GameKey Configuration::parseGameKey(XMLNode *keyNode, bool has_modifiers) {
+    auto device = xml_node_attr(keyNode, "Device");
+    auto key = xml_node_attr(keyNode, "Key");
+    if (!device || !key || !(strcmp(device,"Keyboard") == 0 || strcmp(device,"Mouse") == 0))
+        return {};
+    GameKey gk;
+    if (strcmp(device,"Keyboard") == 0) {
+        gk.device = GameKey::Keyboard;
+        gk.key = key;
+        if (gk.key.starts_with("Key_"))
+            gk.code = keyboard::getScanCode(key+4);
+        if (!gk.code)
+            gk.device = GameKey::Void;
+    }
+    else if (strcmp(device,"Mouse") == 0) {
+        gk.device = GameKey::Mouse;
+        gk.key = key;
+        if (gk.key.starts_with("Mouse_"))
+            gk.code = atoi(key+6);
+        if (!gk.code)
+            gk.device = GameKey::Void;
+    }
+
+    if (gk.device != GameKey::Void && gk.code && has_modifiers) {
+        auto mod = xml_node_find_tag(keyNode, "Modifier", true);
+        if (keyNode->children) {
+            for (size_t i = 0; i < keyNode->children->len; i++) {
+                auto child = xml_node_child_at(keyNode, i);
+                gk.modifiers.push_back(parseGameKey(child, false));
+                if (gk.modifiers.back().device == GameKey::Void)
+                    gk.device = GameKey::Void;
+            }
+        }
+    }
+
+    return gk;
+}
+
+std::ostream& operator<<(std::ostream& os, const GameKey& obj) {
+    for (auto& m : obj.modifiers)
+        os << m << "+";
+    os << obj.key;
+    return os;
+}
+
+
+bool Configuration::parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag) {
+    auto node = xml_node_find_tag(rootNode, tag, true);
+    if (!node) {
+        LOG(ERROR) << "Key binding for <" << tag << "> not found";
+        return false;
+    }
+    KeyBindings kb;
+    kb.action = tag;
+    if (auto primary = xml_node_find_tag(node, "Primary", true))
+        kb.primary = parseGameKey(primary, true);
+    if (auto secondary = xml_node_find_tag(node, "Secondary", true))
+        kb.secondary = parseGameKey(secondary, true);
+    if (kb.primary.key.empty() && kb.secondary.key.empty()) {
+        LOG(ERROR) << "Key binding for <" << tag << "> not found";
+        return false;
+    }
+    map[tag] = kb;
+    return true;
+}
+
 bool Configuration::loadGameSettings(bool initial) {
     LOG(INFO) << "Loading game settings";
     bool ok = true;
     bool needCapturerReset = false;
     std::string filename;
-    filename = toUtf8(mEDSettingsPath) + R"(\Options\Graphics\DisplaySettings.xml)";
-    XMLNode* rootNode = xml_parse_file(filename.c_str());
-    if (rootNode) {
-        if (auto node = xml_node_find_tag(rootNode, "ScreenWidth", true); node && node->text) {
-            int width = atol(node->text);
-            if (!initial && width != configScreenWidth)
-                needCapturerReset = true;
-            configScreenWidth = width;
-        }
-        if (auto node = xml_node_find_tag(rootNode, "ScreenHeight", true); node && node->text) {
-            int height = atol(node->text);
-            if (!initial && height != configScreenHeight)
-                needCapturerReset = true;
-            configScreenHeight = height;
-        }
-        if (auto node = xml_node_find_tag(rootNode, "FullScreen", true); node && node->text) {
-            FullScreenMode mode = (FullScreenMode) atoi(node->text);
-            if (!initial && mode != configFullScreen)
-                needCapturerReset = true;
-            configFullScreen = mode;
-        }
-        xml_node_free(rootNode);
-        rootNode = nullptr;
-    } else {
-        ok = false;
-        LOG(ERROR) << "Cannot parse " << filename;
-    }
-    filename = toUtf8(mEDSettingsPath) + R"(\Options\Graphics\Settings.xml)";
-    rootNode = xml_parse_file(filename.c_str());
-    if (rootNode) {
-        if (auto node = xml_node_find_tag(rootNode, "FOV", true); node && node->text)
-            configFOV = atof(node->text);
-        if (auto node = xml_node_find_tag(rootNode, "GammaOffset", true); node && node->text)
-            configGammaOffset = atof(node->text);
-        xml_node_free(rootNode);
-        rootNode = nullptr;
-    } else {
-        ok = false;
-        LOG(ERROR) << "Cannot parse " << filename;
-    }
-    filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
-    std::ifstream ifs(filename, std::ifstream::in);
-    if (ifs.is_open()) {
-        std::string startPreset{std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
-        filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\)" + trim(startPreset) + ".4.1.misc";
-        rootNode = xml_parse_file(filename.c_str());
+
+    //
+    // Options/Graphics/DisplaySettings.xml
+    //
+    {
+        filename = toUtf8(mEDSettingsPath) + R"(\Options\Graphics\DisplaySettings.xml)";
+        XMLNode *rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
-            if (auto node = xml_node_find_tag(rootNode, "DashboardGUIBrightness", true)) {
-                if (auto val = xml_node_attr(node, "Value"))
-                    configDashboardGUIBrightness = atof(val);
+            if (auto node = xml_node_find_tag(rootNode, "ScreenWidth", true); node && node->text) {
+                int width = atol(node->text);
+                if (!initial && width != configScreenWidth)
+                    needCapturerReset = true;
+                configScreenWidth = width;
+            }
+            if (auto node = xml_node_find_tag(rootNode, "ScreenHeight", true); node && node->text) {
+                int height = atol(node->text);
+                if (!initial && height != configScreenHeight)
+                    needCapturerReset = true;
+                configScreenHeight = height;
+            }
+            if (auto node = xml_node_find_tag(rootNode, "FullScreen", true); node && node->text) {
+                FullScreenMode mode = (FullScreenMode) atoi(node->text);
+                if (!initial && mode != configFullScreen)
+                    needCapturerReset = true;
+                configFullScreen = mode;
             }
             xml_node_free(rootNode);
             rootNode = nullptr;
@@ -225,9 +318,139 @@ bool Configuration::loadGameSettings(bool initial) {
             ok = false;
             LOG(ERROR) << "Cannot parse " << filename;
         }
-    } else {
-        ok = false;
-        LOG(ERROR) << "Cannot parse " << filename;
+    }
+
+    //
+    // Options/Graphics/Settings.xml
+    //
+    {
+        filename = toUtf8(mEDSettingsPath) + R"(\Options\Graphics\Settings.xml)";
+        XMLNode *rootNode = xml_parse_file(filename.c_str());
+        if (rootNode) {
+            if (auto node = xml_node_find_tag(rootNode, "FOV", true); node && node->text)
+                configFOV = atof(node->text);
+            if (auto node = xml_node_find_tag(rootNode, "GammaOffset", true); node && node->text)
+                configGammaOffset = atof(node->text);
+            xml_node_free(rootNode);
+            rootNode = nullptr;
+        } else {
+            ok = false;
+            LOG(ERROR) << "Cannot parse " << filename;
+        }
+    }
+
+    //
+    // Options/Player/... preset
+    //
+    {
+        filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
+        std::ifstream ifs(filename, std::ifstream::in);
+        if (ifs.is_open()) {
+            std::string preset;
+            std::getline(ifs, preset);
+            filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Player\)", preset, "misc");
+            XMLNode *rootNode = xml_parse_file(filename.c_str());
+            if (rootNode) {
+                if (auto node = xml_node_find_tag(rootNode, "DashboardGUIBrightness", true)) {
+                    if (auto val = xml_node_attr(node, "Value"))
+                        configDashboardGUIBrightness = atof(val);
+                }
+                xml_node_free(rootNode);
+                rootNode = nullptr;
+            } else {
+                ok = false;
+                configDashboardGUIBrightness = 0.5;
+                LOG(ERROR) << "Cannot parse " << filename;
+            }
+        } else {
+            ok = false;
+            LOG(ERROR) << "Cannot parse " << filename;
+        }
+    }
+
+    //
+    // Options/Bindings/... preset
+    //
+    {
+        keyBindingsGeneric.clear();
+        keyBindingsShip.clear();
+        filename = toUtf8(mEDSettingsPath) + R"(\Options\Bindings\StartPreset.4.start)";
+        std::ifstream ifs(filename, std::ifstream::in);
+        if (ifs.is_open()) {
+            XMLNode * rootNode = nullptr;
+            std::string preset;
+            std::getline(ifs, preset);
+            if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
+            else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
+            else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
+            else if (preset == "Empty") filename = "Empty.binds";
+            else
+                filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
+            rootNode = xml_parse_file(filename.c_str());
+            if (rootNode) {
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Up");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Down");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Left");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Right");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Select");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Back");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Toggle");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPanel");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPanel");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPage");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPage");
+                xml_node_free(rootNode);
+                rootNode = nullptr;
+            } else {
+                ok = false;
+                LOG(ERROR) << "Cannot parse " << filename;
+            }
+
+            std::getline(ifs, preset);
+            if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
+            else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
+            else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
+            else if (preset == "Empty") filename = "Empty.binds";
+            else
+                filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
+            rootNode = xml_parse_file(filename.c_str());
+            if (rootNode) {
+                parseKeyBindings(rootNode, keyBindingsGeneric, "RollLeftButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "RollRightButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "PitchUpButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "PitchDownButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "YawLeftButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "YawRightButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "LeftThrustButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "RightThrustButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "UpThrustButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "DownThrustButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardThrustButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardThrustButton");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardKey");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardKey");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus100");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus75");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus50");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus25");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedZero");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed25");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed50");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed75");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed100");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "HyperSuperCombination");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "Supercruise");
+                parseKeyBindings(rootNode, keyBindingsGeneric, "Hyperspace");
+                xml_node_free(rootNode);
+                rootNode = nullptr;
+            } else {
+                ok = false;
+                LOG(ERROR) << "Cannot parse " << filename;
+            }
+        } else {
+            ok = false;
+            LOG(ERROR) << "Cannot parse " << filename;
+        }
     }
 
     if (needCapturerReset)
@@ -236,36 +459,88 @@ bool Configuration::loadGameSettings(bool initial) {
     return ok;
 }
 
-bool Configuration::loadGameJournal(std::wstring journalFilename) {
-    LOG(INFO) << "Loading game journal";
-    if (journalFilename.empty()) {
-        std::filesystem::path latestJournalFile;
-        auto newestTime = std::chrono::file_clock::time_point::min();
-        for (const auto &entry: std::filesystem::directory_iterator(mEDLogsPath)) {
-            if (!entry.is_regular_file())
-                continue;
-            auto &ep = entry.path();
-            if (ep.filename().string().starts_with("Journal.") && ep.extension() == ".log") {
-                auto lastWriteTime = std::filesystem::last_write_time(entry);
-                if (lastWriteTime > newestTime) {
-                    newestTime = lastWriteTime;
-                    latestJournalFile = ep;
-                }
+bool Configuration::findLatestJournalFile() {
+    std::filesystem::path latestJournalFile;
+    auto newestTime = std::chrono::file_clock::time_point::min();
+    for (const auto &entry: std::filesystem::directory_iterator(mEDLogsPath)) {
+        if (!entry.is_regular_file())
+            continue;
+        auto &ep = entry.path();
+        if (ep.filename().string().starts_with("Journal.") && ep.extension() == ".log") {
+            auto lastWriteTime = std::filesystem::last_write_time(entry);
+            if (lastWriteTime > newestTime) {
+                newestTime = lastWriteTime;
+                latestJournalFile = ep;
             }
         }
-        journalFilename = latestJournalFile.wstring();
     }
-    if (journalFilename.empty()) {
+    if (latestJournalFile.empty()) {
         LOG(ERROR) << "Cannot find journal file in " << mEDLogsPath;
         return false;
     }
+    mEDCurrentJournalFile = latestJournalFile;
+    return true;
+}
 
-    std::ifstream ifs(journalFilename, std::ifstream::in);
+bool Configuration::preloadGameJournal() {
+    LOG(INFO) << "Pre-Loading game journal";
+    if (!findLatestJournalFile())
+        return false;
+    std::ifstream ifs(mEDCurrentJournalFile, std::ifstream::in);
     if (!ifs.is_open()) {
-        LOG(ERROR) << "Cannot open journal file" << mEDLogsPath;
+        LOG(ERROR) << "Cannot open journal file: " << mEDCurrentJournalFile;
         return false;
     }
-    mEDCurrentJournalFile = journalFilename;
+
+    std::string line;
+    getline(ifs, line);
+
+    std::string error;
+    auto jres = json::parse5(line, &error);
+    if (!jres.has_value()) {
+        LOG(ERROR) << "Error parsing journal file: " << error;
+        return false;
+    }
+    auto& j = jres.value();
+    if (!j.is_object() || !j.contains("event") || j["event"] != "Fileheader") {
+        LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << j;
+        return false;
+    }
+
+    //"Odyssey":true, "gameversion":"4.1.2.100"
+
+    auto gameLang = j["language"].as_string();
+    if (gameLang == "Russian/RU" || gameLang.ends_with("/RU"))
+        const_cast<Lang&>(this->lng) = RU;
+    else if (gameLang == "English/EN" || gameLang.ends_with("/EN"))
+        const_cast<Lang&>(this->lng) = EN;
+    else if (gameLang == "English/UK" || gameLang.ends_with("/UK"))
+        const_cast<Lang&>(this->lng) = EN;
+    else {
+        LOG(ERROR) << "Unsupported game language: " << gameLang;
+        const_cast<Lang&>(this->lng) = XX;
+    }
+
+    if (j.contains("Odyssey"))
+        const_cast<bool&>(this->isOdyssey) = j["Odyssey"].as_boolean();
+    else
+        const_cast<bool&>(this->isOdyssey) = false;
+
+    return true;
+}
+
+bool Configuration::loadGameJournal(std::wstring journalFilename) {
+    LOG(INFO) << "Loading game journal";
+    if (journalFilename.empty()) {
+        if (!findLatestJournalFile())
+            return false;
+        journalFilename = mEDCurrentJournalFile;
+    }
+    std::ifstream ifs(journalFilename, std::ifstream::in);
+    if (!ifs.is_open()) {
+        LOG(ERROR) << "Cannot open journal file: " << journalFilename;
+        return false;
+    }
 
     // TODO: implement log file reading for events via a separate thread + poll
     // But currently I only extract client language
@@ -297,6 +572,81 @@ bool Configuration::loadGameJournal(std::wstring journalFilename) {
         const_cast<Lang&>(this->lng) = XX;
     }
 
+    return true;
+}
+
+bool Configuration::parseTimestamp(const json::value& value, std::chrono::time_point<std::chrono::utc_clock>& timestamp) {
+    if (value.is_string())
+        return parseTimestamp(value.as_string(), timestamp);
+    if (!value.is_object() || !value.contains("timestamp"))
+        return false;
+    return parseTimestamp(value.at("timestamp").as_string(), timestamp);
+}
+
+bool Configuration::parseTimestamp(const std::string& str, std::chrono::time_point<std::chrono::utc_clock>& timestamp) {
+    std::istringstream iss(str);
+    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
+    if (iss.fail()) {
+        LOG(ERROR) << "Timestamp parse failed, event corrupted?";
+        return false;
+    }
+    return true;
+}
+
+bool Configuration::loadGameStatus() {
+    LOG(INFO) << "Loading Status.json";
+    std::string filename = toUtf8(mEDLogsPath) + "/Status.json";
+    std::ifstream ifs(filename);
+    if (!ifs)
+        return false;
+    std::stringstream buffer;
+    buffer << ifs.rdbuf();
+    std::string error;
+    std::optional<json::value> res = json::parse5(buffer.str(), &error);
+    if (!res.has_value()) {
+        LOG(ERROR) << "Error loading Status.json: " << error;
+        return false;
+    }
+    json::value j_status = res.value();
+    if (!j_status.is_object())
+        return false;
+    json::object j = j_status.as_object();
+    //{ "Cargo":29.000000, "LegalState":"Allied", "Balance":8269738711 }
+    if (j["event"] != "Status")
+        return false;
+    spShipStatus status = std::make_shared<ShipStatus>();
+    if (!parseTimestamp(j.at("timestamp"), status->timestamp))
+        return false;
+    if (j.contains("Flags"))
+        status->flags.all = j["Flags"].as_unsigned();
+    if (j.contains("Flags2"))
+        status->flags2.all = j["Flags2"].as_unsigned();
+    if (j.contains("FireGroup"))
+        status->fireGroup = j["FireGroup"].as_unsigned();
+    if (j.contains("GuiFocus")) {
+        auto gf = enum_cast<GuiFocus>(j.at("GuiFocus").as_integer());
+        status->guiFocus = gf.has_value() ? gf.value() : GuiFocus::NoFocus;
+    }
+    if (j.contains("Pips")) {
+        json::array j_pips = j.at("Pips").as_array();
+        status->pips[0] = j_pips[0].as_unsigned();
+        status->pips[1] = j_pips[1].as_unsigned();
+        status->pips[2] = j_pips[2].as_unsigned();
+    }
+    if (j.contains("Fuel")) {
+        json::object j_fuel = j.at("Fuel").as_object();
+        status->fuelMain = j_fuel.at("FuelMain").as_float();
+        status->fuelReservoir = j_fuel.at("FuelReservoir").as_float();
+    }
+    if (j.contains("Cargo"))
+        status->cargo = j.at("Cargo").as_float();
+    if (j.contains("Balance"))
+        status->balance = j.at("Balance").as_unsigned_long_long();
+    if (j.contains("LegalState"))
+        status->legalState = j.at("LegalState").as_string();
+
+    guiFocus = status->guiFocus;
+    currentStatus = status;
     return true;
 }
 
@@ -438,6 +788,7 @@ CommodityCategory& Configuration::getOrAddCommodityCategory(CommodityCategory&& 
         cc.name = cc.nameId;
     cc.wide = toUtf16(cc.name);
     commodityCategoryMap[nameId] = &cc;
+    mCommodityDatabaseUpdated = true;
     if (changeDirListener)
         LOG(ERROR) << "New CommodityCategory added: " << nameId;
     return cc;
@@ -467,6 +818,7 @@ Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
         c.name = c.nameId;
     c.wide = toUtf16(c.name);
     commodityMap[nameId] = &c;
+    mCommodityDatabaseUpdated = true;
     if (changeDirListener)
         LOG(ERROR) << "New Commodity added: " << nameId;
     return c;
@@ -517,14 +869,18 @@ Commodity* Configuration::getCommodityByName(const std::wstring& name, bool fuzz
             bestScoreIndex = i;
         }
     }
-    if (bestScore < 60)
+    if (bestScore < 40) {
+        LOG(WARNING) << "FuzzyMatch commodity score: '" << bestScore << "' for '"
+                   << ((bestScoreIndex < 0) ? std::string() : allKnownCommodities[bestScoreIndex].name)
+                   << "'";
         return nullptr;
+    }
     return &allKnownCommodities[bestScoreIndex];
 }
 
 std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     std::vector<Commodity*> out;
-    if (lng != RU)
+    if (lng == XX)
         return out;
     spMarket market = currentMarket.load();
     if (!market)
@@ -542,8 +898,49 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
                 out.push_back(&c);
         }
     }
-    const int l = lng;
-    std::sort(out.begin(), out.end(), [l](Commodity* a, Commodity* b) {
+    std::sort(out.begin(), out.end(), [](Commodity* a, Commodity* b) {
+        int cmp = a->category->wide.compare(b->category->wide);
+        if (cmp < 0)
+            return true;
+        if (cmp > 0)
+            return false;
+        return a->wide < b->wide;
+    });
+    return out;
+}
+
+std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
+    std::vector<Commodity*> out;
+    if (lng == XX)
+        return out;
+    spMarket market = currentMarket.load();
+    if (!market)
+        return out;
+    // add everything we can buy, then sort according to market order
+    for (auto& c : allKnownCommodities) {
+        if (!market->items.contains(&c))
+            continue;
+        if (c.market.stock > 0)
+            out.push_back(&c);
+    }
+    std::sort(out.begin(), out.end(), [](Commodity* a, Commodity* b) {
+        int cmp = a->category->wide.compare(b->category->wide);
+        if (cmp < 0)
+            return true;
+        if (cmp > 0)
+            return false;
+        return a->wide < b->wide;
+    });
+    return out;
+}
+
+std::vector<Commodity*> Configuration::getAllKnownCommodities() {
+    std::vector<Commodity*> out;
+    // add everything, then sort according to market order
+    for (auto& c : allKnownCommodities) {
+        out.push_back(&c);
+    }
+    std::sort(out.begin(), out.end(), [](Commodity* a, Commodity* b) {
         int cmp = a->category->wide.compare(b->category->wide);
         if (cmp < 0)
             return true;
@@ -845,6 +1242,7 @@ void Configuration::changeDirThreadLoop() {
         bool needReloadSettings = false;
         bool needReloadMarket = false;
         bool needReloadCargo = false;
+        bool needReloadStatus = false;
         bool needOpenNewLog = false;
         std::wstring newLogFilenameW;
 
@@ -852,13 +1250,15 @@ void Configuration::changeDirThreadLoop() {
         DWORD action;
         std::wstring filenameW;
         while (changeDirListener->Pop(action, filenameW)) {
-            //LOG(TRACE) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
+            LOG(DEBUG) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
             if (filenameW.ends_with(L"Settings.xml"))
                 needReloadSettings = true;
             if (filenameW.ends_with(L"Market.json"))
                 needReloadMarket = true;
             if (filenameW.ends_with(L"Cargo.json"))
                 needReloadCargo = true;
+            if (filenameW.ends_with(L"Status.json"))
+                needReloadStatus = true;
             if (action == FILE_ACTION_ADDED && filenameW.starts_with(L"Journal.") && filenameW.ends_with(L".log")) {
                 needOpenNewLog = true;
                 newLogFilenameW = filenameW;
@@ -875,6 +1275,8 @@ void Configuration::changeDirThreadLoop() {
             loadMarket();
         if (needReloadCargo)
             loadCargo();
+        if (needReloadStatus)
+            loadGameStatus();
     }
 }
 

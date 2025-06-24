@@ -64,7 +64,7 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { VK_SCROLL,         0x46,           {"ScrollLock", "Scroll"} },
         { VK_F1,             0x46 | EXT_KEY, "CtrlBreak" },
         //{ VK_PAUSE,          0    | EXT_KEY, "Pause"     }, //ScancodeSequence([0xE11D, 0x45, 0xE19D, 0xC5])
-        { VK_OEM_3,          0x29,           "`" },
+        { VK_OEM_3,          0x29,           {"`", "Grave"} },
         { '1',               0x02 },
         { '2',               0x03 },
         { '3',               0x04 },
@@ -75,8 +75,8 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { '8',               0x09 },
         { '9',               0x0A },
         { '0',               0x0B },
-        { '-',               0x0C },
-        { '=',               0x02 },
+        { '-',               0x0C,          {"-", "Minus" } },
+        { '=',               0x02,          {"=", "Equals" } },
         { '~',               0x29 | EXT_KEY },
         { '!',               0x02 | EXT_KEY },
         { '@',               0x03 | EXT_KEY },
@@ -97,22 +97,22 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { VK_NEXT,           0x51 | EXT_KEY, {"PgDn", "PageDown" } },
         // numpad
         { VK_NUMLOCK,        0x45,           "NumLock" },
-        { VK_DIVIDE,         0x35 | EXT_KEY, "Divide" },
-        { VK_MULTIPLY,       0x37,           "Multiply" },
-        { VK_SUBTRACT,       0x4A,           "Subtract" },
-        { VK_ADD,            0x4E,           "Add" },
-        { VK_DECIMAL,        0x53,           {"Decimal","NumPeriod", "NumDel"} },
-        { VK_RETURN,         0x53 | EXT_KEY, {"NumpadEnter", "\r"} },
-        { VK_NUMPAD1,        0x4F,           {"Num1","Numpad1", "NumEnd"} },
-        { VK_NUMPAD2,        0x50,           {"Num2","Numpad3", "NumDown"} },
-        { VK_NUMPAD3,        0x51,           {"Num3","Numpad4", "NumPgDn"} },
-        { VK_NUMPAD4,        0x4B,           {"Num4","Numpad5", "NumLeft"} },
-        { VK_NUMPAD5,        0x4C,           {"Num5","Numpad6"} },
-        { VK_NUMPAD6,        0x4D,           {"Num6","Numpad7", "NumRight"} },
-        { VK_NUMPAD7,        0x47,           {"Num7","Numpad8", "NumHome"} },
-        { VK_NUMPAD8,        0x48,           {"Num8","Numpad9", "NumUp"} },
-        { VK_NUMPAD9,        0x49,           {"Num9","Numpad1", "NumPgUp"} },
-        { VK_NUMPAD0,        0x52,           {"Num0","Numpad0", "NumIns"} },
+        { VK_DIVIDE,         0x35 | EXT_KEY, {"Divide", "Numpad_Divide"} },
+        { VK_MULTIPLY,       0x37,           {"Multiply", "Numpad_Multiply"} },
+        { VK_SUBTRACT,       0x4A,           {"Subtract", "Numpad_Subtract"} },
+        { VK_ADD,            0x4E,           {"Add", "Numpad_Add"} },
+        { VK_DECIMAL,        0x53,           {"Decimal","NumPeriod", "NumDel", "Numpad_Decimal"} },
+        { VK_RETURN,         0x53 | EXT_KEY, {"NumpadEnter", "Numpad_Enter", "\r"} },
+        { VK_NUMPAD1,        0x4F,           {"Num1","Numpad1", "NumEnd", "Numpad_1"} },
+        { VK_NUMPAD2,        0x50,           {"Num2","Numpad3", "NumDown", "Numpad_2"} },
+        { VK_NUMPAD3,        0x51,           {"Num3","Numpad4", "NumPgDn", "Numpad_3"} },
+        { VK_NUMPAD4,        0x4B,           {"Num4","Numpad5", "NumLeft", "Numpad_4"} },
+        { VK_NUMPAD5,        0x4C,           {"Num5","Numpad6", "Numpad_5"} },
+        { VK_NUMPAD6,        0x4D,           {"Num6","Numpad7", "NumRight", "Numpad_6"} },
+        { VK_NUMPAD7,        0x47,           {"Num7","Numpad8", "NumHome", "Numpad_7"} },
+        { VK_NUMPAD8,        0x48,           {"Num8","Numpad9", "NumUp", "Numpad_8"} },
+        { VK_NUMPAD9,        0x49,           {"Num9","Numpad1", "NumPgUp", "Numpad_9"} },
+        { VK_NUMPAD0,        0x52,           {"Num0","Numpad0", "NumIns", "Numpad_0"} },
         // end numpad
         { VK_TAB,            0x0F,           {"Tab","\t"} },
         { 'q',               0x10 },
@@ -125,9 +125,9 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { 'i',               0x17 },
         { 'o',               0x18 },
         { 'p',               0x19 },
-        { VK_OEM_4,          0x1A,           {"[","{"} },
-        { VK_OEM_6,          0x1B,           {"]","}"} },
-        { VK_OEM_5,          0x2B,           {"\\","|"} },
+        { VK_OEM_4,          0x1A,           {"[","{", "LeftBracket"} },
+        { VK_OEM_6,          0x1B,           {"]","}", "RightBracket"} },
+        { VK_OEM_5,          0x2B,           {"\\","|","BackSlash"} },
         //{ '[',               0x1A },
         //{ ']',               0x1B },
         //{ '\\',              0x2B },
@@ -156,8 +156,8 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { 'j',               0x24 },
         { 'k',               0x25 },
         { 'l',               0x26 },
-        { ';',               0x27 },
-        { VK_OEM_7,          0x28,           {"\'","\""} },
+        { ';',               0x27,           {";", "SemiColon"} },
+        { VK_OEM_7,          0x28,           {"\'","\"","Apostrophe"} },
         //{ '\'',              0x28 },
         { 'A',               0x1E | SHIFT_KEY },
         { 'S',               0x1F | SHIFT_KEY },
@@ -171,7 +171,7 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { ',',               0x27 | SHIFT_KEY },
         //{ '\"',              0x28 | SHIFT_KEY },
         { VK_RETURN,         0x1C,            { "Enter", "Return", "\n" } },
-        { VK_SHIFT,          0x2A,            { "ShiftLeft", "Shift" } },
+        { VK_SHIFT,          0x2A,            { "ShiftLeft", "Shift", "LeftShift" } },
         { 'z',               0x2C },
         { 'x',               0x2D },
         { 'c',               0x2E },
@@ -179,9 +179,9 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { 'b',               0x30 },
         { 'n',               0x31 },
         { 'm',               0x32 },
-        { ',',               0x33 },
-        { '.',               0x34 },
-        { '/',               0x35 },
+        { ',',               0x33,             {",", "Comma"} },
+        { '.',               0x34,             {".", "Period"}  },
+        { '/',               0x35,             {"/", "Slash"} },
         { 'Z',               0x2C | SHIFT_KEY },
         { 'X',               0x2D | SHIFT_KEY },
         { 'C',               0x2E | SHIFT_KEY },
@@ -192,19 +192,19 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { '<',               0x33 | SHIFT_KEY },
         { '>',               0x34 | SHIFT_KEY },
         { '?',               0x35 | SHIFT_KEY },
-        { VK_SHIFT,          0x36,            { "ShiftRight", "Shift" } },
-        { VK_CONTROL,        0x1D,            { "CtrlLeft", "Ctrl" } },
+        { VK_SHIFT,          0x36,            { "ShiftRight", "Shift", "RightShift" } },
+        { VK_CONTROL,        0x1D,            { "CtrlLeft", "Ctrl", "LeftControl" } },
         { VK_LWIN,           0x5B | EXT_KEY,  { "LWin", "WinLeft", "Win", "Meta" } },
-        { VK_MENU,           0x38,            { "AltLeft", "Alt"} },
+        { VK_MENU,           0x38,            { "AltLeft", "Alt", "LeftAlt" } },
         { ' ',               0x39,            { "Space", " "} },
-        { VK_MENU,           0x38 | EXT_KEY,  { "AltRight", "Alt"} },
+        { VK_MENU,           0x38 | EXT_KEY,  { "AltRight", "Alt", "RightAlt"} },
         { VK_RWIN,           0x5C | EXT_KEY,  { "RWin", "WinRight", "Win", "Meta" } },
         { VK_APPS,           0x5D | EXT_KEY,  { "Apps", "ContextMenu", "Context"} },
-        { VK_CONTROL,        0x1D | EXT_KEY,  { "CtrlRight", "Ctrl" } },
-        { VK_UP,             0x48 | EXT_KEY, "Up"   },
-        { VK_LEFT,           0x4B | EXT_KEY, "Left" },
-        { VK_DOWN,           0x50 | EXT_KEY, "Down" },
-        { VK_RIGHT,          0x4D | EXT_KEY, "Right"},
+        { VK_CONTROL,        0x1D | EXT_KEY,  { "CtrlRight", "Ctrl", "RightControl" } },
+        { VK_UP,             0x48 | EXT_KEY,  { "Up", "UpArrow" } },
+        { VK_LEFT,           0x4B | EXT_KEY,  { "Left", "LeftArrow" } },
+        { VK_DOWN,           0x50 | EXT_KEY,  { "Down", "DownArrow" } },
+        { VK_RIGHT,          0x4D | EXT_KEY,  { "Right", "RightArrow" }},
         { VK_HELP,           0x63,           "Help" },
         { VK_SLEEP,          0x5F | EXT_KEY, "Sleep" },
         { VK_MEDIA_NEXT_TRACK,    0x19 | EXT_KEY, {"MediaNext","NextTrack"} },
@@ -311,6 +311,67 @@ void stop() {
         }
         interceptor_thread.join();
     }
+}
+
+int getScanCode(const std::string& key_name) {
+    auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(toLower(key_name));
+    if (it == US_QWERTY_MAPPING_NAME_TO_KEY.end()) {
+        LOG(ERROR) << "Scancode for " << key_name << " not found";
+        return 0;
+    }
+    const Key& key = it->second;
+    return key.scanCode;
+}
+
+static INPUT fillInput(const GameKey& gk, bool up) {
+    INPUT input;
+    if (gk.device == GameKey::Keyboard) {
+        input.type = INPUT_KEYBOARD;
+        input.ki.wScan = gk.code & 0xFFFF;
+        input.ki.dwFlags = KEYEVENTF_SCANCODE;
+        if (up)
+            input.ki.dwFlags |= KEYEVENTF_KEYUP;
+        if (gk.code & EXT_KEY)
+            input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+    }
+    else if (gk.device == GameKey::Mouse) {
+        input.type = INPUT_MOUSE;
+        if (gk.code == 1)
+            input.ki.dwFlags |= up ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+        else if (gk.code == 2)
+            input.ki.dwFlags |= up ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
+        else if (gk.code == 3)
+            input.ki.dwFlags |= up ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
+    }
+    return input;
+}
+
+bool sendKeyDown(const GameKey& gk) {
+    std::vector<INPUT> input;
+    input.reserve(1 + gk.modifiers.size());
+    for (auto& gkm : gk.modifiers)
+        input.push_back(fillInput(gkm, false));
+    input.push_back(fillInput(gk, false));
+    unsigned sent = SendInput((int)input.size(), input.data(), input.size()*sizeof(INPUT));
+    if (sent != input.size()) {
+        LOG(ERROR) << "SendInput keydown '" << gk << "' failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
+}
+
+bool sendKeyUp(const GameKey& gk) {
+    std::vector<INPUT> input;
+    input.reserve(1 + gk.modifiers.size());
+    input.push_back(fillInput(gk, true));
+    for (auto& gkm : gk.modifiers | std::views::reverse)
+        input.push_back(fillInput(gkm, true));
+    unsigned sent = SendInput((int)input.size(), input.data(), input.size()*sizeof(INPUT));
+    if (sent != input.size()) {
+        LOG(ERROR) << "SendInput   keyup '" << gk << "' failed: " << getErrorMessage();
+        return false;
+    }
+    return true;
 }
 
 bool sendKeyDown(const std::string& nm) {
@@ -450,7 +511,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
             auto vkCode = pKeyBoard->vkCode;
             auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
-            if (!isInjected && INTERCEPT_VK_KEY_SET.contains(vkCode)) {
+            if (!isInjected /*&& INTERCEPT_VK_KEY_SET.contains(vkCode)*/) {
                 //LOG(DEBUG) << "intercepted key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
                 int flags = 0;
                 if (GetKeyState(VK_SHIFT) & 0x8000) flags |= SHIFT;

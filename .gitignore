@@ -19,4 +19,5 @@ calibration.json5
 
 /ui/Dialogs.aps
 /config/tesseract-words.txt
+/config/testset-*/
 /config/*.png

@@ -7,7 +7,7 @@
 #ifndef EDROBOT_CLASSIFYENV_H
 #define EDROBOT_CLASSIFYENV_H
 
-struct ClassifyEnv;
+struct ResolvedEnv;
 
 namespace widget {
 class Widget;
@@ -46,14 +46,14 @@ typedef std::unique_ptr<Frame,FrameRecycler> upFrame;
 class EvalRect {
 public:
     EvalRect() = default;
-    virtual cv::Rect calcReferenceRect(const ClassifyEnv& detectorState) const = 0;
+    virtual cv::Rect calcReferenceRect(const ResolvedEnv& detectorState) const = 0;
 };
 typedef std::shared_ptr<EvalRect> spEvalRect;
 
 class ConstRect : public EvalRect {
 public:
     ConstRect(cv::Rect rect) : mRect(rect) {}
-    cv::Rect calcReferenceRect(const ClassifyEnv& detectorState) const override { return mRect; };
+    cv::Rect calcReferenceRect(const ResolvedEnv& detectorState) const override { return mRect; };
 
     cv::Rect mRect;
 };
@@ -91,8 +91,7 @@ struct ClassifiedRect {
     } u;
 };
 
-
-struct ClassifyEnv {
+struct ResolvedEnv {
     // in configuration all numbers are specified for reference screen size
     const cv::Size ReferenceScreenSize {1920, 1080};
     const cv::Point ReferenceScreenCenter {1920/2, 1080/2};
@@ -101,24 +100,10 @@ struct ClassifyEnv {
     const cv::Rect captureRect;
     const cv::Rect captureCrop;
 
-    void init(const cv::Rect& monitorRect, const cv::Rect& captRect, upFrame&& frame);
+    ResolvedEnv& operator=(const ResolvedEnv& other);
+    void init(const cv::Rect& monitorRect, const cv::Rect& captRect);
     void clear();
 
-    [[nodiscard]] const cv::UMat& getColorTexture() const { return mFrame->getColorTexture(); };
-    [[nodiscard]] const cv::Mat&  getColorImage()   const { return mFrame->getColorImage();   };
-    [[nodiscard]] const cv::Mat&  getGrayImage()    const { return mFrame->getGrayImage();    };
-    [[nodiscard]] cv::Mat&        getDebugImage()   const;
-
-private:
-    friend class Master;
-    // reference-to-captured scale
-    bool needScaling_ {false};
-    double scaleToCaptured_ {1};
-    cv::Point captureCenter;
-    upFrame mFrame;
-    mutable cv::Mat mDebugOverlay;
-
-public:
     // a list of classified detected rects
     std::vector<ClassifiedRect> classified;
 
@@ -160,6 +145,28 @@ public:
             return {};
         return cvtReferenceToCaptured(calcReferenceRect(er));
     }
+
+protected:
+    friend class Master;
+    // reference-to-captured scale
+    bool needScaling_ {false};
+    double scaleToCaptured_ {1};
+    cv::Point captureCenter;
+};
+
+struct ClassifyEnv : public ResolvedEnv {
+    void init(const cv::Rect& monitorRect, const cv::Rect& captRect, upFrame&& frame);
+    void clear();
+
+    [[nodiscard]] const cv::UMat& getColorTexture() const { return mFrame->getColorTexture(); };
+    [[nodiscard]] const cv::Mat&  getColorImage()   const { return mFrame->getColorImage();   };
+    [[nodiscard]] const cv::Mat&  getGrayImage()    const { return mFrame->getGrayImage();    };
+    [[nodiscard]] cv::Mat&        getDebugImage()   const;
+
+private:
+    friend class Master;
+    upFrame mFrame;
+    mutable cv::Mat mDebugOverlay;
 };
 
 

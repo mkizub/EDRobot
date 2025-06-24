@@ -124,7 +124,7 @@ double HistogramTemplate::match(ClassifyEnv& env) {
         }
         break;
     }
-    LOG(DEBUG) << "Colors result: " << mLastValues << " for color " << mLastColor << " and colors " << mColors << " with distance " << mLastDistance;
+    //LOG(DEBUG) << "Colors result: " << mLastValues << " for color " << mLastColor << " and colors " << mColors << " with distance " << mLastDistance;
     imagePlanes.clear();
     return mLastValues[0];
 }
@@ -260,10 +260,20 @@ void BaseImageTemplate::fixNaNinResult(cv::Mat& result) {
     // bypass error in cv::matchTemplate that sometimes return NaN/Inf, instead of [0..1] valies
     auto* ptr = result.ptr<float>(0);
     auto* pend = ptr + result.rows * result.cols;
+#ifndef NDEBUG
+    bool bad_image = false;
+#endif
     for (; ptr < pend; ++ptr) {
-        if (std::isnan(*ptr) || std::isinf(*ptr))
+        if (std::isnan(*ptr) || std::isinf(*ptr)) {
+#ifndef NDEBUG
+            bad_image = true;
+#endif
             *ptr = 0;
+        }
     }
+#ifndef NDEBUG
+    LOG_IF(bad_image,ERROR) << "Bad image for TM_CCORR_NORMED: " << filename;
+#endif
 }
 
 ImageTemplate::ImageTemplate(const std::string& name, const std::string& filename, cv::Mat& image, bool edge,

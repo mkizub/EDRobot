@@ -5,8 +5,8 @@
 #include "pch.h"
 
 #include "ui/UIManager.h"
+#include "ai/AIManager.h"
 #include "Keyboard.h"
-#include "Task.h"
 #include "Template.h"
 #include "Capturer.h"
 #include "FuzzyMatch.h"
@@ -24,22 +24,17 @@
 #ifndef NDEBUG
 //#include <cpptrace/cpptrace.hpp>
 #include "cpptrace/from_current.hpp"
+#include "Master.h"
+
 #endif
 
 #ifdef CPPTRACE_TRY
 # define TRY CPPTRACE_TRY
 # define CATCH(param) CPPTRACE_CATCH(param)
-# define TRYZ CPPTRACE_TRYZ
-# define CATCHZ(param) CPPTRACE_CATCHZ(param)
-# define CATCH_ALT(param) CPPTRACE_CATCH_ALT(param)
-# define GET_STACK_TRACE std::stacktrace::current().to_string()
 # define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
 #else
 # define TRY try
 # define CATCH(param) catch(param)
-# define TRYZ try
-# define CATCHZ(param) catch(param)
-# define CATCH_ALT(param) catch(param)
 # ifdef _GLIBCXX_HAVE_STACKTRACE
 #  include <stacktrace>
 #  define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
@@ -54,7 +49,6 @@ const wchar_t Master::ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
 const wchar_t Master::ED_WINDOW_EXE[] = L"EliteDangerous64.exe";
 
 using namespace widget;
-
 
 namespace {
 void writeOpenCVLogMessageFunc(cv::utils::logging::LogLevel cvLevel, const char* msg) {
@@ -104,6 +98,7 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
 
 void UIState::clear() {
     valid = false;
+    guiFocus = GuiFocus::NoFocus;
     widget = nullptr;
     focused = nullptr;
 }
@@ -116,13 +111,54 @@ const std::string& UIState::path() const {
 }
 
 std::ostream& operator<<(std::ostream& os, const UIState& obj) {
-    if (!obj.widget) {
-        os << "unknown";
-        return os;
-    }
-    os << obj.widget->path;
-    if (obj.focused) {
-        os << "@" << obj.focused->name;
+    switch (obj.guiFocus) {
+    default:
+        os << "Unknown::";
+        break;
+    case GuiFocus::NoFocus:
+        os << "Cockpit::";
+        break;
+    case GuiFocus::Right:
+        os << "RightPanel::";
+        break;
+    case GuiFocus::Left:
+        os << "LeftPanel::";
+        break;
+    case GuiFocus::Chat:
+        os << "Chat::";
+        break;
+    case GuiFocus::Role:
+        os << "LowPanel::";
+        break;
+    case GuiFocus::Services:
+        os << "Services::";
+        if (!obj.widget) {
+            os << "unknown";
+            return os;
+        }
+        os << obj.widget->path;
+        if (obj.focused) {
+            os << "@" << obj.focused->name;
+        }
+        break;
+    case GuiFocus::GalaxyMap:
+        os << "GalaxyMap::";
+        break;
+    case GuiFocus::SystemMap:
+        os << "SystemMap::";
+        break;
+    case GuiFocus::Orrery:
+        os << "SystemMap::";
+        break;
+    case GuiFocus::FSS:
+        os << "SystemMap::";
+        break;
+    case GuiFocus::SAA:
+        os << "SystemMap::";
+        break;
+    case GuiFocus::Codex:
+        os << "Codex::";
+        break;
     }
     return os;
 }
@@ -133,6 +169,97 @@ std::string UIState::to_string() const {
     if (this->focused)
         return widget->path+"@"+this->focused->name;
     return widget->path;
+}
+
+static std::vector<std::string> parseState(const std::string& state) {
+    std::vector<std::string> tokens;
+    size_t start = 0;
+    size_t end = state.find(':');
+
+    while (end != std::string::npos) {
+        tokens.push_back(state.substr(start, end - start));
+        start = end + 1;
+        end = state.find(':', start);
+    }
+
+    tokens.push_back(state.substr(start));
+    return tokens;
+}
+
+static Widget* getItemMode(Widget* item, const std::string& mode) {
+    for (Widget* child : item->have) {
+        if (child->tp == WidgetType::Mode && (mode.empty() || mode == "*" || child->name == mode))
+            return child;
+    }
+    return nullptr;
+}
+static Widget* getItemByName(const Widget* item, const std::string& name) {
+    for (Widget* child : item->have) {
+        if (child->name == name)
+            return child;
+    }
+    return nullptr;
+}
+
+bool UIState::match(const std::string& state) const {
+    if (!widget) {
+        return state.empty();
+    }
+    if (widget->path == state)
+        return true;
+    auto names1 = parseState(widget->path);
+    auto names2 = parseState(state);
+    if (names1.size() != names2.size()) {
+        LOG(DEBUG) << "States '" << names1 << "' and '" << names2 << "' do not match";
+        return false;
+    }
+    if (names1.empty())
+        return true;
+    Master& master = Master::getInstance();
+    Widget* item = master.mScreensRoot.get();
+    for (size_t idx = 0; idx < names1.size(); idx++) {
+        auto& name1 = names1[idx];
+        auto& name2 = names2[idx];
+        if (name1 == "*" && name2 == "*") {
+            Widget* found = getItemMode(item, "");
+            if (!found) {
+                LOG(DEBUG) << "Widget '" << item->path << "' have no modes";
+                return false;
+            }
+            item = found;
+            continue;
+        }
+        else if (name1 == "*") {
+            Widget* found = getItemMode(item, name2);
+            if (!found) {
+                LOG(DEBUG) << "Widget '" << item->path << "' have no mode '" << name2 << "'";
+                return false;
+            }
+            item = found;
+            continue;
+        }
+        else if (name2 == "*") {
+            Widget* found = getItemMode(item, name1);
+            if (!found) {
+                LOG(DEBUG) << "Widget '" << item->path << "' have no mode '" << name1 << "'";
+                return false;
+            }
+            item = found;
+            continue;
+        }
+        else if (name1 == name2) {
+            Widget* found = getItemByName(item, name2);
+            if (!found) {
+                LOG(DEBUG) << "Widget '" << item->path << "' have no item '" << name2 << "'";
+                return false;
+            }
+            item = found;
+            continue;
+        }
+        LOG(DEBUG) << "States '" << names1 << "' and '" << names2 << "' do not match";
+        return false;
+    }
+    return true;
 }
 
 
@@ -166,7 +293,7 @@ int Master::initialize(int argc, char* argv[]) {
     }
 
     TRY {
-        return initializeInternal(ocr_dir);
+        initializeInternal(ocr_dir);
     } CATCH(const std::exception& e) {
         LOG(ERROR) << "Exception in initialization: " << GET_EXCEPTION_STACK_TRACE;
         return 1;
@@ -174,7 +301,7 @@ int Master::initialize(int argc, char* argv[]) {
 
     return 0;
 }
-int Master::initializeInternal(std::string ocr_dir) {
+void Master::initializeInternal(std::string ocr_dir) {
 
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
@@ -184,14 +311,16 @@ int Master::initializeInternal(std::string ocr_dir) {
     LOG(INFO) << "Initializing OpenCV";
     rgb2luv(encodeRGB(0x123456));
 
-    mConfiguration = std::make_unique<Configuration>();
+    mConfiguration = new Configuration();
     mConfiguration->load();
     initButtonStateDetector();
+
+    mAIManager = new ai::AIManager();
 
     if (ocr_dir.empty())
         ocr_dir = mConfiguration->mTesseractDataPath;
     if (ocr_dir.empty())
-        ocr_dir = "tessdata";
+        ocr_dir = "tessdata-fast";
 
     {
         LOG(INFO) << "Initializing Tesseract OCR for commodities";
@@ -211,20 +340,6 @@ int Master::initializeInternal(std::string ocr_dir) {
         }
     }
 
-    {
-        LOG(INFO) << "Initializing Tesseract OCR for numbers";
-        mTesseractApiForDigits = std::make_unique<tesseract::TessBaseAPI>();
-        const std::vector<std::string> vars_vec{"tessedit_char_whitelist"};
-        const std::vector<std::string> vars_values{"0123456789+-/."};
-        // "eng" for English language
-        if (mTesseractApiForDigits->Init(ocr_dir.c_str(), "eng", tesseract::OEM_LSTM_ONLY)) {
-            LOG(ERROR) << "Error: Could not initialize tesseract.";
-            mTesseractApiForDigits.reset();
-        } else {
-            mTesseractApiForDigits->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
-        }
-    }
-
     LOG(INFO) << "Initializing compass detector";
     cv::Mat compassImage;
     spEvalRect compassRect = std::make_shared<ConstRect>(cv::Rect(679,803,71,71));
@@ -234,10 +349,8 @@ int Master::initializeInternal(std::string ocr_dir) {
     std::vector<std::string> keys;
     for (auto& m : mConfiguration->keyMapping)
         keys.push_back(m.first.first);
-    keyboard::intercept(std::move(keys));
+    keyboard::intercept(keys);
     keyboard::start(tradingKbHook);
-
-    return 0;
 }
 
 
@@ -262,7 +375,8 @@ Master::Master() {
 
 Master::~Master() {
     keyboard::stop();
-    stopTrade();
+    delete mAIManager;
+    delete mConfiguration;
     if (mCapturer) {
         mCapturer->stop();
         mCapturer = nullptr;
@@ -271,17 +385,14 @@ Master::~Master() {
         mTesseractApiForMarket->End();
         mTesseractApiForMarket.reset();
     }
-    if (mTesseractApiForDigits) {
-        mTesseractApiForDigits->End();
-        mTesseractApiForDigits.reset();
-    }
 }
 
 
 void Master::loop() {
     TRY {
         LOG(INFO) << "Starting EDRobot task loop";
-        while (true) {
+        bool shutdown = false;
+        while (!shutdown) {
             pCommand cmd;
             popCommand(cmd);
             switch (cmd->command) {
@@ -289,14 +400,19 @@ void Master::loop() {
                 debugWindowUpdate();
                 break;
             case Command::TaskFinished:
-                clearCurrentTask();
+                //clearCurrentTask();
                 break;
             case Command::Start:
                 startTrade();
                 break;
             case Command::Pause:
+                stopAITask();
+                break;
+            case Command::Resume:
+                resumeAITask();
+                break;
             case Command::Stop:
-                stopTrade();
+                stopAITask();
                 break;
             case Command::UserNotify:
                 showNotification(cmd);
@@ -328,15 +444,19 @@ void Master::loop() {
             case Command::ResetCapturer:
                 resetCapturer();
                 break;
+            case Command::DetectRequest:
+                processDetectRequest(cmd);
+                break;
             case Command::Shutdown:
-                clearCurrentTask();
-                return;
+                //clearCurrentTask();
+                shutdown = true;
+                break;
             }
         }
     }
     CATCH(const std::exception& e) {
         LOG(ERROR) << "Exception in main loop: " << GET_EXCEPTION_STACK_TRACE;
-        clearCurrentTask();
+        //clearCurrentTask();
     }
 }
 
@@ -354,6 +474,11 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
     if (cmd != keyMapping.end()) {
         LOG(INFO) << "Command " << enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
         self.pushCommand(cmd->second);
+    } else {
+        if (self.mConfiguration->autoPause && self.mAIManager->active()) {
+            LOG(INFO) << "Auto-pausing AI task because '"+encodeShortcut(name,flags)+"' pressed";
+            self.pushCommand(Command::Pause);
+        }
     }
 }
 
@@ -393,6 +518,21 @@ void Master::notifyError(const std::string& title, const std::string& text) {
     UIManager::showToast(title, text);
 }
 
+struct CommandDetectRequest : public CommandEntry {
+    CommandDetectRequest(std::promise<UIState>&& p, DetectLevel level)
+            : CommandEntry(Command::DetectRequest)
+            , promise(std::move(p))
+            , level(level)
+    {}
+    ~CommandDetectRequest() override = default;
+    std::promise<UIState> promise;
+    DetectLevel level;
+};
+
+void Master::pushDetectRequest(std::promise<UIState>&& p, DetectLevel level) {
+    pushCommand(new CommandDetectRequest(std::move(p), level));
+}
+
 struct CommandDevRestScreenshot : public CommandEntry {
     CommandDevRestScreenshot(cv::Rect rect)
             : CommandEntry(Command::DevRectScreenshot)
@@ -425,11 +565,6 @@ void Master::showNotification(pCommand& cmd) {
 }
 
 bool Master::preInitTask(bool checkCalibration) {
-    if (currentTask) {
-        LOG(ERROR) << "Exiting current task";
-        clearCurrentTask();
-    }
-
     auto capturer = getCapturer();
     if (!capturer)
         return false;
@@ -458,8 +593,7 @@ bool Master::startCalibration() {
     if (!preInitTask(false))
         return false;
     LOG(INFO) << "Staring calibration task";
-    currentTask = std::make_unique<TaskCalibrate>();
-    currentTaskThread = std::thread(Master::runCurrentTask);
+    mAIManager->new_task(std::make_unique<ai::TaskCalibrate>(*mAIManager));
     return true;
 }
 
@@ -549,7 +683,7 @@ const Commodity* Master::ocrMarketRowCommodity(ClassifiedRect* cr) {
         return cr->u.lrow.commodity;
     if (cr->text.empty()) {
         cv::Rect rect = mClassifyEnv.cvtReferenceToCaptured(cr->detectedRect);
-        if (ocrMarketText(mClassifyEnv.getGrayImage(), rect, cr->text) > 30) {
+        if (ocrMarketText(mClassifyEnv.getGrayImage(), rect, cr->text) > 50) {
             cr->u.lrow.commodity = mConfiguration->getCommodityByName(cr->text, true);
         } else {
             cr->text.clear();
@@ -560,7 +694,7 @@ const Commodity* Master::ocrMarketRowCommodity(ClassifiedRect* cr) {
     return cr->u.lrow.commodity;
 }
 
-bool Master::approximateSellListCommodities(const std::string& lst_name, std::vector<CommodityMatch>* verify) {
+bool Master::approximateListOfCommodities(const std::string& lst_name, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify) {
     std::vector<ClassifiedRect*> rows;
     for (auto& cr : mClassifyEnv.classified) {
         if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != lst_name)
@@ -590,8 +724,6 @@ bool Master::approximateSellListCommodities(const std::string& lst_name, std::ve
                 break;
             }
         }
-    }
-    if (!last) {
         for (auto lr : rows | std::views::reverse) {
             if (ocrMarketRowCommodity(lr)) {
                 last = lr;
@@ -599,16 +731,33 @@ bool Master::approximateSellListCommodities(const std::string& lst_name, std::ve
             }
         }
     }
-    std::vector<Commodity*> sellTable = mConfiguration->getMarketInSellOrder();
     if (!first || !last)
         return false;
+    // check first and last match with table
+    auto it_table_first = std::find_if(table.begin(), table.end(), [first](Commodity* c) { return c == first->u.lrow.commodity; });
+    if (it_table_first == table.end())
+        return false;
+    auto it_table_last = std::find_if(table.begin(), table.end(), [last](Commodity* c) { return c == last->u.lrow.commodity; });
+    if (it_table_last == table.end())
+        return false;
+    auto it_row_first = std::find(rows.begin(), rows.end(), first);
+    if (it_row_first == rows.end())
+        return false;
+    auto it_row_last = std::find(rows.begin(), rows.end(), last);
+    if (it_row_last == rows.end())
+        return false;
+
+    if (it_table_last - it_table_first != it_row_last - it_row_first) {
+        LOG(ERROR) << "Approximated commodity table does not match with OCR-recognized entries. Do not use market filters!";
+        LOG(ERROR) << "Recognized first row: '" << first->u.lrow.commodity->name << "' at row " << (it_row_first - rows.begin())
+                   << " expected table position " << (it_table_first - table.begin());
+        LOG(ERROR) << "Recognized last  row: '" << last->u.lrow.commodity->name << "' at row " << (it_row_last - rows.begin())
+                   << " expected table position " << (it_table_last - table.begin());
+        return false;
+    }
     {
-        auto it_table = std::find_if(sellTable.begin(), sellTable.end(), [first](Commodity* c) { return c == first->u.lrow.commodity; });
-        if (it_table == sellTable.end())
-            return false;
-        auto it_rows = std::find(rows.begin(), rows.end(), first);
-        if (it_rows == rows.end())
-            return false;
+        auto it_table = it_table_first;
+        auto it_rows = it_row_first;
         for (; it_rows >= rows.begin(); --it_rows, --it_table) {
             if ((*it_rows)->u.lrow.commodity && (*it_rows)->u.lrow.commodity != *it_table)
                 return false;
@@ -616,8 +765,8 @@ bool Master::approximateSellListCommodities(const std::string& lst_name, std::ve
             if (it_rows == rows.begin())
                 break;
         }
-        it_table = std::find_if(sellTable.begin(), sellTable.end(), [first](Commodity* c) { return c == first->u.lrow.commodity; });
-        it_rows = std::find(rows.begin(), rows.end(), first);
+        it_table = it_table_first;
+        it_rows = it_row_first;
         for (; it_rows != rows.end(); ++it_rows, ++it_table) {
             if ((*it_rows)->u.lrow.commodity && (*it_rows)->u.lrow.commodity != *it_table)
                 return false;
@@ -648,7 +797,7 @@ bool Master::approximateSellListCommodities(const std::string& lst_name, std::ve
                     match = std::to_string(fuzzy_conf) + "%";
                 }
                 LOG(INFO) << "OCR for row # " << std::to_string(idx) << " found: '" << text
-                          << "' have to be '" << lr->u.lrow.commodity->name << "; match: " << match;
+                          << "' have to be '" << lr->u.lrow.commodity->name << "' match: " << match;
             }
             verify->emplace_back(lr->u.lrow.commodity, ocr_conf, fuzzy_conf);
         }
@@ -697,50 +846,37 @@ bool Master::startTrade() {
 //        LOG(INFO) << "Internal error, cannot find cargo for: " << cargo_name;
 //        return false;
 //    }
+
     LOG(INFO) << "Staring new trade task";
-    currentTask = std::make_unique<TaskSell>(commodity, total, chunk);
-    currentTaskThread = std::thread(Master::runCurrentTask);
+    if (commodity) {
+        mAIManager->new_task(std::make_unique<ai::TaskSell>(nullptr, *mAIManager, commodity, total, chunk));
+    } else {
+        mAIManager->new_task(std::make_unique<ai::TaskSellAll>(nullptr, *mAIManager, chunk));
+    }
     return true;
 }
 
-bool Master::stopTrade() {
-    LOG_IF(currentTask, INFO) << "Stop trading";
-    clearCurrentTask();
-    return false;
+bool Master::pauseAITask() {
+    mAIManager->interrupt();
+    return true;
+}
+
+bool Master::resumeAITask() {
+    mAIManager->resume();
+    return true;
+}
+
+bool Master::stopAITask() {
+    mAIManager->interrupt();
+    return true;
 }
 
 bool Master::debugFindAllCommodities() {
     if (!preInitTask())
         return false;
     LOG(INFO) << "Staring new debug task";
-    currentTask = std::make_unique<TaskDebugFindAllCommodities>();
-    currentTaskThread = std::thread(Master::runCurrentTask);
+    mAIManager->new_task(std::make_unique<ai::TaskDebugFindAllCommodities>(*mAIManager));
     return true;
-}
-
-void Master::runCurrentTask() {
-    Master& self = getInstance();
-    TRY {
-        std::string threadName = "Task: " + self.currentTask->getTaskName();
-        SetThreadDescription(GetCurrentThread(), toUtf16(threadName).c_str());
-        bool ok = self.currentTask->run();
-        self.pushCommand(Command::TaskFinished);
-    } CATCH (const std::exception& e) {
-        LOG(ERROR) << "Exception in current task: " << GET_EXCEPTION_STACK_TRACE;
-        self.clearCurrentTask();
-    }
-}
-
-void Master::clearCurrentTask() {
-    if (currentTask) {
-        currentTask->stop();
-        if (currentTaskThread.joinable())
-            currentTaskThread.join();
-        currentTask.reset();
-    }
-    else if (currentTaskThread.joinable()) {
-        currentTaskThread.join();
-    }
 }
 
 const json5pp::value& Master::getTaskActions(const std::string& action) {
@@ -764,36 +900,6 @@ cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) {
         return {};
     }
     return r;
-}
-
-std::vector<std::string> Master::parseState(const std::string& state) {
-    std::vector<std::string> tokens;
-    size_t start = 0;
-    size_t end = state.find(':');
-
-    while (end != std::string::npos) {
-        tokens.push_back(state.substr(start, end - start));
-        start = end + 1;
-        end = state.find(':', start);
-    }
-
-    tokens.push_back(state.substr(start));
-    return tokens;
-}
-
-static Widget* getItemMode(Widget* item, const std::string& mode) {
-    for (Widget* child : item->have) {
-        if (child->tp == WidgetType::Mode && (mode.empty() || mode == "*" || child->name == mode))
-            return child;
-    }
-    return nullptr;
-}
-static Widget* getItemByName(const Widget* item, const std::string& name) {
-    for (Widget* child : item->have) {
-        if (child->name == name)
-            return child;
-    }
-    return nullptr;
 }
 
 Widget* Master::getCfgItem(std::string state) {
@@ -880,6 +986,11 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             //cv::waitKey();
         }
         //cv::destroyAllWindows();
+        mDuplicateToDebugWindow = UIManager::showDebugWindow();
+        if (mDuplicateToDebugWindow) {
+            if (!UIManager::postToDebugWindow(debugEnv.getColorImage(), debugEnv.getDebugImage()))
+                mDuplicateToDebugWindow = false;
+        }
         debugEnv.clear();
         el::Loggers::flushAll();
         return true;
@@ -968,11 +1079,11 @@ void Master::drawButton(widget::Widget* item) {
         cv::Mat thrImage;
         cv::Mat erodedImage;
         cv::threshold(listImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
-        cv::imshow("Threshold image: " + mLastEDState.path(), thrImage);
+        //cv::imshow("Threshold image: " + mLastEDState.path(), thrImage);
         if (USE_EROSION > 0) {
             cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
             cv::erode(thrImage, erodedImage, kernel, cv::Point(-1, -1), USE_EROSION, cv::BORDER_CONSTANT, cv::Scalar::all(0));
-            cv::imshow("Eroded image: " + mLastEDState.path(), erodedImage);
+            //cv::imshow("Eroded image: " + mLastEDState.path(), erodedImage);
         } else {
             erodedImage = thrImage;
         }
@@ -1025,15 +1136,11 @@ bool Master::debugButtons() {
                 drawButton(item);
         }
     }
+    mDuplicateToDebugWindow = UIManager::showDebugWindow();
     if (mDuplicateToDebugWindow) {
         if (!UIManager::postToDebugWindow(mClassifyEnv.getColorImage(), mClassifyEnv.getDebugImage()))
             mDuplicateToDebugWindow = false;
     }
-//    if (!mDuplicateToDebugWindow) {
-//        cv::imshow(mLastEDState.path(), mClassifyEnv.getDebugImage());
-//        cv::waitKey();
-//        cv::destroyAllWindows();
-//    }
     return true;
 }
 
@@ -1049,11 +1156,6 @@ bool Master::debugCompass() {
         if (!UIManager::postToDebugWindow(debugEnv.getColorImage(), debugEnv.getDebugImage()))
             mDuplicateToDebugWindow = false;
     }
-//    if (!mDuplicateToDebugWindow) {
-//        cv::imshow(mLastEDState.path(), debugEnv.getDebugImage());
-//        cv::waitKey();
-//        cv::destroyAllWindows();
-//    }
     return true;
 }
 
@@ -1100,7 +1202,7 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
         Sleep(200);
         if (!isForeground()) {
             LOG(ERROR) << "ED is not foreground";
-            return false;
+            //return false;
         }
     }
     ClassifyEnv debugEnv;
@@ -1118,7 +1220,7 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     cv::imwrite("debug-rect-color.png", cv::Mat(debugEnv.getColorImage(), rect));
 
     std::string text;
-    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 30) {
+    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 50) {
         Commodity *commodity = mConfiguration->getCommodityByName(text, true);
         if (commodity) {
             if (mConfiguration->lng != EN)  // they capitalize text
@@ -1341,98 +1443,42 @@ const UIState& Master::detectEDState(DetectLevel level) {
         return mLastEDState;
     }
     mLastEDState.valid = true;
+    mLastEDState.guiFocus = mConfiguration->getGuiFocus();
     if (level == DetectLevel::None)
         return mLastEDState;
 
     // detect screen and widget
-    for (auto& screen : mScreensRoot->have) {
-        Widget* subItem = matchWithSubItems(screen);
-        if (subItem) {
-            mLastEDState.widget = subItem;
-            LOG(DEBUG) << "Detected UI state: " << subItem->path;
-            break;
-        }
-    }
-
-    if (!mLastEDState.widget) {
-        LOG(ERROR) << "Unknown state";
-        return mLastEDState;
-    }
-
-    if (level >= DetectLevel::Buttons) {
-        if (mButtonStateDetector) {
-            // detect focused button
-            const Widget *focused = detectAllButtonsStates(mLastEDState.widget, level);
-            if (focused) {
-                mLastEDState.focused = focused;
-                LOG(DEBUG) << "Detected focused button: " << focused->name;
-            } else {
-                LOG(DEBUG) << "Focused button not detected";
+    if (mLastEDState.guiFocus == GuiFocus::Services) {
+        for (auto &screen: mScreensRoot->have) {
+            Widget *subItem = matchWithSubItems(screen);
+            if (subItem) {
+                mLastEDState.widget = subItem;
+                LOG(DEBUG) << "Detected UI state: " << subItem->path;
+                break;
             }
-        } else {
-            LOG(ERROR) << "Colors not calibrated, cannot detect focused widget";
+        }
+        if (!mLastEDState.widget) {
+            LOG(ERROR) << "Unknown state";
+            return mLastEDState;
+        }
+        if (level >= DetectLevel::Buttons) {
+            if (mButtonStateDetector) {
+                // detect focused button
+                const Widget *focused = detectAllButtonsStates(mLastEDState.widget, level);
+                if (focused) {
+                    mLastEDState.focused = focused;
+                    LOG(DEBUG) << "Detected focused button: " << focused->name;
+                } else {
+                    LOG(DEBUG) << "Focused button not detected";
+                }
+            } else {
+                LOG(ERROR) << "Colors not calibrated, cannot detect focused widget";
+            }
         }
     }
 
     LOG(INFO) << "Detected UI state: " << mLastEDState;
     return mLastEDState;
-}
-
-bool Master::isEDStateMatch(const std::string& state) {
-    if (mLastEDState.path() == state)
-        return true;
-    auto names1 = parseState(mLastEDState.path());
-    auto names2 = parseState(state);
-    if (names1.size() != names2.size()) {
-        LOG(DEBUG) << "States '" << names1 << "' and '" << names2 << "' do not match";
-        return false;
-    }
-    if (names1.empty())
-        return true;
-    Widget* item = mScreensRoot.get();
-    for (size_t idx = 0; idx < names1.size(); idx++) {
-        auto& name1 = names1[idx];
-        auto& name2 = names2[idx];
-        if (name1 == "*" && name2 == "*") {
-            Widget* found = getItemMode(item, "");
-            if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no modes";
-                return false;
-            }
-            item = found;
-            continue;
-        }
-        else if (name1 == "*") {
-            Widget* found = getItemMode(item, name2);
-            if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no mode '" << name2 << "'";
-                return false;
-            }
-            item = found;
-            continue;
-        }
-        else if (name2 == "*") {
-            Widget* found = getItemMode(item, name1);
-            if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no mode '" << name1 << "'";
-                return false;
-            }
-            item = found;
-            continue;
-        }
-        else if (name1 == name2) {
-            Widget* found = getItemByName(item, name2);
-            if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no item '" << name2 << "'";
-                return false;
-            }
-            item = found;
-            continue;
-        }
-        LOG(DEBUG) << "States '" << names1 << "' and '" << names2 << "' do not match";
-        return false;
-    }
-    return true;
 }
 
 Capturer* Master::getCapturer() {
@@ -1478,4 +1524,18 @@ bool Master::captureWindow(ClassifyEnv& env) {
     cv::Rect monitorRect = capturer->getMonitorVirtualRect();
     env.init(monitorRect, captureRect, std::move(recycle));
     return env.mFrame && env.mFrame->valid();
+}
+
+void Master::processDetectRequest(pCommand &cmd) {
+    CommandDetectRequest *c = dynamic_cast<CommandDetectRequest *>(cmd.get());
+    if (!c)
+        return;
+    try {
+        c->promise.set_value(detectEDState(c->level));
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << "Exception in processDetectRequest: " << GET_EXCEPTION_STACK_TRACE;
+        try {
+            c->promise.set_exception(std::current_exception());
+        } catch (...) {}
+    }
 }

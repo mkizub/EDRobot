@@ -1,0 +1,238 @@
+//
+// Created by mkizub on 20.06.2025.
+//
+
+#include "../pch.h"
+
+#include "AIManager.h"
+#include "../ui/UIManager.h"
+
+#ifndef NDEBUG
+#include <cpptrace/cpptrace.hpp>
+#include "cpptrace/from_current.hpp"
+#endif
+
+#ifdef CPPTRACE_TRY
+# define TRY CPPTRACE_TRY
+# define CATCH(param) CPPTRACE_CATCH(param)
+# define GET_STACK_TRACE std::stacktrace::current().to_string()
+# define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
+#else
+# define TRY try
+# define CATCH(param) catch(param)
+# ifdef _GLIBCXX_HAVE_STACKTRACE
+#  include <stacktrace>
+#  define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
+# else
+#  define GET_EXCEPTION_STACK_TRACE "(stack trace unavailable)"
+# endif
+#endif
+
+using namespace std::chrono_literals;
+
+namespace ai {
+
+AIManager::AIManager()
+    : master(Master::getInstance())
+    , cfg(*master.getConfiguration())
+{
+    isWorking = true;
+    taskThread = std::thread(&AIManager::loop, this);
+}
+
+AIManager::~AIManager() {
+    isWorking = false;
+    interrupt();
+    taskCond.notify_all();
+    taskThread.join();
+}
+
+bool AIManager::active() {
+    return !isInterrupted && activeTask;
+}
+
+void AIManager::interrupt() {
+    if (isInterrupted || !activeTask)
+        return;
+    LOG(INFO) << "AIManager::interrupt() task " << activeTask->taskName;
+    UIManager::showToast("EDRobot paused", std::format("Paused task '{}'", activeTask->taskName));
+    std::unique_lock<std::mutex> lock(taskMutex);
+    isInterrupted = true;
+    taskCond.notify_one();
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+        return !isWorking || isLoopWaiting;
+    });
+}
+
+void AIManager::resume() {
+    if (!isInterrupted) {
+        LOG(INFO) << "AIManager::resume() - not interrupted";
+        return;
+    }
+    if (!activeTask) {
+        LOG(INFO) << "AIManager::resume() - no paused task";
+        UIManager::showToast("EDRobot resume", "No paused task");
+        return;
+    }
+    LOG(INFO) << "AIManager::resume() resuming task " << activeTask->taskName;
+    UIManager::showToast("EDRobot resume", std::format("Resuming task '{}'", activeTask->taskName));
+    std::unique_lock<std::mutex> lock(taskMutex);
+    isInterrupted = false;
+    taskCond.notify_one();
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+        return !isWorking || !isLoopWaiting;
+    });
+}
+
+void AIManager::new_task(upTask&& task) {
+    if (!task)
+        return;
+    LOG(INFO) << "AIManager::new_task()";
+    UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->taskName));
+    std::unique_lock<std::mutex> lock(taskMutex);
+    isInterrupted = true;
+    upTask oldTask;
+    activeTask.swap(oldTask);
+    taskCond.notify_one();
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+        return !isWorking || isLoopWaiting;
+    });
+    if (oldTask) {
+        LOG(INFO) << "AIManager::new_task(): suspending " << oldTask->taskName;
+        archivedTasks.emplace_back(std::move(oldTask));
+    }
+    LOG(INFO) << "AIManager::new_task(): activating " << task->taskName;
+    activeTask.swap(task);
+    isInterrupted = false;
+    taskCond.notify_one();
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+        return !isWorking || !isLoopWaiting;
+    });
+}
+
+void AIManager::loop() {
+    SetThreadDescription(GetCurrentThread(), L"AIManager task loop");
+
+    LOG(INFO) << "Starting AIManager task loop";
+    while (isWorking) {
+        {
+            std::unique_lock<std::mutex> lock(taskMutex);
+            isLoopWaiting = true;
+            taskCond.wait_for(lock, std::chrono::milliseconds(10000)/*::max()*/, [this]() {
+                return !isWorking || (activeTask && !isInterrupted);
+            });
+            isLoopWaiting = false;
+            if (!isWorking)
+                break;
+            if (isInterrupted) {
+                LOG(INFO) << "AIManager::loop(): steel interrupted";
+                continue;
+            }
+        }
+        TRY {
+            step();
+        } CATCH(const std::exception& ex) {
+            if (auto ir = dynamic_cast<const interrupted_error*>(&ex)) {
+                //mark_interrupted();
+            } else {
+                LOG(ERROR) << "Exception in ai loop: " << GET_EXCEPTION_STACK_TRACE;
+                //mark_miss();
+            }
+        }
+    }
+    LOG(INFO) << "Exiting AIManager task loop";
+}
+
+
+void AIManager::step() {
+    if (!activeTask) {
+        LOG(INFO) << "AIManager::loop(): no active task";
+        return;
+    }
+    if (activeTask) {
+        switch (activeTask->result) {
+        case Result::Failure:
+        case Result::Partly:
+        case Result::Success:
+            archivedTasks.emplace_back(std::move(activeTask));
+            return;
+        case Result::Trouble:
+            if (activeTask->missCount >= activeTask->templ.maxMisses) {
+                activeTask->result = Result::Failure;
+                archivedTasks.emplace_back(std::move(activeTask));
+                return;
+            }
+            activeTask->result = Result::Started;
+            break;
+        case Result::Created:
+        case Result::Started:
+            break;
+        }
+    }
+
+    if (activeTask) {
+        LOG(INFO) << "AIManager::loop(): executing active task: " << activeTask->taskName;
+        Result res;
+        try {
+            res = activeTask->run();
+        } catch (const nonlocal_return& ex) {
+            res = ex.result;
+        }
+        activeTask->result = res;
+        LOG(INFO) << "AIManager::loop(): active task result: " << enum_name<Result>(activeTask->result);
+        UIManager::showToast("EDRobot task", std::format("Task '{}' result {}", activeTask->taskName, enum_name<Result>(activeTask->result)));
+        return;
+    }
+}
+
+//AIManager::CheckResult AIManager::checkTaskReqMatch(TaskState& ts) {
+//    if (!ts.task)
+//        return CheckResult::Failure;
+//
+//    FlyState flyState = edState.flyState;
+//    ViewMode viewMode = edState.viewMode;
+//
+//    if (!ts.started) {
+//        if (ts.task->workingState.empty())
+//            return CheckResult::Resume;
+//        for (auto &st: ts.task->requiredStartStates) {
+//            if ((!st.flyState.has_value() || st.flyState.value() == flyState) &&
+//                (!st.viewMode.has_value() || st.viewMode.value() == viewMode)) {
+//                return CheckResult::Resume;
+//            }
+//        }
+//    } else {
+//        if (ts.task->workingState.empty())
+//            return CheckResult::Resume;
+//        for (auto &st: ts.task->workingState) {
+//            if ((!st.flyState.has_value() || st.flyState.value() == flyState) &&
+//                (!st.viewMode.has_value() || st.viewMode.value() == viewMode)) {
+//                return CheckResult::Resume;
+//            }
+//        }
+//        ts.result = Result::Interrupt;
+//    }
+//    return CheckResult::Replan;
+//}
+
+const bool AIManager::detectEDState(DetectLevel level) {
+    std::promise<UIState> p;
+    std::future<UIState> f = p.get_future();
+    master.pushDetectRequest(std::move(p), level);
+    std::chrono::milliseconds timeout;
+#ifdef NDEBUG
+    timeout = 2000ms;
+#else
+    timeout = 5000ms;
+#endif
+    auto status = f.wait_for(timeout);
+    if (status != std::future_status::ready)
+        return false;
+    uiState = f.get();
+    rEnv = master.cEnv();
+    if (!uiState.valid)
+        return false;
+    return true;
+}
+
+} // namespace ai

@@ -1,10 +1,11 @@
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release RelWithDebInfo)
 
 project(EDRobot)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(BUILD_SHARED_LIBS TRUE)
 
 set(OpenCV_ROOT "${VCPKG_INSTALLED_DIR}/x64-windows/share/opencv4")
@@ -39,8 +40,6 @@ add_executable(EDRobot
         src/Keyboard.h
         src/Master.cpp
         src/Master.h
-        src/Task.cpp
-        src/Task.h
         src/Template.cpp
         src/Template.h
         src/Utils.cpp
@@ -87,16 +86,31 @@ add_executable(EDRobot
         src/capture/CapturerDXGI.cpp
         src/capture/CapturerDXGI.h
 )
+#target_sources(EDRobot PUBLIC
+#        FILE_SET CXX_MODULES FILES
+#        src/ai/ai.ixx
+#)
+target_sources(EDRobot PUBLIC
+        src/ai/AIManager.cpp
+        src/ai/EDState.cpp
+        src/ai/Task.cpp
+        src/ai/AIManager.h
+        src/ai/EDState.h
+        src/ai/Task.h
+        src/ai/Types.h
+)
+
+
 #target_precompile_headers(EDRobot PUBLIC pch.h)
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/include")
 target_include_directories(EDRobot PRIVATE thirdparty)
-#target_include_directories(EDRobot PRIVATE ${GETTEXT_INCLUDE_DIR})
-target_link_libraries(EDRobot ${GETTEXT_LIBRARIES})
-target_link_libraries(EDRobot ${OpenCV_LIBS} Tesseract::libtesseract) # cpptrace::cpptrace msimg32
-target_link_libraries(EDRobot dxgi d3d11 winmm shcore dwmapi d2d1) # windowsapp
+
+target_link_libraries(EDRobot PUBLIC ${GETTEXT_LIBRARIES})
+target_link_libraries(EDRobot PUBLIC ${OpenCV_LIBS} Tesseract::libtesseract)
+target_link_libraries(EDRobot PUBLIC dxgi d3d11 winmm shcore dwmapi d2d1) # windowsapp
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_link_libraries(EDRobot cpptrace::cpptrace)
+    target_link_libraries(EDRobot PUBLIC cpptrace::cpptrace)
 endif()
 
 install(TARGETS EDRobot RUNTIME_DEPENDENCIES
@@ -107,6 +121,11 @@ install(TARGETS EDRobot RUNTIME_DEPENDENCIES
 )
 install(DIRECTORY config/templates DESTINATION "." FILES_MATCHING PATTERN "*.png")
 install(DIRECTORY config/locales DESTINATION ".")
-install(FILES config/actions.json5 config/configuration.json5 config/screens.json5 config/logging.conf DESTINATION ".")
+install(DIRECTORY config/tessdata-best DESTINATION ".")
+install(DIRECTORY config/tessdata-fast DESTINATION ".")
+install(FILES
+        config/actions.json5 config/configuration.json5 config/screens.json5 config/logging.conf
+        config/KeyboardMouseOnlyYaw.binds config/KeyboardMouseOnly.binds config/ClassicKeyboardOnly.binds config/Empty.binds
+        DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 

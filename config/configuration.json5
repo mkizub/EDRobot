@@ -2,14 +2,16 @@
   "default-key-hold-time": 35,
   "default-key-after-time": 50,
   "search-region-extent": 10,
-  "tesseract-data-path": "tessdata",
-  "capturer-WinRT-disabled": false,
+  "tesseract-data-path": "tessdata-best", // defaults to "tessdata-fast"
+  "capturer-WinRT-disabled": true,
   "capturer-Win32-disabled": false,
   "capturer-DXGI-disabled": false,
+  "auto-pause": true, // default is true
   shortcuts: {
     start: "PrintScreen", // defaults to "printscreen"
     stop: "Esc", // defaults to "esc"
     //pause: "Pause", // not used
+    resume: "ScrollLock", // defaults to "scrolllock"
     "debug-templates": "Ctrl+Alt+PrintScreen", // defaults to "ctrl+alt+printscreen"
     "debug-buttons": "Ctrl+Win+PrintScreen", // defaults to "ctrl+win+printscreen"
     //shutdown: "...", // no default, can exit from 'start trade' dialog

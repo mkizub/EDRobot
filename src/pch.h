@@ -25,6 +25,7 @@
 #include <format>
 #include <variant>
 #include <chrono>
+#include <future>
 #define _USE_MATH_DEFINES
 #include <cmath>
 

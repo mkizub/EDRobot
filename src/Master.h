@@ -13,13 +13,14 @@
 #include "opencv2/core/mat.hpp"
 #include "EDWidget.h"
 
-class Task;
 class Capturer;
 
 namespace tesseract {
     class TessBaseAPI;
 }
-
+namespace ai {
+    class AIManager;
+}
 enum class DetectLevel {
     None, Screen, Buttons, ListRows, ListOcrFocusedRow
 };
@@ -28,6 +29,7 @@ enum class Command {
     TaskFinished,
     Start,
     Pause,
+    Resume,
     Stop,
     UserNotify,
     Calibrate,
@@ -39,6 +41,7 @@ enum class Command {
     DevRectSelect,
     DevRectScreenshot,
     ResetCapturer,
+    DetectRequest,
     Shutdown,
 };
 
@@ -52,9 +55,11 @@ struct UIState {
     UIState() = default;
     void clear();
     const std::string& path() const;
-    bool valid;
-    const widget::Widget* widget;
-    const widget::Widget* focused;
+    bool match(const std::string& state) const;
+    bool valid {false};
+    GuiFocus guiFocus;
+    const widget::Widget* widget {nullptr};
+    const widget::Widget* focused {nullptr};
     friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
     std::string to_string() const;
 };
@@ -79,10 +84,11 @@ public:
     const UIState& detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastEDState; }
     const ClassifyEnv& cEnv() { return mClassifyEnv; };
-    bool isEDStateMatch(const std::string& state);
+    //bool isEDStateMatch(const std::string& state);
     const json5pp::value& getTaskActions(const std::string& action);
     cv::Rect resolveWidgetReferenceRect(const std::string& name);
-    Configuration* getConfiguration() const { return mConfiguration.get(); }
+    Configuration* getConfiguration() const { return mConfiguration; }
+    ai::AIManager* getAIManager() const { return mAIManager; }
     int getDefaultKeyHoldTime() const { return mConfiguration->defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return mConfiguration->defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return mConfiguration->searchRegionExtent; }
@@ -90,22 +96,25 @@ public:
     int canSell(Commodity* commodity) const;
     const Commodity* getLabelCommodity(const std::string& lbl_name);
     const ClassifiedRect* getFocusedRow(const std::string& lst_name);
-    bool approximateSellListCommodities(const std::string& lst_name, std::vector<CommodityMatch>* verify = nullptr);
+    bool approximateListOfCommodities(const std::string& lst_name, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify = nullptr);
 
     void pushCommand(Command cmd);
+    void pushDetectRequest(std::promise<UIState>&& p, DetectLevel level);
     void pushDevRectScreenshotCommand(cv::Rect rect);
     void notifyProgress(const std::string& title, const std::string& text);
     void notifyError(const std::string& title, const std::string& text);
 
     void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv);
+    tesseract::TessBaseAPI* getTesseractApi() { return mTesseractApiForMarket.get(); }
 
 private:
     friend class Configuration;
+    friend class UIState;
 
     Master();
     ~Master();
 
-    int initializeInternal(std::string ocr_dir);
+    void initializeInternal(std::string ocr_dir);
     void initButtonStateDetector();
 
     static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
@@ -122,12 +131,11 @@ private:
     bool preInitTask(bool checkCalibration=true);
     bool startCalibration();
     bool startTrade();
-    bool stopTrade();
-    void clearCurrentTask();
+    bool pauseAITask();
+    bool resumeAITask();
+    bool stopAITask();
     bool isForeground();
-    static void runCurrentTask();
 
-    std::vector<std::string> parseState(const std::string& name);
     WState detectButtonState(const widget::Widget* item);
     void detectListState(const widget::List* item, DetectLevel level);
     int ocrMarketText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
@@ -135,6 +143,7 @@ private:
     widget::Widget* detectAllButtonsStates(const widget::Widget* parent, DetectLevel level);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
+    void processDetectRequest(pCommand& cmd);
     bool matchItem(widget::Widget* item);
     bool debugTemplates(widget::Widget* item, ClassifyEnv* env);
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
@@ -159,18 +168,15 @@ private:
     bool mDuplicateToDebugWindow {false};
     std::chrono::milliseconds mLoopWakeup;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
-    std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForDigits;
-    std::unique_ptr<Configuration> mConfiguration;
     std::unique_ptr<HistogramTemplate> mButtonStateDetector;
     std::unique_ptr<HistogramTemplate> mLstRowStateDetector;
     std::unique_ptr<CompassDetector> mCompassDetector;
+    Configuration* mConfiguration {nullptr};
+    ai::AIManager* mAIManager {nullptr};
 
     std::queue<pCommand> mCommandQueue;
     std::mutex mCommandMutex;
     std::condition_variable mCommandCond;
-
-    std::thread currentTaskThread;
-    std::unique_ptr<Task> currentTask;
 
     int mSellChunk {1};
 };

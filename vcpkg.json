@@ -3,16 +3,19 @@
   "version-string" : "1.0.0",
   "builtin-baseline" : "9eb6e4b60ea5bdd60a87e8d2353d53882a32a3f3",
   "dependencies" : [ {
-    "name" : "cpptrace"
+    "name" : "cpptrace",
+    "version>=" : "1.0.0"
   }, {
     "name" : "opencv4",
     "features" : [ "win32ui", "highgui", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "world" ],
     "default-features" : false
   }, {
     "name" : "gettext",
-    "version>=" : "0.22.5#2"
+    "version>=" : "0.22.5",
+    "default-features" : false
   }, {
     "name" : "tesseract",
-    "version>=" : "5.5.1"
+    "version>=" : "5.5.1",
+    "default-features" : false
   } ]
 }

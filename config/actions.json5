@@ -3,19 +3,19 @@
     start: {
       from: "scr-market:mod-sell",
       dest: "scr-market:mod-sell:dlg-trade:*",
-      exec: { key: "space", after: 500 }
+      exec: { key: "UI_Select", after: 500 }
     },
     "sell-some": {
       from: "scr-market:mod-sell:dlg-trade:*",
       dest: "scr-market:mod-sell",
       exec: [
-        { loop: 3, action: { key: "up" } }, //{ goto: "spn-amount", after: 100 },
+        { loop: 3, action: { key: "UI_Up" } },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount" },
-        { key: "left", hold: { wait: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount", disabled: "btn-commit", during: 3000, period: 100 } },
-        { loop: "$items", action: {key: "right"} },
-        { key: "down" }, // { goto: "btn-commit" },
+        { key: "UI_Left", hold: { wait: "scr-market:mod-sell:dlg-trade:*", focus: "spn-amount", disabled: "btn-commit", during: 3000, period: 100 } },
+        { loop: "$items", action: {key: "UI_Right"} },
+        { key: "UI_Down", hold: 35, after: 100 },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-commit" },
-        { key: "space" },
+        { key: "UI_Select", hold: 35 },
         { wait: "scr-market:mod-sell", during: 3000, period: 100 }
       ]
     },
@@ -23,14 +23,14 @@
       from: "scr-market:mod-sell:dlg-trade:*",
       dest: "scr-market:mod-sell",
       exec: [
-        { loop: 3, action: { key: "up", after: 100 } }, //{ goto: "spn-amount", after: 100 },
-        { key: "right", hold: 1000 },
+        { loop: 3, action: { key: "UI_Up", after: 100 } },
+        { key: "UI_Right", hold: 1000 },
         { sleep: 50 },
-        { key: "down", hold: 35, after: 100 }, // { goto: "btn-commit" },
+        { key: "UI_Down", hold: 35, after: 100 },
         { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-commit" },
-        { key: "space", hold: 35, after: 1500, focus: "btn-commit" }, // { goto: "btn-commit" },
+        { key: "UI_Select", hold: 35, after: 1500, focus: "btn-commit" },
         { check: "scr-market:mod-sell:dlg-trade:*" },
-        { key: "space", after: 1500 },
+        { key: "UI_Select", after: 1500 },
         { wait: "scr-market:mod-sell", during: 3000, period: 250 }
       ]
     },
@@ -38,9 +38,9 @@
       from: "scr-market:mod-sell:dlg-trade:*",
       dest: "scr-market:mod-sell",
       exec: [
-        { goto: "btn-exit", after: 100 },
-        { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-exit" },
-        { key: "space", after: 1000 }
+        { goto: "btn-cancel", after: 100 },
+        { check: "scr-market:mod-sell:dlg-trade:*", focus: "btn-cancel" },
+        { key: "UI_Select", after: 1000 }
       ]
     }
   }

@@ -345,6 +345,11 @@
         en: "Altairian Skin",
         ru: "Альтаирская кожа",
       },
+      trinketsoffortune: {
+        id: 128671444,
+        en: "",
+        ru: "Безделушки таинственной Фортуны",
+      },
       buckyballbeermats: {
         id: 128748428,
         en: "Buckyball Beer Mats",
@@ -940,6 +945,11 @@
         en: "Thargoid Resin",
         ru: "Таргоидская смола",
       },
+      thargoidpod: {
+        id: 129022406,
+        en: "",
+        ru: "Таргоидская капсула для биоматериалов",
+      },
       geologicalsamples: {
         id: 128672315,
         en: "Geological Samples",
@@ -969,6 +979,11 @@
         id: 128682050,
         en: "Galactic Travel Guide",
         ru: "Путеводитель галактического путешественника",
+      },
+      usscargoprototypetech: {
+        id: 128666760,
+        en: "",
+        ru: "Экспериментальная техника",
       },
       s6_tissuesample_cells: {
         id: 128922786,
@@ -1035,6 +1050,16 @@
         en: "Mollusc Membrane",
         ru: "Мембрана моллюска",
       },
+      wreckagecomponents: {
+        id: 128672123,
+        en: "",
+        ru: "Обломки кораблекрушений",
+      },
+      prohibitedresearchmaterials: {
+        id: 128682052,
+        en: "",
+        ru: "Запретные материалы исследований",
+      },
       s_tissuesample_core: {
         id: 128922522,
         en: "Pod Surface Tissue",
@@ -1049,6 +1074,11 @@
         id: 129022399,
         en: "Titan Tissue Sample",
         ru: "Образец ткани титана",
+      },
+      airelics: {
+        id: 128668548,
+        en: "",
+        ru: "Фрагменты ИИ",
       },
       m3_tissuesample_mycelium: {
         id: 128922783,
@@ -1310,6 +1340,71 @@
         en: "Rare Artwork",
         ru: "Редкие произведения искусства",
       },
+      usscargoblackbox: {
+        id: 128666752,
+        en: "",
+        ru: "Черный ящик",
+      },
+      usscargoancientartefact: {
+        id: 128666756,
+        en: "",
+        ru: "Древний артефакт",
+      },
+      usscargotradedata: {
+        id: 128666754,
+        en: "",
+        ru: "Торговая информация",
+      },
+      occupiedcryopod: {
+        id: 128672125,
+        en: "",
+        ru: "Спасательная капсула с пассажиром",
+      },
+      usscargomilitaryplans: {
+        id: 128666755,
+        en: "",
+        ru: "Военные планы",
+      },
+      usscargoexperimentalchemicals: {
+        id: 128666758,
+        en: "",
+        ru: "Экспериментальные химикаты",
+      },
+      usscargorebeltransmissions: {
+        id: 128666759,
+        en: "",
+        ru: "Переговоры повстанцев",
+      },
+      usscargotechnicalblueprints: {
+        id: 128666761,
+        en: "",
+        ru: "Промышленные чертежи",
+      },
+      antiquities: {
+        id: 128668551,
+        en: "",
+        ru: "Древние реликвии",
+      },
+      militaryintelligence: {
+        id: 128668552,
+        en: "",
+        ru: "Разведданные",
+      },
+      personaleffects: {
+        id: 128672126,
+        en: "",
+        ru: "Личные вещи",
+      },
+      damagedescapepod: {
+        id: 128672811,
+        en: "",
+        ru: "Поврежденная спасательная капсула",
+      },
+      antimattercontainmentunit: {
+        id: 128682053,
+        en: "",
+        ru: "Контейнер с антиматерией",
+      },
     },
   },
   'medicines': {
@@ -1536,6 +1631,11 @@
         id: 128049172,
         en: "Uranium",
         ru: "Уран",
+      },
+      hafnium178: {
+        id: 128668549,
+        en: "",
+        ru: "Гафний-178",
       },
     },
   },
@@ -1958,6 +2058,11 @@
         en: "Scrap",
         ru: "Утильсырье",
       },
+      toxicwaste: {
+        id: 128049245,
+        en: "",
+        ru: "Токсичные отходы",
+      },
       biowaste: {
         id: 128049244,
         en: "Biowaste",
@@ -2346,6 +2451,27 @@
     "thargoidorgansample", // Organ Sample | Образец органа
     "steel", // Steel | Сталь
     "haematite", // Haematite | Гематит
+    "toxicwaste", //  | Токсичные отходы
+    "usscargoblackbox", //  | Черный ящик
+    "usscargotradedata", //  | Торговая информация
+    "usscargomilitaryplans", //  | Военные планы
+    "usscargoancientartefact", //  | Древний артефакт
+    "usscargoexperimentalchemicals", //  | Экспериментальные химикаты
+    "usscargorebeltransmissions", //  | Переговоры повстанцев
+    "usscargoprototypetech", //  | Экспериментальная техника
+    "usscargotechnicalblueprints", //  | Промышленные чертежи
+    "airelics", //  | Фрагменты ИИ
+    "hafnium178", //  | Гафний-178
+    "antiquities", //  | Древние реликвии
+    "militaryintelligence", //  | Разведданные
+    "trinketsoffortune", //  | Безделушки таинственной Фортуны
+    "wreckagecomponents", //  | Обломки кораблекрушений
+    "occupiedcryopod", //  | Спасательная капсула с пассажиром
+    "personaleffects", //  | Личные вещи
+    "damagedescapepod", //  | Поврежденная спасательная капсула
+    "prohibitedresearchmaterials", //  | Запретные материалы исследований
+    "antimattercontainmentunit", //  | Контейнер с антиматерией
+    "thargoidpod", //  | Таргоидская капсула для биоматериалов
   ],
   'carrier-order-ru': [
     "platinum", // Platinum | Платина
@@ -2723,5 +2849,26 @@
     "thargoidorgansample", // Organ Sample | Образец органа
     "steel", // Steel | Сталь
     "haematite", // Haematite | Гематит
+    "toxicwaste", //  | Токсичные отходы
+    "usscargoblackbox", //  | Черный ящик
+    "usscargotradedata", //  | Торговая информация
+    "usscargomilitaryplans", //  | Военные планы
+    "usscargoancientartefact", //  | Древний артефакт
+    "usscargoexperimentalchemicals", //  | Экспериментальные химикаты
+    "usscargorebeltransmissions", //  | Переговоры повстанцев
+    "usscargoprototypetech", //  | Экспериментальная техника
+    "usscargotechnicalblueprints", //  | Промышленные чертежи
+    "airelics", //  | Фрагменты ИИ
+    "hafnium178", //  | Гафний-178
+    "antiquities", //  | Древние реликвии
+    "militaryintelligence", //  | Разведданные
+    "trinketsoffortune", //  | Безделушки таинственной Фортуны
+    "wreckagecomponents", //  | Обломки кораблекрушений
+    "occupiedcryopod", //  | Спасательная капсула с пассажиром
+    "personaleffects", //  | Личные вещи
+    "damagedescapepod", //  | Поврежденная спасательная капсула
+    "prohibitedresearchmaterials", //  | Запретные материалы исследований
+    "antimattercontainmentunit", //  | Контейнер с антиматерией
+    "thargoidpod", //  | Таргоидская капсула для биоматериалов
   ],
 }

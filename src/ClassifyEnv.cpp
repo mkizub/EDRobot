@@ -6,13 +6,22 @@
 
 #include "ClassifyEnv.h"
 
-void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFrame&& frame) {
+ResolvedEnv& ResolvedEnv::operator=(const ResolvedEnv& other) {
+    const_cast<cv::Rect&>(monitorRect) = other.monitorRect;
+    const_cast<cv::Rect&>(captureRect) = other.captureRect;
+    const_cast<cv::Rect&>(captureCrop) = other.captureCrop;
+    classified = other.classified;
+    needScaling_ = other.needScaling_;
+    scaleToCaptured_ = other.scaleToCaptured_;
+    captureCenter = other.captureCenter;
+    return *this;
+}
+
+void ResolvedEnv::init(const cv::Rect& monRect, const cv::Rect& captRect) {
     const_cast<cv::Rect&>(monitorRect) = monRect;
     const_cast<cv::Rect&>(captureRect) = captRect;
     const_cast<cv::Rect&>(captureCrop) = cv::Rect(cv::Point(), captureRect.size());
-    assert (frame);
-    assert (captureRect.size() == frame->size);
-    mFrame.swap(frame);
+    classified.clear();
     if (captureRect.size() != ReferenceScreenSize) {
         double x_scale = double(captureRect.width) / ReferenceScreenSize.width;
         double y_scale = double(captureRect.height) / ReferenceScreenSize.height;
@@ -25,16 +34,27 @@ void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFram
     captureCenter = cv::Point(captureRect.size()) / 2;
 }
 
-void ClassifyEnv::clear() {
+void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFrame&& frame) {
+    assert (frame);
+    assert (captRect.size() == frame->size);
+    mFrame.swap(frame);
+    ResolvedEnv::init(monRect, captRect);
+}
+
+void ResolvedEnv::clear() {
     const_cast<cv::Rect&>(monitorRect) = cv::Rect();
     const_cast<cv::Rect&>(captureRect) = cv::Rect();
     const_cast<cv::Rect&>(captureCrop) = cv::Rect();
-    mFrame.reset();
-    mDebugOverlay = cv::Mat();
     needScaling_ = false;
     scaleToCaptured_ = 1;
     captureCenter = ReferenceScreenCenter;
     classified.clear();
+}
+
+void ClassifyEnv::clear() {
+    ResolvedEnv::clear();
+    mFrame.reset();
+    mDebugOverlay = cv::Mat();
 }
 
 cv::Mat& ClassifyEnv::getDebugImage() const {
@@ -44,11 +64,11 @@ cv::Mat& ClassifyEnv::getDebugImage() const {
     return mDebugOverlay;
 }
 
-cv::Point ClassifyEnv::cvtReferenceToDesktop(const cv::Point& point) const {
+cv::Point ResolvedEnv::cvtReferenceToDesktop(const cv::Point& point) const {
     return monitorRect.tl() + captureRect.tl() + cvtReferenceToCaptured(point);
 }
 
-cv::Point ClassifyEnv::cvtReferenceToCaptured(const cv::Point& point) const {
+cv::Point ResolvedEnv::cvtReferenceToCaptured(const cv::Point& point) const {
     cv::Point screenPoint(point);
     if (needScaling_) {
         cv::Point relative = screenPoint - ReferenceScreenCenter;
@@ -57,7 +77,7 @@ cv::Point ClassifyEnv::cvtReferenceToCaptured(const cv::Point& point) const {
     }
     return screenPoint;
 }
-cv::Rect  ClassifyEnv::cvtReferenceToCaptured(const cv::Rect& rect) const {
+cv::Rect  ResolvedEnv::cvtReferenceToCaptured(const cv::Rect& rect) const {
     cv::Rect screenRect(rect);
     if (needScaling_) {
         cv::Point lt_rel = screenRect.tl() - ReferenceScreenCenter;
@@ -71,7 +91,7 @@ cv::Rect  ClassifyEnv::cvtReferenceToCaptured(const cv::Rect& rect) const {
     return screenRect;
 }
 
-cv::Point ClassifyEnv::cvtCapturedToReference(const cv::Point& point) const {
+cv::Point ResolvedEnv::cvtCapturedToReference(const cv::Point& point) const {
     cv::Point referencePoint(point);
     if (needScaling_) {
         cv::Point lt_rel = referencePoint - captureCenter;
@@ -81,7 +101,7 @@ cv::Point ClassifyEnv::cvtCapturedToReference(const cv::Point& point) const {
     }
     return referencePoint;
 }
-cv::Rect ClassifyEnv::cvtCapturedToReference(const cv::Rect& rect) const {
+cv::Rect ResolvedEnv::cvtCapturedToReference(const cv::Rect& rect) const {
     cv::Rect referenceRect(rect);
     if (needScaling_) {
         cv::Point lt_rel = referenceRect.tl() - captureCenter;
