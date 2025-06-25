@@ -1396,6 +1396,35 @@ static void from_json(const json5pp::value& j, Template*& o) {
                 o = new ImageTemplate(name, filename, image, edge, screenRect, extLT, extRB, tmin, tmax);
             }
         }
+        else if (j.as_object().contains("tiles")) {
+            auto& jo = j.as_object();
+            spEvalRect rect = makeEvalRect(jo.at("tiles"));
+            std::string name = j.at("name").as_string();
+            int rows = jo.at("rows").as_integer();
+            int cols = jo.at("cols").as_integer();
+            int gap = jo.at("gap").as_integer();
+            double tmin = 0.8;
+            double tmax = 0.8;
+            if (j.at("t")) {
+                if (j.at("t").is_number())
+                    tmax = tmin = j.at("t").as_number();
+                else if (j.at("t").is_array()) {
+                    auto& jt = j.at("t").as_array();
+                    if (!jt.empty())
+                        tmin = jt[0].as_number();
+                    if (jt.size() > 1)
+                        tmax = jt[1].as_number();
+                    else
+                        tmax = tmin;
+                }
+                if (tmax < tmin)
+                    std::swap(tmin, tmax);
+            }
+            std::vector<std::string> icons;
+            for (auto& jic : jo.at("icons").as_array())
+                icons.push_back(jic.as_string());
+            o = new TilesDetector(name, rect, rows, cols, gap, tmin, tmax, icons);
+        }
         return;
     }
     if (j.is_array()) {
@@ -1470,6 +1499,11 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
         auto btn = new Button(name, parent);
         child = btn;
         child->setRect(jo.at("rect"));
+    }
+    else if (name.starts_with("til-")) {
+        auto icon = jo.at("icon").as_string();
+        auto btn = new TileBtn(name, parent, icon);
+        child = btn;
     }
     else if (name.starts_with("spn-")) {
         auto btn = new Spinner(name, parent);

@@ -921,6 +921,11 @@ Result TaskSell::run() {
     auto actionArgs = json5pp::object({{"$items", mItems}});
     while (sellItems > 0) {
         mgr.detectEDState(DetectLevel::ListOcrFocusedRow);
+        if (mgr.uiState.match("scr-services")) {
+            // go to sell mode
+            hardcodedStep("{click:'til-market', after: 2000}", DetectLevel::None);
+            continue;
+        }
         if (mgr.uiState.match("scr-market:mod-buy")) {
             // go to sell mode
             hardcodedStep("{click:'btn-to-sell', after: 1000}", DetectLevel::None);

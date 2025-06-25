@@ -1009,7 +1009,9 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv* env) {
 static const int USE_EROSION = 0;
 
 void Master::drawButton(widget::Widget* item) {
-    if (!(item->tp == WidgetType::Button || item->tp == WidgetType::Spinner || item->tp == WidgetType::Label || item->tp == WidgetType::List))
+    if (!(item->tp == WidgetType::Button || item->tp == WidgetType::TileBtn ||
+          item->tp == WidgetType::Spinner || item->tp == WidgetType::Label ||
+          item->tp == WidgetType::List))
         return;
     cv::Rect rect = mClassifyEnv.calcCapturedRect(item->rect);
     if (rect.empty())
@@ -1018,7 +1020,7 @@ void Master::drawButton(widget::Widget* item) {
     cv::Scalar color(200, 80, 80);
     int size = (item == mLastEDState.focused) ? 2 : 1;
     cv::rectangle(debugImage, rect.tl(), rect.br(), color, size);
-    if (item->tp == WidgetType::Button)
+    if (item->tp == WidgetType::Button || item->tp == WidgetType::TileBtn)
         return;
     if (item->tp == WidgetType::Spinner) {
         cv::Point p1 = rect.tl();
@@ -1410,7 +1412,7 @@ Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel
         return nullptr;
     widget::Widget* focused = nullptr;
     for (Widget* item : parent->have) {
-        if (item->tp == WidgetType::Button || item->tp == WidgetType::Spinner) {
+        if (item->tp == WidgetType::Button || item->tp == WidgetType::TileBtn || item->tp == WidgetType::Spinner) {
             WState ws = detectButtonState(item);
             if (ws == WState::Focused) {
                 if (!focused)

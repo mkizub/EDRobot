@@ -227,6 +227,8 @@ public:
     GuiFocus getGuiFocus() { return guiFocus; }
 
     const KeyBindings& getGameKeyBindings(const std::string& name) const;
+    cv::Vec3b getButtonLuvColor(WState ws) const { return ws == WState::Unknown ? cv::Vec3b::zeros() : mButtonLuv[int(ws)]; }
+    cv::Vec3b getLstRowLuvColor(WState ws) const { return ws == WState::Unknown ? cv::Vec3b::zeros() : mLstRowLuv[int(ws)]; }
 
     const Lang lng {XX};
     const bool isOdyssey {false};

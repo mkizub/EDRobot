@@ -99,15 +99,39 @@
       }
     ],
   },
-//  {
-//    name: 'scr-services',
-//    detect: { tiles: [172,444,966,484], gap: 10, name: "serv" },
-//    have: [
-//      { name: 'btn-exit', action: 'close', rect: [162,960,306,38] },
-//      { name: 'til-mission', action: 'missions', icon: "tile-icon-missions" },
-//      { name: 'til-market', action: 'market', icon: "tile-icon-market" },
-//    ]
-//  },
+  {
+    name: 'scr-services',
+    detect: { tiles: [172,444,966,484], rows: 4, cols: 3, gap: 10, name: "serv", t: [0.7, 0.9], icons: [
+      // station
+      "tile-icon-market.png", "tile-icon-market-act.png",
+      "tile-icon-missions.png", "tile-icon-missions-act.png",
+      "tile-icon-shipyard.png", "tile-icon-shipyard-act.png",
+      "tile-icon-univcart.png", "tile-icon-univcart-act.png",
+      "tile-icon-contacts.png", "tile-icon-contacts-act.png",
+      "tile-icon-crew.png", "tile-icon-crew-act.png",
+      // fleet carrier
+      "tile-icon-tritium.png", "tile-icon-tritium-act.png",
+      "tile-icon-carriermgr.png", "tile-icon-carriermgr-act.png",
+      "tile-icon-redempt.png", "tile-icon-redempt-act.png",
+      "tile-icon-blackmarket.png", "tile-icon-blackmarket-act.png",
+      // architector
+      "tile-icon-arch.png", "tile-icon-arch-act.png"
+    ] },
+    have: [
+      { name: 'btn-exit', action: 'close', rect: [162,960,306,38] },
+      { name: 'til-market',      action: 'market',      icon: "serv:tile-icon-market" },
+      { name: 'til-mission',     action: 'missions',    icon: "serv:tile-icon-missions" },
+      { name: 'til-shipyard',    action: 'shipyard',    icon: "serv:tile-icon-shipyard" },
+      { name: 'til-univcart',    action: 'univcart',    icon: "serv:tile-icon-univcart" },
+      { name: 'til-contacts',    action: 'contacts',    icon: "serv:tile-icon-contacts" },
+      { name: 'til-crew',        action: 'crew',        icon: "serv:tile-icon-crew" },
+      { name: 'til-tritium',     action: 'tritium',     icon: "serv:tile-icon-tritium" },
+      { name: 'til-carriermgr',  action: 'carriermgr',  icon: "serv:tile-icon-carriermgr" },
+      { name: 'til-redempt',     action: 'redempt',     icon: "serv:tile-icon-redempt" },
+      { name: 'til-blackmarket', action: 'blackmarket', icon: "serv:tile-icon-blackmarket" },
+      { name: 'til-arch',        action: 'arch',        icon: "serv:tile-icon-arch" }
+    ]
+  },
 //  {
 //    name: 'scr-carrier-trade-mgr',
 //    detect: [

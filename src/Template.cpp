@@ -704,3 +704,152 @@ double CompassDetector::debugMatch(ClassifyEnv& env) {
     return value;
 }
 
+TilesDetector::TilesDetector(const std::string& name, spEvalRect& rect, int rows, int cols, int gap, double tmin, double tmax, std::vector<std::string> icon_files)
+    : name(name)
+    , mRect(rect)
+    , mMaxRows(rows)
+    , mMaxCols(cols)
+    , mGap(gap)
+    , threshold_min(tmin)
+    , threshold_max(tmax)
+    , mIconFiles(icon_files)
+{
+    for (auto& icf : icon_files) {
+        cv::Mat image, mask;
+        std::string filename = "templates/" + icf;
+        if (BaseImageTemplate::loadImageAndMask(filename, image, mask)) {
+            std::string name = icf.substr(0, icf.size()-4);
+            iconsSource.emplace_back(1.0, name, image);
+            iconsScaled.emplace_back(1.0, name, image);
+        }
+    }
+}
+
+bool TilesDetector::xInRange(int x, int width, int gap) {
+    for (int i=0; i <= mMaxCols; i++) {
+        int x_col = i * width / mMaxCols;
+        if (x >= x_col-gap && x <= x_col+gap)
+            return true;
+    }
+    return false;
+}
+
+double TilesDetector::match(ClassifyEnv &env) {
+    cv::Rect captureRect = env.cvtReferenceToCaptured(mRect->calcReferenceRect(env));
+    cv::Mat roiImage(env.getGrayImage(), captureRect);
+    if (roiImage.empty())
+        return 0;
+
+    cv::Vec3b normColor = Master::getInstance().getConfiguration()->getButtonLuvColor(WState::Normal);
+    if (normColor == cv::Vec3b::zeros())
+        normColor = cv::Vec3b(10,95,130);
+    unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
+    cv::Mat thrImage;
+    cv::threshold(roiImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
+
+    if (mPreprocessedTemplateScale != env.getScale()) {
+        mPreprocessedTemplateScale = env.getScale();
+        iconsScaled.clear();
+        for (size_t i=0; i < iconsSource.size(); i++) {
+            IconMatrix& src = iconsSource[i];
+            cv::Mat templImageScaled;
+            cv::resize(src.templImage, templImageScaled, cv::Size(), env.getScale(), env.getScale());
+            iconsScaled.emplace_back(env.getScale(), src.name, templImageScaled);
+        }
+    }
+
+    int hGaps = (mMaxCols - 1) * mGap * env.getScale();
+    int minTileWidth = (captureRect.width - hGaps) / mMaxCols - 8;
+    int vGaps = (mMaxRows - 1) * mGap * env.getScale();
+    int minTileHeight = (captureRect.height - vGaps) / mMaxRows - 6;
+    int minTileArea = minTileWidth * minTileHeight;
+    int maxTileArea = captureRect.area() - minTileArea;
+
+    mDetectedTiles.clear();
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContoursLinkRuns(thrImage, contours);
+    for (const auto &contour: contours) {
+        std::vector<cv::Point> convex;
+        cv::convexHull(contour, convex);
+        if (convex.size() >= 4) {
+            std::vector<cv::Point> approx;
+            cv::approxPolyN(convex, approx, 4, 5, true);
+            cv::Rect bbox = cv::boundingRect(approx);
+            if (bbox.width >= minTileWidth && bbox.height >= minTileHeight &&
+                xInRange(bbox.x, captureRect.width, int(mGap * env.getScale())) &&
+                xInRange(bbox.x+bbox.width, captureRect.width, int(mGap * env.getScale())) &&
+                bbox.area() >= minTileArea && bbox.area() <= maxTileArea)
+            {
+                bbox += captureRect.tl();
+                bbox &= captureRect;
+                cv::Rect refRect = env.cvtCapturedToReference(bbox);
+                mDetectedTiles.emplace_back(ClsDetType::TemplateDetected, name+":", refRect);
+                mDetectedTiles.back().u.templ.referenceRect = refRect;
+                mDetectedTiles.back().u.templ.scale = env.getScale();
+            }
+        }
+    }
+
+    int area = 0;
+    for (auto& cr : mDetectedTiles)
+        area += env.scaleToCaptured(cr.detectedRect.size()).area();
+    if (area < captureRect.area() * 0.8)
+        return 0;
+
+    for (auto& cr : mDetectedTiles) {
+        cv::Rect tileRect = env.cvtReferenceToCaptured(cr.detectedRect);
+        tileRect &= captureRect;
+        tileRect -= captureRect.tl();
+        IconMatrix* bestIcon = nullptr;
+        double bestIconVal = 0;
+        for (auto& ic : iconsScaled) {
+            int result_cols = tileRect.width - ic.templImage.cols + 1;
+            int result_rows = tileRect.height - ic.templImage.rows + 1;
+            cv::Mat result(result_rows, result_cols, CV_32FC1);
+            cv::Mat tileImage = cv::Mat(roiImage, tileRect);
+            cv::matchTemplate(tileImage, ic.templImage, result, cv::TM_CCOEFF_NORMED);
+            //LOG(ERROR) << "match result: " << result;
+            double maxVal;
+            cv::Point maxLoc;
+            cv::minMaxLoc(result, nullptr, &maxVal, nullptr, &maxLoc);
+            //LOG(DEBUG) << "match result: " << std::setprecision(3) << maxVal << " for " << ic.name;
+            if (maxVal >= threshold_min && maxVal > bestIconVal) {
+                bestIcon = &ic;
+                bestIconVal = maxVal;
+            }
+        }
+        if (!name.empty() && bestIcon && bestIconVal >= threshold_min) {
+            cr.text = name + ":" + bestIcon->name;
+            LOG(DEBUG) << "TilesDetector matched result: " << std::setprecision(3) << bestIconVal << " for " << cr.text;
+            env.classified.push_back(cr);
+        } else {
+            LOG(DEBUG) << "TilesDetector matched failed: " << std::setprecision(3) << bestIconVal << " for "
+                       << (bestIcon ? bestIcon->name : "all") << " rect " << cr.detectedRect;
+        }
+    }
+    return 1;
+}
+
+double TilesDetector::classify(ClassifyEnv &env) {
+    return match(env);
+}
+
+double TilesDetector::debugMatch(ClassifyEnv &env) {
+    double value = match(env);
+    LOG(INFO) << " detected " << mDetectedTiles.size() << " tiles:";
+    for (auto& cr : env.classified) {
+        if (cr.cdt == ClsDetType::TemplateDetected && cr.text.starts_with(name+":")) {
+            LOG(INFO) << "   tile: '" << cr.text << "' rect: " << cr.detectedRect << " scale: " << cr.u.templ.scale;
+        }
+    }
+    cv::Scalar colorOk(96, 255, 255);
+    cv::Scalar colorNo(96, 96, 255);
+    cv::Rect captureRect = env.cvtReferenceToCaptured(mRect->calcReferenceRect(env));
+    cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), (value<0.5?colorNo:colorOk), 1);
+    for (auto& cr : mDetectedTiles) {
+        cv::Rect r = env.cvtReferenceToCaptured(cr.detectedRect);
+        cv::Scalar color = cr.text.size() > name.size()+1 ? colorOk : colorNo;
+        cv::rectangle(env.getDebugImage(), r.tl(), r.br(), color, 1);
+    }
+    return value;
+}

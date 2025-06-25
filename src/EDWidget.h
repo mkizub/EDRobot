@@ -10,7 +10,7 @@
 namespace widget {
 
 enum class WidgetType {
-    Label, Button, Spinner, List, ListRow, Mode, Dialog, Screen, Root
+    Label, Button, TileBtn, Spinner, List, ListRow, Mode, Dialog, Screen, Root
 };
 
 struct Widget {
@@ -40,6 +40,16 @@ struct Label : public Widget {
 
 struct Button : public Widget {
     Button(const std::string& name, Widget* parent) : Widget(WidgetType::Button, name, parent) {}
+};
+
+struct TileBtn : public Widget {
+    TileBtn(const std::string& name, Widget* parent, const std::string& icon)
+        : Widget(WidgetType::TileBtn, name, parent)
+        , icon(icon)
+    {
+        rect = std::shared_ptr<EvalRect>(new TileRect(icon));
+    }
+    const std::string& icon;
 };
 
 struct Spinner : public Widget {

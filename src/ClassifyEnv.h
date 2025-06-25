@@ -46,6 +46,7 @@ typedef std::unique_ptr<Frame,FrameRecycler> upFrame;
 class EvalRect {
 public:
     EvalRect() = default;
+    virtual ~EvalRect() = default;
     virtual cv::Rect calcReferenceRect(const ResolvedEnv& detectorState) const = 0;
 };
 typedef std::shared_ptr<EvalRect> spEvalRect;
@@ -169,5 +170,12 @@ private:
     mutable cv::Mat mDebugOverlay;
 };
 
+class TileRect : public EvalRect {
+public:
+    TileRect(const std::string& name) : name(name) {}
+    cv::Rect calcReferenceRect(const ResolvedEnv& env) const override;
+
+    const std::string name;
+};
 
 #endif //EDROBOT_CLASSIFYENV_H

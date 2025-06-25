@@ -114,3 +114,13 @@ cv::Rect ResolvedEnv::cvtCapturedToReference(const cv::Rect& rect) const {
     }
     return referenceRect;
 }
+
+cv::Rect TileRect::calcReferenceRect(const ResolvedEnv& env) const {
+    for (auto& cr : env.classified) {
+        if (cr.cdt != ClsDetType::TemplateDetected)
+            continue;
+        if (name.starts_with(cr.text))
+            return cr.detectedRect;
+    }
+    return {};
+}

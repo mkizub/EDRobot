@@ -70,9 +70,10 @@ public:
 
     double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
-protected:
+
     static bool loadImageAndMask(const std::string& filename, cv::Mat& image, cv::Mat& mask);
     static bool extractImageMask(cv::Mat& image, cv::Mat& mask);
+protected:
     double toResult(double matchValue); // something like logistic regression, S-curve
     cv::Mat makeLaplacian(cv::Mat m);
     cv::Mat makeGaussianBlur(cv::Mat m, int kernelSize=3, double sigma=0);
@@ -159,6 +160,40 @@ public:
 
 private:
     static void tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect);
+};
+
+class TilesDetector : public Template {
+public:
+    TilesDetector(const std::string& name, spEvalRect& rect, int rows, int cols, int gap, double tmin, double tmax, std::vector<std::string> icon_files);
+    ~TilesDetector() override = default;
+
+    double match(ClassifyEnv& env) override;
+    double classify(ClassifyEnv& env) override;
+    double debugMatch(ClassifyEnv& env) override;
+
+    const std::string name;
+    spEvalRect mRect;
+    std::vector<std::string> mIconFiles;
+
+    std::vector<ClassifiedRect> mDetectedTiles;
+
+private:
+    const double threshold_min;
+    const double threshold_max;
+    struct IconMatrix {
+        double scale;
+        std::string name;
+        cv::Mat templImage;
+    };
+    std::vector<IconMatrix> iconsSource;
+    std::vector<IconMatrix> iconsScaled;
+
+    bool xInRange(int x, int width, int gap);
+    double mPreprocessedTemplateScale = 1;
+    int mMaxRows;
+    int mMaxCols;
+    int mGap;
+
 };
 
 #endif //EDROBOT_TEMPLATE_H
