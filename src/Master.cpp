@@ -98,7 +98,7 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
 
 void UIState::clear() {
     valid = false;
-    guiFocus = GuiFocus::NoFocus;
+    guiFocus = GuiFocus::None;
     widget = nullptr;
     focused = nullptr;
 }
@@ -115,7 +115,7 @@ std::ostream& operator<<(std::ostream& os, const UIState& obj) {
     default:
         os << "Unknown::";
         break;
-    case GuiFocus::NoFocus:
+    case GuiFocus::None:
         os << "Cockpit::";
         break;
     case GuiFocus::Right:
@@ -309,7 +309,6 @@ void Master::initializeInternal(std::string ocr_dir) {
     LOG(INFO) << "Initializing UI";
     UIManager::initialize();
     LOG(INFO) << "Initializing OpenCV";
-    rgb2luv(encodeRGB(0x123456));
 
     mConfiguration = new Configuration();
     mConfiguration->load();
@@ -354,15 +353,17 @@ void Master::initializeInternal(std::string ocr_dir) {
 }
 
 
-void Master::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv) {
-    mConfiguration->setCalibrationResult(buttonLuv, lstRowLuv);
+void Master::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR) {
+    mConfiguration->setCalibrationResult(buttonBGR, lstRowBGR);
     initButtonStateDetector();
 }
 void Master::initButtonStateDetector() {
-    std::vector<cv::Vec3b> buttonColors(mConfiguration->mButtonLuv.begin(), mConfiguration->mButtonLuv.end());
+    //std::vector<cv::Vec3b> buttonColors(mConfiguration->mCalcButtonLuv.begin(), mConfiguration->mCalcButtonLuv.end());
+    std::vector<cv::Vec3b> buttonColors(mConfiguration->mCalibratedButtonLuv.begin(), mConfiguration->mCalibratedButtonLuv.end());
     mButtonStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Luv, cv::Rect(), buttonColors));
     LOG(INFO) << "Button state detector installed";
-    std::vector<cv::Vec3b> lstRowColors(mConfiguration->mLstRowLuv.begin(), mConfiguration->mLstRowLuv.end());
+    //std::vector<cv::Vec3b> lstRowColors(mConfiguration->mCalcLstRowLuv.begin(), mConfiguration->mCalcLstRowLuv.end());
+    std::vector<cv::Vec3b> lstRowColors(mConfiguration->mCalibratedLstRowLuv.begin(), mConfiguration->mCalibratedLstRowLuv.end());
     mLstRowStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Luv, cv::Rect(), lstRowColors));
     LOG(INFO) << "List row state detector installed";
 }
@@ -977,7 +978,13 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             LOG(ERROR) << "Cannot capture screen for debug match";
             return false;
         }
-        for (auto &screen: mScreensRoot->have) {
+        GuiFocus guiFocus = mConfiguration->guiFocus;
+        for (auto widget: mScreensRoot->have) {
+            if (widget->tp != WidgetType::Screen)
+                continue;
+            widget::Screen* screen = static_cast<widget::Screen*>(widget);
+            if (!screen || (screen->gui.has_value() && screen->gui != guiFocus))
+                continue;
             debugTemplates(screen, &debugEnv);
             el::Loggers::flushAll();
             //std::string fname = "debug-match-"+screen->name+".png";
@@ -1068,12 +1075,7 @@ void Master::drawButton(widget::Widget* item) {
     if (item->tp == WidgetType::List) {
         List* lst = static_cast<List*>(item);
         ////////////////////////////////////////////////
-        cv::Vec3b normColor = mConfiguration->mLstRowLuv[int(WState::Normal)];
-        if (normColor == cv::Vec3b::zeros())
-            normColor = mConfiguration->mButtonLuv[int(WState::Normal)];
-        if (normColor == cv::Vec3b::zeros())
-            normColor = cv::Vec3b(10,95,130);
-        unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
+        unsigned buttonGrayColor = mConfiguration->getLstRowGrayColor(WState::Normal);
         cv::Mat listImage(mClassifyEnv.getGrayImage(), rect);
 
         //cv::imshow("List image: " + mLastEDState.path(), listImage);
@@ -1218,30 +1220,33 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     }
     rect -= debugEnv.captureRect.tl();
 
+    cv::Vec4b color = debugEnv.getColorImage().at<cv::Vec4b>( (rect.tl() + rect.br())/2 );
+    LOG(INFO) << "Selected rect BGRA color (center dot): " << color;
+
     cv::imwrite("debug-rect-gray.png", cv::Mat(debugEnv.getGrayImage(), rect));
     cv::imwrite("debug-rect-color.png", cv::Mat(debugEnv.getColorImage(), rect));
 
-    std::string text;
-    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 50) {
-        Commodity *commodity = mConfiguration->getCommodityByName(text, true);
-        if (commodity) {
-            if (mConfiguration->lng != EN)  // they capitalize text
-                text = commodity->name;
-            std::string lng;
-            if (mConfiguration->lng == RU)
-                lng = "-rus";
-            else if (mConfiguration->lng == EN)
-                lng = "-eng";
-            else
-                lng = "-xxx";
-            cv::imwrite(commodity->nameId + lng + ".png", cv::Mat(debugEnv.getGrayImage(), rect));
-            std::ofstream wf(commodity->nameId + lng + ".gt.txt", std::ios::trunc | std::ios::binary);
-            if (wf.is_open()) {
-                wf << text;
-                wf.close();
-            }
-        }
-    }
+//    std::string text;
+//    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 50) {
+//        Commodity *commodity = mConfiguration->getCommodityByName(text, true);
+//        if (commodity) {
+//            if (mConfiguration->lng != EN)  // they capitalize text
+//                text = commodity->name;
+//            std::string lng;
+//            if (mConfiguration->lng == RU)
+//                lng = "-rus";
+//            else if (mConfiguration->lng == EN)
+//                lng = "-eng";
+//            else
+//                lng = "-xxx";
+//            cv::imwrite(commodity->nameId + lng + ".png", cv::Mat(debugEnv.getGrayImage(), rect));
+//            std::ofstream wf(commodity->nameId + lng + ".gt.txt", std::ios::trunc | std::ios::binary);
+//            if (wf.is_open()) {
+//                wf << text;
+//                wf.close();
+//            }
+//        }
+//    }
     return true;
 }
 
@@ -1251,14 +1256,22 @@ WState Master::detectButtonState(const widget::Widget* item) {
     cv::Rect r = mClassifyEnv.calcReferenceRect(item->rect);
     if (r.empty())
         return WState::Unknown;
-    int x = r.x + r.width - 36;
-    int y = r.y + r.height / 2 - 8;
-    if (item->tp == WidgetType::Spinner)
-        x -= r.height + 10;
     mClassifyEnv.classified.emplace_back(ClsDetType::Widget, item->name, r);
+
+    int sz = int(16 * mClassifyEnv.getScale());
+    int x, y;
+    if (r.width > 9*sz || item->tp == WidgetType::Spinner) {
+        x = r.x + r.width - 2*sz;
+        y = r.y + r.height / 2 - sz/2;
+        if (item->tp == WidgetType::Spinner)
+            x -= r.height + sz;
+    } else {
+        x = r.x + r.width - sz - 2;
+        y = r.y + r.height / 2 - sz/2;
+    }
     ClassifiedRect& clsBtnRect = mClassifyEnv.classified.back();
     clsBtnRect.u.widg.widget = item;
-    mButtonStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(16,16));
+    mButtonStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(sz,sz));
     mButtonStateDetector->classify(mClassifyEnv);
     auto& values = mButtonStateDetector->mLastValues;
     int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
@@ -1285,12 +1298,7 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
     ClassifiedRect& clsListRect = mClassifyEnv.classified.back();
     clsListRect.u.widg.widget = lst;
 
-    cv::Vec3b normColor = mConfiguration->mLstRowLuv[int(WState::Normal)];
-    if (normColor == cv::Vec3b::zeros())
-        normColor = mConfiguration->mButtonLuv[int(WState::Normal)];
-    if (normColor == cv::Vec3b::zeros())
-        normColor = cv::Vec3b(10,95,130);
-    unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
+    unsigned buttonGrayColor = mConfiguration->getLstRowGrayColor(WState::Normal);
     cv::Mat grayImage(mClassifyEnv.getGrayImage(), rect);
 
     cv::Mat thrImage;
@@ -1337,7 +1345,6 @@ void Master::detectListState(const widget::List* lst, DetectLevel level) {
         int y = rect.y + r.y + r.height / 2 - 8;
         mLstRowStateDetector->mRect = mClassifyEnv.cvtCapturedToReference(cv::Rect(cv::Point(x,y), cv::Size(16,16)));
         mLstRowStateDetector->classify(mClassifyEnv);
-        cv::Vec3b bgLuv = mLstRowStateDetector->mLastColor;
         auto& values = mLstRowStateDetector->mLastValues;
         int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
         double value = values[idx];
@@ -1450,32 +1457,36 @@ const UIState& Master::detectEDState(DetectLevel level) {
         return mLastEDState;
 
     // detect screen and widget
-    if (mLastEDState.guiFocus == GuiFocus::Services) {
-        for (auto &screen: mScreensRoot->have) {
-            Widget *subItem = matchWithSubItems(screen);
-            if (subItem) {
-                mLastEDState.widget = subItem;
-                LOG(DEBUG) << "Detected UI state: " << subItem->path;
-                break;
-            }
+    GuiFocus guiFocus = mConfiguration->guiFocus;
+    for (auto widget: mScreensRoot->have) {
+        if (widget->tp != WidgetType::Screen)
+            continue;
+        widget::Screen* screen = static_cast<widget::Screen*>(widget);
+        if (!screen || (screen->gui.has_value() && screen->gui != guiFocus))
+            continue;
+        Widget *subItem = matchWithSubItems(screen);
+        if (subItem) {
+            mLastEDState.widget = subItem;
+            LOG(DEBUG) << "Detected UI state: " << subItem->path;
+            break;
         }
-        if (!mLastEDState.widget) {
-            LOG(ERROR) << "Unknown state";
-            return mLastEDState;
-        }
-        if (level >= DetectLevel::Buttons) {
-            if (mButtonStateDetector) {
-                // detect focused button
-                const Widget *focused = detectAllButtonsStates(mLastEDState.widget, level);
-                if (focused) {
-                    mLastEDState.focused = focused;
-                    LOG(DEBUG) << "Detected focused button: " << focused->name;
-                } else {
-                    LOG(DEBUG) << "Focused button not detected";
-                }
+    }
+    if (!mLastEDState.widget) {
+        LOG(ERROR) << "Unknown state";
+        return mLastEDState;
+    }
+    if (level >= DetectLevel::Buttons) {
+        if (mButtonStateDetector) {
+            // detect focused button
+            const Widget *focused = detectAllButtonsStates(mLastEDState.widget, level);
+            if (focused) {
+                mLastEDState.focused = focused;
+                LOG(DEBUG) << "Detected focused button: " << focused->name;
             } else {
-                LOG(ERROR) << "Colors not calibrated, cannot detect focused widget";
+                LOG(DEBUG) << "Focused button not detected";
             }
+        } else {
+            LOG(ERROR) << "Colors not calibrated, cannot detect focused widget";
         }
     }
 

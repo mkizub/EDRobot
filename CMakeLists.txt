@@ -85,6 +85,7 @@ add_executable(EDRobot
         thirdparty/xml/xml.h
         src/capture/CapturerDXGI.cpp
         src/capture/CapturerDXGI.h
+        src/EventParser.cpp
 )
 #target_sources(EDRobot PUBLIC
 #        FILE_SET CXX_MODULES FILES

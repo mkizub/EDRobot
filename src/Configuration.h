@@ -17,11 +17,13 @@ enum class WState : int { Unknown=-1, Normal=0, Focused=1, Active=2, Disabled=3 
 
 enum Lang { XX=-1, EN=0, RU=1 };
 
-enum GuiFocus { NoFocus=0, Right=1, Left=2, Chat=3, Role=4, Services=5, GalaxyMap=6, SystemMap=7, Orrery=8, FSS=9, SAA=10, Codex=11 };
+enum GuiFocus { None=0, Right=1, Left=2, Chat=3, Role=4, Services=5, GalaxyMap=6, SystemMap=7, Orrery=8, FSS=9, SAA=10, Codex=11 };
 
 class CReadDirectoryChanges;
 class Configuration;
 typedef struct XMLNode XMLNode;
+
+typedef std::chrono::time_point<std::chrono::utc_clock> Timestamp;
 
 class CommodityCategory {
     friend class Configuration;
@@ -33,7 +35,7 @@ public:
 };
 
 struct MarketLine {
-    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    Timestamp timestamp;
     int buyPrice;
     int sellPrice;
     int meanPrice;
@@ -59,13 +61,13 @@ public:
     bool rare;
 
     struct {
-        std::chrono::time_point<std::chrono::utc_clock> timestamp;
+        Timestamp timestamp;
         int count;
         int stolen;
     } ship;
 
     struct {
-        std::chrono::time_point<std::chrono::utc_clock> timestamp;
+        Timestamp timestamp;
         int count;
     } fc;
 
@@ -73,7 +75,7 @@ public:
 };
 
 struct Market {
-    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    Timestamp timestamp;
     int64_t marketId;
     std::string stationName;
     std::string stationType;
@@ -83,7 +85,7 @@ struct Market {
 typedef std::shared_ptr<Market> spMarket;
 
 struct ShipCargo {
-    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    Timestamp timestamp;
     std::string vessel;
     int count {0};
     std::vector<Commodity*> inventory;
@@ -91,7 +93,7 @@ struct ShipCargo {
 typedef std::shared_ptr<ShipCargo> spShipCargo;
 
 struct ShipStatus {
-    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    Timestamp timestamp;
     union {
         struct {
             bool docked : 1;
@@ -156,7 +158,7 @@ struct ShipStatus {
     } flags2;
     uint8_t  pips[3];
     uint8_t fireGroup {0};
-    GuiFocus guiFocus {GuiFocus::NoFocus};
+    GuiFocus guiFocus {GuiFocus::None};
     float fuelMain;
     float fuelReservoir;
     float cargo;
@@ -175,6 +177,18 @@ struct ShipStatus {
 };
 
 typedef std::shared_ptr<ShipStatus> spShipStatus;
+
+struct StarSystem {
+    uint32_t address;
+    std::string name;
+    cv::Point3d pos;
+};
+
+struct DockStation {
+    uint32_t marketId;
+    std::string name;
+    std::string stationType;
+};
 
 struct GameKey {
     enum Device { Void, Keyboard, Mouse};
@@ -198,7 +212,7 @@ public:
     ~Configuration();
 
     bool load();
-    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv);
+    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
     bool saveCalibration() const;
     bool checkResolutionSupported(cv::Size gameSize);
     bool checkNeedColorCalibration() const;
@@ -225,10 +239,26 @@ public:
     std::vector<Commodity*> getAllKnownCommodities();
 
     GuiFocus getGuiFocus() { return guiFocus; }
+    const std::string& getCmdrName() { return mCmdrName; }
+    const std::string& getShipType() { return mShipType; }
+    const std::string& getShipUserName() { return mShipUserName; }
 
     const KeyBindings& getGameKeyBindings(const std::string& name) const;
-    cv::Vec3b getButtonLuvColor(WState ws) const { return ws == WState::Unknown ? cv::Vec3b::zeros() : mButtonLuv[int(ws)]; }
-    cv::Vec3b getLstRowLuvColor(WState ws) const { return ws == WState::Unknown ? cv::Vec3b::zeros() : mLstRowLuv[int(ws)]; }
+
+    uchar getButtonGrayColor(WState ws) const {
+        if (ws == WState::Unknown)
+            return {};
+        if (mUseCalibratedColors)
+            return mCalibratedButtonGray[int(ws)];
+        return mCalcButtonGray[int(ws)];
+    }
+    uchar getLstRowGrayColor(WState ws) const {
+        if (ws == WState::Unknown)
+            return {};
+        if (mUseCalibratedColors)
+            return mCalibratedLstRowGray[int(ws)];
+        return mCalcLstRowGray[int(ws)];
+    }
 
     const Lang lng {XX};
     const bool isOdyssey {false};
@@ -252,8 +282,17 @@ private:
     Commodity& getOrAddCommodity(Commodity&& c);
     void changeDirThreadLoop();
 
-    bool parseTimestamp(const json::value&, std::chrono::time_point<std::chrono::utc_clock>&);
-    bool parseTimestamp(const std::string&, std::chrono::time_point<std::chrono::utc_clock>&);
+    bool parseTimestamp(const json::value&, Timestamp&);
+    bool parseTimestamp(const std::string&, Timestamp&);
+    bool parseEvent(std::string& line, std::string& event_out, Timestamp& timestamp_out);
+    bool parseEvent_Commander(json::value& je, const std::string& event, const Timestamp& timestamp_out);
+    bool parseEvent_LoadGame(json::value& je, const std::string& event, const Timestamp& timestamp_out);
+    bool parseEvent_CarrierLocation(json::value& je, const std::string& event, const Timestamp& timestamp_out);
+    bool parseEvent_Location(json::value& je, const std::string& event, const Timestamp& timestamp_out);
+    bool parseEvent_Loadout(json::value& je, const std::string& event, const Timestamp& timestamp_out);
+    bool parseEvent_Cargo(json::value& je, const std::string& event, const Timestamp& timestamp_out);
+    bool parseEvent_ShipyardSwap(json::value& je, const std::string& event, const Timestamp& timestamp_out);
+
 
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;
     HANDLE hShutdownChangDirListenerEvent {};
@@ -282,14 +321,35 @@ private:
     std::unordered_map<std::string,KeyBindings> keyBindingsGeneric;
     std::unordered_map<std::string,KeyBindings> keyBindingsShip;
 
+    bool mUseCalibratedColors = false;
     double calibrationDashboardGUIBrightness = -1;
     double calibrationGammaOffset = 0;
     int calibrationScreenWidth = 0;
     int calibrationScreenHeight = 0;
     FullScreenMode calibrationFullScreen = FullScreenMode::Window;
 
-    std::array<cv::Vec3b, 4> mButtonLuv;
-    std::array<cv::Vec3b, 4> mLstRowLuv;
+    std::array<cv::Vec3b, 4> mOrigButtonBGR;
+    std::array<cv::Vec3b, 4> mOrigLstRowBGR;
+
+    std::array<cv::Vec3b, 4> mCalcButtonBGR;
+    std::array<cv::Vec3b, 4> mCalcLstRowBGR;
+    std::array<cv::Vec3b, 4> mCalibratedButtonBGR;
+    std::array<cv::Vec3b, 4> mCalibratedLstRowBGR;
+
+    std::array<cv::Vec3b, 4> mCalcButtonHsv;
+    std::array<cv::Vec3b, 4> mCalcLstRowHsv;
+    std::array<cv::Vec3b, 4> mCalibratedButtonHsv;
+    std::array<cv::Vec3b, 4> mCalibratedLstRowHsv;
+
+    std::array<cv::Vec3b, 4> mCalcButtonLuv;
+    std::array<cv::Vec3b, 4> mCalcLstRowLuv;
+    std::array<cv::Vec3b, 4> mCalibratedButtonLuv;
+    std::array<cv::Vec3b, 4> mCalibratedLstRowLuv;
+
+    std::array<uchar, 4> mCalcButtonGray;
+    std::array<uchar, 4> mCalcLstRowGray;
+    std::array<uchar, 4> mCalibratedButtonGray;
+    std::array<uchar, 4> mCalibratedLstRowGray;
 
     bool mCommodityDatabaseUpdated;
     std::deque<CommodityCategory> allKnownCommodityCategories;
@@ -297,10 +357,19 @@ private:
     std::unordered_map<std::string,CommodityCategory*> commodityCategoryMap;
     std::unordered_map<std::string,Commodity*> commodityMap;
 
-    GuiFocus guiFocus {GuiFocus::NoFocus};
+    std::string mCmdrName;
+    std::string mShipType;
+    std::string mShipTypeLocalized;
+    std::string mShipUserName;
+    std::string mCurrentStarSystem;
+    std::string mCurrentDockedStation;
+
+    GuiFocus guiFocus {GuiFocus::None};
     std::atomic<spMarket> currentMarket;
     std::atomic<spShipCargo> currentCargo;
     std::atomic<spShipStatus> currentStatus;
+    StarSystem currentStarSystem;
+    DockStation currentDock;
 
 };
 

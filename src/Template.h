@@ -39,10 +39,22 @@ private:
     std::vector<std::unique_ptr<Template>> oracles;
 };
 
+class ShipTemplate : public Template {
+public:
+    ShipTemplate(const std::vector<std::string>& ships);
+    ~ShipTemplate() override = default;
+
+    double match(ClassifyEnv& env) override;
+    double classify(ClassifyEnv& env) override;
+    double debugMatch(ClassifyEnv& env) override;
+private:
+    std::vector<std::string> ships;
+};
+
 class HistogramTemplate : public Template {
 public:
     enum class CompareMode {
-        Gray, Luv, RGB
+        Gray, Hsv, Luv, BGR
     };
     HistogramTemplate(CompareMode mode, const cv::Rect& rect, const cv::Vec3b& colors);
     HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::vector<cv::Vec3b>& colors);
@@ -52,7 +64,7 @@ public:
     double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 
-    cv::Vec3b mLastColor;
+    cv::Vec3b mLastColorBGR;
     std::vector<double> mLastDistance;
     std::vector<double> mLastValues;
     cv::Rect mRect;
@@ -158,7 +170,6 @@ public:
     cv::Point2d dotSpherePosition;
     double lastDotValue;
 
-private:
     static void tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect);
 };
 
@@ -188,7 +199,7 @@ private:
     std::vector<IconMatrix> iconsSource;
     std::vector<IconMatrix> iconsScaled;
 
-    bool xInRange(int x, int width, int gap);
+    bool getColSpan(int& col, int& span, cv::Rect& bbox, cv::Rect& captureRect, int gap) const;
     double mPreprocessedTemplateScale = 1;
     int mMaxRows;
     int mMaxCols;

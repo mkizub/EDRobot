@@ -109,20 +109,26 @@ const cv::Mat& FrameDXGI::getColorImage() const {
     }
     auto capt = (CapturerDXGI *) owner;
     if (!stagingTextureMapped) {
-        capt->m_d3dContext->Map(mStagingTexture, 0, D3D11_MAP_READ, 0, &mStagingMappedTex);
-        stagingTextureMapped = true;
+        HRESULT hr = capt->m_d3dContext->Map(mStagingTexture, 0, D3D11_MAP_READ, 0, &mStagingMappedTex);
+        if (SUCCEEDED(hr))
+            stagingTextureMapped = true;
     }
-    colorImage = cv::Mat(size.height, size.width, CV_8UC4, mStagingMappedTex.pData, mStagingMappedTex.RowPitch);
-    colorImageMapped = true;
-    colorImageValid = true;
+    if (stagingTextureMapped) {
+        colorImage = cv::Mat(size.height, size.width, CV_8UC4, mStagingMappedTex.pData, mStagingMappedTex.RowPitch);
+        colorImageMapped = true;
+        colorImageValid = true;
+    }
     return colorImage;
 }
 
 const cv::Mat& FrameDXGI::getGrayImage() const {
     if (grayImageValid)
         return grayImage;
-    cv::cvtColor(getColorImage(), grayImage, cv::COLOR_RGBA2GRAY);
-    grayImageValid = true;
+    cv::Mat colorImage = getColorImage();
+    if (colorImageValid) {
+        cv::cvtColor(getColorImage(), grayImage, cv::COLOR_BGRA2GRAY);
+        grayImageValid = true;
+    }
     return grayImage;
 }
 
@@ -360,7 +366,7 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
     frame->stagingTextureValid = true;
     hr = m_d3dContext->Map(frame->mStagingTexture, 0, D3D11_MAP_READ, 0, &frame->mStagingMappedTex);
     if (FAILED(hr)) {
-        LOG(ERROR) << "CapturerDXGI Failed to map staging texture";
+        LOG(ERROR) << "CapturerDXGI Failed to map staging texture: " << getErrorMessage(hr);
     } else {
         frame->stagingTextureMapped = true;
 

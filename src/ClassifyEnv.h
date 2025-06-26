@@ -62,7 +62,8 @@ public:
 extern spEvalRect makeEvalRect(json5pp::value jv, int width=0, int height=0);
 
 enum class ClsDetType {
-    TemplateDetected,   // rect is detected by Template, text is the name of the template
+    Detected,           // rect is detected by Template, text is the name of the template
+    Tile,               // rect is detected as tile button
     Widget,             // rect is assumed to be a widget
     ListRow,            // rect is a list row (maybe commodity list)
 };
@@ -79,7 +80,12 @@ struct ClassifiedRect {
         struct {
             cv::Rect referenceRect;   // originally expected rect in reference coordinates
             double scale; // detected scale for multi-scale templates, environment (screen) scale is not counted
-        } templ;
+        } tdet;
+        struct {
+            int row;
+            int col;
+            int span; // column span
+        } tile;
         struct {
             mutable WState ws;        // detected state for widgets
             mutable const widget::Widget* widget;
@@ -172,10 +178,14 @@ private:
 
 class TileRect : public EvalRect {
 public:
-    TileRect(const std::string& name) : name(name) {}
+    TileRect(const std::string& name, int row, int col)
+        : name(name), row(row), col(col)
+    {}
     cv::Rect calcReferenceRect(const ResolvedEnv& env) const override;
 
     const std::string name;
+    const int row;
+    const int col;
 };
 
 #endif //EDROBOT_CLASSIFYENV_H

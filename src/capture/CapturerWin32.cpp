@@ -62,7 +62,7 @@ const cv::Mat& FrameWin32::getColorImage() const {
 
 const cv::Mat& FrameWin32::getGrayImage() const {
     if (!grayImageValid) {
-        cv::cvtColor(colorImage, grayImage, cv::COLOR_RGBA2GRAY);
+        cv::cvtColor(colorImage, grayImage, cv::COLOR_BGRA2GRAY);
         grayImageValid = true;
     }
     return grayImage;
@@ -166,12 +166,13 @@ bool CapturerWin32::start() {
     hdcMem = CreateCompatibleDC(hdcScreen);
     hBitmap = CreateCompatibleBitmap(hdcScreen, captureVirtRect.width, captureVirtRect.height);
     memset(&bitmapInfoHeader, 0, sizeof(bitmapInfoHeader));
-    bitmapInfoHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bitmapInfoHeader.biWidth = captureVirtRect.width;
-    bitmapInfoHeader.biHeight = -captureVirtRect.height;  // Negative height to flip the image vertically
-    bitmapInfoHeader.biPlanes = 1;
-    bitmapInfoHeader.biBitCount = 32;
-    bitmapInfoHeader.biCompression = BI_RGB;
+    bitmapInfoHeader.bV5Size = sizeof(BITMAPV5HEADER);
+    bitmapInfoHeader.bV5Width = captureVirtRect.width;
+    bitmapInfoHeader.bV5Height = -captureVirtRect.height;  // Negative height to flip the image vertically
+    bitmapInfoHeader.bV5Planes = 1;
+    bitmapInfoHeader.bV5BitCount = 32;
+    bitmapInfoHeader.bV5Compression = BI_RGB;
+    bitmapInfoHeader.bV5CSType = LCS_sRGB;
 //    capturedImage = cv::Mat(screenHeight, screenWidth, CV_8UC4);
 //    grayImage = cv::Mat(screenHeight, screenWidth, CV_8UC1);
     return Capturer::start();
@@ -252,8 +253,8 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
             orig.x = monitorVirtRect.x - captureVirtRect.x;
         if (captureVirtRect.y < monitorVirtRect.y)
             orig.y = monitorVirtRect.y - captureVirtRect.y;
-        BITMAPINFOHEADER bInfoHeader = bitmapInfoHeader;
-        bInfoHeader.biWidth = blitRect.width;
+        BITMAPV5HEADER bInfoHeader = bitmapInfoHeader;
+        bInfoHeader.bV5Width = blitRect.width;
         for (int y=0; y < blitRect.height; y++) {
             uchar* data_ptr = frame->colorImage.ptr(blitRect.height-1-y-orig.y, orig.x);
             int l = GetDIBits(hdcMem, hBitmap, y, 1, data_ptr, (BITMAPINFO *) &bInfoHeader, DIB_RGB_COLORS);

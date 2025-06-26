@@ -1,6 +1,7 @@
 [
   {
     name: 'scr-market',
+    gui: 'Services',
     have: [
       { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
       { name: 'btn-help', action: 'help', rect: [295,980,195,40] },
@@ -101,6 +102,7 @@
   },
   {
     name: 'scr-services',
+    gui: 'Services',
     detect: { tiles: [172,444,966,484], rows: 4, cols: 3, gap: 10, name: "serv", t: [0.7, 0.9], icons: [
       // station
       "tile-icon-market.png", "tile-icon-market-act.png",
@@ -129,7 +131,38 @@
       { name: 'til-carriermgr',  action: 'carriermgr',  icon: "serv:tile-icon-carriermgr" },
       { name: 'til-redempt',     action: 'redempt',     icon: "serv:tile-icon-redempt" },
       { name: 'til-blackmarket', action: 'blackmarket', icon: "serv:tile-icon-blackmarket" },
-      { name: 'til-arch',        action: 'arch',        icon: "serv:tile-icon-arch" }
+      { name: 'til-arch',        action: 'arch',        icon: "serv:tile-icon-arch" },
+      { name: 'til-news',        action: 'news',        row: 3, col: 0 }
+    ]
+  },
+  {
+    name: 'scr-dock',
+    gui: 'None',
+    have: [
+      {
+        name: 'mod-type9', detect: { ship: 'type9' },
+        have: [
+          { name: 'btn-refuel',    rect: [805,773,71,39] },
+          { name: 'btn-repair',    rect: [885,773,71,39] },
+          { name: 'btn-rearm',     rect: [965,773,71,39] },
+          { name: 'btn-dock-lpad', rect: [1044,773,71,39] },
+          { name: 'btn-services',  rect: [803,818,314,39] },
+          { name: 'btn-launch',    rect: [803,866,314,39] },
+          { name: 'btn-disembark', rect: [803,915,314,39] },
+        ]
+      },
+      {
+        name: 'mod-type9', detect: { ship: 'cutter' },
+        have: [
+          { name: 'btn-refuel',    rect: [791,836,76,41] },
+          { name: 'btn-repair',    rect: [879,836,76,41] },
+          { name: 'btn-rearm',     rect: [968,836,76,41] },
+          { name: 'btn-dock-lpad', rect: [1055,836,76,41] },
+          { name: 'btn-services',  rect: [787,887,349,44] },
+          { name: 'btn-launch',    rect: [787,943,349,44] },
+          { name: 'btn-disembark', rect: [787,1001,349,44] },
+        ]
+      }
     ]
   },
 //  {

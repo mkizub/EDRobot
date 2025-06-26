@@ -104,7 +104,7 @@ public:
     void notifyProgress(const std::string& title, const std::string& text);
     void notifyError(const std::string& title, const std::string& text);
 
-    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv);
+    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
     tesseract::TessBaseAPI* getTesseractApi() { return mTesseractApiForMarket.get(); }
 
 private:

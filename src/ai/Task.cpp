@@ -406,12 +406,12 @@ extern TaskTemplate ED_Task_Calibrate;
 
 TaskCalibrate::TaskCalibrate(AIManager& mgr)
     : Task(nullptr, mgr, ED_Task_Calibrate)
-    , mDetector(HistogramTemplate::CompareMode::Luv, cv::Rect(), cv::Vec3b())
+    , mDetector(HistogramTemplate::CompareMode::Hsv, cv::Rect(), cv::Vec3b())
 {
     taskName = "Calibration";
 }
 
-void TaskCalibrate::recordButtonLuv(const char* button, WState bs) {
+void TaskCalibrate::recordButton(const char* button, WState bs) {
     cv::Rect rect = mgr.master.resolveWidgetReferenceRect(button);
     if (rect.empty()) {
         LOG(ERROR) << "Cannot get rect of button '" << button << "'";
@@ -419,14 +419,14 @@ void TaskCalibrate::recordButtonLuv(const char* button, WState bs) {
     }
     mDetector.mRect = rect;
     mDetector.match(const_cast<ClassifyEnv&>(mgr.master.cEnv()));
-    cv::Vec3b luv = mDetector.mLastColor;
-    mButtonLuv[int(bs)].push_back(luv);
+    cv::Vec3b bgr = mDetector.mLastColorBGR;
+    mButtonBGR[int(bs)].push_back(bgr);
     const char* names[] = {"Normal   ", "Focused  ", "Active   ", "Disabled "};
-    LOG(INFO) << names[int(bs)] << " button: luv=" << mButtonLuv[int(bs)].back()
-              << " bgr=" << luv2rgb(luv) << " rgb=0x"<< std::format("{:06x}", decodeRGB(luv2rgb(luv)));
+    LOG(INFO) << names[int(bs)] << " button: bgr=" << mButtonBGR[int(bs)].back()
+              << " rgb=0x"<< std::format("{:06x}", decodeBGR(bgr));
 }
 
-void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs) {
+void TaskCalibrate::recordLstRow(const char* list, cv::Point mouse, WState bs) {
     cv::Rect rect = mgr.master.resolveWidgetReferenceRect(list);
     if (rect.empty()) {
         LOG(ERROR) << "Cannot get rect of list '" << list << "'";
@@ -440,31 +440,31 @@ void TaskCalibrate::recordLstRowLuv(const char* list, cv::Point mouse, WState bs
         cv::Rect refRect = cr.detectedRect;
         mDetector.mRect = refRect;
         mDetector.match(const_cast<ClassifyEnv&>(mgr.master.cEnv()));
-        cv::Vec3b luv = mDetector.mLastColor;
+        cv::Vec3b bgr = mDetector.mLastColorBGR;
         if (refRect.contains(mouse)) {
-            mLstRowLuv[int(WState::Focused)].push_back(luv);
+            mLstRowBGR[int(WState::Focused)].push_back(bgr);
         } else {
-            colors.push_back(luv);
-            lums.push_back(colors.back()[0]);
+            colors.push_back(bgr);
+            lums.push_back(sBgr2Hsv(colors.back())[2]);
         }
     }
     cv::Point minLoc;
     cv::Point maxLoc;
     cv::minMaxLoc(lums, nullptr, nullptr, &minLoc, &maxLoc);
-    cv::Vec3d minColor(colors[minLoc.x]);
-    cv::Vec3d maxColor(colors[maxLoc.x]);
-    cv::Vec3d delta = maxColor - minColor;
+    cv::Vec3d darkColor(colors[minLoc.x]);
+    cv::Vec3d lightColor(colors[maxLoc.x]);
+    double lumDelta = lums[maxLoc.x] - lums[minLoc.x];
 
-    if (cv::norm(delta) < 6) {
-        mLstRowLuv[int(bs)].insert(mLstRowLuv[int(bs)].end(), colors.begin(), colors.end());
+    if (lumDelta < 6) {
+        mLstRowBGR[int(bs)].insert(mLstRowBGR[int(bs)].end(), colors.begin(), colors.end());
     } else {
         for (auto& c : colors) {
-            double distNorm = cv::norm(minColor - cv::Vec3d(c));
-            double distActv = cv::norm(maxColor - cv::Vec3d(c));
+            double distNorm = distanceBGR(darkColor, c);
+            double distActv = distanceBGR(lightColor, c);
             if (distNorm < distActv)
-                mLstRowLuv[int(WState::Normal)].push_back(c);
+                mLstRowBGR[int(WState::Normal)].push_back(c);
             else
-                mLstRowLuv[int(WState::Active)].push_back(c);
+                mLstRowBGR[int(WState::Active)].push_back(c);
         }
     }
 }
@@ -474,8 +474,8 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
     for(auto ws : enum_values<WState>()) {
         if (ws == WState::Unknown)
             continue;
-        auto& luvState = mButtonLuv[int(ws)];
-        int len = (int)luvState.size();
+        auto& bgrState = mButtonBGR[int(ws)];
+        int len = (int)bgrState.size();
         if (!len) {
             LOG(INFO) << "No samples for " << enum_name(ws) << " button color";
             if (!incomplete)
@@ -484,14 +484,14 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
         }
         cv::Mat colorsMatrix(len, 1, CV_8UC3);
         for (int j=0; j < len; j++)
-            colorsMatrix.at<cv::Vec3b>(j) = luvState[j];
+            colorsMatrix.at<cv::Vec3b>(j) = bgrState[j];
         cv::Scalar meanS;
         cv::Scalar stddevS;
         cv::meanStdDev(colorsMatrix, meanS, stddevS);
         cv::Vec3b mean(meanS[0], meanS[1], meanS[2]);
         cv::Vec3d stddev(stddevS[0], stddevS[1], stddevS[2]);
-        LOG(INFO) << "Luv button color for " << enum_name(ws) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
-        mButtonLuvAverage[int(ws)] = mean;
+        LOG(INFO) << "BGR button color for " << enum_name(ws) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
+        mButtonBGRAverage[int(ws)] = mean;
         if (stddevS[0] > 3 || stddevS[1] > 3 || stddevS[2] > 3) {
             buttonSuccess = false;
             LOG(ERROR) << "Luv color for " << enum_name(ws) << ", has too high deviation " << stddev;
@@ -501,41 +501,28 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
     for(auto ws : enum_values<WState>()) {
         if (ws == WState::Unknown)
             continue;
-        auto& luvState = mLstRowLuv[int(ws)];
-        int len = (int)luvState.size();
+        auto& bgrState = mLstRowBGR[int(ws)];
+        int len = (int)bgrState.size();
         if (!len) {
             LOG(INFO) << "No samples for " << enum_name(ws) << " list row color";
             continue;
         }
         cv::Mat colorsMatrix(len, 1, CV_8UC3);
         for (int j=0; j < len; j++)
-            colorsMatrix.at<cv::Vec3b>(j) = luvState[j];
+            colorsMatrix.at<cv::Vec3b>(j) = bgrState[j];
         cv::Scalar meanS;
         cv::Scalar stddevS;
         cv::meanStdDev(colorsMatrix, meanS, stddevS);
         cv::Vec3b mean(meanS[0], meanS[1], meanS[2]);
         cv::Vec3d stddev(stddevS[0], stddevS[1], stddevS[2]);
         LOG(INFO) << "Luv list row color for " << enum_name(ws) << " mean " << mean << " stddev " << stddev << " over " << len << " samples";
-        mLstRowLuvAverage[int(ws)] = mean;
+        mLstRowBGRAverage[int(ws)] = mean;
         if (stddevS[0] > 3 || stddevS[1] > 3 || stddevS[2] > 3) {
             lstRowSuccess = false;
             LOG(ERROR) << "Luv color for " << enum_name(ws) << ", has too high deviation " << stddev;
         }
     }
-    std::array<cv::Vec3b,4> lstRowLuvAverage;
-    for (int i=0; i < 4; i++) {
-        if (mLstRowLuvAverage[i] == cv::Vec3b::zeros()) {
-            if (i == int(WState::Normal))
-                lstRowLuvAverage[i] = mButtonLuvAverage[i] * 1.3;
-            if (i == int(WState::Focused))
-                lstRowLuvAverage[i] = mButtonLuvAverage[i];
-            if (i == int(WState::Active))
-                lstRowLuvAverage[i] = mButtonLuvAverage[i] * 1.3;
-        }
-        else
-            lstRowLuvAverage[i] = mLstRowLuvAverage[i];
-    }
-    mgr.master.setCalibrationResult(mButtonLuvAverage, lstRowLuvAverage);
+    mgr.master.setCalibrationResult(mButtonBGRAverage, mLstRowBGRAverage);
     return buttonSuccess;
 }
 
@@ -556,10 +543,10 @@ void TaskCalibrate::getRowsByState(const ClassifiedRect** rows) {
 Result TaskCalibrate::run() {
     if (result == Result::Started) {
         for (int i=0; i < 4; i++) {
-            mButtonLuv[i].clear();
-            mLstRowLuv[i].clear();
-            mButtonLuvAverage[i] = cv::Vec3b::zeros();
-            mLstRowLuvAverage[i] = cv::Vec3b::zeros();
+            mButtonBGR[i].clear();
+            mLstRowBGR[i].clear();
+            mButtonBGRAverage[i] = cv::Vec3b::zeros();
+            mLstRowBGRAverage[i] = cv::Vec3b::zeros();
         }
         result = Result::Created;
     }
@@ -588,63 +575,63 @@ Result TaskCalibrate::run() {
     hardcodedStep("{goto:'btn-exit', after: 500}", DetectLevel::Buttons);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-exit'";
 
-    recordButtonLuv("btn-help", WState::Normal);
-    recordButtonLuv("btn-exit", WState::Focused);
-    recordButtonLuv("btn-filter", WState::Normal);
+    recordButton("btn-help", WState::Normal);
+    recordButton("btn-exit", WState::Focused);
+    recordButton("btn-filter", WState::Normal);
     if (mgr.uiState.match("scr-market:mod-sell")) {
-        recordButtonLuv("btn-to-sell", WState::Active);
-        recordButtonLuv("btn-to-buy", WState::Normal);
+        recordButton("btn-to-sell", WState::Active);
+        recordButton("btn-to-buy", WState::Normal);
     }
     else if (mgr.uiState.match("scr-market:mod-buy")) {
-        recordButtonLuv("btn-to-sell", WState::Normal);
-        recordButtonLuv("btn-to-buy", WState::Active);
+        recordButton("btn-to-sell", WState::Normal);
+        recordButton("btn-to-buy", WState::Active);
     }
 
     hardcodedStep("{goto:'btn-help', after: 500}", DetectLevel::Screen);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-help'";
 
-    recordButtonLuv("btn-help", WState::Focused);
-    recordButtonLuv("btn-exit", WState::Normal);
-    recordButtonLuv("btn-filter", WState::Normal);
+    recordButton("btn-help", WState::Focused);
+    recordButton("btn-exit", WState::Normal);
+    recordButton("btn-filter", WState::Normal);
     if (mgr.uiState.match("scr-market:mod-sell")) {
-        recordButtonLuv("btn-to-sell", WState::Active);
-        recordButtonLuv("btn-to-buy", WState::Normal);
+        recordButton("btn-to-sell", WState::Active);
+        recordButton("btn-to-buy", WState::Normal);
     }
     else if (mgr.uiState.match("scr-market:mod-buy")) {
-        recordButtonLuv("btn-to-sell", WState::Normal);
-        recordButtonLuv("btn-to-buy", WState::Active);
+        recordButton("btn-to-sell", WState::Normal);
+        recordButton("btn-to-buy", WState::Active);
     }
 
     hardcodedStep("{goto:'btn-filter', after: 500}", DetectLevel::Buttons);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-filter'";
 
-    recordButtonLuv("btn-help", WState::Normal);
-    recordButtonLuv("btn-exit", WState::Normal);
-    recordButtonLuv("btn-filter", WState::Focused);
+    recordButton("btn-help", WState::Normal);
+    recordButton("btn-exit", WState::Normal);
+    recordButton("btn-filter", WState::Focused);
     if (mgr.uiState.match("scr-market:mod-sell")) {
-        recordButtonLuv("btn-to-sell", WState::Active);
-        recordButtonLuv("btn-to-buy", WState::Normal);
+        recordButton("btn-to-sell", WState::Active);
+        recordButton("btn-to-buy", WState::Normal);
     }
     else if (mgr.uiState.match("scr-market:mod-buy")) {
-        recordButtonLuv("btn-to-sell", WState::Normal);
-        recordButtonLuv("btn-to-buy", WState::Active);
+        recordButton("btn-to-sell", WState::Normal);
+        recordButton("btn-to-buy", WState::Active);
     }
 
     hardcodedStep("{goto:'btn-to-buy', after: 500}", DetectLevel::Buttons);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-to-buy'";
 
-    recordButtonLuv("btn-help", WState::Normal);
-    recordButtonLuv("btn-exit", WState::Normal);
-    recordButtonLuv("btn-filter", WState::Normal);
-    recordButtonLuv("btn-to-buy", WState::Focused);
+    recordButton("btn-help", WState::Normal);
+    recordButton("btn-exit", WState::Normal);
+    recordButton("btn-filter", WState::Normal);
+    recordButton("btn-to-buy", WState::Focused);
 
     hardcodedStep("{goto:'btn-to-sell', after: 500}", DetectLevel::Buttons);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-to-sell'";
 
-    recordButtonLuv("btn-help", WState::Normal);
-    recordButtonLuv("btn-exit", WState::Normal);
-    recordButtonLuv("btn-filter", WState::Normal);
-    recordButtonLuv("btn-to-sell", WState::Focused);
+    recordButton("btn-help", WState::Normal);
+    recordButton("btn-exit", WState::Normal);
+    recordButton("btn-filter", WState::Normal);
+    recordButton("btn-to-sell", WState::Focused);
 
     calculateAverage(true);
 
@@ -667,8 +654,8 @@ Result TaskCalibrate::run() {
             cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
             sendMouseMove(mouse, 300);
             mgr.detectEDState(DetectLevel::ListRows);
-            recordLstRowLuv("lst-goods", mouse, WState::Normal);
-            if (mLstRowLuv[int(WState::Normal)].size() > 35)
+            recordLstRow("lst-goods", mouse, WState::Normal);
+            if (mLstRowBGR[int(WState::Normal)].size() > 35)
                 break;
         }
     }
@@ -705,9 +692,9 @@ Result TaskCalibrate::run() {
                   "{goto:'btn-more', after:500}]", DetectLevel::Buttons);
     LOG(INFO) << "State " << mgr.uiState;
 
-    recordButtonLuv("btn-cancel", WState::Normal);
-    recordButtonLuv("btn-more", WState::Focused);
-    recordButtonLuv("btn-commit", WState::Disabled);
+    recordButton("btn-cancel", WState::Normal);
+    recordButton("btn-more", WState::Focused);
+    recordButton("btn-commit", WState::Disabled);
 
     hardcodedStep("[{key:'UI_Left'},"
                   "{key:'UI_Select', after:1000},"
@@ -717,9 +704,9 @@ Result TaskCalibrate::run() {
                   "{goto:'btn-help', after:500}]", DetectLevel::ListRows);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-help'";
 
-    recordButtonLuv("btn-exit", WState::Normal);
-    recordButtonLuv("btn-help", WState::Focused);
-    recordButtonLuv("btn-to-buy", WState::Active);
+    recordButton("btn-exit", WState::Normal);
+    recordButton("btn-help", WState::Focused);
+    recordButton("btn-to-buy", WState::Active);
 
     //
     // Detect activated list rows in sell market
@@ -731,8 +718,8 @@ Result TaskCalibrate::run() {
             cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
             sendMouseMove(mouse, 300);
             mgr.detectEDState(DetectLevel::ListRows);
-            recordLstRowLuv("lst-goods", mouse, WState::Active);
-            if (mLstRowLuv[int(WState::Active)].size() > 35)
+            recordLstRow("lst-goods", mouse, WState::Active);
+            if (mLstRowBGR[int(WState::Active)].size() > 35)
                 break;
         }
     }
@@ -759,9 +746,9 @@ Result TaskCalibrate::run() {
                   "{goto:'btn-more', after:500}]", DetectLevel::Buttons);
     LOG(INFO) << "State " << mgr.uiState;
 
-    recordButtonLuv("btn-cancel", WState::Normal);
-    recordButtonLuv("btn-more", WState::Focused);
-    recordButtonLuv("btn-commit", WState::Disabled);
+    recordButton("btn-cancel", WState::Normal);
+    recordButton("btn-more", WState::Focused);
+    recordButton("btn-commit", WState::Disabled);
 
     hardcodedStep("[{key:'UI_Left'},"
                   "{key:'UI_Select', after:500},"

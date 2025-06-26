@@ -58,14 +58,14 @@ public:
     TaskCalibrate(AIManager& mgr);
     Result run() final;
 private:
-    std::array<std::vector<cv::Vec3b>,4> mButtonLuv;
-    std::array<std::vector<cv::Vec3b>,4> mLstRowLuv;
-    void recordButtonLuv(const char* button, WState bs);
-    void recordLstRowLuv(const char* list, cv::Point mouse, WState bs);
+    std::array<std::vector<cv::Vec3b>,4> mButtonBGR;
+    std::array<std::vector<cv::Vec3b>,4> mLstRowBGR;
+    void recordButton(const char* button, WState bs);
+    void recordLstRow(const char* list, cv::Point mouse, WState bs);
     void getRowsByState(const ClassifiedRect** rows);
     bool calculateAverage(bool incomplete);
-    std::array<cv::Vec3b,4> mButtonLuvAverage;
-    std::array<cv::Vec3b,4> mLstRowLuvAverage;
+    std::array<cv::Vec3b,4> mButtonBGRAverage;
+    std::array<cv::Vec3b,4> mLstRowBGRAverage;
     HistogramTemplate mDetector;
 };
 

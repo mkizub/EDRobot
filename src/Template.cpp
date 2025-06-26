@@ -48,6 +48,31 @@ double SequenceTemplate::debugMatch(ClassifyEnv& env) {
     return sum;
 }
 
+
+ShipTemplate::ShipTemplate(const std::vector<std::string>& shipList)
+{
+    this->ships.reserve(shipList.size());
+    for (auto s : shipList) {
+        this->ships.push_back(toLower(s));
+    }
+}
+double ShipTemplate::match(ClassifyEnv &env) {
+    std::string ship = toLower(Master::getInstance().getConfiguration()->getShipType());
+    for (auto s : ships) {
+        if (s == ship)
+            return 1;
+    }
+    return 0;
+}
+
+double ShipTemplate::classify(ClassifyEnv &env) {
+    return match(env);
+}
+
+double ShipTemplate::debugMatch(ClassifyEnv &env) {
+    return match(env);
+}
+
 HistogramTemplate::HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::vector<cv::Vec3b>& colors)
     : mMode(mode)
     , mRect(rect)
@@ -98,28 +123,30 @@ double HistogramTemplate::match(ClassifyEnv& env) {
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
         resultColor |= maxLoc[0] << (i*8);
     }
-    cv::Vec3d delta;
+    mLastColorBGR = encodeBGR(resultColor);
     switch (mMode) {
     case CompareMode::Gray:
-        mLastColor = cv::Vec3b(resultColor, 0, 0);
+        mLastColorBGR = sGray2sBgr(resultColor);
         for (size_t i=0; i < mColors.size(); i++) {
-            mLastDistance[i] = std::abs(int(mLastColor[0]) - int(mColors[i][0]));
+            mLastDistance[i] = std::abs(int(resultColor) - int(mColors[i][0]));
             mLastValues[i] = xxx(mLastDistance[i], 7);
         }
         break;
-    case CompareMode::Luv:
-        mLastColor = rgb2luv(encodeRGB(resultColor));
+    case CompareMode::Hsv:
         for (size_t i=0; i < mColors.size(); i++) {
-            delta = cv::Vec3d(mLastColor) - cv::Vec3d(mColors[i]);
-            mLastDistance[i] = cv::norm(delta);
+            mLastDistance[i] = distanceHsv(sBgr2Hsv(mLastColorBGR), mColors[i]);
+            mLastValues[i] = xxx(mLastDistance[i], 25);
+        }
+        break;
+    case CompareMode::Luv:
+        for (size_t i=0; i < mColors.size(); i++) {
+            mLastDistance[i] = distanceLuv(sBgr2Luv(mLastColorBGR), mColors[i]);
             mLastValues[i] = xxx(mLastDistance[i], 20);
         }
         break;
-    case CompareMode::RGB:
-        mLastColor = encodeRGB(resultColor);
+    case CompareMode::BGR:
         for (size_t i=0; i < mColors.size(); i++) {
-            delta = cv::Vec3d(mLastColor) - cv::Vec3d(mColors[i]);
-            mLastDistance[i] = cv::norm(delta);
+            mLastDistance[i] = distanceBGR(mLastColorBGR, mColors[i]);
             mLastValues[i] = xxx(mLastDistance[i], 25);
         }
         break;
@@ -152,7 +179,7 @@ BaseImageTemplate::BaseImageTemplate(
 }
 
 bool BaseImageTemplate::loadImageAndMask(const std::string& filename, cv::Mat& image, cv::Mat& mask) {
-    image = cv::imread(filename, cv::IMREAD_UNCHANGED); // assume RGB/RGBA
+    image = cv::imread(filename, cv::IMREAD_UNCHANGED); // assume BGR/BGRA
     if (image.empty()) {
         LOG(ERROR) << "Template image " << filename << " not found";
         throw std::runtime_error(std::format("Cannot read %s", filename));
@@ -181,9 +208,9 @@ bool BaseImageTemplate::extractImageMask(cv::Mat& image, cv::Mat& mask) {
         image.forEach<cv::Vec4b>(Functor);
     }
     else if (image.channels() == 3) {
-        cv::Mat rgba;
-        cv::cvtColor(image, rgba, cv::COLOR_RGB2RGBA);
-        image = rgba;
+        cv::Mat bgra;
+        cv::cvtColor(image, bgra, cv::COLOR_BGR2BGRA);
+        image = bgra;
         mask.release();
     }
     return true;
@@ -326,9 +353,9 @@ double ImageTemplate::match(ClassifyEnv& env) {
     if (!name.empty() && maxVal >= threshold_min) {
         matchedCaptureOffset = maxLoc - (captureRect.tl() - matchRect.tl());
         captureRect = {captureRect.tl()+matchedCaptureOffset, captureRect.br()+matchedCaptureOffset};
-        env.classified.emplace_back(ClsDetType::TemplateDetected, name, referenceRect + env.scaleToReference(matchedCaptureOffset));
-        env.classified.back().u.templ.referenceRect = referenceRect;
-        env.classified.back().u.templ.scale = 1;
+        env.classified.emplace_back(ClsDetType::Detected, name, referenceRect + env.scaleToReference(matchedCaptureOffset));
+        env.classified.back().u.tdet.referenceRect = referenceRect;
+        env.classified.back().u.tdet.scale = 1;
     }
     return maxVal;
 }
@@ -438,10 +465,10 @@ double ImageMultiScaleTemplate::match(ClassifyEnv &env) {
         captureRect.height *= lastScale;
     }
     if (!name.empty() && bestScaleVal >= threshold_min) {
-        env.classified.emplace_back(ClsDetType::TemplateDetected, name,
+        env.classified.emplace_back(ClsDetType::Detected, name,
                                     referenceRect + env.scaleToReference(matchedCaptureOffset));
-        env.classified.back().u.templ.referenceRect = referenceRect;
-        env.classified.back().u.templ.scale = lastScale;
+        env.classified.back().u.tdet.referenceRect = referenceRect;
+        env.classified.back().u.tdet.scale = lastScale;
     }
     return bestScaleVal;
 }
@@ -670,7 +697,7 @@ void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenc
 
         // Create HSV Image and threshold into a range.
         cv::Mat hsv;
-        cv::cvtColor(img, hsv, cv::COLOR_RGB2HSV);
+        cv::cvtColor(img, hsv, cv::COLOR_BGR2HSV);
         cv::Mat mask;
         cv::inRange(hsv, lower, upper, mask);
         output.release();
@@ -725,13 +752,19 @@ TilesDetector::TilesDetector(const std::string& name, spEvalRect& rect, int rows
     }
 }
 
-bool TilesDetector::xInRange(int x, int width, int gap) {
+bool TilesDetector::getColSpan(int& col, int& span, cv::Rect& bbox, cv::Rect& captureRect, int gap) const {
+    col = -1;
+    span = -1;
     for (int i=0; i <= mMaxCols; i++) {
-        int x_col = i * width / mMaxCols;
-        if (x >= x_col-gap && x <= x_col+gap)
-            return true;
+        int x_col = i * captureRect.width / mMaxCols;
+        if (bbox.x >= x_col-gap && bbox.x <= x_col+gap) {
+            col = i;
+        }
+        if ((bbox.x+bbox.width) >= x_col-gap && (bbox.x+bbox.width) <= x_col+gap) {
+            span = i - col;
+        }
     }
-    return false;
+    return col >= 0 && span > 0;
 }
 
 double TilesDetector::match(ClassifyEnv &env) {
@@ -740,10 +773,7 @@ double TilesDetector::match(ClassifyEnv &env) {
     if (roiImage.empty())
         return 0;
 
-    cv::Vec3b normColor = Master::getInstance().getConfiguration()->getButtonLuvColor(WState::Normal);
-    if (normColor == cv::Vec3b::zeros())
-        normColor = cv::Vec3b(10,95,130);
-    unsigned buttonGrayColor = rgb2gray(luv2rgb(normColor));
+    unsigned buttonGrayColor = Master::getInstance().getConfiguration()->getButtonGrayColor(WState::Normal);
     cv::Mat thrImage;
     cv::threshold(roiImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
 
@@ -776,16 +806,18 @@ double TilesDetector::match(ClassifyEnv &env) {
             cv::approxPolyN(convex, approx, 4, 5, true);
             cv::Rect bbox = cv::boundingRect(approx);
             if (bbox.width >= minTileWidth && bbox.height >= minTileHeight &&
-                xInRange(bbox.x, captureRect.width, int(mGap * env.getScale())) &&
-                xInRange(bbox.x+bbox.width, captureRect.width, int(mGap * env.getScale())) &&
                 bbox.area() >= minTileArea && bbox.area() <= maxTileArea)
             {
+                int col, span;
+                if (!getColSpan(col, span, bbox, captureRect, int(mGap * env.getScale())))
+                    continue;
                 bbox += captureRect.tl();
                 bbox &= captureRect;
                 cv::Rect refRect = env.cvtCapturedToReference(bbox);
-                mDetectedTiles.emplace_back(ClsDetType::TemplateDetected, name+":", refRect);
-                mDetectedTiles.back().u.templ.referenceRect = refRect;
-                mDetectedTiles.back().u.templ.scale = env.getScale();
+                mDetectedTiles.emplace_back(ClsDetType::Tile, name+":", refRect);
+                mDetectedTiles.back().u.tile.row = -1;
+                mDetectedTiles.back().u.tile.col = col;
+                mDetectedTiles.back().u.tile.span = span;
             }
         }
     }
@@ -795,6 +827,24 @@ double TilesDetector::match(ClassifyEnv &env) {
         area += env.scaleToCaptured(cr.detectedRect.size()).area();
     if (area < captureRect.area() * 0.8)
         return 0;
+
+    for (int c=0; c < mMaxCols; c++) {
+        std::vector<ClassifiedRect*> colSet;
+        for (auto& cr : mDetectedTiles) {
+            if (cr.u.tile.col <= c && cr.u.tile.col + cr.u.tile.span > c)
+                colSet.push_back(&cr);
+        }
+        std::sort(colSet.begin(), colSet.end(), [](ClassifiedRect* c1, ClassifiedRect* c2){
+            return c1->detectedRect.y < c2->detectedRect.y;
+        });
+        int row = 0;
+        for (ClassifiedRect* cr : colSet) {
+            if (cr->u.tile.row > row)
+                row = cr->u.tile.row + 1;
+            else
+                cr->u.tile.row = row++;
+        }
+    }
 
     for (auto& cr : mDetectedTiles) {
         cv::Rect tileRect = env.cvtReferenceToCaptured(cr.detectedRect);
@@ -820,11 +870,16 @@ double TilesDetector::match(ClassifyEnv &env) {
         }
         if (!name.empty() && bestIcon && bestIconVal >= threshold_min) {
             cr.text = name + ":" + bestIcon->name;
-            LOG(DEBUG) << "TilesDetector matched result: " << std::setprecision(3) << bestIconVal << " for " << cr.text;
+            LOG(DEBUG) << "TilesDetector matched result: " << std::setprecision(3) << bestIconVal
+                       << " for " << cr.text
+                       << " row:" << cr.u.tile.row << " col:" << cr.u.tile.col << " span:" << cr.u.tile.span;
             env.classified.push_back(cr);
         } else {
-            LOG(DEBUG) << "TilesDetector matched failed: " << std::setprecision(3) << bestIconVal << " for "
-                       << (bestIcon ? bestIcon->name : "all") << " rect " << cr.detectedRect;
+            LOG(DEBUG) << "TilesDetector matched failed: " << std::setprecision(3) << bestIconVal
+                       << " for " << (bestIcon ? bestIcon->name : "all")
+                       << " row:" << cr.u.tile.row << " col:" << cr.u.tile.col << " span:" << cr.u.tile.span
+                       << " rect " << cr.detectedRect;
+            env.classified.push_back(cr);
         }
     }
     return 1;
@@ -835,11 +890,13 @@ double TilesDetector::classify(ClassifyEnv &env) {
 }
 
 double TilesDetector::debugMatch(ClassifyEnv &env) {
+    //CompassDetector::tryLowerUpperBoundsGUI(env, mRect->calcReferenceRect(env));
     double value = match(env);
     LOG(INFO) << " detected " << mDetectedTiles.size() << " tiles:";
     for (auto& cr : env.classified) {
-        if (cr.cdt == ClsDetType::TemplateDetected && cr.text.starts_with(name+":")) {
-            LOG(INFO) << "   tile: '" << cr.text << "' rect: " << cr.detectedRect << " scale: " << cr.u.templ.scale;
+        if (cr.cdt == ClsDetType::Tile && cr.text.starts_with(name+":")) {
+            LOG(INFO) << "   tile: '" << cr.text << "' rect: " << cr.detectedRect
+                      << " col: " << cr.u.tile.col << " row: " << cr.u.tile.row;
         }
     }
     cv::Scalar colorOk(96, 255, 255);

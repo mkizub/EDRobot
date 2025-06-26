@@ -30,7 +30,7 @@ private:
     HDC hdcScreen;
     HDC hdcMem;
     HBITMAP hBitmap;
-    BITMAPINFOHEADER bitmapInfoHeader;
+    BITMAPV5HEADER bitmapInfoHeader;
 
     mutable std::deque<Frame*> recycledFrames;
     mutable std::mutex mCaptureMutex;

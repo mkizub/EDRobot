@@ -7,6 +7,10 @@
 #include <locale>
 #include <codecvt>
 
+#include <png.h>
+#include <stdio.h>
+#include <filesystem>
+
 #include "Keyboard.h"
 
 std::string getErrorMessage() {
@@ -124,37 +128,110 @@ bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2
     return true;
 }
 
-cv::Vec3b encodeRGB(unsigned rgb) {
-    return cv::Vec3b(rgb & 0xFF, (rgb>>8) & 0xFF, (rgb>>16)&0xFF);
+cv::Vec3b encodeBGR(unsigned bgr) {
+    return cv::Vec3b(bgr & 0xFF, (bgr>>8) & 0xFF, (bgr>>16)&0xFF);
 }
-unsigned decodeRGB(cv::Vec3b rgb) {
-    return rgb[0] | (rgb[1] << 8) | (rgb[2] << 16);
+unsigned decodeBGR(const cv::Vec3b& bgr) {
+    return bgr[0] | (bgr[1] << 8) | (bgr[2] << 16);
 }
 
-unsigned rgb2gray(cv::Vec3b rgb) {
-    cv::Mat3b in(rgb, false);
-    cv::Mat1b out;
-    cv::cvtColor(in, out, cv::COLOR_RGB2GRAY);
-    return out.at<uchar>(0);
+// convert a single linear BRG/RGB component (0.0-1.0) to sRGB
+static inline uchar linearToSrgb(float c) {
+    assert (c >= 0.f && c <= 1.f);
+    uchar res;
+    if (c <= 0.0031308f) {
+        res = (uchar)(255.f * c * 12.92f);
+    } else {
+        res = (uchar)255.f * (1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f);
+    }
+    return res;
 }
-cv::Vec3b gray2rgb(unsigned gray) {
-    cv::Mat3b in;
-    in.at<uchar>(0) = gray;
-    cv::Mat1b out;
-    cv::cvtColor(in, out, cv::COLOR_GRAY2RGB);
-    return out.at<cv::Vec3b>(0);
+
+cv::Vec3b lBgr2sBgr(const cv::Vec3f& lbgr) {
+    uchar b = linearToSrgb(lbgr[0]);
+    uchar g = linearToSrgb(lbgr[1]);
+    uchar r = linearToSrgb(lbgr[2]);
+    return {b, g, r};
 }
-cv::Vec3b rgb2luv(const cv::Vec3b& rgb) {
-    cv::Mat3b in(rgb, false);
+
+static inline float srgbToLinear(float c) {
+    assert (c >= 0.f && c <= 1.f);
+    float res;
+    if (c <= 0.04045f) {
+        res = c / 12.92f;
+    } else {
+        res = std::pow((c + 0.055f) / 1.055f, 2.4f);
+    }
+    return res;
+}
+cv::Vec3f sBgr2lBgr(const cv::Vec3b& sbgr) {
+    float b = srgbToLinear(sbgr[0] / 255.f);
+    float g = srgbToLinear(sbgr[1] / 255.f);
+    float r = srgbToLinear(sbgr[2] / 255.f);
+    return {b, g, r};
+}
+
+unsigned sBgr2sGray(const cv::Vec3b& bgr) {
+    float gr = (0.114f * bgr[0]) + (0.587f * bgr[1]) + (0.299f * bgr[2]);
+    return std::clamp((unsigned)std::round(gr), 0U, 255U);;
+//    cv::Mat3b in(bgr, false);
+//    cv::Mat1b out;
+//    cv::cvtColor(in, out, cv::COLOR_BGR2GRAY);
+//    return out.at<uchar>(0);
+}
+cv::Vec3b sGray2sBgr(unsigned gray) {
+    uchar gr = std::clamp(gray, 0U, 255U);
+    return {gr, gr, gr};
+//    float g = std::clamp(gray / 255.f, 0.f, 1.f);
+//    cv::Mat1f in(1, 1, g);
+//    cv::Mat3f out;
+//    cv::cvtColor(in, out, cv::COLOR_GRAY2BGR);
+//    cv::Vec3f& res = out.at<cv::Vec3f>(0);
+//    return lBgr2sBgr(res);
+}
+cv::Vec3b sBgr2Luv(const cv::Vec3b& bgr) {
+    cv::Mat3b in(bgr, false);
     cv::Mat3b out;
-    cv::cvtColor(in, out, cv::COLOR_RGB2Luv);
+    cv::cvtColor(in, out, cv::COLOR_BGR2Luv);
     return out.at<cv::Vec3b>(0);
 }
-cv::Vec3b luv2rgb(const cv::Vec3b& luv) {
+cv::Vec3b luv2sBgr(const cv::Vec3b& luv) {
     cv::Mat3b in(luv, false);
     cv::Mat3b out;
-    cv::cvtColor(in, out, cv::COLOR_Luv2RGB);
+    cv::cvtColor(in, out, cv::COLOR_Luv2BGR);
     return out.at<cv::Vec3b>(0);
+}
+cv::Vec3b sBgr2Hsv(const cv::Vec3b& bgr) {
+    cv::Mat3b in(bgr, false);
+    cv::Mat3b out;
+    cv::cvtColor(in, out, cv::COLOR_BGR2HSV);
+    return out.at<cv::Vec3b>(0);
+}
+cv::Vec3b hsv2sBgr(const cv::Vec3b& hsv) {
+    cv::Mat3b in(hsv, false);
+    cv::Mat3b out;
+    cv::cvtColor(in, out, cv::COLOR_HSV2BGR);
+    return out.at<cv::Vec3b>(0);
+}
+int distanceBGR(const cv::Vec3b& bgr1, const cv::Vec3b& bgr2) {
+    cv::Vec3f delta = cv::Vec3f(bgr1) - cv::Vec3f(bgr2);
+    int dist = (int)std::round(cv::norm(delta));
+    return dist;
+}
+int distanceLuv(const cv::Vec3b& luv1, const cv::Vec3b& luv2) {
+    cv::Vec3f delta = cv::Vec3f(luv1) - cv::Vec3f(luv2);
+    int dist = (int)std::round(cv::norm(delta));
+    return dist;
+}
+int distanceHsv(const cv::Vec3b& hsv1_, const cv::Vec3b& hsv2_) {
+    cv::Vec3f hsv1 = cv::Vec3f(hsv1_);
+    cv::Vec3f hsv2 = cv::Vec3f(hsv2_);
+    float delta_hue = std::min(std::abs(hsv1[0] - hsv2[0]), 360 - std::abs(hsv1[0] - hsv2[0]));
+    float delta_sat = hsv1[1] - hsv2[1];
+    float delta_val = hsv1[2] - hsv2[2];
+    cv::Vec3f delta = {255.f/180.f*delta_hue, delta_sat, delta_val};
+    int dist = (int)std::round(cv::norm(delta));
+    return dist;
 }
 
 
@@ -190,3 +267,30 @@ std::string encodeShortcut(const std::string& name, unsigned flags) {
     return res;
 }
 
+//bool writePNG(const cv::Mat& image, const std::string& filename) {
+//    std::filesystem::path fpath(filename);
+//    std::filesystem::path directory_path = fpath.parent_path();
+//    if (!std::filesystem::exists(directory_path))
+//        std::filesystem::create_directories(directory_path);
+//
+//    png_image pimg = {};
+//    pimg.version = PNG_IMAGE_VERSION;
+//    pimg.width = image.cols;
+//    pimg.height = image.rows;
+//
+//    if (image.channels() == 4)
+//        pimg.format = PNG_FORMAT_RGBA;
+//    else if (image.channels() == 3)
+//        pimg.format = PNG_FORMAT_RGB;
+//    else if (image.channels() == 1)
+//        pimg.format = PNG_FORMAT_GRAY;
+//    else {
+//        LOG(ERROR) << "Unknown image format, num channels: " << image.channels();
+//        return false;
+//    }
+//
+//    int ok = png_image_write_to_file(&pimg, filename.c_str(), 0, image.data, image.step, nullptr);
+//
+//    return ok;
+//}
+//

@@ -43,13 +43,17 @@ struct Button : public Widget {
 };
 
 struct TileBtn : public Widget {
-    TileBtn(const std::string& name, Widget* parent, const std::string& icon)
+    TileBtn(const std::string& name, Widget* parent, const std::string& icon, int row, int col)
         : Widget(WidgetType::TileBtn, name, parent)
         , icon(icon)
+        , row(row)
+        , col(col)
     {
-        rect = std::shared_ptr<EvalRect>(new TileRect(icon));
+        rect = std::shared_ptr<EvalRect>(new TileRect(icon, row, col));
     }
-    const std::string& icon;
+    const std::string icon;
+    const int row;
+    const int col;
 };
 
 struct Spinner : public Widget {
@@ -77,7 +81,11 @@ struct Dialog : public Widget {
 };
 
 struct Screen : public Widget {
-    Screen(const std::string& name, Widget* parent) : Widget(WidgetType::Screen, name, parent) {}
+    Screen(const std::string& name, Widget* parent, std::optional<GuiFocus> guiFocus)
+        : Widget(WidgetType::Screen, name, parent)
+        , gui(guiFocus)
+    {}
+    std::optional<GuiFocus> gui;
 };
 
 struct Root : public Widget {

@@ -38,6 +38,7 @@ void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFram
     assert (frame);
     assert (captRect.size() == frame->size);
     mFrame.swap(frame);
+    mDebugOverlay = cv::Mat();
     ResolvedEnv::init(monRect, captRect);
 }
 
@@ -117,10 +118,16 @@ cv::Rect ResolvedEnv::cvtCapturedToReference(const cv::Rect& rect) const {
 
 cv::Rect TileRect::calcReferenceRect(const ResolvedEnv& env) const {
     for (auto& cr : env.classified) {
-        if (cr.cdt != ClsDetType::TemplateDetected)
+        if (cr.cdt != ClsDetType::Tile)
             continue;
-        if (name.starts_with(cr.text))
-            return cr.detectedRect;
+        if (!name.empty()) {
+            if (cr.text.starts_with(name))
+                return cr.detectedRect;
+        }
+        if (col >= 0 && row >= 0) {
+            if (col == cr.u.tile.col && row == cr.u.tile.row)
+                return cr.detectedRect;
+        }
     }
     return {};
 }

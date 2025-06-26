@@ -33,15 +33,24 @@ extern std::string toUpper(const std::string& str);
 extern bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2);
 inline bool isLatinLetter(char ch) { return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z'; }
 
-extern cv::Vec3b encodeRGB(unsigned rgb);
-extern unsigned decodeRGB(cv::Vec3b rgb);
+extern cv::Vec3b encodeBGR(unsigned bgr);
+extern unsigned decodeBGR(const cv::Vec3b& bgr);
+extern cv::Vec3b lBgr2sBgr(const cv::Vec3f& lbgr);
+extern cv::Vec3f sBgr2lBgr(const cv::Vec3b& sbgr);
 
-extern unsigned  rgb2gray(cv::Vec3b rgb);
-extern cv::Vec3b gray2rgb(unsigned gray);
-extern cv::Vec3b rgb2luv(const cv::Vec3b& rgb);
-extern cv::Vec3b luv2rgb(const cv::Vec3b& luv);
+extern unsigned  sBgr2sGray(const cv::Vec3b& sbgr);
+extern cv::Vec3b sGray2sBgr(unsigned gray);
+extern cv::Vec3b sBgr2Luv(const cv::Vec3b& sbgr);
+extern cv::Vec3b sBgr2Hsv(const cv::Vec3b& sbgr);
+extern cv::Vec3b luv2sBgr(const cv::Vec3b& luv);
+extern cv::Vec3b hsv2sBgr(const cv::Vec3b& hsv);
+extern int distanceBGR(const cv::Vec3b& bgr1, const cv::Vec3b& bgr2);
+extern int distanceLuv(const cv::Vec3b& luv1, const cv::Vec3b& luv2);
+extern int distanceHsv(const cv::Vec3b& hsv1, const cv::Vec3b& hsv2);
 
 extern std::pair<std::string,unsigned> decodeShortcut(std::string key);
 extern std::string encodeShortcut(const std::string& name, unsigned flags);
+
+//extern bool writePNG(const cv::Mat& image, const std::string& filename);
 
 #endif //EDROBOT_UTILS_H

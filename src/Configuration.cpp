@@ -24,7 +24,42 @@ static void from_json(const json5pp::value& j, Template*& o);
 static void from_json(const json5pp::value& j, cv::Rect& r);
 static widget::Widget* from_json(const json5pp::value& j, widget::Widget* parent);
 
-Configuration::Configuration() {
+Configuration::Configuration()
+{
+    mOrigButtonBGR[int(WState::Normal)]  = { 0, 15, 34};
+    mOrigButtonBGR[int(WState::Focused)] = { 0,111,255};
+    mOrigButtonBGR[int(WState::Active)]  = { 0, 34, 77};
+    mOrigButtonBGR[int(WState::Disabled)]= {25, 25, 25};
+
+    mOrigLstRowBGR[int(WState::Normal)]  = { 6, 20, 39};
+    mOrigLstRowBGR[int(WState::Focused)] = { 0,111,255};
+    mOrigLstRowBGR[int(WState::Active)]  = { 6, 28, 57};
+    mOrigLstRowBGR[int(WState::Disabled)]= {25, 25, 25};
+
+    cv::Vec3b RED = {0, 0, 255};
+    cv::Vec3f lBgr = sBgr2lBgr(RED);
+    unsigned gray = sBgr2sGray(RED);
+    cv::Vec3b sBgrFromGray = sGray2sBgr(gray);
+    cv::Vec3b luv = sBgr2Luv(RED);
+    cv::Vec3b hsv = sBgr2Hsv(RED);
+    cv::Vec3b sBgrFromLuv = luv2sBgr(luv);
+    cv::Vec3b sBgrFromHsv = hsv2sBgr(hsv);
+
+
+    mUseCalibratedColors = false;
+    for (int i=0; i < 4; i++) {
+        mCalcButtonBGR[i] = mOrigButtonBGR[i];
+        mCalcLstRowBGR[i] = mOrigLstRowBGR[i];
+
+        mCalcButtonHsv[i] = sBgr2Hsv(mOrigButtonBGR[i]);
+        mCalcLstRowHsv[i] = sBgr2Hsv(mOrigLstRowBGR[i]);
+
+        mCalcButtonLuv[i] = sBgr2Luv(mOrigButtonBGR[i]);
+        mCalcLstRowLuv[i] = sBgr2Luv(mOrigLstRowBGR[i]);
+
+        mCalcButtonGray[i] = sBgr2sGray(mOrigButtonBGR[i]);
+        mCalcLstRowGray[i] = sBgr2sGray(mOrigLstRowBGR[i]);
+    }
 }
 
 Configuration::~Configuration() {
@@ -190,7 +225,7 @@ const KeyBindings& Configuration::getGameKeyBindings(const std::string& name) co
     static KeyBindings undefined;
     const std::unordered_map<std::string,KeyBindings>* map = nullptr;
     switch (guiFocus) {
-    case NoFocus:
+    case None:
     case Right:
     case Left:
     case Chat:
@@ -333,10 +368,27 @@ bool Configuration::loadGameSettings(bool initial) {
                 configGammaOffset = atof(node->text);
             xml_node_free(rootNode);
             rootNode = nullptr;
+            // update colors
+            for (int i=0; i < 4; i++) {
+                double gp = 1.0 / (1.0 + configGammaOffset*0.5);
+                for (int c=0; c < 3; c++) {
+                    mCalcButtonBGR[i][c] = (uchar)std::clamp(255 * std::pow(mOrigButtonBGR[i][c]/255., gp), 0., 255.);
+                    mCalcLstRowBGR[i][c] = (uchar)std::clamp(255 * std::pow(mOrigLstRowBGR[i][c]/255., gp), 0., 255.);
+                }
+                mCalcButtonHsv[i] = sBgr2Hsv(mCalcButtonBGR[i]);
+                mCalcLstRowHsv[i] = sBgr2Hsv(mCalcLstRowBGR[i]);
+                mCalcButtonLuv[i] = sBgr2Luv(mCalcButtonBGR[i]);
+                mCalcLstRowLuv[i] = sBgr2Luv(mCalcLstRowBGR[i]);
+                mCalcButtonGray[i] = sBgr2sGray(mCalcButtonBGR[i]);
+                mCalcLstRowGray[i] = sBgr2sGray(mCalcLstRowBGR[i]);
+                if (!initial)
+                    Master::getInstance().initButtonStateDetector();
+            }
         } else {
             ok = false;
             LOG(ERROR) << "Cannot parse " << filename;
         }
+        mUseCalibratedColors = checkNeedColorCalibration();
     }
 
     //
@@ -492,41 +544,26 @@ bool Configuration::preloadGameJournal() {
         return false;
     }
 
-    std::string line;
-    getline(ifs, line);
+    bool start = true;
+    for (;;) {
+        std::string line;
+        getline(ifs, line);
 
-    std::string error;
-    auto jres = json::parse5(line, &error);
-    if (!jres.has_value()) {
-        LOG(ERROR) << "Error parsing journal file: " << error;
-        return false;
+        std::string event;
+        Timestamp timestamp;
+
+        if (!parseEvent(line, event, timestamp))
+            return false;
+        if (start) {
+            start = false;
+            if (event != "Fileheader") {
+                LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << line;
+                return false;
+            }
+        }
+        else if (event == "Shutdown" || event == "Loadout")
+            return true;
     }
-    auto& j = jres.value();
-    if (!j.is_object() || !j.contains("event") || j["event"] != "Fileheader") {
-        LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << j;
-        return false;
-    }
-
-    //"Odyssey":true, "gameversion":"4.1.2.100"
-
-    auto gameLang = j["language"].as_string();
-    if (gameLang == "Russian/RU" || gameLang.ends_with("/RU"))
-        const_cast<Lang&>(this->lng) = RU;
-    else if (gameLang == "English/EN" || gameLang.ends_with("/EN"))
-        const_cast<Lang&>(this->lng) = EN;
-    else if (gameLang == "English/UK" || gameLang.ends_with("/UK"))
-        const_cast<Lang&>(this->lng) = EN;
-    else {
-        LOG(ERROR) << "Unsupported game language: " << gameLang;
-        const_cast<Lang&>(this->lng) = XX;
-    }
-
-    if (j.contains("Odyssey"))
-        const_cast<bool&>(this->isOdyssey) = j["Odyssey"].as_boolean();
-    else
-        const_cast<bool&>(this->isOdyssey) = false;
-
-    return true;
 }
 
 bool Configuration::loadGameJournal(std::wstring journalFilename) {
@@ -542,54 +579,27 @@ bool Configuration::loadGameJournal(std::wstring journalFilename) {
         return false;
     }
 
-    // TODO: implement log file reading for events via a separate thread + poll
-    // But currently I only extract client language
+    bool start = true;
+    for (;;) {
+        std::string line;
+        getline(ifs, line);
 
-    std::string line;
-    getline(ifs, line);
+        std::string event;
+        Timestamp timestamp;
 
-    std::string error;
-    auto jres = json::parse5(line, &error);
-    if (!jres.has_value()) {
-        LOG(ERROR) << "Error parsing journal file: " << error;
-        return false;
-    }
-    auto& j = jres.value();
-    if (!j.is_object() || !j.contains("event") || j["event"] != "Fileheader") {
-        LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << j;
-        return false;
-    }
-
-    auto gameLang = j["language"].as_string();
-    if (gameLang == "Russian/RU" || gameLang.ends_with("/RU"))
-        const_cast<Lang&>(this->lng) = RU;
-    else if (gameLang == "English/EN" || gameLang.ends_with("/EN"))
-        const_cast<Lang&>(this->lng) = EN;
-    else if (gameLang == "English/UK" || gameLang.ends_with("/UK"))
-        const_cast<Lang&>(this->lng) = EN;
-    else {
-        LOG(ERROR) << "Unsupported game language: " << gameLang;
-        const_cast<Lang&>(this->lng) = XX;
+        if (!parseEvent(line, event, timestamp))
+            return false;
+        if (start) {
+            start = false;
+            if (event != "Fileheader") {
+                LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << line;
+                return false;
+            }
+        }
+        else if (event == "Shutdown" || event == "Loadout")
+            return true;
     }
 
-    return true;
-}
-
-bool Configuration::parseTimestamp(const json::value& value, std::chrono::time_point<std::chrono::utc_clock>& timestamp) {
-    if (value.is_string())
-        return parseTimestamp(value.as_string(), timestamp);
-    if (!value.is_object() || !value.contains("timestamp"))
-        return false;
-    return parseTimestamp(value.at("timestamp").as_string(), timestamp);
-}
-
-bool Configuration::parseTimestamp(const std::string& str, std::chrono::time_point<std::chrono::utc_clock>& timestamp) {
-    std::istringstream iss(str);
-    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
-    if (iss.fail()) {
-        LOG(ERROR) << "Timestamp parse failed, event corrupted?";
-        return false;
-    }
     return true;
 }
 
@@ -625,7 +635,7 @@ bool Configuration::loadGameStatus() {
         status->fireGroup = j["FireGroup"].as_unsigned();
     if (j.contains("GuiFocus")) {
         auto gf = enum_cast<GuiFocus>(j.at("GuiFocus").as_integer());
-        status->guiFocus = gf.has_value() ? gf.value() : GuiFocus::NoFocus;
+        status->guiFocus = gf.has_value() ? gf.value() : GuiFocus::None;
     }
     if (j.contains("Pips")) {
         json::array j_pips = j.at("Pips").as_array();
@@ -682,27 +692,128 @@ bool Configuration::loadCalibration() {
             calibrationFullScreen = fullScreenMode.value();
     }
 
-    mButtonLuv[int(WState::Normal)] = rgb2luv(color_from_json(j.at("normalButton")));
-    mButtonLuv[int(WState::Focused)] = rgb2luv(color_from_json(j.at("focusedButton")));
-    mButtonLuv[int(WState::Active)] = rgb2luv(color_from_json(j.at("activeToggle")));
-    mButtonLuv[int(WState::Disabled)] = rgb2luv(color_from_json(j.at("disabledButton")));
-    mLstRowLuv[int(WState::Normal)] = rgb2luv(color_from_json(j.at("normalRow")));
-    mLstRowLuv[int(WState::Focused)] = rgb2luv(color_from_json(j.at("focusedRow")));
-    mLstRowLuv[int(WState::Active)] = rgb2luv(color_from_json(j.at("activeRow")));
-    mLstRowLuv[int(WState::Disabled)] = rgb2luv(color_from_json(j.at("disabledRow")));
+    mCalibratedButtonBGR[int(WState::Normal)] = color_from_json(j.at("normalButton"));
+    mCalibratedButtonBGR[int(WState::Focused)] = color_from_json(j.at("focusedButton"));
+    mCalibratedButtonBGR[int(WState::Active)] = color_from_json(j.at("activeToggle"));
+    mCalibratedButtonBGR[int(WState::Disabled)] = color_from_json(j.at("disabledButton"));
+    mCalibratedLstRowBGR[int(WState::Normal)] = color_from_json(j.at("normalRow"));
+    mCalibratedLstRowBGR[int(WState::Focused)] = color_from_json(j.at("focusedRow"));
+    mCalibratedLstRowBGR[int(WState::Active)] = color_from_json(j.at("activeRow"));
+    mCalibratedLstRowBGR[int(WState::Disabled)] = color_from_json(j.at("disabledRow"));
+
+    for (int i=0; i < 4; i++) {
+        mCalibratedButtonHsv[i] = sBgr2Hsv(mCalibratedButtonBGR[i]);
+        mCalibratedButtonLuv[i] = sBgr2Luv(mCalibratedButtonBGR[i]);
+        mCalibratedButtonGray[i] = sBgr2sGray(mCalibratedButtonBGR[i]);
+        mCalibratedLstRowHsv[i] = sBgr2Hsv(mCalibratedLstRowBGR[i]);
+        mCalibratedLstRowLuv[i] = sBgr2Luv(mCalibratedLstRowBGR[i]);
+        mCalibratedLstRowGray[i] = sBgr2sGray(mCalibratedLstRowBGR[i]);
+    }
+    mUseCalibratedColors = checkNeedColorCalibration();
     LOG(INFO) << "Calibration data loaded from 'calibration.json5'";
     return true;
 }
 
-void Configuration::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonLuv, const std::array<cv::Vec3b,4>& lstRowLuv)
+void Configuration::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR)
 {
-    mButtonLuv = buttonLuv;
-    mLstRowLuv = lstRowLuv;
+    mUseCalibratedColors = true;
+    for (int i=0; i < 4; i++) {
+        if (buttonBGR[i] == cv::Vec3b::zeros())
+            mCalibratedButtonBGR[i] = mCalcButtonBGR[i];
+        else
+            mCalibratedButtonBGR[i] = buttonBGR[i];
+        mCalibratedButtonHsv[i] = sBgr2Hsv(mCalibratedButtonBGR[i]);
+        mCalibratedButtonLuv[i] = sBgr2Luv(mCalibratedButtonBGR[i]);
+        mCalibratedButtonGray[i] = sBgr2sGray(mCalibratedButtonBGR[i]);
+    }
+    for (int i=0; i < 4; i++) {
+        if (lstRowBGR[i] == cv::Vec3b::zeros())
+            mCalibratedLstRowBGR[i] = mCalcLstRowBGR[i];
+        else
+            mCalibratedLstRowBGR[i] = lstRowBGR[i];
+        mCalibratedLstRowHsv[i] = sBgr2Hsv(mCalibratedLstRowBGR[i]);
+        mCalibratedLstRowLuv[i] = sBgr2Luv(mCalibratedLstRowBGR[i]);
+        mCalibratedLstRowGray[i] = sBgr2sGray(mCalibratedLstRowBGR[i]);
+    }
+
     calibrationDashboardGUIBrightness = configDashboardGUIBrightness;
     calibrationGammaOffset = configGammaOffset;
     calibrationScreenWidth = configScreenWidth;
     calibrationScreenHeight = configScreenHeight;
     calibrationFullScreen = configFullScreen;
+
+    LOG(INFO) << "Set color calibration result:";
+    for (int i=0; i < 4; i++) {
+        WState ws = enum_cast<WState>(i).value();
+        LOG(INFO) << "Button " << enum_name<WState>(ws) << " calc-to-calibrated distance:"
+                  << " bgr " << distanceBGR(mCalcButtonBGR[i], mCalibratedButtonBGR[i])
+                  << " hsv " << distanceHsv(mCalcButtonHsv[i], mCalibratedButtonHsv[i])
+                  << " luv " << distanceLuv(mCalcButtonLuv[i], mCalibratedButtonLuv[i])
+                  << " calc bgr: " << mCalcButtonBGR[i] << " calibrated bgr: " << mCalibratedButtonBGR[i];
+    }
+    int minDistLuv = 1000;
+    int minLuvI = -1;
+    int minLuvJ = -1;
+    int minDistHsv = 1000;
+    int minHsvI = -1;
+    int minHsvJ = -1;
+    int minDistBgr = 1000;
+    int minBgrI = -1;
+    int minBgrJ = -1;
+    for (int i=0; i < 4; i++) {
+        for (int j=0; j < 4; j++) {
+            if (j == i)
+                continue;
+            int distLuv = distanceLuv(mCalibratedButtonLuv[i], mCalibratedButtonLuv[j]);
+            if (distLuv < minDistLuv) { minDistLuv = distLuv; minLuvI = i; minLuvJ = j; }
+            int distHsv = distanceHsv(mCalibratedButtonHsv[i], mCalibratedButtonHsv[j]);
+            if (distHsv < minDistHsv) { minDistHsv = distHsv; minHsvI = i; minHsvJ = j; }
+            int distBgr = distanceBGR(mCalibratedButtonBGR[i], mCalibratedButtonBGR[j]);
+            if (distBgr < minDistBgr) { minDistBgr = distBgr; minBgrI = i; minBgrJ = j; }
+        }
+    }
+    LOG(INFO) << "Button Luv min distance: " << minDistLuv
+              << " between " << enum_name<WState>((WState)minLuvI) << " and " << enum_name<WState>((WState)minLuvJ);
+    LOG(INFO) << "Button Hsv min distance: " << minDistHsv
+              << " between " << enum_name<WState>((WState)minHsvI) << " and " << enum_name<WState>((WState)minHsvJ);
+    LOG(INFO) << "Button BGR min distance: " << minDistBgr
+              << " between " << enum_name<WState>((WState)minBgrI) << " and " << enum_name<WState>((WState)minBgrJ);
+
+    for (int i=0; i < 4; i++) {
+        WState ws = enum_cast<WState>(i).value();
+        LOG(INFO) << "LstRow " << enum_name<WState>(ws) << " calc-to-calibrated distance:"
+                  << " bgr " << distanceBGR(mCalcLstRowBGR[i], mCalibratedLstRowBGR[i])
+                  << " hsv " << distanceHsv(mCalcLstRowHsv[i], mCalibratedLstRowHsv[i])
+                  << " luv " << distanceLuv(mCalcLstRowLuv[i], mCalibratedLstRowLuv[i])
+                  << " calc bgr: " << mCalcLstRowBGR[i] << " calibrated bgr: " << mCalibratedLstRowBGR[i];
+    }
+    minDistLuv = 1000;
+    minLuvI = -1;
+    minLuvJ = -1;
+    minDistHsv = 1000;
+    minHsvI = -1;
+    minHsvJ = -1;
+    minDistBgr = 1000;
+    minBgrI = -1;
+    minBgrJ = -1;
+    for (int i=0; i < 4; i++) {
+        for (int j=0; j < 4; j++) {
+            if (j == i)
+                continue;
+            int distLuv = distanceLuv(mCalibratedLstRowLuv[i], mCalibratedLstRowLuv[j]);
+            if (distLuv < minDistLuv) { minDistLuv = distLuv; minLuvI = i; minLuvJ = j; }
+            int distHsv = distanceHsv(mCalibratedLstRowHsv[i], mCalibratedLstRowHsv[j]);
+            if (distHsv < minDistHsv) { minDistHsv = distHsv; minHsvI = i; minHsvJ = j; }
+            int distBgr = distanceBGR(mCalibratedLstRowBGR[i], mCalibratedLstRowBGR[j]);
+            if (distBgr < minDistBgr) { minDistBgr = distBgr; minBgrI = i; minBgrJ = j; }
+        }
+    }
+    LOG(INFO) << "LstRow Luv min distance: " << minDistLuv
+              << " between " << enum_name<WState>((WState)minLuvI) << " and " << enum_name<WState>((WState)minLuvJ);
+    LOG(INFO) << "LstRow Hsv min distance: " << minDistHsv
+              << " between " << enum_name<WState>((WState)minHsvI) << " and " << enum_name<WState>((WState)minHsvJ);
+    LOG(INFO) << "LstRow BGR min distance: " << minDistBgr
+              << " between " << enum_name<WState>((WState)minBgrI) << " and " << enum_name<WState>((WState)minBgrJ);
 }
 
 bool Configuration::saveCalibration() const {
@@ -715,15 +826,15 @@ bool Configuration::saveCalibration() const {
     wf << "  screenHeight:  " << configScreenHeight << ","  << std::endl;
     wf << "  fullScreen:    " << enum_underlying<FullScreenMode>(configFullScreen) << ", // '" << enum_name<FullScreenMode>(configFullScreen) << "'"  << std::endl;
     wf << "  // button colors " << std::endl;
-    wf << "  normalButton:  " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Normal)]))) << " // Luv " << mButtonLuv[int(WState::Normal)] << std::endl;
-    wf << "  focusedButton: " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Focused)]))) << " // Luv " << mButtonLuv[int(WState::Focused)] << std::endl;
-    wf << "  activeToggle:  " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Active)]))) << " // Luv " << mButtonLuv[int(WState::Active)] << std::endl;
-    wf << "  disabledButton:" << std::format("'#{:06x}',", decodeRGB(luv2rgb(mButtonLuv[int(WState::Disabled)]))) << " // Luv " << mButtonLuv[int(WState::Disabled)] << std::endl;
+    wf << "  normalButton:  " << std::format("'#{:06x}',", decodeBGR(mCalibratedButtonBGR[int(WState::Normal)])) << std::endl;
+    wf << "  focusedButton: " << std::format("'#{:06x}',", decodeBGR(mCalibratedButtonBGR[int(WState::Focused)])) << std::endl;
+    wf << "  activeToggle:  " << std::format("'#{:06x}',", decodeBGR(mCalibratedButtonBGR[int(WState::Active)])) << std::endl;
+    wf << "  disabledButton:" << std::format("'#{:06x}',", decodeBGR(mCalibratedButtonBGR[int(WState::Disabled)])) << std::endl;
     wf << "  // list row colors " << std::endl;
-    wf << "  normalRow:     " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Normal)]))) << " // Luv " << mLstRowLuv[int(WState::Normal)] << std::endl;
-    wf << "  focusedRow:    " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Focused)]))) << " // Luv " << mLstRowLuv[int(WState::Focused)] << std::endl;
-    wf << "  activeRow:     " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Active)]))) << " // Luv " << mLstRowLuv[int(WState::Active)] << std::endl;
-    wf << "  disabledRow:   " << std::format("'#{:06x}',", decodeRGB(luv2rgb(mLstRowLuv[int(WState::Disabled)]))) << " // Luv " << mLstRowLuv[int(WState::Disabled)] << std::endl;
+    wf << "  normalRow:     " << std::format("'#{:06x}',", decodeBGR(mCalibratedLstRowBGR[int(WState::Normal)])) << std::endl;
+    wf << "  focusedRow:    " << std::format("'#{:06x}',", decodeBGR(mCalibratedLstRowBGR[int(WState::Focused)])) << std::endl;
+    wf << "  activeRow:     " << std::format("'#{:06x}',", decodeBGR(mCalibratedLstRowBGR[int(WState::Active)])) << std::endl;
+    wf << "  disabledRow:   " << std::format("'#{:06x}',", decodeBGR(mCalibratedLstRowBGR[int(WState::Disabled)])) << std::endl;
     wf << "}" << std::endl;
     wf.close();
     LOG(INFO) << "Calibration data saved to 'calibration.json5'";
@@ -748,9 +859,9 @@ bool Configuration::checkResolutionSupported(cv::Size gameSize) {
 }
 
 bool Configuration::checkNeedColorCalibration() const {
-    if (std::abs(configDashboardGUIBrightness - calibrationDashboardGUIBrightness) > 0.001)
-        return true;
-    if (std::abs(configGammaOffset - calibrationGammaOffset) > 0.001)
+    //if (std::abs(configDashboardGUIBrightness - calibrationDashboardGUIBrightness) > 0.001)
+    //    return true;
+    if (std::abs(configGammaOffset - calibrationGammaOffset) > 0.1)
         return true;
     return false;
 }
@@ -968,7 +1079,7 @@ bool Configuration::loadMarket() {
     }
     if (!j_market)
         return false;
-    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    Timestamp timestamp;
     std::istringstream iss(j_market.at("timestamp").as_string());
     iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
     if (iss.fail()) {
@@ -1023,7 +1134,7 @@ bool Configuration::loadMarket() {
         dumpCommodityDatabase();
 
     currentMarket.exchange(market);
-    std::chrono::time_point<std::chrono::utc_clock> zero_time;
+    Timestamp zero_time;
     for (auto& c : allKnownCommodities) {
         if (c.market.timestamp > zero_time && c.market.timestamp < timestamp) {
             c.market = {};
@@ -1048,7 +1159,7 @@ bool Configuration::loadCargo() {
     }
     if (!j_cargo)
         return false;
-    std::chrono::time_point<std::chrono::utc_clock> timestamp;
+    Timestamp timestamp;
     std::istringstream iss(j_cargo.at("timestamp").as_string());
     iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
     if (iss.fail()) {
@@ -1079,7 +1190,7 @@ bool Configuration::loadCargo() {
         cargo->inventory.push_back(c);
     }
     currentCargo.exchange(cargo);
-    std::chrono::time_point<std::chrono::utc_clock> zero_time;
+    Timestamp zero_time;
     for (auto& c : allKnownCommodities) {
         if (c.ship.timestamp > zero_time && c.ship.timestamp < timestamp) {
             c.ship = {};
@@ -1283,39 +1394,39 @@ void Configuration::changeDirThreadLoop() {
 using namespace widget;
 
 static cv::Vec3b color_from_json(const json::value& v) {
-    unsigned rgb = 0;
+    unsigned bgr = 0;
     if (v.is_number())
-        rgb = v.as_unsigned();
+        bgr = v.as_unsigned();
     else if (v.is_array()) {
         unsigned r = v.as_array().at(0).as_unsigned();
         unsigned g = v.as_array().at(1).as_unsigned();
         unsigned b = v.as_array().at(2).as_unsigned();
-        rgb = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
+        bgr = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
     }
     else if (v.is_string()) {
         auto s = v.as_string();
         if (s.size() == 7 && s[0] == '#')
-            rgb = std::stol(s.substr(1), nullptr, 16);
+            bgr = std::stol(s.substr(1), nullptr, 16);
     }
-    return encodeRGB(rgb);
+    return encodeBGR(bgr);
 }
 
 static cv::Vec3b color_from_json(const json5pp::value& v) {
-    unsigned rgb = 0;
+    unsigned bgr = 0;
     if (v.is_integer())
-        rgb = v.as_integer();
+        bgr = v.as_integer();
     else if (v.is_array()) {
         unsigned r = v.as_array().at(0).as_integer();
         unsigned g = v.as_array().at(1).as_integer();
         unsigned b = v.as_array().at(2).as_integer();
-        rgb = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
+        bgr = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
     }
     else if (v.is_string()) {
         auto& s = v.as_string();
         if (s.size() == 7 && s[0] == '#')
-            rgb = std::stol(s.substr(1), nullptr, 16);
+            bgr = std::stol(s.substr(1), nullptr, 16);
     }
-    return encodeRGB(rgb);
+    return encodeBGR(bgr);
 }
 
 static void from_json(const json5pp::value& j, Template*& o) {
@@ -1421,9 +1532,22 @@ static void from_json(const json5pp::value& j, Template*& o) {
                     std::swap(tmin, tmax);
             }
             std::vector<std::string> icons;
-            for (auto& jic : jo.at("icons").as_array())
-                icons.push_back(jic.as_string());
+            if (jo.contains("icons") && jo.at("icons").is_array()) {
+                for (auto &jic: jo.at("icons").as_array())
+                    icons.push_back(jic.as_string());
+            }
             o = new TilesDetector(name, rect, rows, cols, gap, tmin, tmax, icons);
+        }
+        else if (j.as_object().contains("ship")) {
+            auto& jo = j.as_object();
+            std::vector<std::string> ships;
+            if (jo.at("ship").is_string())
+                ships.push_back(jo.at("ship").as_string());
+            else if (jo.at("ship").is_array()) {
+                for (auto &js: jo.at("shop").as_array())
+                    ships.push_back(js.as_string());
+            }
+            o = new ShipTemplate(ships);
         }
         return;
     }
@@ -1484,7 +1608,10 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
     auto& jo = j.as_object();
     auto name = jo.at("name").as_string();
     if (name.starts_with("scr-")) {
-        auto scr = new Screen(name, parent);
+        std::optional<GuiFocus> gui;
+        if (jo.contains("gui"))
+            gui = enum_cast<GuiFocus>(jo.at("gui").as_string());
+        auto scr = new Screen(name, parent, gui);
         child = scr;
     }
     else if (name.starts_with("dlg-")) {
@@ -1498,11 +1625,20 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
     else if (name.starts_with("btn-")) {
         auto btn = new Button(name, parent);
         child = btn;
-        child->setRect(jo.at("rect"));
+        if (jo.contains("rect"))
+            child->setRect(jo.at("rect"));
     }
     else if (name.starts_with("til-")) {
-        auto icon = jo.at("icon").as_string();
-        auto btn = new TileBtn(name, parent, icon);
+        std::string icon;
+        int row = -1;
+        int col = -1;
+        if (jo.contains("icon"))
+            icon = jo.at("icon").as_string();
+        if (jo.contains("row"))
+            row = jo.at("row").as_integer();
+        if (jo.contains("col"))
+            col = jo.at("col").as_integer();
+        auto btn = new TileBtn(name, parent, icon, row, col);
         child = btn;
     }
     else if (name.starts_with("spn-")) {

@@ -125,7 +125,7 @@ const cv::Mat& FrameWinRT::getColorImage() const {
 const cv::Mat& FrameWinRT::getGrayImage() const {
     if (grayImageValid)
         return grayImage;
-    cv::cvtColor(getColorImage(), grayImage, cv::COLOR_RGBA2GRAY);
+    cv::cvtColor(getColorImage(), grayImage, cv::COLOR_BGRA2GRAY);
     grayImageValid = true;
     return grayImage;
 }

@@ -139,7 +139,7 @@ static int getIntValue(const std::string_view& view, const ResolvedEnv& env) {
     const ClassifiedRect* cr = nullptr;
     const std::string_view& name = view.substr(0,dot);
     for (auto& it : env.classified) {
-        if (it.cdt == ClsDetType::TemplateDetected && name == it.text) {
+        if (it.cdt == ClsDetType::Detected && name == it.text) {
             cr = &it;
             break;
         }
@@ -166,9 +166,9 @@ static int getIntValue(const std::string_view& view, const ResolvedEnv& env) {
     if (field == "cy" || field == "center_y")
         return cr->detectedRect.y + cr->detectedRect.height/2;
     if (field == "ox" || field == "offset_x")
-        return cr->detectedRect.x - cr->u.templ.referenceRect.x;
+        return cr->detectedRect.x - cr->u.tdet.referenceRect.x;
     if (field == "oy" || field == "offset_y")
-        return cr->detectedRect.y - cr->u.templ.referenceRect.y;
+        return cr->detectedRect.y - cr->u.tdet.referenceRect.y;
     LOG(ERROR) << "Field " << field << " not known, use x,y,w,h,l,t,r,b and cx,cy, ox, oy";
     return 0;
 }
