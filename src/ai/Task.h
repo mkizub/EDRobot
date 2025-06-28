@@ -13,14 +13,14 @@ namespace ai {
 
 class Task {
 public:
-    Task(Task* parent, AIManager& mgr, TaskTemplate& templ);
+    Task(Task* parent, AIManager& mgr, const TaskTemplate& templ);
     virtual ~Task() = default;
     virtual Result run() = 0;
     virtual Result run_sub_task(upTask& task);
 
     Task const * parent;
     AIManager& mgr;
-    TaskTemplate& templ;
+    TaskTemplate templ;
 
     void sleep(int milliseconds) const;
     bool sendKey(const std::string& name, int delay_ms = 35, int pause_ms = 50) const;
@@ -55,7 +55,7 @@ public:
 
 class TaskCalibrate final : public Task {
 public:
-    TaskCalibrate(AIManager& mgr);
+    TaskCalibrate(Task* parent, AIManager& mgr, const TaskTemplate& templ);
     Result run() final;
 private:
     std::array<std::vector<cv::Vec3b>,4> mButtonBGR;
@@ -73,7 +73,7 @@ class TaskSell;
 
 class TaskSellAll final : public Task {
 public:
-    TaskSellAll(Task* parent, AIManager& mgr, int chunk);
+    TaskSellAll(Task* parent, AIManager& mgr, const TaskTemplate& templ);
     Result run() final;
 private:
     void plan();
@@ -84,7 +84,7 @@ private:
 
 class TaskSell final : public Task {
 public:
-    TaskSell(Task* parent, AIManager& mgr, Commodity* commodity, int amount, int chunk);
+    TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ);
     Result run() final;
 
     Commodity* mCommodity;
@@ -96,7 +96,7 @@ public:
 
 class TaskDebugFindAllCommodities final : public Task {
 public:
-    TaskDebugFindAllCommodities(AIManager& mgr);
+    TaskDebugFindAllCommodities(Task* parent, AIManager& mgr, const TaskTemplate& templ);
     Result run() final;
 private:
     bool checkCommodity(Commodity* commodity, const std::string& marketMode, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify);

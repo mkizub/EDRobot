@@ -6,6 +6,7 @@
 
 #include "ui/UIManager.h"
 #include "ai/AIManager.h"
+#include "ai/TaskTemplate.h"
 #include "Keyboard.h"
 #include "Template.h"
 #include "Capturer.h"
@@ -306,8 +307,6 @@ void Master::initializeInternal(std::string ocr_dir) {
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
-    LOG(INFO) << "Initializing UI";
-    UIManager::initialize();
     LOG(INFO) << "Initializing OpenCV";
 
     mConfiguration = new Configuration();
@@ -594,8 +593,8 @@ bool Master::startCalibration() {
     if (!preInitTask(false))
         return false;
     LOG(INFO) << "Staring calibration task";
-    mAIManager->new_task(std::make_unique<ai::TaskCalibrate>(*mAIManager));
-    return true;
+    auto& templ = mAIManager->getTaskTemplate(ai::ED_TASK_CALIBRATE);
+    return mAIManager->new_task(templ);
 }
 
 
@@ -850,9 +849,15 @@ bool Master::startTrade() {
 
     LOG(INFO) << "Staring new trade task";
     if (commodity) {
-        mAIManager->new_task(std::make_unique<ai::TaskSell>(nullptr, *mAIManager, commodity, total, chunk));
+        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL);
+        templ.set("commodity", commodity->nameId);
+        templ.set("amount", total);
+        templ.set("chunk", chunk);
+        mAIManager->new_task(std::make_unique<ai::TaskSell>(nullptr, *mAIManager, templ));
     } else {
-        mAIManager->new_task(std::make_unique<ai::TaskSellAll>(nullptr, *mAIManager, chunk));
+        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL_ALL);
+        templ.set("chunk", chunk);
+        mAIManager->new_task(templ);
     }
     return true;
 }
@@ -876,8 +881,8 @@ bool Master::debugFindAllCommodities() {
     if (!preInitTask())
         return false;
     LOG(INFO) << "Staring new debug task";
-    mAIManager->new_task(std::make_unique<ai::TaskDebugFindAllCommodities>(*mAIManager));
-    return true;
+    auto& templ = mAIManager->getTaskTemplate(ai::ED_TASK_DEBUG_FILE_ALL_COMMODITIES);
+    return mAIManager->new_task(templ);
 }
 
 const json5pp::value& Master::getTaskActions(const std::string& action) {

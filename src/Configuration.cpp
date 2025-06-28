@@ -946,6 +946,15 @@ CommodityCategory* Configuration::getCommodityCategoryByName(const std::string& 
     return nullptr;
 }
 
+Commodity* Configuration::getCommodityById(const std::string& id) {
+    if (id.empty())
+        return nullptr;
+    auto it = commodityMap.find(id);
+    if (it != commodityMap.end())
+        return it->second;
+    return nullptr;
+}
+
 Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy) {
     if (name.empty())
         return nullptr;

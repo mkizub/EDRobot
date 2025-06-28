@@ -8,7 +8,7 @@
 #define EDROBOT_AIMANAGER_H
 
 #include "Types.h"
-#include "EDState.h"
+#include "TaskTemplate.h"
 #include "Task.h"
 
 namespace ai {
@@ -20,9 +20,15 @@ public:
     ~AIManager();
 
     bool active();
+    void stop();
     void interrupt();
     void resume();
-    void new_task(upTask&& task);
+    const TaskTemplate& curr_task();
+    bool new_task(upTask&& task);
+    bool new_task(const TaskTemplate& templ);
+
+    const std::vector<TaskTemplate*>& getTaskTemplates();
+    const TaskTemplate& getTaskTemplate(const std::string& name);
 
     enum class CheckResult {
         Failure,
@@ -38,6 +44,12 @@ public:
 
     Master& master;
     Configuration& cfg;
+
+    void initTemplates();
+
+    std::vector<TaskTemplate> AllImplementedTasks;
+    std::vector<TaskTemplate*> AllImplementedTaskRefs;
+    std::map<std::string,TaskTemplate*> AllImplementedTaskMap;
 
     EDState edState;
     upTask activeTask;

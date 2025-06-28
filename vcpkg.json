@@ -17,5 +17,8 @@
     "name" : "tesseract",
     "version>=" : "5.5.1",
     "default-features" : false
+  }, {
+    "name" : "winlamb",
+    "version>=" : "2020-10-15"
   } ]
 }

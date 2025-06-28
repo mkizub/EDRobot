@@ -13,7 +13,7 @@
 
 namespace ai {
 
-Task::Task(Task* parent, AIManager& mgr, TaskTemplate& templ)
+Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ)
     : parent(parent)
     , mgr(mgr)
     , templ(templ)
@@ -402,12 +402,11 @@ void Task::task_return(Result res, const char* msg) const {
     throw nonlocal_return(res, this, msg);
 }
 
-extern TaskTemplate ED_Task_Calibrate;
-
-TaskCalibrate::TaskCalibrate(AIManager& mgr)
-    : Task(nullptr, mgr, ED_Task_Calibrate)
+TaskCalibrate::TaskCalibrate(Task* parent, AIManager& mgr, const TaskTemplate& templ)
+    : Task(parent, mgr, templ)
     , mDetector(HistogramTemplate::CompareMode::Hsv, cv::Rect(), cv::Vec3b())
 {
+    assert(templ.name == ED_TASK_CALIBRATE);
     taskName = "Calibration";
 }
 
@@ -768,13 +767,15 @@ Result TaskCalibrate::run() {
     return Result::Success;
 }
 
-extern TaskTemplate ED_Task_Market_Sell_All;
-extern TaskTemplate ED_Task_Market_Sell;
-
-TaskSellAll::TaskSellAll(Task* parent, AIManager& mgr, int chunk)
-        : Task(parent, mgr, ED_Task_Market_Sell)
-        , mChunk(chunk)
+TaskSellAll::TaskSellAll(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+        : Task(parent, mgr, templ_)
+        , mChunk(1000)
 {
+    assert (templ.name == ED_TASK_MARKET_SELL_ALL);
+    for (auto& p : templ.params) {
+        if (p.name == "chunk")
+            mChunk = std::get<int64_t>(p.value);
+    }
 }
 
 void TaskSellAll::plan() {
@@ -799,7 +800,11 @@ void TaskSellAll::plan() {
                 old->mTotal = toSell;
                 old->mItems = mChunk;
             } else {
-                sub_tasks.push_back(std::make_unique<TaskSell>(this, mgr, commodity, toSell, mChunk));
+                TaskTemplate impl = mgr.getTaskTemplate(ED_TASK_MARKET_SELL);
+                impl.set("commodity", commodity->nameId);
+                impl.set("amount", toSell);
+                impl.set("chunk", mChunk);
+                sub_tasks.push_back(std::make_unique<TaskSell>(this, mgr, impl));
             }
         }
         else if (old) {
@@ -871,12 +876,21 @@ Result TaskSellAll::run() {
     return result;
 }
 
-TaskSell::TaskSell(Task* parent, AIManager& mgr, Commodity* commodity, int amount, int items)
-    : Task(parent, mgr, ED_Task_Market_Sell)
-    , mCommodity(commodity)
-    , mTotal(amount)
-    , mItems(items)
+TaskSell::TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+    : Task(parent, mgr, templ_)
+    , mCommodity(nullptr)
+    , mTotal(1000)
+    , mItems(1000)
 {
+    assert (templ.name == ED_TASK_MARKET_SELL);
+    for (auto& p : templ.params) {
+        if (p.name == "commodity")
+            mCommodity = mgr.cfg.getCommodityById(std::get<std::string>(p.value));
+        if (p.name == "amount")
+            mTotal = std::get<int64_t>(p.value);
+        if (p.name == "chunk")
+            mItems = std::get<int64_t>(p.value);
+    }
 }
 
 Result TaskSell::run() {
@@ -1012,14 +1026,13 @@ Result TaskSell::run() {
     return Result::Success;
 }
 
-extern TaskTemplate ED_Task_DebugFindAllCommodities;
-
-TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(AIManager& mgr)
-    : Task(nullptr, mgr, ED_Task_DebugFindAllCommodities)
+TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Task* parent, AIManager& mgr, const TaskTemplate& templ)
+    : Task(parent, mgr, templ)
     , shuffle(false)
     , dump_index(4)
     , start_index(0)
 {
+    assert (templ.name == ED_TASK_DEBUG_FILE_ALL_COMMODITIES);
 }
 
 Result TaskDebugFindAllCommodities::run() {

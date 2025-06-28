@@ -224,6 +224,7 @@ public:
     int getSearchRegionExtent() const { return searchRegionExtent; }
     std::string getShortcutFor(Command cmd) const;
     CommodityCategory* getCommodityCategoryByName(const std::string& name);
+    Commodity* getCommodityById(const std::string& name);
     Commodity* getCommodityByName(const std::string& name, bool fuzzy);
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy);
 

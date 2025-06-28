@@ -4,7 +4,8 @@
 
 #include "../pch.h"
 
-#include "EDState.h"
+#include "TaskTemplate.h"
+#include "AIManager.h"
 
 namespace ai {
 
@@ -176,13 +177,103 @@ TaskTemplate ED_Task_Step {
     .name = ED_TASK_STEP,
     .params = { {Param::String, "command", ""} }
 };
-TaskTemplate ED_Task_Calibrate {
-    .name = ED_TASK_CALIBRATE
-};
-TaskTemplate ED_Task_DebugFindAllCommodities {
-    .name = ED_TASK_DEBUG_FILE_ALL_COMMODITIES
-};
 
 
+bool TaskTemplate::set(const string& pname, bool value) {
+    for (auto& p : params) {
+        if (p.name == pname) {
+            if (p.type == Param::Bool) {
+                p.value = value;
+                return true;
+            }
+            LOG(ERROR) << "Cannot assign bool value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            return false;
+        }
+    }
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    return false;
+}
+bool TaskTemplate::set(const string& pname, int64_t value) {
+    for (auto& p : params) {
+        if (p.name == pname) {
+            if (p.type == Param::Int) {
+                p.value = value;
+                return true;
+            }
+            if (p.type == Param::Real) {
+                p.value = (double)value;
+                return true;
+            }
+            LOG(ERROR) << "Cannot assign int value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            return false;
+        }
+    }
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    return false;
+}
+bool TaskTemplate::set(const string& pname, double value) {
+    for (auto& p : params) {
+        if (p.name == pname) {
+            if (p.type == Param::Int) {
+                p.value = (int64_t)value;
+                return true;
+            }
+            if (p.type == Param::Real) {
+                p.value = value;
+                return true;
+            }
+            LOG(ERROR) << "Cannot assign real value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            return false;
+        }
+    }
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    return false;
+}
+bool TaskTemplate::set(const string& pname, const string& value) {
+    for (auto& p : params) {
+        if (p.name == pname) {
+            if (!(p.type == Param::Int || p.type == Param::Real)) {
+                p.value = value;
+                return true;
+            }
+            LOG(ERROR) << "Cannot assign string value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            return false;
+        }
+    }
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    return false;
+}
+
+
+void AIManager::initTemplates() {
+    std::vector<TaskTemplate> templates {
+            { .name = ED_TASK_MARKET_SELL_ALL,
+              .params = {{Param::Int, "chunk", 0 }},
+              .maxMisses = 3 },
+            { .name = ED_TASK_MARKET_SELL,
+              .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }, {Param::Int, "chunk", 0 }},
+              .maxMisses = 3 },
+            { ED_TASK_CALIBRATE },
+            { ED_TASK_DEBUG_FILE_ALL_COMMODITIES },
+    };
+    AllImplementedTasks.swap(templates);
+    AllImplementedTaskRefs.reserve(AllImplementedTasks.size());
+    for (auto& it : AllImplementedTasks) {
+        AllImplementedTaskRefs.push_back(&it);
+        AllImplementedTaskMap.insert({it.name, &it});
+    }
+}
+
+const std::vector<TaskTemplate*>& AIManager::getTaskTemplates() {
+    return AllImplementedTaskRefs;
+}
+
+const TaskTemplate& AIManager::getTaskTemplate(const std::string& name) {
+    static TaskTemplate dummy;
+    auto it = AllImplementedTaskMap.find(name);
+    if (it == AllImplementedTaskMap.end())
+        return dummy;
+    return *(it->second);
+}
 
 } // namespace ai

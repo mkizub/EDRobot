@@ -10,6 +10,8 @@
 #define IDC_DIALOGS                     109
 #define IDD_SELLBOX                     130
 #define IDD_CALIBRATIONBOX              136
+#define IDD_ADD_TASK                    137
+#define IDD_ED_ROBOT                    138
 #define IDC_EDIT_SELLS                  1003
 #define IDC_EDIT_ITEMS                  1004
 #define IDC_EDIT_TOTAL                  1005
@@ -20,6 +22,10 @@
 #define IDC_COMBO_ITEMS                 1013
 #define IDC_STATIC_AMOUNT               1014
 #define IDC_STATIC_TOTAL                1014
+#define IDC_COMBO_TEMPLATES             1015
+#define IDC_CURRENT_TASK_NAME           1016
+#define IDC_CURRENT_TASK                1016
+#define IDC_BUTTON_CURRENT_TASK         1017
 #define ID_DEV_RELOADCONFIG             32776
 #define ID_DEV_SAVECONFIG               32777
 #define ID_DEV_SELECT_RECT              32778
@@ -27,7 +33,7 @@
 #define ID_FILE_CALIBRATE               32780
 #define ID_SHOW_TOAST                   32781
 #define ID_DEVELOPER_DEBUGFINDALLSELLCOMMODITIES 32781
-#define ID_32782                        32782
+#define ID_TRAY_ICON                    32782
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -35,9 +41,9 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        137
+#define _APS_NEXT_RESOURCE_VALUE        139
 #define _APS_NEXT_COMMAND_VALUE         32783
-#define _APS_NEXT_CONTROL_VALUE         1015
+#define _APS_NEXT_CONTROL_VALUE         1018
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

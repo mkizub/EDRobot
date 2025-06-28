@@ -29,6 +29,8 @@ int main(int argc, char *argv[]) {
     Master& master = Master::getInstance();
     int err = master.initialize(argc, argv);
     if (!err) {
+        LOG(INFO) << "Initializing UI";
+        UIManager::initialize();
         Configuration* cfg = master.getConfiguration();
         std::string msg1 = std_format(_("Press '{}' key to start selling"), cfg->getShortcutFor(Command::Start));
         std::string msg2 = std_format(_("Press '{}' to stop"), cfg->getShortcutFor(Command::Stop));
@@ -36,9 +38,10 @@ int main(int argc, char *argv[]) {
         UIManager::showStartupDialog(msg);
         //UIManager::showToast(gettext("EDRobot"), _("xxx"));
         Master::getInstance().loop();
+        LOG(INFO) << "Shutdown UI";
+        UIManager::shutdown();
     }
     LOG(INFO) << "Shutdown";
-    UIManager::shutdown();
     el::Loggers::flushAll();
     return err;
 }

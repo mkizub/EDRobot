@@ -4,8 +4,8 @@
 
 #pragma once
 
-#ifndef EDROBOT_EDSTATE_H
-#define EDROBOT_EDSTATE_H
+#ifndef EDROBOT_TASKTEMPLATE_H
+#define EDROBOT_TASKTEMPLATE_H
 
 #include "Types.h"
 
@@ -105,7 +105,8 @@ extern const std::string ED_TASK_DOCK_REARM;        // just press 'rearm' button
 extern const std::string ED_TASK_GOTO_HANGAR;       // just press 'hangar' button at dock, or exit services
 extern const std::string ED_TASK_GOTO_SERVICES;     // just press 'services' button at dock
 extern const std::string ED_TASK_GOTO_MARKET;       // select 'market' button at dock
-extern const std::string ED_TASK_MARKET_SELL;       // sell list/all commodities, maybe by a few items
+extern const std::string ED_TASK_MARKET_SELL_ALL;   // sell all commodities, maybe by a few items
+extern const std::string ED_TASK_MARKET_SELL;       // sell specified commodity, maybe by a few items
 extern const std::string ED_TASK_MARKET_BUY;        // buy a list of commodities
 extern const std::string ED_TASK_TRAVEL_TO_DOCK;    // multistep task to travel somewhere
 extern const std::string ED_TASK_GAL_MAP_SELECT;    // select destination star system on galaxy map
@@ -140,4 +141,4 @@ struct UIMode {
 
 } // namespace ai
 
-#endif //EDROBOT_EDSTATE_H
+#endif //EDROBOT_TASKTEMPLATE_H

@@ -11,9 +11,10 @@ class UIToast;
 class UISellInput;
 class UICalibration;
 class UISelectRect;
+class Main;
 
 class UIManager {
-    UIManager();
+    UIManager(Main&);
 
 public:
     static UIManager& getInstance();
@@ -31,6 +32,11 @@ public:
     static bool askCalibrationDialog(const std::string& line1);
     static bool askSelectRectWindow();
 
+private:
+    void uiThreadLoop();
+
+    Main& uiMain;
+    std::thread uiThread;
 };
 
 

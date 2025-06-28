@@ -36,6 +36,7 @@ AIManager::AIManager()
     : master(Master::getInstance())
     , cfg(*master.getConfiguration())
 {
+    initTemplates();
     isWorking = true;
     taskThread = std::thread(&AIManager::loop, this);
 }
@@ -49,6 +50,22 @@ AIManager::~AIManager() {
 
 bool AIManager::active() {
     return !isInterrupted && activeTask;
+}
+
+void AIManager::stop() {
+    if (!activeTask)
+        return;
+    LOG(INFO) << "AIManager::stop() task " << activeTask->taskName;
+    UIManager::showToast("EDRobot stop", std::format("Stop task '{}'", activeTask->taskName));
+    std::unique_lock<std::mutex> lock(taskMutex);
+    isInterrupted = true;
+    taskCond.notify_one();
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+        return !isWorking || isLoopWaiting;
+    });
+    upTask oldTask;
+    activeTask.swap(oldTask);
+    taskCond.notify_one();
 }
 
 void AIManager::interrupt() {
@@ -84,9 +101,17 @@ void AIManager::resume() {
     });
 }
 
-void AIManager::new_task(upTask&& task) {
+
+const TaskTemplate &AIManager::curr_task() {
+    static TaskTemplate dummy;
+    if (!activeTask)
+        return dummy;
+    return activeTask->templ;
+}
+
+bool AIManager::new_task(upTask&& task) {
     if (!task)
-        return;
+        return false;
     LOG(INFO) << "AIManager::new_task()";
     UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->taskName));
     std::unique_lock<std::mutex> lock(taskMutex);
@@ -108,7 +133,25 @@ void AIManager::new_task(upTask&& task) {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
         return !isWorking || !isLoopWaiting;
     });
+    return true;
 }
+
+bool AIManager::new_task(const TaskTemplate& templ) {
+    if (templ.name.empty())
+        return false;
+    upTask task;
+    if (templ.name == ED_TASK_CALIBRATE)
+        task.reset(new TaskCalibrate(nullptr, *this, templ));
+    if (templ.name == ED_TASK_DEBUG_FILE_ALL_COMMODITIES)
+        task.reset(new TaskDebugFindAllCommodities(nullptr, *this, templ));
+    if (templ.name == ED_TASK_MARKET_SELL_ALL)
+        task.reset(new TaskSellAll(nullptr, *this, templ));
+    if (templ.name == ED_TASK_MARKET_SELL)
+        task.reset(new TaskSell(nullptr, *this, templ));
+    LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
+    return new_task(std::move(task));
+}
+
 
 void AIManager::loop() {
     SetThreadDescription(GetCurrentThread(), L"AIManager task loop");

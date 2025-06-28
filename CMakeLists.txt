@@ -59,6 +59,8 @@ add_executable(EDRobot
         src/ui/UISelectRect.h
         src/ui/UIDialog.cpp
         src/ui/UIDialog.h
+        src/ui/AddTask.cpp
+        src/ui/AddTask.h
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
 
@@ -86,6 +88,8 @@ add_executable(EDRobot
         src/capture/CapturerDXGI.cpp
         src/capture/CapturerDXGI.h
         src/EventParser.cpp
+        src/ui/Main.cpp
+        src/ui/Main.h
 )
 #target_sources(EDRobot PUBLIC
 #        FILE_SET CXX_MODULES FILES
@@ -93,10 +97,10 @@ add_executable(EDRobot
 #)
 target_sources(EDRobot PUBLIC
         src/ai/AIManager.cpp
-        src/ai/EDState.cpp
+        src/ai/TaskTemplate.cpp
         src/ai/Task.cpp
         src/ai/AIManager.h
-        src/ai/EDState.h
+        src/ai/TaskTemplate.h
         src/ai/Task.h
         src/ai/Types.h
 )

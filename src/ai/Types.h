@@ -62,11 +62,11 @@ enum class Result {
 };
 
 struct Param {
-    enum Type { Int, Real, String, Star, POI, Dock, Commodity };
+    enum Type { Bool, Int, Real, String, Star, POI, Dock, Commodity };
 
     const Type        type;
     const std::string name;
-    const std::variant<int64_t,double,std::string> value;
+    std::variant<bool, int64_t,double,std::string> value;
 };
 
 struct ReqState {
@@ -83,6 +83,16 @@ struct TaskTemplate {
     std::vector<ReqState> expectedFinalStates;
 
     int maxMisses;
+
+    bool operator<(const TaskTemplate& other) const {
+        return name < other.name;
+    }
+    bool set(const string& param, bool value);
+    bool set(const string& param, int64_t value);
+    bool set(const string& param, int32_t value) { return set(param, (int64_t)value); }
+    bool set(const string& param, double value);
+    bool set(const string& param, float value) { return set(param, (double)value); }
+    bool set(const string& param, const string& value);
 };
 
 class nonlocal_return : public std::exception {

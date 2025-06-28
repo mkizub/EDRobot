@@ -4,21 +4,28 @@
 
 #include "../pch.h"
 
+#include <shellapi.h>
+#include "../../ui/resource.h"
+
 #include "UIManager.h"
+#include "Main.h"
 #include "UIStartupDialog.h"
 #include "UIToast.h"
+#include "AddTask.h"
 #include "UISellInput.h"
 #include "UICalibration.h"
 #include "UISelectRect.h"
 #include "UIDebug.h"
 
 UIManager &UIManager::getInstance() {
-    static UIManager uiManager;
+    static Main mainDialog;
+    static UIManager uiManager(mainDialog);
     return uiManager;
 }
 
-UIManager::UIManager() {
-
+UIManager::UIManager(Main& main)
+    : uiMain(main)
+{
 }
 
 bool UIManager::initialize() {
@@ -26,11 +33,22 @@ bool UIManager::initialize() {
     ok &= UIToast::initialize();
     ok &= UISelectRect::initialize();
     ok &= UIDebug::initialize();
+    UIManager& mgr = getInstance();
+    mgr.uiThread = std::thread(&UIManager::uiThreadLoop, &mgr);
     return ok;
 }
 
 bool UIManager::shutdown() {
+    getInstance().uiMain.run_thread_ui([](){
+        DestroyWindow(getInstance().uiMain.hwnd());
+    });
     return true;
+}
+
+void UIManager::uiThreadLoop() {
+    SetThreadDescription(GetCurrentThread(), L"UIManager main thread");
+    HINSTANCE hInstance = GetModuleHandle(nullptr);
+    uiMain.winmain_run(hInstance, SW_HIDE);
 }
 
 bool UIManager::showStartupDialog(const std::string &message) {
