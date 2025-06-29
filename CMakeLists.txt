@@ -90,6 +90,8 @@ add_executable(EDRobot
         src/EventParser.cpp
         src/ui/Main.cpp
         src/ui/Main.h
+        src/ai/AutopilotTasks.cpp
+        src/ai/AutopilotTasks.h
 )
 #target_sources(EDRobot PUBLIC
 #        FILE_SET CXX_MODULES FILES

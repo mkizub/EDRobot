@@ -99,6 +99,7 @@ void AIManager::resume() {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
         return !isWorking || !isLoopWaiting;
     });
+    master.setGameForeground();
 }
 
 
@@ -133,6 +134,7 @@ bool AIManager::new_task(upTask&& task) {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
         return !isWorking || !isLoopWaiting;
     });
+    master.setGameForeground();
     return true;
 }
 
@@ -148,6 +150,8 @@ bool AIManager::new_task(const TaskTemplate& templ) {
         task.reset(new TaskSellAll(nullptr, *this, templ));
     if (templ.name == ED_TASK_MARKET_SELL)
         task.reset(new TaskSell(nullptr, *this, templ));
+    if (templ.name == ED_TASK_DEPART)
+        task.reset(new TaskDepart(nullptr, *this, templ));
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
     return new_task(std::move(task));
 }
@@ -190,6 +194,7 @@ void AIManager::loop() {
 void AIManager::step() {
     if (!activeTask) {
         LOG(INFO) << "AIManager::loop(): no active task";
+        detectEDState(DetectLevel::Screen);
         return;
     }
     if (activeTask) {
@@ -214,6 +219,7 @@ void AIManager::step() {
     }
 
     if (activeTask) {
+        master.setGameForeground();
         LOG(INFO) << "AIManager::loop(): executing active task: " << activeTask->taskName;
         Result res;
         try {

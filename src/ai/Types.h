@@ -10,6 +10,7 @@
 namespace ai {
 
 class Task;
+class AIManager;
 typedef std::unique_ptr<Task> upTask;
 
 enum class FlyState {

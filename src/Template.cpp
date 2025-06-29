@@ -9,21 +9,27 @@
 #include <iomanip>
 
 double SequenceTemplate::match(ClassifyEnv& env) {
+    double sumWeights = 0;
+    for (auto& oracle : oracles) {
+        if (oracle->classifierWeight <= 0)
+            continue;
+        sumWeights += oracle->classifierWeight;
+    }
     double sum = 0;
     for (auto& oracle : oracles) {
+        if (oracle->classifierWeight <= 0)
+            continue;
         double value = oracle->classify(env);
-        if (value <= 0)
-            return 0;
-        if (sum < 1)
-            sum += 2*(value-0.5);
+        double weight = oracle->classifierWeight / sumWeights;
+        sum += weight * (2*value - 1);
     }
-    return sum;
+    return (sum + 1) / 2;
 }
 
 double SequenceTemplate::classify(ClassifyEnv& env) {
     const auto sz = env.classified.size();
     double result = match(env);
-    if (result < 0.96) {
+    if (result < 0.5) {
         while (sz < env.classified.size())
             env.classified.pop_back();
     }
@@ -32,46 +38,26 @@ double SequenceTemplate::classify(ClassifyEnv& env) {
 
 double SequenceTemplate::debugMatch(ClassifyEnv& env) {
     json5pp::value j_arr = json5pp::array({});
+    double sumWeights = 0;
     for (auto& oracle : oracles) {
-        double value = oracle->debugMatch(env);
-        j_arr.as_array().emplace_back(value);
+        if (oracle->classifierWeight <= 0)
+            continue;
+        sumWeights += oracle->classifierWeight;
     }
     double sum = 0;
-    for (auto& jv : j_arr.as_array()) {
-        auto value = jv.as_number();
-        if (value <= 0) { sum = 0; break; }
-        if (sum < 1)
-            sum += 2*(value-0.5);
-        if (sum >= 1) { sum = 1; }
+    for (auto& oracle : oracles) {
+        if (oracle->classifierWeight <= 0)
+            continue;
+        double value = oracle->classify(env);
+        j_arr.as_array().emplace_back(value);
+        double weight = oracle->classifierWeight / sumWeights;
+        sum += weight * (2*value - 1);
     }
-    LOG(INFO) << "match result: " << sum << (sum >= 1 ? " (pass)" : " (fail)") << " for " << j_arr;
-    return sum;
+    double result = (sum + 1) / 2;
+    LOG(INFO) << "match result: " << result << " for " << j_arr;
+    return result;
 }
 
-
-ShipTemplate::ShipTemplate(const std::vector<std::string>& shipList)
-{
-    this->ships.reserve(shipList.size());
-    for (auto s : shipList) {
-        this->ships.push_back(toLower(s));
-    }
-}
-double ShipTemplate::match(ClassifyEnv &env) {
-    std::string ship = toLower(Master::getInstance().getConfiguration()->getShipType());
-    for (auto s : ships) {
-        if (s == ship)
-            return 1;
-    }
-    return 0;
-}
-
-double ShipTemplate::classify(ClassifyEnv &env) {
-    return match(env);
-}
-
-double ShipTemplate::debugMatch(ClassifyEnv &env) {
-    return match(env);
-}
 
 HistogramTemplate::HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::vector<cv::Vec3b>& colors)
     : mMode(mode)
@@ -164,18 +150,18 @@ double HistogramTemplate::debugMatch(ClassifyEnv& env) {
 
 
 BaseImageTemplate::BaseImageTemplate(
-        const std::string& name, const std::string& filename, cv::Mat& image, bool edge,
-        spEvalRect& refRect, cv::Point extLT, cv::Point extRB, double tmin, double tmax)
-        : name(name)
-        , filename(filename)
-        , edgeLaplacian(edge)
-        , referenceRect(refRect)
-        , extendLT(extLT)
-        , extendRB(extRB)
-        , threshold_min(tmin)
-        , threshold_max(tmax)
+        const std::string& filename, cv::Mat image, spEvalRect refRect)
+        : filename(filename)
+        , referenceRect(std::move(refRect))
+        , threshold_min(0.8)
+        , threshold_max(0.8)
 {
-    loadImageAndMask(filename, templImage, templMask);
+    if (image.empty())
+        loadImageAndMask(filename, templImage, templMask);
+    else {
+        templImage = image;
+        extractImageMask(image, templMask);
+    }
 }
 
 bool BaseImageTemplate::loadImageAndMask(const std::string& filename, cv::Mat& image, cv::Mat& mask) {
@@ -264,23 +250,49 @@ double BaseImageTemplate::toResult(double matchValue) {
     return 1 / (1 + std::exp(-x));
 }
 
+cv::Mat BaseImageTemplate::applyFilters(cv::Mat& image) {
+    if (image.empty())
+        return image;
+    cv::Mat out = image;
+    for (auto& filter : filters) {
+        out = filter->apply(out);
+    }
+    return out;
+}
 
-cv::Mat BaseImageTemplate::makeLaplacian(cv::Mat m) {
-    if (!edgeLaplacian)
-        return m;
-    cv::Mat smooth;
+cv::Mat GaussFilter::apply(cv::Mat& image) {
+    cv::Mat out;
+    cv::GaussianBlur(image, out, cv::Size(kern,kern), sigma);
+    return out;
+}
+cv::Mat LaplacianFilter::apply(cv::Mat& image) {
     cv::Mat lapl16S;
     cv::Mat lapl8U;
-    cv::GaussianBlur(m, smooth, cv::Size(3,3), 0);
-    cv::Laplacian(smooth, lapl16S, CV_16S, 3);
+    cv::Laplacian(image, lapl16S, CV_16S, kern, scale);
     cv::convertScaleAbs(lapl16S, lapl8U);
     return lapl8U;
 }
 
-cv::Mat BaseImageTemplate::makeGaussianBlur(cv::Mat m, int kernelSize, double sigma) {
-    cv::Mat smooth;
-    cv::GaussianBlur(m, smooth, cv::Size(kernelSize,kernelSize), sigma);
-    return smooth;
+cv::Mat HsvColorCropFilter::apply(cv::Mat& image){
+    if (ranges.empty())
+        return image;
+    cv::Mat hsv;
+    cv::cvtColor(image, hsv, cv::COLOR_BGR2HSV);
+    cv::Mat mask(image.cols, image.rows, CV_8UC1);
+    if (ranges.size() == 1) {
+        cv::inRange(hsv, ranges.front().first, ranges.front().second, mask);
+        cv::Mat masked, gray;
+    } else {
+        for (auto &r: ranges) {
+            cv::Mat m;
+            cv::inRange(hsv, r.first, r.second, m);
+            cv::bitwise_or(mask, m, mask);
+        }
+    }
+    cv::Mat masked, gray;
+    image.copyTo(masked, mask);
+    cv::cvtColor(masked, gray, cv::COLOR_BGR2GRAY);
+    return gray;
 }
 
 void BaseImageTemplate::fixNaNinResult(cv::Mat& result) {
@@ -303,12 +315,9 @@ void BaseImageTemplate::fixNaNinResult(cv::Mat& result) {
 #endif
 }
 
-ImageTemplate::ImageTemplate(const std::string& name, const std::string& filename, cv::Mat& image, bool edge,
-                             spEvalRect& refRect, cv::Point extLT, cv::Point extRB, double tmin, double tmax)
-    : BaseImageTemplate(name, filename, image, edge, refRect, extLT, extRB, tmin, tmax)
+ImageTemplate::ImageTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect)
+    : BaseImageTemplate(filename, std::move(image), std::move(refRect))
 {
-    templImageScaled = makeLaplacian(templImage);
-    templMaskScaled = templMask;
 }
 
 double ImageTemplate::match(ClassifyEnv& env) {
@@ -322,15 +331,10 @@ double ImageTemplate::match(ClassifyEnv& env) {
         return 0;
     if (env.getScale() != preprocessedTemplateScale) {
         preprocessedTemplateScale = env.getScale();
-        preprocessedLaplacian = false;
-        cv::resize(templImage, templImageScaled, cv::Size(), env.getScale(), env.getScale());
-        if (!templMask.empty()) {
+        cv::Mat templImageFiltered = applyFilters(templImage);
+        cv::resize(templImageFiltered, templImageScaled, cv::Size(), env.getScale(), env.getScale());
+        if (!templMask.empty())
             cv::resize(templMask, templMaskScaled, templImageScaled.size(), env.getScale(), env.getScale());
-        }
-    }
-    if (preprocessedLaplacian != edgeLaplacian) {
-        templImageScaled = makeLaplacian(templImageScaled);
-        preprocessedLaplacian = edgeLaplacian;
     }
     int ext = Master::getInstance().getSearchRegionExtent();
     captureRect = env.cvtReferenceToCaptured(referenceRect);
@@ -341,9 +345,11 @@ double ImageTemplate::match(ClassifyEnv& env) {
     int result_rows = matchRect.height - templImageScaled.rows + 1;
     cv::Mat result(result_rows, result_cols, CV_32FC1);
     cv::Mat imagePrepared = cv::Mat(image, matchRect);
-    if (edgeLaplacian)
-        imagePrepared = makeLaplacian(imagePrepared);
-    cv::matchTemplate(imagePrepared, templImageScaled, result, cv::TM_CCOEFF_NORMED, templMaskScaled);
+    imagePrepared = applyFilters(imagePrepared);
+    if (templMaskScaled.empty())
+        cv::matchTemplate(imagePrepared, templImageScaled, result, cv::TM_CCOEFF_NORMED);
+    else
+        cv::matchTemplate(imagePrepared, templImageScaled, result, cv::TM_CCORR_NORMED, templMaskScaled);
     fixNaNinResult(result);
     //LOG(ERROR) << "match result: " << result;
     double maxVal;
@@ -360,14 +366,17 @@ double ImageTemplate::match(ClassifyEnv& env) {
     return maxVal;
 }
 
+double ImageTemplate::debugMatch(ClassifyEnv &env) {
+    double result = BaseImageTemplate::debugMatch(env);
+    //CompassDetector::tryLowerUpperBoundsGUI(env, matchRect);
+    return result;
+}
+
+
 ImageMultiScaleTemplate::ImageMultiScaleTemplate(
-        const string &name, const string &filename, cv::Mat& image,
-        double scaleMin, double scaleMax, double scaleStep, bool edge,
-        spEvalRect& refRect, cv::Point extLT, cv::Point extRB, double thrMin, double thrMax)
-    : BaseImageTemplate(name, filename, image, edge, refRect, extLT, extRB, thrMin, thrMax)
-    , generateScaleMin(scaleMin)
-    , generateScaleMax(scaleMax)
-    , generateScaleStep(scaleStep)
+        const string &filename, cv::Mat image, spEvalRect refRect, std::vector<double> scales)
+    : BaseImageTemplate(filename, std::move(image), std::move(refRect))
+    , scales(std::move(scales))
     , lastScaleIdx(-1)
     , lastScale(1)
 {
@@ -382,42 +391,18 @@ double ImageMultiScaleTemplate::match(ClassifyEnv &env) {
     cv::Mat image = templImage.channels() == 1 ? env.getGrayImage() : env.getColorImage();
     if (image.empty())
         return 0;
-    if (scales.empty() || env.getScale() != preprocessedTemplateScale) {
+    if (env.getScale() != preprocessedTemplateScale) {
         preprocessedTemplateScale = env.getScale();
-        preprocessedLaplacian = false;
-        scales.clear();
-        cv::Mat tmpImage = templImage;
-        cv::Mat tmpMask = templMask;
-        if (env.needScaling()) {
-            cv::resize(templImage, tmpImage, cv::Size(), env.getScale(), env.getScale());
+        scaledImages.clear();
+        cv::Mat tmpImageFiltered = applyFilters(templImage);
+        for (double scale : scales) {
+            cv::Mat tmpImage;
+            cv::Mat tmpMask;
+            cv::resize(tmpImageFiltered, tmpImage, cv::Size(), scale*env.getScale(), scale*env.getScale());
             if (!templMask.empty())
-                cv::resize(templMask, tmpMask, tmpImage.size(), env.getScale(), env.getScale());
+                cv::resize(templMask, tmpMask, tmpImage.size(), scale*env.getScale(), scale*env.getScale());
+            scaledImages.emplace_back(scale, tmpImage, tmpMask);
         }
-        scales.emplace_back(1.0, tmpImage, tmpMask);
-        double upScale = 1 + generateScaleStep;
-        double downScale = 1 - generateScaleStep;
-        while (upScale < generateScaleMax || downScale > generateScaleMin) {
-            if (upScale < generateScaleMax) {
-                cv::resize(templImage, tmpImage, cv::Size(), upScale*env.getScale(), upScale*env.getScale());
-                if (!templMask.empty())
-                    cv::resize(templMask, tmpMask, tmpImage.size(), upScale*env.getScale(), upScale*env.getScale());
-                scales.emplace_back(upScale, tmpImage, tmpMask);
-            }
-            if (downScale > generateScaleMin) {
-                cv::resize(templImage, tmpImage, cv::Size(), downScale*env.getScale(), downScale*env.getScale());
-                if (!templMask.empty())
-                    cv::resize(templMask, tmpMask, tmpImage.size(), downScale*env.getScale(), downScale*env.getScale());
-                scales.emplace_back(downScale, tmpImage, tmpMask);
-            }
-            upScale *= 1.0 + generateScaleStep;
-            downScale *= 1.0 - generateScaleStep;
-        }
-    }
-    if (preprocessedLaplacian != edgeLaplacian) {
-        for (auto& sm : scales) {
-            sm.templImage = makeLaplacian(sm.templImage);
-        }
-        preprocessedLaplacian = edgeLaplacian;
     }
     int ext = Master::getInstance().getSearchRegionExtent();
     captureRect = env.cvtReferenceToCaptured(referenceRect);
@@ -431,15 +416,8 @@ double ImageMultiScaleTemplate::match(ClassifyEnv &env) {
     double bestScaleVal = 0;
     cv::Point bestScaleLoc;
     cv::Mat imagePrepared = cv::Mat(image, matchRect);
-    if (edgeLaplacian) {
-        imagePrepared = makeLaplacian(imagePrepared);
-        //cv::imshow("Prepared Laplacian screen region", imagePrepared);
-        //cv::imshow("Prepared Laplacian template", scales[0].templImage);
-        //cv::waitKey();
-        //cv::destroyAllWindows();
-    }
     for (int scaleIdx=0; scaleIdx < scales.size(); scaleIdx++) {
-        auto& sm = scales[scaleIdx];
+        auto& sm = scaledImages[scaleIdx];
         int result_cols = matchRect.width - sm.templImage.cols + 1;
         int result_rows = matchRect.height - sm.templImage.rows + 1;
         cv::Mat result(result_rows, result_cols, CV_32FC1);
@@ -458,7 +436,7 @@ double ImageMultiScaleTemplate::match(ClassifyEnv &env) {
     }
     if (bestScaleVal >= threshold_min) {
         lastScaleIdx = bestScaleIdx;
-        lastScale = scales[bestScaleIdx].scale;
+        lastScale = scaledImages[bestScaleIdx].scale;
         matchedCaptureOffset = bestScaleLoc - (captureRect.tl() - matchRect.tl());
         captureRect += matchedCaptureOffset;
         captureRect.width *= lastScale;
@@ -479,13 +457,16 @@ double ImageMultiScaleTemplate::debugMatch(ClassifyEnv& env) {
     return value;
 }
 
-CompassDetector::CompassDetector(cv::Mat& image, spEvalRect& refRect)
-        : BaseImageTemplate("", "templates/space_compass.png", image, false, refRect,
-                            cv::Point(40,80), cv::Point(50,140), 0.3, 0.8)
-        , luvLower {90, 90, 90}
-        , luvUpper {130, 255, 255}
+CompassDetector::CompassDetector()
+        : ImageMultiScaleTemplate("templates/space_compass.png", cv::Mat(),
+                                  spEvalRect(new ConstRect(cv::Rect(679,803,71,71))),
+                                  {1, 1.025, 0.975, 1.05, 0.95, 1.075, 0.925, 1.1, 0.9, 1.125, 0.875})
         , threshold_dot {0.7}
 {
+    extendLT = {40,80};
+    extendRB = {50,140};
+    threshold_min = 0.3;
+    threshold_max = 0.8;
     cv::Mat dotFwdImage;
     cv::Mat dotFwdMask;
     cv::Mat dotBwdImage;
@@ -497,167 +478,86 @@ CompassDetector::CompassDetector(cv::Mat& image, spEvalRect& refRect)
 }
 
 double CompassDetector::match(ClassifyEnv &env) {
-    if (!this->referenceRect || templImage.empty())
-        return 0;
-    cv::Rect referenceRect = env.calcReferenceRect(this->referenceRect);
-    if (referenceRect.empty())
-        return 0;
-    if (compassScales.empty() || env.getScale() != preprocessedTemplateScale) {
-        preprocessedTemplateScale = env.getScale();
-        preprocessedLaplacian = false;
-        compassScales.clear();
+    double compassValue = ImageMultiScaleTemplate::match(env);
+    if (compassValue < threshold_min)
+        return compassValue;
 
-        cv::Mat tmpCompassImage = templImage;
-        cv::Mat tmpCompassMask = templMask;
-        if (env.needScaling()) {
-            cv::resize(templImage, tmpCompassImage, cv::Size(), env.getScale(), env.getScale());
-            if (!templMask.empty())
-                cv::resize(templMask, tmpCompassMask, tmpCompassImage.size(), env.getScale(), env.getScale());
-        }
-        compassScales.emplace_back(1.0, tmpCompassImage, cv::Mat());
-        const double generateScaleStep = 0.025;
-        double upScale = 1 + generateScaleStep;
-        double downScale = 1 - generateScaleStep;
-        for (int i=0; i < 5; i++) {
-            {
-                cv::resize(templImage, tmpCompassImage, cv::Size(), upScale*env.getScale(), upScale*env.getScale());
-                if (!templMask.empty())
-                    cv::resize(templMask, tmpCompassMask, tmpCompassImage.size(), upScale*env.getScale(), upScale*env.getScale());
-                compassScales.emplace_back(upScale, tmpCompassImage, tmpCompassMask);
-            }
-            {
-                cv::resize(templImage, tmpCompassImage, cv::Size(), downScale*env.getScale(), downScale*env.getScale());
-                if (!templMask.empty())
-                    cv::resize(templMask, tmpCompassMask, tmpCompassImage.size(), downScale*env.getScale(), downScale*env.getScale());
-                compassScales.emplace_back(downScale, tmpCompassImage, tmpCompassMask);
-            }
-            upScale *= 1.0 + generateScaleStep;
-            downScale *= 1.0 - generateScaleStep;
-        }
-    }
-
-    //
-    // Detect compass
-    //
-    captureRect = env.cvtReferenceToCaptured(referenceRect);
-    matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT),
-                         captureRect.br() + env.scaleToCaptured(extendRB));
-    matchRect &= env.captureCrop;
-
-    cv::Mat imageFiltered = cv::Mat(env.getColorImage(), matchRect);
-
-    int bestScaleIdx = -1;
-    double bestScaleVal = 0;
-    cv::Point bestScaleLoc;
-
-    for (int scaleIdx=0; scaleIdx < compassScales.size(); scaleIdx++) {
-        auto& sm = compassScales[scaleIdx];
-        int result_cols = matchRect.width - sm.templImage.cols + 1;
-        int result_rows = matchRect.height - sm.templImage.rows + 1;
-        cv::Mat result(result_rows, result_cols, CV_32FC1);
-        cv::matchTemplate(imageFiltered, sm.templImage, result, cv::TM_CCOEFF_NORMED, sm.templMask);
-        fixNaNinResult(result);
-        double maxVal;
-        cv::Point maxLoc;
-        cv::minMaxLoc(result, nullptr, &maxVal, nullptr, &maxLoc);
-        LOG(DEBUG) << std::format("compass match result: {:.3f} for scale {:.6f} file ", maxVal, sm.scale,  filename);
-        if (maxVal > bestScaleVal) {
-            bestScaleVal = maxVal;
-            bestScaleIdx = scaleIdx;
-            bestScaleLoc = maxLoc;
-        }
-    }
-    double compassValue = 0;
-    if (bestScaleVal >= threshold_min) {
-        compassValue = bestScaleVal;
-        lastScaleIdx = bestScaleIdx;
-        lastScale = compassScales[bestScaleIdx].scale;
-        matchedCaptureOffset = bestScaleLoc - (captureRect.tl() - matchRect.tl());
-        captureRect += matchedCaptureOffset;
-        captureRect.width *= lastScale;
-        captureRect.height *= lastScale;
-        LOG(INFO) << std::format("Compass value={:.3f} for scale {:.6f}", compassValue, lastScale);
-    } else {
-        LOG(INFO) << std::format("Compass value={:.3f} below threshold={:.3f}", compassValue, threshold_min);
-        return 0;
-    }
-
-    //
-    // Detect compass dot
-    //
-
-    int bestDotIdx = -1;
-    double bestDotVal = 0;
-    cv::Point bestDotLoc;
-    cv::Size bestDotSize;
-
-    cv::Point dotMatchedCaptureOffset;
-    imageFiltered = cv::Mat(env.getColorImage(), captureRect);
-
-//    cv::imshow("Detected compass", imageFiltered);
-//    cv::imshow("Dot fwd compass", compassDots[0].templImage);
-//    cv::imshow("Dot bwd compass", compassDots[1].templImage);
-//    cv::waitKey();
-//    cv::destroyAllWindows();
-
-    for (int dotIdx=0; dotIdx < compassDots.size(); dotIdx++) {
-        auto& sm = compassDots[dotIdx];
-        int result_cols = captureRect.width - sm.templImage.cols + 1;
-        int result_rows = captureRect.height - sm.templImage.rows + 1;
-        cv::Mat result(result_rows, result_cols, CV_32FC1);
-        cv::matchTemplate(imageFiltered, sm.templImage, result, cv::TM_SQDIFF_NORMED, sm.templMask);
-        //LOG(ERROR) << "dot " << dotIdx << " match result: " << result;
-        fixNaNinResult(result);
-        double minVal, maxVal;
-        cv::Point minLoc, maxLoc;
-        cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
-        // TM_SQDIFF_NORMED - the lower - the better, so use 1-minVal and minLoc
-        LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", (1-minVal), ((dotIdx&1)? "backward" : "forward"));
-        if (1-minVal > bestDotVal) {
-            bestDotVal = 1-minVal;
-            bestDotIdx = dotIdx;
-            bestDotLoc = minLoc;
-            bestDotSize = {sm.templImage.cols, sm.templImage.rows};
-        }
-    }
-    if (bestDotVal >= threshold_dot) {
-        lastDotValue = bestDotVal;
-        lastDotIdx = bestDotIdx;
-        dotCaptureRect = { captureRect.tl()+bestDotLoc, bestDotSize };
-        dotSpherePosition = {
-                std::clamp( ((bestDotLoc.x+bestDotSize.width*0.5) - captureRect.width*0.5) / ((captureRect.width-16)*0.5), -1.0, +1.0),
-                std::clamp(-((bestDotLoc.y+bestDotSize.height*0.5) - captureRect.height*0.5) / ((captureRect.height-16)*0.5), -1.0, +1.0),
-        };
-
-        double pitch = std::asin(dotSpherePosition.y) * 90 / M_PI_2;
-        double yaw = std::asin(dotSpherePosition.x) * 90 / M_PI_2;
-        double roll = 90-std::atan2(dotSpherePosition.y, dotSpherePosition.x) * 90 / M_PI_2;
-
-        if (lastDotIdx&1)
-            pitch = 180 - pitch;
-        if (lastDotIdx&1)
-            yaw = 180 - yaw;
-        if (pitch > 180) pitch = 360 - pitch;
-        if (pitch < -180) pitch = 360 + pitch;
-        if (yaw > 180) yaw = 360 - yaw;
-        if (yaw < -180) yaw = 360 + yaw;
-        if (roll > 180) roll = 360 - roll;
-        if (roll < -180) roll = 360 + roll;
-        lastTgtPitch = pitch;
-        lastTgtYaw = yaw;
-        lastTgtRoll = roll;
-
-        LOG(INFO) << std::format("Compass dot value={:.3f}, direction={}",
-                                 lastDotValue, ((lastDotIdx&1) ? "backward" : "forward"))
-                  << ", sphere pos=" << dotSpherePosition
-                  << " pitch,yaw,roll=" << std_format("{:.0f},{:.0f},{:.0f}", pitch, yaw, roll);
-    } else {
-        lastDotIdx = -1;
-        dotCaptureRect = {};
-        lastTgtPitch = 0;
-        lastTgtYaw = 0;
-        lastTgtRoll = 0;
-    }
+//    //
+//    // Detect compass dot
+//    //
+//
+//    int bestDotIdx = -1;
+//    double bestDotVal = 0;
+//    cv::Point bestDotLoc;
+//    cv::Size bestDotSize;
+//
+//    cv::Point dotMatchedCaptureOffset;
+//    imageFiltered = cv::Mat(env.getColorImage(), captureRect);
+//
+////    cv::imshow("Detected compass", imageFiltered);
+////    cv::imshow("Dot fwd compass", compassDots[0].templImage);
+////    cv::imshow("Dot bwd compass", compassDots[1].templImage);
+////    cv::waitKey();
+////    cv::destroyAllWindows();
+//
+//    for (int dotIdx=0; dotIdx < compassDots.size(); dotIdx++) {
+//        auto& sm = compassDots[dotIdx];
+//        int result_cols = captureRect.width - sm.templImage.cols + 1;
+//        int result_rows = captureRect.height - sm.templImage.rows + 1;
+//        cv::Mat result(result_rows, result_cols, CV_32FC1);
+//        cv::matchTemplate(imageFiltered, sm.templImage, result, cv::TM_SQDIFF_NORMED, sm.templMask);
+//        //LOG(ERROR) << "dot " << dotIdx << " match result: " << result;
+//        fixNaNinResult(result);
+//        double minVal, maxVal;
+//        cv::Point minLoc, maxLoc;
+//        cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+//        // TM_SQDIFF_NORMED - the lower - the better, so use 1-minVal and minLoc
+//        LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", (1-minVal), ((dotIdx&1)? "backward" : "forward"));
+//        if (1-minVal > bestDotVal) {
+//            bestDotVal = 1-minVal;
+//            bestDotIdx = dotIdx;
+//            bestDotLoc = minLoc;
+//            bestDotSize = {sm.templImage.cols, sm.templImage.rows};
+//        }
+//    }
+//    if (bestDotVal >= threshold_dot) {
+//        lastDotValue = bestDotVal;
+//        lastDotIdx = bestDotIdx;
+//        dotCaptureRect = { captureRect.tl()+bestDotLoc, bestDotSize };
+//        dotSpherePosition = {
+//                std::clamp( ((bestDotLoc.x+bestDotSize.width*0.5) - captureRect.width*0.5) / ((captureRect.width-16)*0.5), -1.0, +1.0),
+//                std::clamp(-((bestDotLoc.y+bestDotSize.height*0.5) - captureRect.height*0.5) / ((captureRect.height-16)*0.5), -1.0, +1.0),
+//        };
+//
+//        double pitch = std::asin(dotSpherePosition.y) * 90 / M_PI_2;
+//        double yaw = std::asin(dotSpherePosition.x) * 90 / M_PI_2;
+//        double roll = 90-std::atan2(dotSpherePosition.y, dotSpherePosition.x) * 90 / M_PI_2;
+//
+//        if (lastDotIdx&1)
+//            pitch = 180 - pitch;
+//        if (lastDotIdx&1)
+//            yaw = 180 - yaw;
+//        if (pitch > 180) pitch = 360 - pitch;
+//        if (pitch < -180) pitch = 360 + pitch;
+//        if (yaw > 180) yaw = 360 - yaw;
+//        if (yaw < -180) yaw = 360 + yaw;
+//        if (roll > 180) roll = 360 - roll;
+//        if (roll < -180) roll = 360 + roll;
+//        lastTgtPitch = pitch;
+//        lastTgtYaw = yaw;
+//        lastTgtRoll = roll;
+//
+//        LOG(INFO) << std::format("Compass dot value={:.3f}, direction={}",
+//                                 lastDotValue, ((lastDotIdx&1) ? "backward" : "forward"))
+//                  << ", sphere pos=" << dotSpherePosition
+//                  << " pitch,yaw,roll=" << std_format("{:.0f},{:.0f},{:.0f}", pitch, yaw, roll);
+//    } else {
+//        lastDotIdx = -1;
+//        dotCaptureRect = {};
+//        lastTgtPitch = 0;
+//        lastTgtYaw = 0;
+//        lastTgtRoll = 0;
+//    }
 
     return compassValue;
 }

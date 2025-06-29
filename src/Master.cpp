@@ -102,6 +102,7 @@ void UIState::clear() {
     guiFocus = GuiFocus::None;
     widget = nullptr;
     focused = nullptr;
+    autopilot = false;
 }
 
 const std::string& UIState::path() const {
@@ -118,6 +119,8 @@ std::ostream& operator<<(std::ostream& os, const UIState& obj) {
         break;
     case GuiFocus::None:
         os << "Cockpit::";
+        if (obj.autopilot)
+            os << "autopilot";
         break;
     case GuiFocus::Right:
         os << "RightPanel::";
@@ -339,9 +342,7 @@ void Master::initializeInternal(std::string ocr_dir) {
     }
 
     LOG(INFO) << "Initializing compass detector";
-    cv::Mat compassImage;
-    spEvalRect compassRect = std::make_shared<ConstRect>(cv::Rect(679,803,71,71));
-    mCompassDetector = std::make_unique<CompassDetector>(compassImage, compassRect);
+    mCompassDetector = std::make_unique<CompassDetector>();
 
     LOG(INFO) << "Setup keyboard hooks";
     std::vector<std::string> keys;
@@ -460,9 +461,22 @@ void Master::loop() {
     }
 }
 
-bool Master::isForeground() {
+bool Master::isGameForeground() {
     return hWndED && hWndED == GetForegroundWindow();
 }
+
+bool Master::setGameForeground() {
+    if (!hWndED)
+        Master::getCapturer();
+    if (!hWndED)
+        return false;
+    if (hWndED == GetForegroundWindow())
+        return true;
+    SetForegroundWindow(hWndED);
+    Sleep(500); // wait for switching to foreground
+    return isGameForeground();
+}
+
 
 void Master::tradingKbHook(int code, int scancode, int flags, const std::string& name) {
     (void)code;
@@ -564,25 +578,26 @@ void Master::showNotification(pCommand& cmd) {
         UIManager::showToast(c->title, c->text);
 }
 
-bool Master::preInitTask(bool checkCalibration) {
+bool Master::preInitTask() {
     auto capturer = getCapturer();
     if (!capturer)
         return false;
     bool ok = mConfiguration->checkResolutionSupported(capturer->getCaptureRect().size());
     if (!ok)
         return false;
-    if (checkCalibration && mConfiguration->checkNeedColorCalibration()) {
-        bool agree = UIManager::askCalibrationDialog(_("Color calibration required"));
-        if (agree) {
-            pushCommand(Command::Calibrate);
-            return false;
-        }
-    }
+    // Calibration is not needed anymore
+    //if (checkCalibration && mConfiguration->checkNeedColorCalibration()) {
+    //    bool agree = UIManager::askCalibrationDialog(_("Color calibration required"));
+    //    if (agree) {
+    //        pushCommand(Command::Calibrate);
+    //        return false;
+    //    }
+    //}
 
     Sleep(200); // wait for dialog to dissappear
     SetForegroundWindow(hWndED);
     Sleep(200); // wait for switching to foreground
-    if (!isForeground()) {
+    if (!isGameForeground()) {
         LOG(ERROR) << "ED is not foreground";
         return false;
     }
@@ -590,7 +605,7 @@ bool Master::preInitTask(bool checkCalibration) {
 }
 
 bool Master::startCalibration() {
-    if (!preInitTask(false))
+    if (!preInitTask())
         return false;
     LOG(INFO) << "Staring calibration task";
     auto& templ = mAIManager->getTaskTemplate(ai::ED_TASK_CALIBRATE);
@@ -667,9 +682,7 @@ int Master::canSell(Commodity* commodity) const {
         return 0;
     if (commodity->ship.count <= commodity->ship.stolen)
         return 0;
-    spMarket market = mConfiguration->currentMarket.load();
-    if (!market)
-        return 0;
+    spMarket market = mConfiguration->currentMarket;
     if (market->stationType == "FleetCarrier") {
         return std::min(commodity->ship.count, commodity->market.demand);
     }
@@ -988,7 +1001,7 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             if (widget->tp != WidgetType::Screen)
                 continue;
             widget::Screen* screen = static_cast<widget::Screen*>(widget);
-            if (!screen || (screen->gui.has_value() && screen->gui != guiFocus))
+            if (!screen || !screen->checkStatus(*this,*mConfiguration))
                 continue;
             debugTemplates(screen, &debugEnv);
             el::Loggers::flushAll();
@@ -1206,10 +1219,10 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     pasteToClipboard(clipboardText);
 
     Sleep(200);
-    if (!isForeground()) {
+    if (!isGameForeground()) {
         SetForegroundWindow(hWndED);
         Sleep(200);
-        if (!isForeground()) {
+        if (!isGameForeground()) {
             LOG(ERROR) << "ED is not foreground";
             //return false;
         }
@@ -1467,13 +1480,21 @@ const UIState& Master::detectEDState(DetectLevel level) {
         if (widget->tp != WidgetType::Screen)
             continue;
         widget::Screen* screen = static_cast<widget::Screen*>(widget);
-        if (!screen || (screen->gui.has_value() && screen->gui != guiFocus))
+        if (!screen || !screen->checkStatus(*this,*mConfiguration))
             continue;
         Widget *subItem = matchWithSubItems(screen);
         if (subItem) {
-            mLastEDState.widget = subItem;
-            LOG(DEBUG) << "Detected UI state: " << subItem->path;
-            break;
+            if (!mLastEDState.widget)
+                mLastEDState.widget = subItem;
+        }
+    }
+    if (guiFocus == GuiFocus::None) {
+        // detect autopilot
+        for (auto& cr : mClassifyEnv.classified) {
+            if (cr.cdt == ClsDetType::Detected && cr.text == "auto-pilot") {
+                mLastEDState.autopilot = !cr.detectedRect.empty();
+                break;
+            }
         }
     }
     if (!mLastEDState.widget) {

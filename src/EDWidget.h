@@ -81,11 +81,12 @@ struct Dialog : public Widget {
 };
 
 struct Screen : public Widget {
-    Screen(const std::string& name, Widget* parent, std::optional<GuiFocus> guiFocus)
+    Screen(const std::string& name, Widget* parent, json::value status)
         : Widget(WidgetType::Screen, name, parent)
-        , gui(guiFocus)
+        , status(std::move(status))
     {}
-    std::optional<GuiFocus> gui;
+    bool checkStatus(Master& master, Configuration& cfg) const;
+    const json::value status;
 };
 
 struct Root : public Widget {

@@ -46,6 +46,47 @@ cv::Rect Widget::calcReferenceRect(const ClassifyEnv& env) const {
     return rect->calcReferenceRect(env);
 }
 
+bool Screen::checkStatus(Master& master, Configuration& cfg) const {
+    if (!status.is_object())
+        return false;
+    for (auto& kv : status.as_object()) {
+        auto& key = kv.first;
+        auto& val = kv.second;
+        if (key == "gui" || key == "focus") {
+            auto gf = enum_cast<GuiFocus>(val.as_string());
+            LOG_IF(!gf.has_value(),ERROR) << "Bad gui focus name: " << val;
+            if (gf.value() != cfg.getGuiFocus())
+                return false;
+            continue;
+        }
+        if (key == "ship") {
+            std::string ship = toLower(cfg.getShipType());
+            bool ok = false;
+            if (val.is_string()) {
+                ok = (val.as_string() == ship);
+            }
+            else if (val.is_array()) {
+                for (auto& s : val.as_array()) {
+                    if (s.as_string() == ship) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if (!ok)
+                return false;
+            continue;
+        }
+        if (key == "docked") {
+            if (val.as_boolean() != cfg.getCurrentStatus()->flags.docked)
+                return false;
+            continue;
+        }
+        LOG(ERROR) << "Unknown or unimplemented status key: " << key;
+        return false;
+    }
+    return true;
+}
 
 class ExprRect : public EvalRect {
 public:

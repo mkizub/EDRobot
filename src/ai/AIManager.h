@@ -10,6 +10,7 @@
 #include "Types.h"
 #include "TaskTemplate.h"
 #include "Task.h"
+#include "AutopilotTasks.h"
 
 namespace ai {
 

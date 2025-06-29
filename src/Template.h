@@ -23,6 +23,8 @@ public:
     virtual double classify(ClassifyEnv& env) = 0;
 
     virtual double debugMatch(ClassifyEnv& env) = 0;
+
+    double classifierWeight {1};
 };
 
 class SequenceTemplate : public Template {
@@ -37,18 +39,6 @@ public:
     double debugMatch(ClassifyEnv& env) override;
 private:
     std::vector<std::unique_ptr<Template>> oracles;
-};
-
-class ShipTemplate : public Template {
-public:
-    ShipTemplate(const std::vector<std::string>& ships);
-    ~ShipTemplate() override = default;
-
-    double match(ClassifyEnv& env) override;
-    double classify(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
-private:
-    std::vector<std::string> ships;
 };
 
 class HistogramTemplate : public Template {
@@ -74,10 +64,36 @@ private:
     const CompareMode mMode;
 };
 
+class ImageFilter {
+public:
+    virtual ~ImageFilter() = default;
+    virtual cv::Mat apply(cv::Mat& image) = 0;
+};
+class GaussFilter : public ImageFilter {
+public:
+    GaussFilter(int kern, double sigma) : kern(kern), sigma(sigma) {}
+    cv::Mat apply(cv::Mat& image) final;
+    const int kern;
+    const double sigma;
+};
+class LaplacianFilter : public ImageFilter {
+public:
+    LaplacianFilter(int kern, double scale) : kern(kern), scale(scale) {}
+    cv::Mat apply(cv::Mat& image) final;
+    const int kern;
+    const double scale;
+};
+class HsvColorCropFilter : public ImageFilter {
+public:
+    HsvColorCropFilter() {}
+    cv::Mat apply(cv::Mat& image) final;
+    std::vector<std::pair<cv::Vec3b,cv::Vec3b>> ranges;
+};
+
+
 class BaseImageTemplate : public Template {
 public:
-    BaseImageTemplate(const std::string& name, const std::string& filename, cv::Mat& image, bool edge,
-                      spEvalRect& refRect, cv::Point extLT, cv::Point extRB, double tmin, double tmax);
+    BaseImageTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect);
     ~BaseImageTemplate() override = default;
 
     double classify(ClassifyEnv& env) override;
@@ -85,24 +101,22 @@ public:
 
     static bool loadImageAndMask(const std::string& filename, cv::Mat& image, cv::Mat& mask);
     static bool extractImageMask(cv::Mat& image, cv::Mat& mask);
-protected:
+
     double toResult(double matchValue); // something like logistic regression, S-curve
-    cv::Mat makeLaplacian(cv::Mat m);
-    cv::Mat makeGaussianBlur(cv::Mat m, int kernelSize=3, double sigma=0);
+    cv::Mat applyFilters(cv::Mat& image);
     void fixNaNinResult(cv::Mat& result);
-    const std::string name;
-    const std::string filename;
-    bool edgeLaplacian;
+    std::string name;
+    std::string filename;
     spEvalRect referenceRect;
     cv::Point extendLT;
     cv::Point extendRB;
-    const double threshold_min;
-    const double threshold_max;
+    double threshold_min;
+    double threshold_max;
+    std::vector<std::unique_ptr<ImageFilter>> filters;
 
     cv::Mat templImage;
     cv::Mat templMask;
-    double preprocessedTemplateScale = 1;
-    bool preprocessedLaplacian = false;
+    double preprocessedTemplateScale = 0;
 
     cv::Rect captureRect;
     cv::Rect matchRect;
@@ -117,36 +131,32 @@ protected:
 
 class ImageTemplate : public BaseImageTemplate {
 public:
-    ImageTemplate(const std::string& name, const std::string& filename, cv::Mat& image, bool edge,
-                  spEvalRect& refRect, cv::Point extLT, cv::Point extRB, double tmin, double tmax);
+    ImageTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect);
     ~ImageTemplate() override = default;
 
     double match(ClassifyEnv& env) override;
+    double debugMatch(ClassifyEnv& env) override;
     cv::Mat templImageScaled;
     cv::Mat templMaskScaled;
 };
 
 class ImageMultiScaleTemplate : public BaseImageTemplate {
 public:
-    ImageMultiScaleTemplate(const std::string& name, const std::string& filename, cv::Mat& image,
-                            double scaleMin, double scaleMax, double scaleStep, bool edge,
-                            spEvalRect& refRect, cv::Point extLT, cv::Point extRB, double tmin, double tmax);
+    ImageMultiScaleTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect, std::vector<double> scales);
     ~ImageMultiScaleTemplate() override = default;
 
     double match(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 private:
-    double generateScaleMin;
-    double generateScaleMax;
-    double generateScaleStep;
-    std::vector<ScaledMatrix> scales;
+    std::vector<double> scales;
+    std::vector<ScaledMatrix> scaledImages;
     int lastScaleIdx;
     double lastScale;
 };
 
-class CompassDetector : public BaseImageTemplate {
+class CompassDetector : public ImageMultiScaleTemplate {
 public:
-    CompassDetector(cv::Mat& image, spEvalRect& refRect);
+    CompassDetector();
     ~CompassDetector() override = default;
 
     double match(ClassifyEnv& env) override;
@@ -154,8 +164,6 @@ public:
 
     std::vector<ScaledMatrix> compassScales;
     std::vector<ScaledMatrix> compassDots;
-    cv::Vec3b luvLower;
-    cv::Vec3b luvUpper;
 
     const double threshold_dot;
 

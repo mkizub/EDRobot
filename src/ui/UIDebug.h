@@ -36,7 +36,7 @@ private:
 
     void resizeWindow();
 
-    float mOutputScale = 1.0f; //0.5f;
+    float mOutputScale = 0.5f;
     float mDPIScale = 1.0f;
     cv::Size mGameSize;
     cv::Size mOutputSize;

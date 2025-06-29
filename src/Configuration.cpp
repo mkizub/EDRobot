@@ -149,8 +149,10 @@ bool Configuration::load() {
         mCommodityDatabaseUpdated = false;
 
         loadMarket();
-        loadCargo();
-        loadGameStatus();
+        if (!loadCargo())
+            currentCargo = std::make_shared<ShipCargo>();
+        if (!loadGameStatus())
+            currentStatus = std::make_shared<ShipStatus>();
         loadCalibration();
 
         LOG(INFO) << "Setting journal directory listener";
@@ -226,13 +228,20 @@ const KeyBindings& Configuration::getGameKeyBindings(const std::string& name) co
     const std::unordered_map<std::string,KeyBindings>* map = nullptr;
     switch (guiFocus) {
     case None:
+        if (currentStatus->flags.docked)
+            map = &keyBindingsGeneric;
+        else
+            map = &keyBindingsGeneric;
+        break;
     case Right:
     case Left:
     case Chat:
     case Role:
+        map = &keyBindingsGeneric;
+        break;
     case FSS:
     case SAA:
-        map = &keyBindingsShip;
+        map = &keyBindingsEmpty;
         break;
     case Services:
     case GalaxyMap:
@@ -656,8 +665,41 @@ bool Configuration::loadGameStatus() {
         status->legalState = j.at("LegalState").as_string();
 
     guiFocus = status->guiFocus;
-    currentStatus = status;
+    currentStatus.swap(status);
+    LOG(INFO) << "Ship status: " << *currentStatus.get();
     return true;
+}
+
+std::ostream& operator<<(std::ostream& os, const ShipStatus& st) {
+    os << "{";
+    GuiFocus guiFocus {GuiFocus::None};
+    os << "gui-focus:" << enum_name<GuiFocus>(guiFocus)<<",";
+    if (st.flags.docked) os << "docked,";
+    if (st.flags.landed) os << "landed,";
+    if (st.flags.landing_gear_down) os << "landing-gear,";
+    if (st.flags.shields_up) os << "shields,";
+    if (st.flags.cruise) os << "cruise,";
+    if (st.flags.fa_off) os << "fa-off,";
+    if (st.flags.weapon_on) os << "weapon,";
+    if (st.flags.in_wing) os << "wing,";
+    if (st.flags.lights_on) os << "lights,";
+    if (st.flags.cargo_scoop_on) os << "cargo-scoop,";
+    if (st.flags.silent_run) os << "silent,";
+    if (st.flags.fuel_scooping) os << "fuel-scooping,";
+    if (st.flags.fsd_masslocked) os << "fsd-masslocked,";
+    if (st.flags.fsd_charging) os << "fsd-charging,";
+    if (st.flags2.fsd_hyperdrive_charging) os << "fsd-hyperdrive-charging,";
+    if (st.flags.fsd_cooldown) os << "fsd-сooldown,";
+    if (st.flags.fsd_jump) os << "fsd-jump,";
+    if (st.flags.fuel_low) os << "fuel-low,";
+    if (st.flags.overheating) os << "overheating,";
+    if (st.flags.in_danger) os << "in-danger,";
+    if (st.flags.in_interdiction) os << "in-interdiction,";
+    if (st.flags.hud_in_analysis) os << "hud-in-analysis,";
+    if (st.flags.night_vision) os << "night-vision,";
+    os << "pips:[" << int(st.pips[0]) << "," << int(st.pips[1]) << "," << int(st.pips[2]) << "]";
+    os << "}";
+    return os;
 }
 
 bool Configuration::loadCalibration() {
@@ -1002,7 +1044,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     std::vector<Commodity*> out;
     if (lng == XX)
         return out;
-    spMarket market = currentMarket.load();
+    spMarket market = currentMarket;
     if (!market)
         return out;
     bool isFC = (market->stationType == "FleetCarrier");
@@ -1033,7 +1075,7 @@ std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
     std::vector<Commodity*> out;
     if (lng == XX)
         return out;
-    spMarket market = currentMarket.load();
+    spMarket market = currentMarket;
     if (!market)
         return out;
     // add everything we can buy, then sort according to market order
@@ -1142,7 +1184,7 @@ bool Configuration::loadMarket() {
     if (mCommodityDatabaseUpdated)
         dumpCommodityDatabase();
 
-    currentMarket.exchange(market);
+    currentMarket.swap(market);
     Timestamp zero_time;
     for (auto& c : allKnownCommodities) {
         if (c.market.timestamp > zero_time && c.market.timestamp < timestamp) {
@@ -1198,7 +1240,7 @@ bool Configuration::loadCargo() {
         c->ship.stolen = item.at("Stolen").as_integer();
         cargo->inventory.push_back(c);
     }
-    currentCargo.exchange(cargo);
+    currentCargo.swap(cargo);
     Timestamp zero_time;
     for (auto& c : allKnownCommodities) {
         if (c.ship.timestamp > zero_time && c.ship.timestamp < timestamp) {
@@ -1438,6 +1480,63 @@ static cv::Vec3b color_from_json(const json5pp::value& v) {
     return encodeBGR(bgr);
 }
 
+static void from_json(const json5pp::value& jf, std::unique_ptr<ImageFilter>& f) {
+    if (!jf.is_object())
+        return;
+    if (jf["gauss"].is_object()) {
+        int kern = 3;
+        if (jf["gauss"]["kern"].is_integer())
+            kern = jf["gauss"]["kern"].as_integer();
+        double sigma = 1;
+        if (jf["gauss"]["sigma"].is_number())
+            sigma = jf["gauss"]["sigma"].as_number();
+        f.reset(new GaussFilter(kern, sigma));
+        return;
+    }
+    if (jf["laplacian"].is_object()) {
+        int kern = 3;
+        if (jf["laplacian"]["kern"].is_integer())
+            kern = jf["laplacian"]["kern"].as_integer();
+        double scale = 1;
+        if (jf["laplacian"]["scale"].is_number())
+            scale = jf["laplacian"]["scale"].as_number();
+        f.reset(new LaplacianFilter(kern, scale));
+        return;
+    }
+    if (!jf["hsv_crop"].is_null()) {
+        HsvColorCropFilter* filter = new HsvColorCropFilter();
+        std::vector<json5pp::value> jarr;
+        if (jf["hsv_crop"].is_array())
+            jarr = jf["hsv_crop"].as_array();
+        else if (jf["hsv_crop"].is_object())
+            jarr.push_back(jf["hsv_crop"]);
+
+        for (auto& jv_ : jarr) {
+            cv::Vec3b min = {0,0,0};
+            cv::Vec3b max = {255,255,255};
+            auto& jv = jv_.as_object();
+            if (jv.contains("h")) {
+                min[0] = jv["h"][0].as_integer();
+                max[0] = jv["h"][1].as_integer();
+            }
+            if (jv.contains("s")) {
+                min[1] = jv["s"][0].as_integer();
+                max[1] = jv["s"][1].as_integer();
+            }
+            if (jv.contains("v")) {
+                min[2] = jv["v"][0].as_integer();
+                max[2] = jv["v"][1].as_integer();
+            }
+            filter->ranges.push_back(std::make_pair(min,max));
+        }
+        if (filter->ranges.empty())
+            delete filter;
+        else
+            f.reset(filter);
+        return;
+    }
+}
+
 static void from_json(const json5pp::value& j, Template*& o) {
     o = nullptr;
     if (j.is_null())
@@ -1454,11 +1553,28 @@ static void from_json(const json5pp::value& j, Template*& o) {
             json5pp::value atX = j.at("at").as_array()[0];
             json5pp::value atY = j.at("at").as_array()[1];
             spEvalRect screenRect = makeEvalRect(j.at("at"), image.cols, image.rows);
-            int extL = 0;
-            int extT = 0;
-            int extR = 0;
-            int extB = 0;
+
+            BaseImageTemplate* templ;
+
+            std::vector<double> scales;
+            if (j.at("scale").is_array()) {
+                for (auto& scl : j.at("scale").as_array())
+                    scales.push_back(scl.as_number());
+                templ = new ImageMultiScaleTemplate(filename, image, screenRect, scales);
+            } else {
+                templ = new ImageTemplate(filename, image, screenRect);
+            }
+            o = templ;
+
+            if (j.at("name").is_string()) {
+                templ->name = j.at("name").as_string();
+            }
+
             if (j.at("ext")) {
+                int extL = 0;
+                int extT = 0;
+                int extR = 0;
+                int extB = 0;
                 if (j.at("ext").is_number())
                     extL = extT = extR = extB = j.at("ext").as_integer();
                 else if (j.at("ext").is_array()) {
@@ -1472,12 +1588,13 @@ static void from_json(const json5pp::value& j, Template*& o) {
                     if (jext.size() > 3)
                         extB = jext[3].as_integer();
                 }
+                templ->extendLT = {extL, extT};
+                templ->extendRB = {extR, extB};
             }
-            cv::Point extLT(extL, extT);
-            cv::Point extRB(extR, extB);
-            double tmin = 0.8;
-            double tmax = 0.8;
+
             if (j.at("t")) {
+                double tmin = 0.8;
+                double tmax = 0.8;
                 if (j.at("t").is_number())
                     tmax = tmin = j.at("t").as_number();
                 else if (j.at("t").is_array()) {
@@ -1491,29 +1608,25 @@ static void from_json(const json5pp::value& j, Template*& o) {
                 }
                 if (tmax < tmin)
                     std::swap(tmin, tmax);
+                templ->threshold_min = tmin;
+                templ->threshold_max = tmax;
             }
-            std::string name;
-            if (j.at("name").is_string())
-                name = j.at("name").as_string();
-            bool edge = false;
-            if (j.at("edge").is_boolean())
-                edge = j.at("edge").as_boolean();
-            double scaleStep = 1;
-            double scaleMin = 1;
-            double scaleMax = 1;
-            if (j.at("scale").is_array()) {
-                auto& arr = j.at("scale").as_array();
-                scaleStep = arr[0].as_number();
-                scaleMin = arr[1].as_number();
-                scaleMax = arr[2].as_number();
-                if (scaleMin > scaleMax) {
-                    std::swap(scaleMin, scaleMax);
+
+            if (j.at("filter")) {
+                if (j.at("filter").is_object()) {
+                    std::unique_ptr<ImageFilter> f;
+                    from_json(j.at("filter"), f);
+                    if (f)
+                        templ->filters.push_back(std::move(f));
                 }
-            }
-            if (scaleStep != 1) {
-                o = new ImageMultiScaleTemplate(name, filename, image, scaleMin, scaleMax, scaleStep, edge, screenRect, extLT, extRB, tmin, tmax);
-            } else {
-                o = new ImageTemplate(name, filename, image, edge, screenRect, extLT, extRB, tmin, tmax);
+                else if (j.at("filter").is_array()) {
+                    for (auto& jf : j.at("filter").as_array()) {
+                        std::unique_ptr<ImageFilter> f;
+                        from_json(jf, f);
+                        if (f)
+                            templ->filters.push_back(std::move(f));
+                    }
+                }
             }
         }
         else if (j.as_object().contains("tiles")) {
@@ -1546,17 +1659,6 @@ static void from_json(const json5pp::value& j, Template*& o) {
                     icons.push_back(jic.as_string());
             }
             o = new TilesDetector(name, rect, rows, cols, gap, tmin, tmax, icons);
-        }
-        else if (j.as_object().contains("ship")) {
-            auto& jo = j.as_object();
-            std::vector<std::string> ships;
-            if (jo.at("ship").is_string())
-                ships.push_back(jo.at("ship").as_string());
-            else if (jo.at("ship").is_array()) {
-                for (auto &js: jo.at("shop").as_array())
-                    ships.push_back(js.as_string());
-            }
-            o = new ShipTemplate(ships);
         }
         return;
     }
@@ -1617,10 +1719,12 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
     auto& jo = j.as_object();
     auto name = jo.at("name").as_string();
     if (name.starts_with("scr-")) {
-        std::optional<GuiFocus> gui;
-        if (jo.contains("gui"))
-            gui = enum_cast<GuiFocus>(jo.at("gui").as_string());
-        auto scr = new Screen(name, parent, gui);
+        json::value status;
+        if (jo.contains("status")) {
+            std::string s = json5pp::stringify5(jo.at("status"), json5pp::rule::no_indent());
+            status = json::parse5(s).value();
+        }
+        auto scr = new Screen(name, parent, status);
         child = scr;
     }
     else if (name.starts_with("dlg-")) {

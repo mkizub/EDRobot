@@ -123,7 +123,7 @@ struct ShipStatus {
             bool in_ship : 1;
             bool in_fighter : 1;
             bool in_srv : 1;
-            bool hud_analysis : 1;
+            bool hud_in_analysis : 1;
             bool night_vision : 1;
             bool alt_from_avr_radius : 1;
             bool fsd_jump : 1;
@@ -174,6 +174,8 @@ struct ShipStatus {
     // "Destination":{ "System":22659307939297, "Body":0, "Name":"Col 285 Sector IK-K b23-10" } before system jump, or
     // "Destination":{ "System":22659307939297, "Body":17, "Name":"Giraud Prospect" } when in system
     std::string destination;
+
+    friend std::ostream& operator<<(std::ostream& os, const ShipStatus& obj);
 };
 
 typedef std::shared_ptr<ShipStatus> spShipStatus;
@@ -232,9 +234,9 @@ public:
     bool loadCargo();
     const char* makeTesseractWordsFile();
 
-    spMarket getCurrentMarket() const { return currentMarket; }
-    spShipCargo getCurrentCargo() const { return currentCargo; }
-    spShipStatus getCurrentStatus() const { return currentStatus; }
+    const spMarket getCurrentMarket() const { return currentMarket; }
+    const spShipCargo& getCurrentCargo() const { return currentCargo; }
+    const spShipStatus& getCurrentStatus() const { return currentStatus; }
     std::vector<Commodity*> getMarketInSellOrder();
     std::vector<Commodity*> getMarketInBuyOrder();
     std::vector<Commodity*> getAllKnownCommodities();
@@ -319,6 +321,7 @@ private:
     int configScreenWidth = 0;    // Options\Graphics\DisplaySettings.xml: <ScreenWidth>1920</ScreenWidth>
     int configScreenHeight = 0;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
     FullScreenMode configFullScreen = FullScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
+    std::unordered_map<std::string,KeyBindings> keyBindingsEmpty;
     std::unordered_map<std::string,KeyBindings> keyBindingsGeneric;
     std::unordered_map<std::string,KeyBindings> keyBindingsShip;
 
@@ -366,9 +369,9 @@ private:
     std::string mCurrentDockedStation;
 
     GuiFocus guiFocus {GuiFocus::None};
-    std::atomic<spMarket> currentMarket;
-    std::atomic<spShipCargo> currentCargo;
-    std::atomic<spShipStatus> currentStatus;
+    spMarket currentMarket;
+    spShipCargo currentCargo;
+    spShipStatus currentStatus;
     StarSystem currentStarSystem;
     DockStation currentDock;
 

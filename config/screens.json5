@@ -1,7 +1,7 @@
 [
   {
     name: 'scr-market',
-    gui: 'Services',
+    status: { gui: 'Services', docked: true },
     have: [
       { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
       { name: 'btn-help', action: 'help', rect: [295,980,195,40] },
@@ -102,7 +102,7 @@
   },
   {
     name: 'scr-services',
-    gui: 'Services',
+    status: { gui: 'Services', docked: true },
     detect: { tiles: [172,444,966,484], rows: 4, cols: 3, gap: 10, name: "serv", t: [0.7, 0.9], icons: [
       // station
       "tile-icon-market.png", "tile-icon-market-act.png",
@@ -137,10 +137,11 @@
   },
   {
     name: 'scr-dock',
-    gui: 'None',
+    status: { gui: 'None', docked: true },
     have: [
       {
-        name: 'mod-type9', detect: { ship: 'type9' },
+        name: 'mod-type9',
+        status: { ship: 'type9' },
         have: [
           { name: 'btn-refuel',    rect: [805,773,71,39] },
           { name: 'btn-repair',    rect: [885,773,71,39] },
@@ -152,7 +153,8 @@
         ]
       },
       {
-        name: 'mod-type9', detect: { ship: 'cutter' },
+        name: 'mod-type9',
+        status: { ship: 'cutter' },
         have: [
           { name: 'btn-refuel',    rect: [791,836,76,41] },
           { name: 'btn-repair',    rect: [879,836,76,41] },
@@ -164,6 +166,17 @@
         ]
       }
     ]
+  },
+  {
+    name: 'scr-cockpit',
+    status: { gui: 'None', docked: false },
+    detect: {
+      img: "auto_pilot.png", t: [0.4, 0.8], at:[935, 350], ext: [60,60], name: "auto-pilot", filter: [
+        { gauss: { kern: 3, sigma: 1.0 } },
+        { hsv_crop: { h: [80,100], s:[30,255], v:[80,255] } },
+        //{ laplacian: { kern: 1, scale: 1.0 } },
+      ]
+    }
   },
 //  {
 //    name: 'scr-carrier-trade-mgr',

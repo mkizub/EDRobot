@@ -47,7 +47,16 @@ void Task::sleep(int milliseconds) const {
     if (milliseconds <= 0)
         return;
     if (milliseconds >= 75) {
-        Sleep(milliseconds);
+        auto now = std::chrono::system_clock::now();
+        auto until = now + std::chrono::milliseconds(milliseconds);
+        while (now < until) {
+            auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
+            if (left.count() < 5)
+                break;
+            auto duration = std::min(std::chrono::milliseconds(500), left);
+            std::this_thread::sleep_for(duration);
+            now = std::chrono::system_clock::now();
+        }
         check_interrupted();
         return;
     }

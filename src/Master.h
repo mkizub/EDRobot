@@ -60,6 +60,7 @@ struct UIState {
     GuiFocus guiFocus;
     const widget::Widget* widget {nullptr};
     const widget::Widget* focused {nullptr};
+    bool autopilot {false};
     friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
     std::string to_string() const;
 };
@@ -80,6 +81,8 @@ public:
 
     int initialize(int argc, char* argv[]);
     void loop();
+    bool isGameForeground();
+    bool setGameForeground();
     bool captureWindow(ClassifyEnv& env);
     const UIState& detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastEDState; }
@@ -128,13 +131,12 @@ private:
     void resetCapturer();
 
     void showNotification(pCommand& cmd);
-    bool preInitTask(bool checkCalibration=true);
+    bool preInitTask();
     bool startCalibration();
     bool startTrade();
     bool pauseAITask();
     bool resumeAITask();
     bool stopAITask();
-    bool isForeground();
 
     WState detectButtonState(const widget::Widget* item);
     void detectListState(const widget::List* item, DetectLevel level);
