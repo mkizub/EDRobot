@@ -178,6 +178,19 @@
       ]
     }
   },
+  {
+    name: 'scr-left-panel',
+    status: { gui: 'Left' },
+    detect: {
+      line: "lpline", p0: [236,300], p1: [1302,278], ext: [120,40], thr: 150,
+      anchor: ["at_left_panel.png", "at_left_panel-act.png"], at: [240,256], t: [0.4, 0.8],
+      filter: [
+        //{ gauss: { kern: [3,3] } }, // either scale or blur
+        { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+      ],
+    },
+    transform: { line: "lpline", tl: [234,250], tr: [1320,235], bl: [287,905], br: [1332,798] }
+  },
 //  {
 //    name: 'scr-carrier-trade-mgr',
 //    detect: [

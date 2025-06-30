@@ -41,6 +41,20 @@ private:
     std::vector<std::unique_ptr<Template>> oracles;
 };
 
+class BestOfTemplate : public Template {
+public:
+    BestOfTemplate(std::vector<std::unique_ptr<Template>>&& oracles)
+            : oracles(std::move(oracles))
+    {}
+    ~BestOfTemplate() override = default;
+
+    double match(ClassifyEnv& env) override;
+    double classify(ClassifyEnv& env) override;
+    double debugMatch(ClassifyEnv& env) override;
+private:
+    std::vector<std::unique_ptr<Template>> oracles;
+};
+
 class HistogramTemplate : public Template {
 public:
     enum class CompareMode {
@@ -67,26 +81,27 @@ private:
 class ImageFilter {
 public:
     virtual ~ImageFilter() = default;
-    virtual cv::Mat apply(cv::Mat& image) = 0;
+    virtual cv::Mat apply(cv::Mat image) = 0;
 };
 class GaussFilter : public ImageFilter {
 public:
-    GaussFilter(int kern, double sigma) : kern(kern), sigma(sigma) {}
-    cv::Mat apply(cv::Mat& image) final;
-    const int kern;
-    const double sigma;
+    GaussFilter(int kern_x, int kern_y) : kernX(kern_x), kernY(kern_y) {}
+    cv::Mat apply(cv::Mat image) final;
+    const int kernX;
+    const int kernY;
+    const bool disabled {false};
 };
 class LaplacianFilter : public ImageFilter {
 public:
     LaplacianFilter(int kern, double scale) : kern(kern), scale(scale) {}
-    cv::Mat apply(cv::Mat& image) final;
+    cv::Mat apply(cv::Mat image) final;
     const int kern;
     const double scale;
 };
 class HsvColorCropFilter : public ImageFilter {
 public:
     HsvColorCropFilter() {}
-    cv::Mat apply(cv::Mat& image) final;
+    cv::Mat apply(cv::Mat image) final;
     std::vector<std::pair<cv::Vec3b,cv::Vec3b>> ranges;
 };
 
@@ -103,7 +118,8 @@ public:
     static bool extractImageMask(cv::Mat& image, cv::Mat& mask);
 
     double toResult(double matchValue); // something like logistic regression, S-curve
-    cv::Mat applyFilters(cv::Mat& image);
+    cv::Mat applyFilters(cv::Mat image);
+    cv::Mat scaleImage(cv::Mat image, double scaleX, double scaleY);
     void fixNaNinResult(cv::Mat& result);
     std::string name;
     std::string filename;
@@ -214,5 +230,40 @@ private:
     int mGap;
 
 };
+
+class LineDetector : public BaseImageTemplate {
+public:
+    LineDetector( std::vector<std::string> anchors, spEvalRect anchorAt, cv::Point p0, cv::Point p1);
+    ~LineDetector() override = default;
+
+    double match(ClassifyEnv& env) override;
+    double debugMatch(ClassifyEnv& env) override;
+
+    void normalizeRotatedRect(cv::RotatedRect& rr);
+    void tryCannyParamsGUI(ClassifyEnv &env);
+
+    const std::vector<std::string> anchorFiles;
+    const cv::Point referenceP0;
+    const cv::Point referenceP1;
+    // maybe scale (speedup and a kind of blur
+    double imageScaleX {1};
+    double imageScaleY {1};
+    // cv::threshold
+    int binaryThreshold {127};
+
+    struct AnchorMatrix {
+        std::string name;
+        cv::Mat templImage;
+    };
+    std::vector<AnchorMatrix> anchorSource;
+    std::vector<AnchorMatrix> anchorScaled;
+
+    cv::Point captureP0;
+    cv::Point captureP1;
+    cv::Rect lineMatchRect;
+    float lastLineAngle;  // in degrees, -90 <= angle <= +90
+
+};
+
 
 #endif //EDROBOT_TEMPLATE_H

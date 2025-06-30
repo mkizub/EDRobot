@@ -100,6 +100,7 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
 void UIState::clear() {
     valid = false;
     guiFocus = GuiFocus::None;
+    screen = nullptr;
     widget = nullptr;
     focused = nullptr;
     autopilot = false;
@@ -1025,6 +1026,18 @@ bool Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             for (Widget* i : item->have) {
                 ok |= debugTemplates(i, env);
             }
+            if (item->tp == WidgetType::Screen) {
+                auto screen = (Screen*)item;
+                if (screen->transform) {
+                    cv::Mat& debugImage = env->getDebugImage();
+                    cv::Scalar color {200,200,200};
+                    for (int p=0; p < 4; p++) {
+                        cv::Point p1 = screen->transform->transfromSrc[p];
+                        cv::Point p2 = screen->transform->transfromSrc[(p+1)%4];
+                        cv::line(debugImage, p1, p2, color, 2);
+                    }
+                }
+            }
             return ok;
         }
         return false;
@@ -1484,8 +1497,10 @@ const UIState& Master::detectEDState(DetectLevel level) {
             continue;
         Widget *subItem = matchWithSubItems(screen);
         if (subItem) {
-            if (!mLastEDState.widget)
+            if (!mLastEDState.widget) {
+                mLastEDState.screen = screen;
                 mLastEDState.widget = subItem;
+            }
         }
     }
     if (guiFocus == GuiFocus::None) {
@@ -1500,6 +1515,9 @@ const UIState& Master::detectEDState(DetectLevel level) {
     if (!mLastEDState.widget) {
         LOG(ERROR) << "Unknown state";
         return mLastEDState;
+    }
+    if (mLastEDState.screen->transform) {
+        mClassifyEnv.warpPerspective(mLastEDState.screen->transform);
     }
     if (level >= DetectLevel::Buttons) {
         if (mButtonStateDetector) {

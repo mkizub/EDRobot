@@ -12,6 +12,7 @@ struct ResolvedEnv;
 namespace widget {
 class Widget;
 class List;
+class Screen;
 }
 
 class Capturer;
@@ -61,8 +62,45 @@ public:
 
 extern spEvalRect makeEvalRect(json5pp::value jv, int width=0, int height=0);
 
+// Transform evaluator
+class EvalTransform {
+public:
+    EvalTransform(cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl)
+        : orig_tl(tl), orig_tr(tr), orig_br(br), orig_bl(bl)
+    {}
+    virtual ~EvalTransform() = default;
+    virtual bool calcTransform(const ResolvedEnv& detectorState) = 0;
+    virtual cv::Mat transformImage(const cv::Mat& image) const;
+
+    const cv::Point orig_tl;
+    const cv::Point orig_tr;
+    const cv::Point orig_br;
+    const cv::Point orig_bl;
+
+    cv::Size transformedSize {};
+    cv::Point2f transfromSrc[4];
+    cv::Point2f transfromDst[4];
+    cv::Mat transfromMatrix {};
+};
+typedef std::shared_ptr<EvalTransform> spEvalTransform;
+
+class ConstTransform : public EvalTransform {
+public:
+    ConstTransform(cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl);
+    bool calcTransform(const ResolvedEnv& detectorState) override;
+};
+
+class LineTransform : public EvalTransform {
+public:
+    LineTransform(std::string line, cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl);
+    bool calcTransform(const ResolvedEnv& detectorState) override;
+
+    const std::string lineDetector;
+};
+
 enum class ClsDetType {
     Detected,           // rect is detected by Template, text is the name of the template
+    LineDetected,       // rect is detected by LineDetector, text is the name of the detector
     Tile,               // rect is detected as tile button
     Widget,             // rect is assumed to be a widget
     ListRow,            // rect is a list row (maybe commodity list)
@@ -81,6 +119,11 @@ struct ClassifiedRect {
             cv::Rect referenceRect;   // originally expected rect in reference coordinates
             double scale; // detected scale for multi-scale templates, environment (screen) scale is not counted
         } tdet;
+        struct {
+            cv::Point2f offset;
+            float angle; // in degrees, -90 <= angle <= +90
+            float scale;
+        } ldet;
         struct {
             int row;
             int col;
@@ -163,17 +206,23 @@ protected:
 
 struct ClassifyEnv : public ResolvedEnv {
     void init(const cv::Rect& monitorRect, const cv::Rect& captRect, upFrame&& frame);
+    void warpPerspective(const spEvalTransform& transform);
     void clear();
 
     [[nodiscard]] const cv::UMat& getColorTexture() const { return mFrame->getColorTexture(); };
     [[nodiscard]] const cv::Mat&  getColorImage()   const { return mFrame->getColorImage();   };
     [[nodiscard]] const cv::Mat&  getGrayImage()    const { return mFrame->getGrayImage();    };
     [[nodiscard]] cv::Mat&        getDebugImage()   const;
+    [[nodiscard]] const cv::Mat&  getWarpedColorImage() const;
+    [[nodiscard]] const cv::Mat&  getWarpedGrayImage()  const;
 
 private:
     friend class Master;
     upFrame mFrame;
     mutable cv::Mat mDebugOverlay;
+    spEvalTransform mWarpTransform;
+    mutable cv::Mat mWarpedColorImage;
+    mutable cv::Mat mWarpedGrayImage;
 };
 
 class TileRect : public EvalRect {

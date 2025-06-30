@@ -57,7 +57,8 @@ struct UIState {
     const std::string& path() const;
     bool match(const std::string& state) const;
     bool valid {false};
-    GuiFocus guiFocus;
+    GuiFocus guiFocus {GuiFocus::None};
+    const widget::Screen* screen {nullptr};
     const widget::Widget* widget {nullptr};
     const widget::Widget* focused {nullptr};
     bool autopilot {false};

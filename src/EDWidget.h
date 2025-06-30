@@ -87,6 +87,8 @@ struct Screen : public Widget {
     {}
     bool checkStatus(Master& master, Configuration& cfg) const;
     const json::value status;
+
+    spEvalTransform transform;
 };
 
 struct Root : public Widget {

@@ -672,8 +672,7 @@ bool Configuration::loadGameStatus() {
 
 std::ostream& operator<<(std::ostream& os, const ShipStatus& st) {
     os << "{";
-    GuiFocus guiFocus {GuiFocus::None};
-    os << "gui-focus:" << enum_name<GuiFocus>(guiFocus)<<",";
+    os << "gui-focus:" << enum_name<GuiFocus>(st.guiFocus)<<",";
     if (st.flags.docked) os << "docked,";
     if (st.flags.landed) os << "landed,";
     if (st.flags.landing_gear_down) os << "landing-gear,";
@@ -1484,13 +1483,18 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<ImageFilter>& f)
     if (!jf.is_object())
         return;
     if (jf["gauss"].is_object()) {
-        int kern = 3;
-        if (jf["gauss"]["kern"].is_integer())
-            kern = jf["gauss"]["kern"].as_integer();
-        double sigma = 1;
-        if (jf["gauss"]["sigma"].is_number())
-            sigma = jf["gauss"]["sigma"].as_number();
-        f.reset(new GaussFilter(kern, sigma));
+        int kernX = 3;
+        int kernY = 3;
+        if (jf["gauss"]["kern"].is_array()) {
+            kernX = jf["gauss"]["kern"][0].as_integer();
+            kernY = jf["gauss"]["kern"][1].as_integer();
+        } else {
+            kernX = jf["gauss"]["kern"].as_integer();
+            kernY = kernX;
+        }
+        kernX = (kernX & ~1) + 1;
+        kernY = (kernY & ~1) + 1;
+        f.reset(new GaussFilter(kernX, kernY));
         return;
     }
     if (jf["laplacian"].is_object()) {
@@ -1629,6 +1633,109 @@ static void from_json(const json5pp::value& j, Template*& o) {
                 }
             }
         }
+        if (j.as_object().contains("line")) {
+            std::vector<std::string> anchors;
+            if (j["anchor"].is_string())
+                anchors.push_back("templates/"+j["anchor"].as_string());
+            else {
+                for (auto& a : j["anchor"].as_array())
+                    anchors.push_back("templates/"+a.as_string());
+            }
+            int width = 0;
+            int height = 0;
+            for (auto& fname : anchors) {
+                auto image = cv::imread(fname, cv::IMREAD_UNCHANGED);
+                if (image.empty()) {
+                    LOG(ERROR) << "Template image " << fname << " not found";
+                } else {
+                    width = std::max(width, image.cols);
+                    height = std::max(height, image.rows);
+                }
+            }
+
+            cv::Point p0 {j["p0"][0].as_integer(), j["p0"][1].as_integer()};
+            cv::Point p1 {j["p1"][0].as_integer(), j["p1"][1].as_integer()};
+
+            spEvalRect screenRect = makeEvalRect(j.at("at"), width, height);
+            LineDetector* ldet = new LineDetector(anchors, screenRect, p0, p1);
+            ldet->name = j["line"].as_string();
+
+            o = ldet;
+
+            if (j.at("scale")) {
+                double scaleX = 1;
+                double scaleY = 1;
+                if (j["scale"].is_number())
+                    scaleX = scaleY = j["scale"].as_number();
+                else if (j["scale"].is_array()) {
+                    scaleX = j["scale"][0].as_number();
+                    scaleY = j["scale"][1].as_number();
+                }
+                ldet->imageScaleX = scaleX;
+                ldet->imageScaleY = scaleY;
+            }
+            if (j.at("ext")) {
+                int extL = 0;
+                int extT = 0;
+                int extR = 0;
+                int extB = 0;
+                if (j.at("ext").is_number())
+                    extL = extT = extR = extB = j.at("ext").as_integer();
+                else if (j.at("ext").is_array()) {
+                    auto& jext = j.at("ext").as_array();
+                    if (!jext.empty())
+                        extL = extT = extR = extB = jext[0].as_integer();
+                    if (jext.size() > 1)
+                        extT = extB = jext[1].as_integer();
+                    if (jext.size() > 2)
+                        extR = jext[2].as_integer();
+                    if (jext.size() > 3)
+                        extB = jext[3].as_integer();
+                }
+                ldet->extendLT = {extL, extT};
+                ldet->extendRB = {extR, extB};
+            }
+
+            if (j.at("t")) {
+                double tmin = 0.8;
+                double tmax = 0.8;
+                if (j.at("t").is_number())
+                    tmax = tmin = j.at("t").as_number();
+                else if (j.at("t").is_array()) {
+                    auto& jt = j.at("t").as_array();
+                    if (!jt.empty())
+                        tmin = jt[0].as_number();
+                    if (jt.size() > 1)
+                        tmax = jt[1].as_number();
+                    else
+                        tmax = tmin;
+                }
+                if (tmax < tmin)
+                    std::swap(tmin, tmax);
+                ldet->threshold_min = tmin;
+                ldet->threshold_max = tmax;
+            }
+
+            if (j.at("thr"))
+                ldet->binaryThreshold = j["thr"].as_number();
+
+            if (j.at("filter")) {
+                if (j.at("filter").is_object()) {
+                    std::unique_ptr<ImageFilter> f;
+                    from_json(j.at("filter"), f);
+                    if (f)
+                        ldet->filters.push_back(std::move(f));
+                }
+                else if (j.at("filter").is_array()) {
+                    for (auto& jf : j.at("filter").as_array()) {
+                        std::unique_ptr<ImageFilter> f;
+                        from_json(jf, f);
+                        if (f)
+                            ldet->filters.push_back(std::move(f));
+                    }
+                }
+            }
+        }
         else if (j.as_object().contains("tiles")) {
             auto& jo = j.as_object();
             spEvalRect rect = makeEvalRect(jo.at("tiles"));
@@ -1659,6 +1766,19 @@ static void from_json(const json5pp::value& j, Template*& o) {
                     icons.push_back(jic.as_string());
             }
             o = new TilesDetector(name, rect, rows, cols, gap, tmin, tmax, icons);
+        }
+        else if (j.as_object().contains("best")) {
+            std::vector<std::unique_ptr<Template>> oracles;
+            for (auto& jo : j["best"].as_array()) {
+                Template *oracle = nullptr;
+                from_json(jo, oracle);
+                if (!oracle) {
+                    oracles.clear();
+                    break;
+                }
+                oracles.emplace_back(oracle);
+            }
+            o = new BestOfTemplate(std::move(oracles));
         }
         return;
     }
@@ -1725,6 +1845,22 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
             status = json::parse5(s).value();
         }
         auto scr = new Screen(name, parent, status);
+        if (jo.contains("transform")) {
+            // transform: { tl: [212,256], tr: [1276,242], br: [1296,800], bl: [270,912] }
+            // transform: { from: "lpline", tl: [0,-50], tr: [0,-50], ratio: 1.77777777 }
+            auto& jt = jo.at("transform");
+            cv::Point2f tl{(float) jt["tl"][0].as_number(), (float) jt["tl"][1].as_number()};
+            cv::Point2f tr{(float) jt["tr"][0].as_number(), (float) jt["tr"][1].as_number()};
+            cv::Point2f br{(float) jt["br"][0].as_number(), (float) jt["br"][1].as_number()};
+            cv::Point2f bl{(float) jt["bl"][0].as_number(), (float) jt["bl"][1].as_number()};
+            if (jt["line"].is_string()) {
+                std::string line = jt["line"].as_string();
+                scr->transform = spEvalTransform(new LineTransform(line, tl, tr, br, bl));
+            }
+            else {
+                scr->transform = spEvalTransform(new ConstTransform(tl, tr, br, bl));
+            }
+        }
         child = scr;
     }
     else if (name.starts_with("dlg-")) {

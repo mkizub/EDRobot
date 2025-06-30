@@ -3,9 +3,9 @@
   "default-key-after-time": 50,
   "search-region-extent": 10,
   "tesseract-data-path": "tessdata-best", // defaults to "tessdata-fast"
-  "capturer-WinRT-disabled": false,
+  "capturer-WinRT-disabled": true,
   "capturer-Win32-disabled": false,
-  "capturer-DXGI-disabled": true,
+  "capturer-DXGI-disabled": false,
   "auto-pause": false, // default is true
   shortcuts: {
     start: "PrintScreen", // defaults to "printscreen"
