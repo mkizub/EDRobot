@@ -5,6 +5,9 @@
 #include "../pch.h"
 
 #include "AIManager.h"
+#include "TaskCalibrate.h"
+#include "TaskSell.h"
+#include "TaskDebug.h"
 #include "../ui/UIManager.h"
 
 #ifndef NDEBUG

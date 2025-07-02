@@ -7,11 +7,14 @@
 
 #include "pch.h"
 
+#include "EDWidget.h"
+#include "detect/Detector.h"
+
 namespace widget {
 
 typedef std::shared_ptr<peg::Ast> spAst;
 
-void Widget::addSubItem(widget::Widget *sub) {
+void Widget::addSubItem(Widget *sub) {
     if (!sub)
         return;
     if (!sub->parent)

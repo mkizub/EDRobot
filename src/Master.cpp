@@ -7,12 +7,13 @@
 #include "ui/UIManager.h"
 #include "ai/AIManager.h"
 #include "ai/TaskTemplate.h"
+#include "detect/Detector.h"
 #include "Keyboard.h"
-#include "Template.h"
 #include "Capturer.h"
 #include "FuzzyMatch.h"
-#include <memory>
+#include "EDWidget.h"
 #include <fstream>
+#include <memory>
 #include <string>
 #include <iterator>
 #include "opencv2/core/utils/logger.hpp"
@@ -344,7 +345,7 @@ void Master::initializeInternal(std::string ocr_dir) {
     }
 
     LOG(INFO) << "Initializing compass detector";
-    mCompassDetector = std::make_unique<CompassDetector>();
+    mCompassDetector = std::make_unique<detect::CompassDetector>();
 
     LOG(INFO) << "Setup keyboard hooks";
     std::vector<std::string> keys;
@@ -360,9 +361,9 @@ void Master::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, cons
     initButtonStateDetector();
 }
 void Master::initButtonStateDetector() {
-    mButtonStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Hsv, cv::Rect(), mConfiguration->mCalibratedButtonHsv));
+    mButtonStateDetector.reset(new detect::Histogram(detect::Histogram::CompareMode::Hsv, cv::Rect(), mConfiguration->mCalibratedButtonHsv));
     LOG(INFO) << "Button state detector installed";
-    mLstRowStateDetector.reset(new HistogramTemplate(HistogramTemplate::CompareMode::Hsv, cv::Rect(), mConfiguration->mCalibratedLstRowHsv));
+    mLstRowStateDetector.reset(new detect::Histogram(detect::Histogram::CompareMode::Hsv, cv::Rect(), mConfiguration->mCalibratedLstRowHsv));
     LOG(INFO) << "List row state detector installed";
 }
 
@@ -799,7 +800,7 @@ bool Master::startTrade() {
         templ.set("commodity", commodity->nameId);
         templ.set("amount", total);
         templ.set("chunk", chunk);
-        mAIManager->new_task(std::make_unique<ai::TaskSell>(nullptr, *mAIManager, templ));
+        mAIManager->new_task(templ);
     } else {
         ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL_ALL);
         templ.set("chunk", chunk);

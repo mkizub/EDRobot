@@ -4,17 +4,17 @@
 
 #pragma once
 
-#include <utility>
-
-#include "pch.h"
+#include "../pch.h"
 
 #ifndef EDROBOT_TEMPLATE_H
 #define EDROBOT_TEMPLATE_H
 
-class Template {
+namespace detect {
+
+class Detector {
 public:
-    Template() = default;
-    virtual ~Template() = default;
+    Detector() = default;
+    virtual ~Detector() = default;
 
     // return matching value, i.e. how much a template image is similar to given image
     virtual double match(ClassifyEnv& env) = 0;
@@ -27,41 +27,41 @@ public:
     double classifierWeight {1};
 };
 
-class SequenceTemplate : public Template {
+class Sequence : public Detector {
 public:
-    SequenceTemplate(std::vector<std::unique_ptr<Template>>&& oracles)
+    Sequence(std::vector<std::unique_ptr<Detector>>&& oracles)
         : oracles(std::move(oracles))
     {}
-    ~SequenceTemplate() override = default;
+    ~Sequence() override = default;
 
     double match(ClassifyEnv& env) override;
     double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 private:
-    std::vector<std::unique_ptr<Template>> oracles;
+    std::vector<std::unique_ptr<Detector>> oracles;
 };
 
-class BestOfTemplate : public Template {
+class BestOf : public Detector {
 public:
-    BestOfTemplate(std::vector<std::unique_ptr<Template>>&& oracles)
+    BestOf(std::vector<std::unique_ptr<Detector>>&& oracles)
             : oracles(std::move(oracles))
     {}
-    ~BestOfTemplate() override = default;
+    ~BestOf() override = default;
 
     double match(ClassifyEnv& env) override;
     double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 private:
-    std::vector<std::unique_ptr<Template>> oracles;
+    std::vector<std::unique_ptr<Detector>> oracles;
 };
 
-class HistogramTemplate : public Template {
+class Histogram : public Detector {
 public:
     enum class CompareMode {
         Gray, Hsv, Luv, BGR
     };
-    HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::array<cv::Vec3b,4>& colors);
-    ~HistogramTemplate() override = default;
+    Histogram(CompareMode mode, const cv::Rect& rect, const std::array<cv::Vec3b,4>& colors);
+    ~Histogram() override = default;
 
     double match(ClassifyEnv& env) override;
     double classify(ClassifyEnv& env) override;
@@ -105,7 +105,7 @@ public:
 };
 
 
-class BaseImageTemplate : public Template {
+class BaseImageTemplate : public Detector {
 public:
     BaseImageTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect);
     ~BaseImageTemplate() override = default;
@@ -196,7 +196,7 @@ public:
     static void tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect);
 };
 
-class TilesDetector : public Template {
+class TilesDetector : public Detector {
 public:
     TilesDetector(const std::string& name, spEvalRect& rect, int rows, int cols, int gap, double tmin, double tmax, std::vector<std::string> icon_files);
     ~TilesDetector() override = default;
@@ -264,5 +264,6 @@ public:
 
 };
 
+} // namespace detect
 
 #endif //EDROBOT_TEMPLATE_H

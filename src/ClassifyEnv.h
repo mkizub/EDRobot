@@ -9,14 +9,6 @@
 
 struct ResolvedEnv;
 
-namespace widget {
-class Widget;
-class List;
-class Screen;
-}
-
-class Capturer;
-
 //
 // Frame returned by Capturer, manages allocated memory and textures
 //

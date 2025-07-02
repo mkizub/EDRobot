@@ -22,10 +22,13 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <thread>
 #include <format>
 #include <variant>
 #include <chrono>
 #include <future>
+#include <utility>
+#include <filesystem>
 #define _USE_MATH_DEFINES
 #include <cmath>
 
@@ -54,11 +57,29 @@ std::string std_format(std::string_view rt_fmt_str, Args&&... args) {
 #include <magic_enum/magic_enum.hpp>
 using namespace magic_enum;
 
+// forward declarations
+class Capturer;
+
+namespace detect {
+    class Detector;
+    class CompassDetector;
+    class Histogram;
+}
+
+namespace ai {
+    class AIManager;
+    class Task;
+}
+namespace widget {
+    class Root;
+    class Widget;
+    class List;
+    class Screen;
+}
+
 #include "Utils.h"
 #include "Configuration.h"
 #include "ClassifyEnv.h"
-#include "Template.h"
-#include "EDWidget.h"
 #include "Master.h"
 
 #endif //PCH_H

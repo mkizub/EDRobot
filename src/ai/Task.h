@@ -28,7 +28,7 @@ public:
     bool sendMouseClick(const cv::Point& point, int delay_ms = 35, int pause_ms = 50) const;
     bool decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const;
     void check_interrupted() const;
-    bool executeAction(const std::string& actionName, const json5pp::value& args);
+    bool executeAction(const std::string& actionName, const json5pp::value& args = json5pp::value());
     bool executeStep(const json5pp::value& step, const json5pp::value& args);
     bool executeWait(const json5pp::value& step, const json5pp::value& args);
     void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
@@ -51,61 +51,6 @@ public:
     short missCount { 0 };
     short maxMisses { 0 };
     Result result { Result::Created };
-};
-
-class TaskCalibrate final : public Task {
-public:
-    TaskCalibrate(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
-private:
-    std::array<std::vector<cv::Vec3b>,4> mButtonBGR;
-    std::array<std::vector<cv::Vec3b>,4> mLstRowBGR;
-    void recordButton(const char* button, WState bs);
-    void recordLstRow(const char* list, cv::Point mouse, WState bs);
-    void getRowsByState(const ClassifiedRect** rows);
-    bool calculateAverage(bool incomplete);
-    std::array<cv::Vec3b,4> mButtonBGRAverage;
-    std::array<cv::Vec3b,4> mLstRowBGRAverage;
-    HistogramTemplate mDetector;
-    cv::Mat colorImage;
-};
-
-class TaskSell;
-
-class TaskSellAll final : public Task {
-public:
-    TaskSellAll(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
-private:
-    void plan();
-
-    int mChunk;
-    std::vector<upTask> sell_archive;
-};
-
-class TaskSell final : public Task {
-public:
-    TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
-
-    Commodity* mCommodity;
-    int mTotal;
-    int mItems;
-
-    int mSold;
-};
-
-class TaskDebugFindAllCommodities final : public Task {
-public:
-    TaskDebugFindAllCommodities(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
-private:
-    bool checkCommodity(Commodity* commodity, const std::string& marketMode, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify);
-    void saveOcrTrainingData(const cv::Mat& grayImage, cv::Rect rect, const Commodity* commodity, bool invert);
-
-    const bool shuffle;
-    const int dump_index;
-    const int start_index;
 };
 
 } //namespace ai

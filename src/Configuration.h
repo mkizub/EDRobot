@@ -9,8 +9,6 @@
 #ifndef EDROBOT_CONFIGURATION_H
 #define EDROBOT_CONFIGURATION_H
 
-#include <chrono>
-
 enum class Command;
 
 enum class WState : int { Unknown=-1, Normal=0, Focused=1, Active=2, Disabled=3 };

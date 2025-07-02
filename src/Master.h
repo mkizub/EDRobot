@@ -7,14 +7,6 @@
 #ifndef EDROBOT_MASTER_H
 #define EDROBOT_MASTER_H
 
-#include <queue>
-#include <condition_variable>
-#include <thread>
-#include "opencv2/core/mat.hpp"
-#include "EDWidget.h"
-
-class Capturer;
-
 namespace tesseract {
     class TessBaseAPI;
 }
@@ -173,9 +165,9 @@ private:
     DetectLevel mDetectLevelIdle {DetectLevel::None};
     std::chrono::milliseconds mLoopWakeup;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
-    std::unique_ptr<HistogramTemplate> mButtonStateDetector;
-    std::unique_ptr<HistogramTemplate> mLstRowStateDetector;
-    std::unique_ptr<CompassDetector> mCompassDetector;
+    std::unique_ptr<detect::Histogram> mButtonStateDetector;
+    std::unique_ptr<detect::Histogram> mLstRowStateDetector;
+    std::unique_ptr<detect::CompassDetector> mCompassDetector;
     Configuration* mConfiguration {nullptr};
     ai::AIManager* mAIManager {nullptr};
 

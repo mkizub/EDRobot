@@ -3,9 +3,12 @@
 //
 
 #include "pch.h"
+
 #include "Configuration.h"
 #include "Keyboard.h"
 #include "FuzzyMatch.h"
+#include "EDWidget.h"
+
 #include <dirlistener/ReadDirectoryChanges.h>
 #ifdef DEBUG
 # undef DEBUG
@@ -20,7 +23,7 @@
 static cv::Vec3b color_from_json(const json::value& v);
 static void from_json(const json::value& j, cv::Rect& r);
 
-static void from_json(const json5pp::value& j, Template*& o);
+static void from_json(const json5pp::value& j, detect::Detector*& o);
 static void from_json(const json5pp::value& j, cv::Rect& r);
 static widget::Widget* from_json(const json5pp::value& j, widget::Widget* parent);
 
@@ -1440,7 +1443,10 @@ void Configuration::changeDirThreadLoop() {
     }
 }
 
+#include "detect/Detector.h"
+
 using namespace widget;
+using namespace detect;
 
 static cv::Vec3b color_from_json(const json::value& v) {
     unsigned bgr = 0;
@@ -1478,7 +1484,7 @@ static cv::Vec3b color_from_json(const json5pp::value& v) {
     return encodeBGR(bgr);
 }
 
-static void from_json(const json5pp::value& jf, std::unique_ptr<ImageFilter>& f) {
+static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFilter>& f) {
     if (!jf.is_object())
         return;
     if (jf["gauss"].is_object()) {
@@ -1540,12 +1546,12 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<ImageFilter>& f)
     }
 }
 
-static void from_json(const json5pp::value& j, Template*& o) {
+static void from_json(const json5pp::value& j, Detector*& o) {
     o = nullptr;
     if (j.is_null())
         return;
     if (j.is_object()) {
-        Template* oracle = nullptr;
+        Detector* oracle = nullptr;
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
             auto image = cv::imread(filename, cv::IMREAD_UNCHANGED);
@@ -1767,9 +1773,9 @@ static void from_json(const json5pp::value& j, Template*& o) {
             o = new TilesDetector(name, rect, rows, cols, gap, tmin, tmax, icons);
         }
         else if (j.as_object().contains("best")) {
-            std::vector<std::unique_ptr<Template>> oracles;
+            std::vector<std::unique_ptr<Detector>> oracles;
             for (auto& jo : j["best"].as_array()) {
-                Template *oracle = nullptr;
+                Detector *oracle = nullptr;
                 from_json(jo, oracle);
                 if (!oracle) {
                     oracles.clear();
@@ -1777,14 +1783,14 @@ static void from_json(const json5pp::value& j, Template*& o) {
                 }
                 oracles.emplace_back(oracle);
             }
-            o = new BestOfTemplate(std::move(oracles));
+            o = new BestOf(std::move(oracles));
         }
         return;
     }
     if (j.is_array()) {
-        std::vector<std::unique_ptr<Template>> oracles;
+        std::vector<std::unique_ptr<Detector>> oracles;
         for (auto& jo : j.as_array()) {
-            Template *oracle = nullptr;
+            Detector *oracle = nullptr;
             from_json(jo, oracle);
             if (!oracle) {
                 oracles.clear();
@@ -1793,7 +1799,7 @@ static void from_json(const json5pp::value& j, Template*& o) {
             oracles.emplace_back(oracle);
         }
         if (!oracles.empty())
-            o = new SequenceTemplate(std::move(oracles));
+            o = new Sequence(std::move(oracles));
         return;
     }
 }
@@ -1924,7 +1930,7 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
         }
     }
     if (jo.contains("detect")) {
-        Template* oracle = nullptr;
+        Detector* oracle = nullptr;
         from_json(jo.at("detect"), oracle);
         child->oracle.reset(oracle);
     }

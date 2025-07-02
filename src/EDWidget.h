@@ -27,7 +27,7 @@ struct Widget {
     const std::string path;
 
     spEvalRect rect;
-    std::unique_ptr<Template> oracle;
+    std::unique_ptr<detect::Detector> oracle;
     std::vector<Widget*> have;
 
 };

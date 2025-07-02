@@ -40,10 +40,15 @@ add_executable(EDRobot
         src/Keyboard.h
         src/Master.cpp
         src/Master.h
-        src/Template.cpp
-        src/Template.h
         src/Utils.cpp
         src/Utils.h
+
+        src/detect/Detector.h
+        src/detect/Detector.cpp
+        src/detect/ImageTemplate.cpp
+        src/detect/Compass.cpp
+        src/detect/Tiles.cpp
+        src/detect/Lines.cpp
 
         src/ui/UIToast.cpp
         src/ui/UIToast.h
@@ -92,6 +97,12 @@ add_executable(EDRobot
         src/ui/Main.h
         src/ai/AutopilotTasks.cpp
         src/ai/AutopilotTasks.h
+        src/ai/TaskCalibrate.cpp
+        src/ai/TaskCalibrate.h
+        src/ai/TaskDebug.cpp
+        src/ai/TaskDebug.h
+        src/ai/TaskSell.cpp
+        src/ai/TaskSell.h
 )
 #target_sources(EDRobot PUBLIC
 #        FILE_SET CXX_MODULES FILES
