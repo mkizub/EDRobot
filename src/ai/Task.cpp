@@ -368,7 +368,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
     return false;
 }
 
-void Task::hardcodedStep(const std::string& step, DetectLevel level) {
+void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
     json5pp::value parsed, args;
     try {
         std::stringstream in(step);
@@ -381,7 +381,7 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level) {
         LOG(ERROR) << "Failed to execute " << step;
         task_return(Result::Trouble, "hardcoded step failed");
     }
-    mgr.detectEDState(level);
+    mgr.detectEDState(level, colorImage, grayImage);
 }
 
 void Task::notifyProgress(const char* msg) const {
@@ -413,7 +413,9 @@ void Task::task_return(Result res, const char* msg) const {
 
 TaskCalibrate::TaskCalibrate(Task* parent, AIManager& mgr, const TaskTemplate& templ)
     : Task(parent, mgr, templ)
-    , mDetector(HistogramTemplate::CompareMode::Hsv, cv::Rect(), cv::Vec3b())
+    , mButtonBGRAverage {}
+    , mLstRowBGRAverage {}
+    , mDetector(HistogramTemplate::CompareMode::Hsv, cv::Rect(), mButtonBGRAverage)
 {
     assert(templ.name == ED_TASK_CALIBRATE);
     taskName = "Calibration";
@@ -425,8 +427,10 @@ void TaskCalibrate::recordButton(const char* button, WState bs) {
         LOG(ERROR) << "Cannot get rect of button '" << button << "'";
         return;
     }
+    ClassifyEnv cEnv;
+    cEnv.init(mgr.rEnv, &colorImage, nullptr);
     mDetector.mRect = rect;
-    mDetector.match(const_cast<ClassifyEnv&>(mgr.master.cEnv()));
+    mDetector.match(cEnv);
     cv::Vec3b bgr = mDetector.mLastColorBGR;
     mButtonBGR[int(bs)].push_back(bgr);
     const char* names[] = {"Normal   ", "Focused  ", "Active   ", "Disabled "};
@@ -445,9 +449,11 @@ void TaskCalibrate::recordLstRow(const char* list, cv::Point mouse, WState bs) {
     for (auto& cr : mgr.rEnv.classified) {
         if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != list)
             continue;
+        ClassifyEnv cEnv;
+        cEnv.init(mgr.rEnv, &colorImage, nullptr);
         cv::Rect refRect = cr.detectedRect;
         mDetector.mRect = refRect;
-        mDetector.match(const_cast<ClassifyEnv&>(mgr.master.cEnv()));
+        mDetector.match(cEnv);
         cv::Vec3b bgr = mDetector.mLastColorBGR;
         if (refRect.contains(mouse)) {
             mLstRowBGR[int(WState::Focused)].push_back(bgr);
@@ -563,7 +569,7 @@ Result TaskCalibrate::run() {
     }
     result = Result::Started;
 
-    mgr.detectEDState(DetectLevel::Buttons);
+    mgr.detectEDState(DetectLevel::Buttons, &colorImage, nullptr);
     if (!mgr.uiState.match("scr-market:*"))
         notifyError(_("Not at market, calibration fails"), Result::Failure);
 
@@ -574,13 +580,13 @@ Result TaskCalibrate::run() {
     //
 
     if (mgr.uiState.match("scr-market:mod-sell")) {
-        hardcodedStep("{click:'btn-to-sell', after: 500}", DetectLevel::Buttons);
+        hardcodedStep("{click:'btn-to-sell', after: 500}", DetectLevel::Buttons, &colorImage, nullptr);
     }
     else if (mgr.uiState.match("scr-market:mod-buy")) {
-        hardcodedStep("{click:'btn-to-buy', after: 500}", DetectLevel::Buttons);
+        hardcodedStep("{click:'btn-to-buy', after: 500}", DetectLevel::Buttons, &colorImage, nullptr);
     }
 
-    hardcodedStep("{goto:'btn-exit', after: 500}", DetectLevel::Buttons);
+    hardcodedStep("{goto:'btn-exit', after: 500}", DetectLevel::Buttons, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-exit'";
 
     recordButton("btn-help", WState::Normal);
@@ -595,7 +601,7 @@ Result TaskCalibrate::run() {
         recordButton("btn-to-buy", WState::Active);
     }
 
-    hardcodedStep("{goto:'btn-help', after: 500}", DetectLevel::Screen);
+    hardcodedStep("{goto:'btn-help', after: 500}", DetectLevel::Screen, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-help'";
 
     recordButton("btn-help", WState::Focused);
@@ -610,7 +616,7 @@ Result TaskCalibrate::run() {
         recordButton("btn-to-buy", WState::Active);
     }
 
-    hardcodedStep("{goto:'btn-filter', after: 500}", DetectLevel::Buttons);
+    hardcodedStep("{goto:'btn-filter', after: 500}", DetectLevel::Buttons, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-filter'";
 
     recordButton("btn-help", WState::Normal);
@@ -625,7 +631,7 @@ Result TaskCalibrate::run() {
         recordButton("btn-to-buy", WState::Active);
     }
 
-    hardcodedStep("{goto:'btn-to-buy', after: 500}", DetectLevel::Buttons);
+    hardcodedStep("{goto:'btn-to-buy', after: 500}", DetectLevel::Buttons, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-to-buy'";
 
     recordButton("btn-help", WState::Normal);
@@ -633,7 +639,7 @@ Result TaskCalibrate::run() {
     recordButton("btn-filter", WState::Normal);
     recordButton("btn-to-buy", WState::Focused);
 
-    hardcodedStep("{goto:'btn-to-sell', after: 500}", DetectLevel::Buttons);
+    hardcodedStep("{goto:'btn-to-sell', after: 500}", DetectLevel::Buttons, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-to-sell'";
 
     recordButton("btn-help", WState::Normal);
@@ -647,7 +653,7 @@ Result TaskCalibrate::run() {
     // Goto sell market
     //
 
-    hardcodedStep("{click:'btn-to-sell', after: 1000}", DetectLevel::ListRows);
+    hardcodedStep("{click:'btn-to-sell', after: 1000}", DetectLevel::ListRows, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected state 'scr-market:mod-sell'";
     if (!mgr.uiState.match("scr-market:mod-sell"))
         notifyError(_("Not at market sell, calibration fails"), Result::Failure);
@@ -661,7 +667,7 @@ Result TaskCalibrate::run() {
                 continue;
             cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
             sendMouseMove(mouse, 300);
-            mgr.detectEDState(DetectLevel::ListRows);
+            mgr.detectEDState(DetectLevel::ListRows, &colorImage, nullptr);
             recordLstRow("lst-goods", mouse, WState::Normal);
             if (mLstRowBGR[int(WState::Normal)].size() > 35)
                 break;
@@ -669,7 +675,7 @@ Result TaskCalibrate::run() {
     }
 
     calculateAverage(true);
-    mgr.detectEDState(DetectLevel::ListRows);
+    mgr.detectEDState(DetectLevel::ListRows, &colorImage, nullptr);
 
     const ClassifiedRect* list_rows[4];
     getRowsByState(list_rows);
@@ -686,10 +692,10 @@ Result TaskCalibrate::run() {
         cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
         std::ostringstream goto_str;
         goto_str << "{goto:" << row_point << ", after:500}";
-        hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRows);
+        hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRows, &colorImage, nullptr);
         LOG(INFO) << "State " << mgr.uiState;
     }
-    mgr.detectEDState(DetectLevel::ListRows);
+    mgr.detectEDState(DetectLevel::ListRows, &colorImage, nullptr);
     getRowsByState(list_rows);
     row_to_test = list_rows[int(WState::Focused)];
     if (!row_to_test)
@@ -697,7 +703,7 @@ Result TaskCalibrate::run() {
 
     hardcodedStep("[{key:'UI_Select', after:2000},"
                   "{check:'scr-market:mod-sell:dlg-trade:*'},"
-                  "{goto:'btn-more', after:500}]", DetectLevel::Buttons);
+                  "{goto:'btn-more', after:500}]", DetectLevel::Buttons, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState;
 
     recordButton("btn-cancel", WState::Normal);
@@ -709,7 +715,7 @@ Result TaskCalibrate::run() {
                   "{check:'scr-market:mod-sell'},"
                   "{click:'btn-to-buy', after:1000},"
                   "{check:'scr-market:mod-buy'},"
-                  "{goto:'btn-help', after:500}]", DetectLevel::ListRows);
+                  "{goto:'btn-help', after:500}]", DetectLevel::ListRows, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected focused 'btn-help'";
 
     recordButton("btn-exit", WState::Normal);
@@ -725,7 +731,7 @@ Result TaskCalibrate::run() {
                 continue;
             cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
             sendMouseMove(mouse, 300);
-            mgr.detectEDState(DetectLevel::ListRows);
+            mgr.detectEDState(DetectLevel::ListRows, &colorImage, nullptr);
             recordLstRow("lst-goods", mouse, WState::Active);
             if (mLstRowBGR[int(WState::Active)].size() > 35)
                 break;
@@ -733,7 +739,7 @@ Result TaskCalibrate::run() {
     }
 
     calculateAverage(true);
-    mgr.detectEDState(DetectLevel::ListRows);
+    mgr.detectEDState(DetectLevel::ListRows, &colorImage, nullptr);
 
     getRowsByState(list_rows);
     row_to_test = list_rows[int(WState::Active)];
@@ -745,13 +751,13 @@ Result TaskCalibrate::run() {
         cv::Point row_point = (row_rect.tl() + row_rect.br()) / 2;
         std::ostringstream goto_str;
         goto_str << "{goto:" << row_point << ", after:500}";
-        hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRows);
+        hardcodedStep(goto_str.str().c_str(), DetectLevel::ListRows, &colorImage, nullptr);
         LOG(INFO) << "State " << mgr.uiState;
     }
 
     hardcodedStep("[{key:'UI_Select', after:2000},"
                   "{check:'scr-market:mod-buy:dlg-trade:*'},"
-                  "{goto:'btn-more', after:500}]", DetectLevel::Buttons);
+                  "{goto:'btn-more', after:500}]", DetectLevel::Buttons, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState;
 
     recordButton("btn-cancel", WState::Normal);
@@ -763,7 +769,7 @@ Result TaskCalibrate::run() {
                   "{check:'scr-market:mod-buy'},"
                   "{click:'btn-to-sell', after:500},"
                   "{check:'scr-market:mod-sell'},"
-                  "{goto:'btn-exit', after:500}]", DetectLevel::Buttons);
+                  "{goto:'btn-exit', after:500}]", DetectLevel::Buttons, &colorImage, nullptr);
 
     LOG(INFO) << "State " << mgr.uiState;
 
@@ -930,7 +936,8 @@ Result TaskSell::run() {
     notifyProgress(std_format(_("Start selling {} by {} item(s)"), sellItems, mItems));
     auto actionArgs = json5pp::object({{"$items", mItems}});
     while (sellItems > 0) {
-        mgr.detectEDState(DetectLevel::ListOcrFocusedRow);
+        cv::Mat grayImage;
+        mgr.detectEDState(DetectLevel::ListOcrFocusedRow, nullptr, &grayImage);
         if (mgr.uiState.match("scr-services")) {
             // go to sell mode
             hardcodedStep("{click:'til-market', after: 2000}", DetectLevel::None);
@@ -942,9 +949,9 @@ Result TaskSell::run() {
             continue;
         }
         if (mgr.uiState.match("scr-market:mod-sell")) {
-            if (!mgr.master.approximateListOfCommodities("lst-goods", mgr.cfg.getMarketInSellOrder()))
+            if (!mgr.master.approximateListOfCommodities(mgr.rEnv, grayImage, "lst-goods", mgr.cfg.getMarketInSellOrder()))
                 notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
-            mgr.rEnv.classified = mgr.master.cEnv().classified; // TODO: evil hack
+            mgr.rEnv.classified = mgr.rEnv.classified; // TODO: evil hack
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             for (auto &cr: mgr.rEnv.classified) {
@@ -1131,16 +1138,17 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
                                                  const std::vector<Commodity *> &table,
                                                  std::vector<CommodityMatch> *verify) {
     for (;;) {
-        mgr.detectEDState(DetectLevel::ListOcrFocusedRow);
+        cv::Mat grayImage;
+        mgr.detectEDState(DetectLevel::ListOcrFocusedRow, nullptr, &grayImage);
         if (!mgr.uiState.match("scr-market:"+marketMode)) {
             notifyProgress("Not at market?");
             return false;
         }
-        if (!mgr.master.approximateListOfCommodities("lst-goods", table, verify)) {
+        if (!mgr.master.approximateListOfCommodities(mgr.rEnv, grayImage, "lst-goods", table, verify)) {
             notifyProgress("Cannot detect commodities in 'lst-goods', aborting");
             return false;
         }
-        mgr.rEnv.classified = mgr.master.cEnv().classified; // TODO: evil hack
+        mgr.rEnv.classified = mgr.rEnv.classified;
         const ClassifiedRect* focusedRow = nullptr;
         const Commodity* focusedCommodity = nullptr;
         for (auto &cr: mgr.rEnv.classified) {
@@ -1185,9 +1193,9 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
         }
         if (focusedCommodity == currCommodity) {
             /*if (dlgCommodity == currCommodity)*/ {
-                mgr.detectEDState(DetectLevel::ListOcrFocusedRow);
+                mgr.detectEDState(DetectLevel::ListOcrFocusedRow, nullptr, &grayImage);
                 cv::Rect r = mgr.rEnv.cvtReferenceToCaptured(focusedRow->detectedRect);
-                saveOcrTrainingData(r, currCommodity, false);
+                saveOcrTrainingData(grayImage, r, currCommodity, false);
             }
             hardcodedStep("[{key:'UI_Select', after:200},"
                           "{wait: 'scr-market:"+marketMode+":dlg-trade:*', during: 3000},"
@@ -1249,7 +1257,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
 
 namespace ai {
 
-void TaskDebugFindAllCommodities::saveOcrTrainingData(cv::Rect rect, const Commodity* commodity, bool invert) {
+void TaskDebugFindAllCommodities::saveOcrTrainingData(const cv::Mat& grayImage, cv::Rect rect, const Commodity* commodity, bool invert) {
     std::string lng;
     if (mgr.cfg.lng == Lang::RU)
         lng += "rus";
@@ -1264,7 +1272,6 @@ void TaskDebugFindAllCommodities::saveOcrTrainingData(cv::Rect rect, const Commo
     tesseract::TessBaseAPI* tesseractApi = mgr.master.getTesseractApi();
     if (!tesseractApi)
         return;
-    const cv::Mat& grayImage = mgr.master.cEnv().getGrayImage();
     cv::Mat rowImage(grayImage, rect);
     int outConf = 0;
     std::string text;

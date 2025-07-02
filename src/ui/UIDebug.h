@@ -33,6 +33,7 @@ private:
     void onDestroy() final;
     INT_PTR onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) final;
     void onPaint() final;
+    INT_PTR onSizing(LPRECT pRect, UINT edge);
 
     void resizeWindow();
 
@@ -40,6 +41,7 @@ private:
     float mDPIScale = 1.0f;
     cv::Size mGameSize;
     cv::Size mOutputSize;
+    bool wasResized {false};
 
     ID2D1Factory* pD2DFactory {nullptr};
     ID2D1HwndRenderTarget* pRenderTarget {nullptr};

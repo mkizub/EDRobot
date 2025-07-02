@@ -38,7 +38,7 @@ public:
     };
 
     //CheckResult checkTaskReqMatch(upTask&);
-    const bool detectEDState(DetectLevel level);
+    const bool detectEDState(DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
 
     void loop();
     void step();

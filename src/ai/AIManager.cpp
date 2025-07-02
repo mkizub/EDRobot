@@ -165,7 +165,8 @@ void AIManager::loop() {
         {
             std::unique_lock<std::mutex> lock(taskMutex);
             isLoopWaiting = true;
-            taskCond.wait_for(lock, std::chrono::milliseconds(10000)/*::max()*/, [this]() {
+            // TODO: auto-resume after 30 seconds, need UI check-box and keyboard watchdog
+            taskCond.wait_for(lock, std::chrono::milliseconds(30000)/*::max()*/, [this]() {
                 return !isWorking || (activeTask && !isInterrupted);
             });
             isLoopWaiting = false;
@@ -194,7 +195,7 @@ void AIManager::loop() {
 void AIManager::step() {
     if (!activeTask) {
         LOG(INFO) << "AIManager::loop(): no active task";
-        detectEDState(DetectLevel::Screen);
+        //detectEDState(DetectLevel::Screen);
         return;
     }
     if (activeTask) {
@@ -264,24 +265,23 @@ void AIManager::step() {
 //    return CheckResult::Replan;
 //}
 
-const bool AIManager::detectEDState(DetectLevel level) {
-    std::promise<UIState> p;
-    std::future<UIState> f = p.get_future();
-    master.pushDetectRequest(std::move(p), level);
+const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
+    uiState.valid = false;
+    DetectRequest request { level, &uiState, &rEnv, colorImage, grayImage };
+    std::promise<bool> promise;
+    std::future<bool> future = promise.get_future();
+    master.pushDetectRequest(std::move(promise), std::move(request));
     std::chrono::milliseconds timeout;
 #ifdef NDEBUG
     timeout = 2000ms;
 #else
     timeout = 5000ms;
 #endif
-    auto status = f.wait_for(timeout);
+    auto status = future.wait_for(timeout);
     if (status != std::future_status::ready)
         return false;
-    uiState = f.get();
-    rEnv = master.cEnv();
-    if (!uiState.valid)
-        return false;
-    return true;
+    bool ok = future.get();
+    return ok && uiState.valid;
 }
 
 } // namespace ai

@@ -99,23 +99,13 @@ double BestOfTemplate::debugMatch(ClassifyEnv& env) {
 }
 
 
-HistogramTemplate::HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::vector<cv::Vec3b>& colors)
+HistogramTemplate::HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::array<cv::Vec3b,4>& colors)
     : mMode(mode)
     , mRect(rect)
     , mColors(colors)
 {
-    mLastDistance.resize(mColors.size());
-    mLastValues.resize(mColors.size());
 }
 
-HistogramTemplate::HistogramTemplate(CompareMode mode, const cv::Rect& rect, const cv::Vec3b& colors)
-        : mMode(mode)
-        , mRect(rect)
-        , mColors(1U, colors)
-{
-    mLastDistance.resize(mColors.size());
-    mLastValues.resize(mColors.size());
-}
 double gaussian(double x) {
     return exp(-x*x / 2) / (sqrt(2 * M_PI));
 }
@@ -125,7 +115,7 @@ double xxx(double x, double downscale) {
 double HistogramTemplate::match(ClassifyEnv& env) {
     cv::Rect rect = mRect;
     rect = env.cvtReferenceToCaptured(rect);
-    rect &= env.captureCrop;
+    env.cropToCapture(rect);
     if (rect.empty())
         return 0;
     int colorPlanes;
@@ -150,36 +140,42 @@ double HistogramTemplate::match(ClassifyEnv& env) {
         resultColor |= maxLoc[0] << (i*8);
     }
     mLastColorBGR = encodeBGR(resultColor);
+    cv::Vec3b cmpColor;
     switch (mMode) {
     case CompareMode::Gray:
         mLastColorBGR = sGray2sBgr(resultColor);
         for (size_t i=0; i < mColors.size(); i++) {
             mLastDistance[i] = std::abs(int(resultColor) - int(mColors[i][0]));
-            mLastValues[i] = xxx(mLastDistance[i], 7);
+            mLastValues[i] = xxx(mLastDistance[i], 15);
         }
+        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for gray level " <<resultColor << " and colors " << mColors << " with distance " << mLastDistance;
         break;
     case CompareMode::Hsv:
+        cmpColor = sBgr2Hsv(mLastColorBGR);
         for (size_t i=0; i < mColors.size(); i++) {
-            mLastDistance[i] = distanceHsv(sBgr2Hsv(mLastColorBGR), mColors[i]);
-            mLastValues[i] = xxx(mLastDistance[i], 25);
+            mLastDistance[i] = distanceHsv(cmpColor, mColors[i]);
+            mLastValues[i] = xxx(mLastDistance[i], 50);
         }
+        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for hsv color " << cmpColor << " and colors " << mColors << " with distance " << mLastDistance;
         break;
     case CompareMode::Luv:
+        cmpColor = sBgr2Luv(mLastColorBGR);
         for (size_t i=0; i < mColors.size(); i++) {
-            mLastDistance[i] = distanceLuv(sBgr2Luv(mLastColorBGR), mColors[i]);
-            mLastValues[i] = xxx(mLastDistance[i], 20);
+            mLastDistance[i] = distanceLuv(cmpColor, mColors[i]);
+            mLastValues[i] = xxx(mLastDistance[i], 40);
         }
+        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for luv color " << cmpColor << " and colors " << mColors << " with distance " << mLastDistance;
         break;
     case CompareMode::BGR:
         for (size_t i=0; i < mColors.size(); i++) {
             mLastDistance[i] = distanceBGR(mLastColorBGR, mColors[i]);
-            mLastValues[i] = xxx(mLastDistance[i], 25);
+            mLastValues[i] = xxx(mLastDistance[i], 50);
         }
+        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for bgr color " << mLastColorBGR << " and colors " << mColors << " with distance " << mLastDistance;
         break;
     }
-    //LOG(DEBUG) << "Colors result: " << mLastValues << " for color " << mLastColor << " and colors " << mColors << " with distance " << mLastDistance;
     imagePlanes.clear();
-    return mLastValues[0];
+    return *std::max_element(mLastValues.begin(), mLastValues.end());
 }
 double HistogramTemplate::classify(ClassifyEnv& env) {
     return match(env) >= 0.8;
@@ -393,16 +389,16 @@ double ImageTemplate::match(ClassifyEnv& env) {
     captureRect = env.cvtReferenceToCaptured(referenceRect);
     matchRect = cv::Rect(captureRect.tl()-env.scaleToCaptured(extendLT+cv::Point(ext,ext)),
                          captureRect.br()+env.scaleToCaptured(extendRB+cv::Point(ext,ext)));
-    matchRect &= env.captureCrop;
+    env.cropToCapture(matchRect);
     int result_cols = matchRect.width - templImageScaled.cols + 1;
     int result_rows = matchRect.height - templImageScaled.rows + 1;
     cv::Mat result(result_rows, result_cols, CV_32FC1);
     cv::Mat imagePrepared = cv::Mat(image, matchRect);
     imagePrepared = applyFilters(imagePrepared);
-    if (templMaskScaled.empty())
+    //if (templMaskScaled.empty())
         cv::matchTemplate(imagePrepared, templImageScaled, result, cv::TM_CCOEFF_NORMED);
-    else
-        cv::matchTemplate(imagePrepared, templImageScaled, result, cv::TM_CCORR_NORMED, templMaskScaled);
+    //else
+    //    cv::matchTemplate(imagePrepared, templImageScaled, result, cv::TM_CCORR_NORMED, templMaskScaled);
     fixNaNinResult(result);
     //LOG(ERROR) << "match result: " << result;
     double maxVal;
@@ -412,7 +408,7 @@ double ImageTemplate::match(ClassifyEnv& env) {
     if (!name.empty() && maxVal >= threshold_min) {
         matchedCaptureOffset = maxLoc - (captureRect.tl() - matchRect.tl());
         captureRect = {captureRect.tl()+matchedCaptureOffset, captureRect.br()+matchedCaptureOffset};
-        env.classified.emplace_back(ClsDetType::Detected, name, referenceRect + env.scaleToReference(matchedCaptureOffset));
+        env.classified.emplace_back(ClsDetType::Detected, env.isWarpMode(), name, referenceRect + env.scaleToReference(matchedCaptureOffset));
         env.classified.back().u.tdet.referenceRect = referenceRect;
         env.classified.back().u.tdet.scale = 1;
     }
@@ -461,7 +457,7 @@ double ImageMultiScaleTemplate::match(ClassifyEnv &env) {
     captureRect = env.cvtReferenceToCaptured(referenceRect);
     matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
                          captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
-    matchRect &= env.captureCrop;
+    env.cropToCapture(matchRect);
 
     lastScaleIdx = -1;
     lastScale = std::numeric_limits<double>::quiet_NaN();
@@ -496,7 +492,7 @@ double ImageMultiScaleTemplate::match(ClassifyEnv &env) {
         captureRect.height *= lastScale;
     }
     if (!name.empty() && bestScaleVal >= threshold_min) {
-        env.classified.emplace_back(ClsDetType::Detected, name,
+        env.classified.emplace_back(ClsDetType::Detected, env.isWarpMode(), name,
                                     referenceRect + env.scaleToReference(matchedCaptureOffset));
         env.classified.back().u.tdet.referenceRect = referenceRect;
         env.classified.back().u.tdet.scale = lastScale;
@@ -622,7 +618,7 @@ void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenc
     cv::Rect captureRect = env.cvtReferenceToCaptured(referenceRect);
     cv::Rect matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT),
                                   captureRect.br() + env.scaleToCaptured(extendRB));
-    matchRect &= env.captureCrop;
+    env.cropToCapture(matchRect);
 
     const std::string windowName = "My test image";
     cv::namedWindow(windowName, cv::WINDOW_NORMAL);
@@ -767,7 +763,7 @@ double TilesDetector::match(ClassifyEnv &env) {
                 bbox += captureRect.tl();
                 bbox &= captureRect;
                 cv::Rect refRect = env.cvtCapturedToReference(bbox);
-                mDetectedTiles.emplace_back(ClsDetType::Tile, name+":", refRect);
+                mDetectedTiles.emplace_back(ClsDetType::Tile, env.isWarpMode(), name+":", refRect);
                 mDetectedTiles.back().u.tile.row = -1;
                 mDetectedTiles.back().u.tile.col = col;
                 mDetectedTiles.back().u.tile.span = span;
@@ -898,7 +894,7 @@ double LineDetector::match(ClassifyEnv& env) {
     captureRect = env.cvtReferenceToCaptured(referenceRect);
     matchRect = cv::Rect(captureRect.tl()-env.scaleToCaptured(extendLT+cv::Point(ext,ext)),
                          captureRect.br()+env.scaleToCaptured(extendRB+cv::Point(ext,ext)));
-    matchRect &= env.captureCrop;
+    env.cropToCapture(matchRect);
     AnchorMatrix* bestAnchor = nullptr;
     double bestAnchorVal = 0;
     cv::Point bestAnchorLoc;
@@ -927,7 +923,7 @@ double LineDetector::match(ClassifyEnv& env) {
     }
     matchedCaptureOffset = bestAnchorLoc - (captureRect.tl() - matchRect.tl());
     captureRect += matchedCaptureOffset;
-    LOG(INFO) << "LineDetector: anchor found, offset: " << matchedCaptureOffset;
+    LOG(DEBUG) << "LineDetector: anchor found, offset: " << matchedCaptureOffset;
 
     captureP0 = env.cvtReferenceToCaptured(referenceP0) + matchedCaptureOffset;
     captureP1 = captureP0 + env.scaleToCaptured(referenceP1-referenceP0);
@@ -937,6 +933,7 @@ double LineDetector::match(ClassifyEnv& env) {
     cv::Rect r1 = cv::Rect(captureP1 - env.scaleToCaptured(extendLT+cv::Point(ext,ext)),
                            captureP1 + env.scaleToCaptured(extendRB+cv::Point(ext,ext)));
     lineMatchRect = r0 | r1;
+    env.cropToCapture(lineMatchRect);
 
     imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
     imagePrepared = scaleImage(imagePrepared, imageScaleX, imageScaleY);
@@ -962,29 +959,32 @@ double LineDetector::match(ClassifyEnv& env) {
         auto lineP1 = cv::Point(rectPoints[2] + rectPoints[3]) / 2;
         cv::Point detectedDist = lineP1 - lineP0;
         float detectedAngle = std::atan2(detectedDist.y, detectedDist.x) * 180 / M_PI;
-        auto dist = (captureP0 - lineMatchRect.tl() - lineP0);
-        LOG(INFO) << "LineDetector: line found, offset: " << dist << " angle delta: " << (detectedAngle - referenceAngle);
-        if ((dist.x + dist.y*4) < minDist) {
-            minDist = (dist.x + dist.y*4);
+        auto offset = (captureP0 - lineMatchRect.tl() - lineP0);
+        auto distRate = cv::Point(offset.x, offset.y * 4);
+        if (cv::norm(distRate) < minDist) {
+            LOG(DEBUG) << "LineDetector: line found, offset: " << offset << " angle delta: " << (detectedAngle - referenceAngle);
+            minDist = cv::norm(distRate);
             lastLineAngle = rotRect.angle;
             lastDeltaAngle = detectedAngle - referenceAngle;
         }
     }
-    if (minDist > captureRect.width*2) {
+    if (minDist > captureRect.width) {
         if (lastDeltaAngle == 180)
-            LOG(INFO) << "LineDetector: no lines found";
+            LOG(WARNING) << "LineDetector: no lines found";
         else
-            LOG(INFO) << "LineDetector: distance too large";
+            LOG(WARNING) << "LineDetector: distance too large";
         return 0;
     }
     captureP1.x = captureP0.x + captureWidth * std::cos(lastLineAngle*M_PI/180);
     captureP1.y = captureP0.y + captureWidth * std::sin(lastLineAngle*M_PI/180);
 
-    env.classified.emplace_back(ClsDetType::LineDetected, name,
+    env.classified.emplace_back(ClsDetType::LineDetected, env.isWarpMode(), name,
                                 referenceRect + env.scaleToReference(matchedCaptureOffset));
     env.classified.back().u.ldet.offset = env.scaleToReference(matchedCaptureOffset);
     env.classified.back().u.ldet.angle = lastDeltaAngle;
     env.classified.back().u.ldet.scale = 1;
+    env.classified.back().u.ldet.referenceP0 = env.cvtCapturedToReference(captureP0);
+    env.classified.back().u.ldet.referenceP1 = env.cvtCapturedToReference(captureP1);
     return 1;
 }
 

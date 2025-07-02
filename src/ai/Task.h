@@ -31,7 +31,7 @@ public:
     bool executeAction(const std::string& actionName, const json5pp::value& args);
     bool executeStep(const json5pp::value& step, const json5pp::value& args);
     bool executeWait(const json5pp::value& step, const json5pp::value& args);
-    void hardcodedStep(const std::string& step, DetectLevel level);
+    void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
 
     void notifyProgress(const char* msg) const;
     void notifyProgress(const std::string& msg) const;
@@ -67,6 +67,7 @@ private:
     std::array<cv::Vec3b,4> mButtonBGRAverage;
     std::array<cv::Vec3b,4> mLstRowBGRAverage;
     HistogramTemplate mDetector;
+    cv::Mat colorImage;
 };
 
 class TaskSell;
@@ -100,7 +101,7 @@ public:
     Result run() final;
 private:
     bool checkCommodity(Commodity* commodity, const std::string& marketMode, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify);
-    void saveOcrTrainingData(cv::Rect rect, const Commodity* commodity, bool invert);
+    void saveOcrTrainingData(const cv::Mat& grayImage, cv::Rect rect, const Commodity* commodity, bool invert);
 
     const bool shuffle;
     const int dump_index;

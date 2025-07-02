@@ -31,7 +31,6 @@ enum class Command {
     Pause,
     Resume,
     Stop,
-    UserNotify,
     Calibrate,
     DebugTemplates,
     DebugButtons,
@@ -66,6 +65,14 @@ struct UIState {
     std::string to_string() const;
 };
 
+struct DetectRequest {
+    DetectLevel level;
+    UIState* uiState;
+    ResolvedEnv* rEnv;
+    cv::Mat* colorImage;
+    cv::Mat* grayImage;
+};
+
 struct CommodityMatch {
     const Commodity* commodity;
     int ocr_conf;
@@ -84,11 +91,8 @@ public:
     void loop();
     bool isGameForeground();
     bool setGameForeground();
-    bool captureWindow(ClassifyEnv& env);
-    const UIState& detectEDState(DetectLevel);
-    const UIState& lastEDState() { return mLastEDState; }
-    const ClassifyEnv& cEnv() { return mClassifyEnv; };
-    //bool isEDStateMatch(const std::string& state);
+    bool detectEDState(DetectLevel);
+    const UIState& lastEDState() { return mLastUIState; }
     const json5pp::value& getTaskActions(const std::string& action);
     cv::Rect resolveWidgetReferenceRect(const std::string& name);
     Configuration* getConfiguration() const { return mConfiguration; }
@@ -99,14 +103,11 @@ public:
 
     int canSell(Commodity* commodity) const;
     const Commodity* getLabelCommodity(const std::string& lbl_name);
-    const ClassifiedRect* getFocusedRow(const std::string& lst_name);
-    bool approximateListOfCommodities(const std::string& lst_name, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify = nullptr);
+    static bool approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lst_name, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify = nullptr);
 
     void pushCommand(Command cmd);
-    void pushDetectRequest(std::promise<UIState>&& p, DetectLevel level);
+    void pushDetectRequest(std::promise<bool>&& p, DetectRequest&& req);
     void pushDevRectScreenshotCommand(cv::Rect rect);
-    void notifyProgress(const std::string& title, const std::string& text);
-    void notifyError(const std::string& title, const std::string& text);
 
     void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
     tesseract::TessBaseAPI* getTesseractApi() { return mTesseractApiForMarket.get(); }
@@ -131,7 +132,6 @@ private:
     Capturer* getCapturer();
     void resetCapturer();
 
-    void showNotification(pCommand& cmd);
     bool preInitTask();
     bool startCalibration();
     bool startTrade();
@@ -139,16 +139,17 @@ private:
     bool resumeAITask();
     bool stopAITask();
 
+    bool captureWindow(ClassifyEnv& env);
     WState detectButtonState(const widget::Widget* item);
     void detectListState(const widget::List* item, DetectLevel level);
-    int ocrMarketText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
-    const Commodity* ocrMarketRowCommodity(ClassifiedRect* cr);
+    static int ocrMarketText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
+    static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr);
     widget::Widget* detectAllButtonsStates(const widget::Widget* parent, DetectLevel level);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
     void processDetectRequest(pCommand& cmd);
     bool matchItem(widget::Widget* item);
-    bool debugTemplates(widget::Widget* item, ClassifyEnv* env);
+    widget::Widget* debugTemplates(widget::Widget* item, ClassifyEnv* env);
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
     void drawButton(widget::Widget* item);
     bool debugButtons();
@@ -156,7 +157,7 @@ private:
     bool debugFindAllCommodities();
     bool debugCompass();
     bool debugWindow();
-    bool debugWindowUpdate();
+    bool debugWindowUpdate(bool idle);
 
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
@@ -166,9 +167,10 @@ private:
     Capturer* mCapturer {nullptr};
     //cv::Rect mCaptureRect; // in captured image coordinated
     //cv::Rect mMonitorRect; // in virtual desktop coordinated
-    UIState mLastEDState;
+    UIState mLastUIState;
     ClassifyEnv mClassifyEnv;
     bool mDuplicateToDebugWindow {false};
+    DetectLevel mDetectLevelIdle {DetectLevel::None};
     std::chrono::milliseconds mLoopWakeup;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
     std::unique_ptr<HistogramTemplate> mButtonStateDetector;

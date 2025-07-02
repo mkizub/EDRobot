@@ -179,17 +179,62 @@
     }
   },
   {
-    name: 'scr-left-panel',
+    name: 'scr-left-panel', // warped reference size: 1086x657
     status: { gui: 'Left' },
     detect: {
-      line: "lpline", p0: [236,300], p1: [1302,278], ext: [120,40], thr: 150,
+      line: "lpline", p0: [236,300], p1: [1302,278], ext: [120,100], thr: 130,
       anchor: ["at_left_panel.png", "at_left_panel-act.png"], at: [240,256], t: [0.4, 0.8],
       filter: [
         //{ gauss: { kern: [3,3] } }, // either scale or blur
         { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
       ],
     },
-    transform: { line: "lpline", tl: [234,250], tr: [1320,235], bl: [287,905], br: [1332,798] }
+    transform: { line: "lpline", tl: [234,250], tr: [1320,235], bl: [287,905], br: [1332,798] },
+    have: [
+      {
+        name: "mod-sysinfo",
+        detect: { img: "at_left_sysinfo.png", t: 0.7, at:[5, 10] }
+      },
+      {
+        name: "mod-navigation",
+        detect: { img: "at_left_navigation-ru.png", t: 0.7, at:[100, 10] },
+        have: [
+          { name: 'btn-filter', action: 'dlg-filter', rect: [14,220,88,54] },
+          { name: 'btn-galaxy', action: 'galaxy-map', rect: [12,474,90,56] },
+          { name: 'btn-system', action: 'system-map', rect: [12,590,90,56] },
+          { name: 'lst-bodies', rect: [242,212,706,444], row: 37, gap: 2, ocr: true }
+        ]
+      },
+      {
+        name: "mod-transact",
+        detect: { img: "at_left_transact-ru.png", t: 0.7, at:[348, 10] },
+        have: [
+          { name: 'btn-missions', rect: [4,64,94,76] },
+          { name: 'btn-passengers', rect: [4,156,94,76] },
+          { name: 'btn-pp', rect: [4,250,94,76] },
+          { name: 'btn-cg', rect: [3,342,94,76] },
+          { name: 'btn-rewards', rect: [3,435,93,75] },
+          { name: 'btn-penalty', rect: [3,530,93,74] }
+        ]
+      },
+      {
+        name: "mod-contacts",
+        detect: { img: "at_left_contacts-ru.png", t: 0.7, at:[598, 10] },
+        have: [
+          { name: 'btn-row-req', rect: [610,338,448,46] },
+          { name: 'lst-contacts', rect: [2,64,584,590], row: 40, gap: 5, ocr: true },
+          { name: 'btn-landing', rect: [610,338,448,46] }
+        ]
+      },
+      {
+        name: "mod-target",
+        detect: { img: "at_left_target-ru.png", t: 0.7, at:[872, 10] },
+        have: [
+          { name: 'btn-targets', rect: [4,132,94,74] },
+          { name: 'btn-cargo', rect: [4,220,92,70] },
+        ]
+      }
+    ]
   },
 //  {
 //    name: 'scr-carrier-trade-mgr',

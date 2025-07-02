@@ -882,7 +882,7 @@ bool Configuration::saveCalibration() const {
     return true;
 }
 
-bool Configuration::checkResolutionSupported(cv::Size gameSize) {
+bool Configuration::checkResolutionSupported(cv::Size gameSize, std::string& error) {
     if (configFullScreen == FullScreenMode::Window)
         return true;
     cv::Size displaySize(configScreenWidth, configScreenHeight);
@@ -893,7 +893,6 @@ bool Configuration::checkResolutionSupported(cv::Size gameSize) {
                 gameSize.aspectRatio(), displaySize.aspectRatio(),
                 gameSize.width, gameSize.height, configScreenWidth, configScreenHeight);
         LOG(ERROR) << msg;
-        Master::getInstance().notifyError(_("Unsupported aspect ratio"), msg);
         return false;
     }
     return true;

@@ -66,21 +66,25 @@ extern spEvalRect makeEvalRect(json5pp::value jv, int width=0, int height=0);
 class EvalTransform {
 public:
     EvalTransform(cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl)
-        : orig_tl(tl), orig_tr(tr), orig_br(br), orig_bl(bl)
-    {}
+        : orig {tl, tr, br, bl}
+    {
+        float t_w = (float)cv::norm(orig[0] - orig[1]);
+        float b_w = (float)cv::norm(orig[2] - orig[3]);
+        float l_h = (float)cv::norm(orig[0] - orig[3]);
+        float r_h = (float)cv::norm(orig[1] - orig[2]);
+        float d_w = std::round(std::max(t_w, b_w));
+        float d_h = std::round(std::max(l_h, r_h));
+        const_cast<cv::Size&>(origSize) = { int(d_w), int(d_h) };
+    }
     virtual ~EvalTransform() = default;
     virtual bool calcTransform(const ResolvedEnv& detectorState) = 0;
     virtual cv::Mat transformImage(const cv::Mat& image) const;
 
-    const cv::Point orig_tl;
-    const cv::Point orig_tr;
-    const cv::Point orig_br;
-    const cv::Point orig_bl;
-
-    cv::Size transformedSize {};
-    cv::Point2f transfromSrc[4];
-    cv::Point2f transfromDst[4];
+    const std::array<cv::Point2f,4> orig;   // tl, tr, br, bl
+    const cv::Size origSize {};             // warped image always scaled to reference size
+    std::array<cv::Point2f,4> transfromSrc; // in captured coordinates
     cv::Mat transfromMatrix {};
+    bool valid {false};
 };
 typedef std::shared_ptr<EvalTransform> spEvalTransform;
 
@@ -108,10 +112,11 @@ enum class ClsDetType {
 
 struct ClassifiedRect {
     ClassifiedRect() = default;
-    ClassifiedRect(ClsDetType cdt, std::string txt, cv::Rect detRect)
-            : cdt(cdt), text(std::move(txt)), detectedRect(detRect), u{}
+    ClassifiedRect(ClsDetType cdt, bool warped, std::string txt, cv::Rect detRect)
+            : cdt(cdt), warped(warped), text(std::move(txt)), detectedRect(detRect), u{}
     {}
     ClsDetType cdt;
+    bool warped;
     std::string text;         // name of Template that detected this rect, or a text recognized by OCR, etc
     cv::Rect detectedRect;    // actually detected rect in reference coordinates
     union {
@@ -121,8 +126,10 @@ struct ClassifiedRect {
         } tdet;
         struct {
             cv::Point2f offset;
-            float angle; // in degrees, -90 <= angle <= +90
+            float angle; // angle difference, in degrees, -90 <= angle <= +90
             float scale;
+            cv::Point referenceP0;
+            cv::Point referenceP1;
         } ldet;
         struct {
             int row;
@@ -148,40 +155,53 @@ struct ResolvedEnv {
     // actual window size and position on image (screenshot)
     const cv::Rect monitorRect;
     const cv::Rect captureRect;
-    const cv::Rect captureCrop;
 
     ResolvedEnv& operator=(const ResolvedEnv& other);
     void init(const cv::Rect& monitorRect, const cv::Rect& captRect);
     void clear();
+    bool isWarpMode() { return inWarpMode_; }
+    void setWarpMode(bool on) { inWarpMode_ = on; }
 
     // a list of classified detected rects
     std::vector<ClassifiedRect> classified;
 
-    bool needScaling() const { return needScaling_; }
-    double getScale() const { return scaleToCaptured_; }
+    bool needScaling() const { return needScaling_ && !inWarpMode_; }
+    double getScale() const { return needScaling() ? scaleToCaptured_ : 1.0; }
 
+    void cropToCapture(cv::Rect& rect) {
+        if (!inWarpMode_)
+            rect &= captureCrop;
+        else
+            rect &= captureCrop;
+    }
+
+    cv::Point2f scaleToCaptured(const cv::Point2f& point) const {
+        return needScaling() ? point * scaleToCaptured_ : point;
+    }
     cv::Point scaleToCaptured(const cv::Point& point) const {
-        return needScaling_ ? point * scaleToCaptured_ : point;
+        return needScaling() ? point * scaleToCaptured_ : point;
     }
     cv::Size  scaleToCaptured(const cv::Size& size) const {
-        if (!needScaling_)
+        if (!needScaling())
             return size;
         return {int(size.width * scaleToCaptured_), int(size.height * scaleToCaptured_)};
     }
     cv::Point scaleToReference(const cv::Point& point) const {
-        return needScaling_ ? point / scaleToCaptured_ : point;
+        return needScaling() ? point / scaleToCaptured_ : point;
     }
     cv::Size  scaleToReference(const cv::Size& size) const {
-        if (!needScaling_)
+        if (!needScaling())
             return size;
         return {int(size.width / scaleToCaptured_), int(size.height / scaleToCaptured_)};
     }
 
     cv::Point cvtReferenceToDesktop(const cv::Point& point) const;
 
+    cv::Point2f cvtReferenceToCaptured(const cv::Point2f& point) const;
     cv::Point cvtReferenceToCaptured(const cv::Point& point) const;
     cv::Rect  cvtReferenceToCaptured(const cv::Rect& rect) const;
 
+    cv::Point2f cvtCapturedToReference(const cv::Point2f& point) const;
     cv::Point cvtCapturedToReference(const cv::Point& point) const;
     cv::Rect  cvtCapturedToReference(const cv::Rect& rect) const;
 
@@ -196,22 +216,43 @@ struct ResolvedEnv {
         return cvtReferenceToCaptured(calcReferenceRect(er));
     }
 
+    cv::Point2f unWarp(const cv::Point2f point) const;
+    cv::Point unWarp(const cv::Point point) const;
+    std::array<cv::Point,4> unWarp(const cv::Rect& rect) const;
+
 protected:
     friend class Master;
+    cv::Rect captureCrop;
     // reference-to-captured scale
+    bool inWarpMode_ {false};
     bool needScaling_ {false};
     double scaleToCaptured_ {1};
     cv::Point captureCenter;
+    cv::Rect warpRect;
+    cv::Matx33d warpMatrix;
+    cv::Matx33d unWarpMatrix;
 };
 
 struct ClassifyEnv : public ResolvedEnv {
+    void init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* grayImage);
     void init(const cv::Rect& monitorRect, const cv::Rect& captRect, upFrame&& frame);
     void warpPerspective(const spEvalTransform& transform);
     void clear();
 
-    [[nodiscard]] const cv::UMat& getColorTexture() const { return mFrame->getColorTexture(); };
-    [[nodiscard]] const cv::Mat&  getColorImage()   const { return mFrame->getColorImage();   };
-    [[nodiscard]] const cv::Mat&  getGrayImage()    const { return mFrame->getGrayImage();    };
+    [[nodiscard]] const cv::UMat& getColorTexture() const {
+        throw std::runtime_error("getColorTexture() not implemented");
+        //return mFrame->getColorTexture();
+    };
+    [[nodiscard]] const cv::Mat&  getColorImage()   const {
+        if (inWarpMode_)
+            return mWarpedColorImage;
+        return mFrame->getColorImage();
+    };
+    [[nodiscard]] const cv::Mat&  getGrayImage()    const {
+        if (inWarpMode_)
+            return mWarpedGrayImage;
+        return mFrame->getGrayImage();
+    };
     [[nodiscard]] cv::Mat&        getDebugImage()   const;
     [[nodiscard]] const cv::Mat&  getWarpedColorImage() const;
     [[nodiscard]] const cv::Mat&  getWarpedGrayImage()  const;

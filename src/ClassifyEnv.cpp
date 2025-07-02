@@ -11,6 +11,7 @@ ResolvedEnv& ResolvedEnv::operator=(const ResolvedEnv& other) {
     const_cast<cv::Rect&>(captureRect) = other.captureRect;
     const_cast<cv::Rect&>(captureCrop) = other.captureCrop;
     classified = other.classified;
+    inWarpMode_ = false;
     needScaling_ = other.needScaling_;
     scaleToCaptured_ = other.scaleToCaptured_;
     captureCenter = other.captureCenter;
@@ -22,6 +23,7 @@ void ResolvedEnv::init(const cv::Rect& monRect, const cv::Rect& captRect) {
     const_cast<cv::Rect&>(captureRect) = captRect;
     const_cast<cv::Rect&>(captureCrop) = cv::Rect(cv::Point(), captureRect.size());
     classified.clear();
+    inWarpMode_ = false;
     if (captureRect.size() != ReferenceScreenSize) {
         double x_scale = double(captureRect.width) / ReferenceScreenSize.width;
         double y_scale = double(captureRect.height) / ReferenceScreenSize.height;
@@ -32,6 +34,56 @@ void ResolvedEnv::init(const cv::Rect& monRect, const cv::Rect& captRect) {
         scaleToCaptured_ = 1;
     }
     captureCenter = cv::Point(captureRect.size()) / 2;
+    warpRect = {};
+    warpMatrix = cv::Matx33d::eye();
+    unWarpMatrix = cv::Matx33d::eye();
+}
+
+class FrameTmp : public Frame {
+public:
+    FrameTmp(cv::Size size, cv::Mat* cImage, cv::Mat* gImage)
+        : Frame(nullptr, size)
+    {
+        if (cImage) {
+            colorImage = *cImage;
+            colorImageValid = true;
+        }
+        if (gImage) {
+            grayImage = *gImage;
+            grayImageValid = true;
+        }
+    }
+    ~FrameTmp() override = default;
+    bool valid() const override { return true; }
+    const cv::UMat& getColorTexture() const override { return colorTexture; }
+    const cv::Mat& getColorImage() const override { return colorImage; }
+    const cv::Mat& getGrayImage() const override { return grayImage; }
+
+    void cleanup();
+
+    mutable cv::UMat colorTexture;
+    mutable cv::Mat colorImage;
+    mutable cv::Mat grayImage;
+    mutable bool colorTextureValid {false};
+    mutable bool colorImageValid {false};
+    mutable bool grayImageValid {false};
+};
+
+void ClassifyEnv::init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* grayImage) {
+    cv::Size sz;
+    if (colorImage)
+        sz = {colorImage->cols, colorImage->rows};
+    else if (grayImage)
+        sz = {grayImage->cols, grayImage->rows};
+    else
+        throw std::runtime_error("Both color and gray image empty");
+    upFrame fr(new FrameTmp(sz, colorImage, grayImage));
+    mFrame.swap(fr);
+    mDebugOverlay = cv::Mat();
+    ResolvedEnv::init(rEnv.monitorRect, rEnv.captureRect);
+    mWarpTransform.reset();
+    mWarpedColorImage = cv::Mat();
+    mWarpedGrayImage = cv::Mat();
 }
 
 void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFrame&& frame) {
@@ -49,10 +101,14 @@ void ResolvedEnv::clear() {
     const_cast<cv::Rect&>(monitorRect) = cv::Rect();
     const_cast<cv::Rect&>(captureRect) = cv::Rect();
     const_cast<cv::Rect&>(captureCrop) = cv::Rect();
+    inWarpMode_ = false;
     needScaling_ = false;
     scaleToCaptured_ = 1;
     captureCenter = ReferenceScreenCenter;
     classified.clear();
+    warpRect = {};
+    warpMatrix = cv::Matx33d::eye();
+    unWarpMatrix = cv::Matx33d::eye();
 }
 
 void ClassifyEnv::clear() {
@@ -79,8 +135,13 @@ const cv::Mat& ClassifyEnv::getWarpedGrayImage() const {
 }
 
 void ClassifyEnv::warpPerspective(const spEvalTransform& transform) {
+    if (mWarpTransform)
+        LOG(WARNING) << "Duplicated warping";
     mWarpTransform = transform;
     if (mWarpTransform && mWarpTransform->calcTransform(*this)) {
+        warpRect = cv::Rect(cv::Point(0,0), mWarpTransform->origSize);
+        warpMatrix = mWarpTransform->transfromMatrix;
+        unWarpMatrix = warpMatrix.inv();
         mWarpedColorImage = mWarpTransform->transformImage(getColorImage());
         mWarpedGrayImage = mWarpTransform->transformImage(getGrayImage());
     }
@@ -90,51 +151,94 @@ cv::Point ResolvedEnv::cvtReferenceToDesktop(const cv::Point& point) const {
     return monitorRect.tl() + captureRect.tl() + cvtReferenceToCaptured(point);
 }
 
+cv::Point2f ResolvedEnv::cvtReferenceToCaptured(const cv::Point2f& point) const {
+    if (!needScaling_ || inWarpMode_)
+        return point;
+    cv::Point2f screenPoint(point);
+    cv::Point2f relative = screenPoint - cv::Point2f(ReferenceScreenCenter);
+    relative *= scaleToCaptured_;
+    screenPoint = relative + cv::Point2f(captureCenter);
+    return screenPoint;
+}
 cv::Point ResolvedEnv::cvtReferenceToCaptured(const cv::Point& point) const {
+    if (!needScaling_ || inWarpMode_)
+        return point;
     cv::Point screenPoint(point);
-    if (needScaling_) {
-        cv::Point relative = screenPoint - ReferenceScreenCenter;
-        relative *= scaleToCaptured_;
-        screenPoint = relative + captureCenter;
-    }
+    cv::Point relative = screenPoint - ReferenceScreenCenter;
+    relative *= scaleToCaptured_;
+    screenPoint = relative + captureCenter;
     return screenPoint;
 }
 cv::Rect  ResolvedEnv::cvtReferenceToCaptured(const cv::Rect& rect) const {
+    if (!needScaling_ || inWarpMode_)
+        return rect;
     cv::Rect screenRect(rect);
-    if (needScaling_) {
-        cv::Point lt_rel = screenRect.tl() - ReferenceScreenCenter;
-        cv::Point rb_rel = screenRect.br() - ReferenceScreenCenter;
-        lt_rel *= scaleToCaptured_;
-        rb_rel *= scaleToCaptured_;
-        cv::Point lt = lt_rel + captureCenter;
-        cv::Point rb = rb_rel + captureCenter;
-        screenRect = cv::Rect(lt, rb);
-    }
+    cv::Point lt_rel = screenRect.tl() - ReferenceScreenCenter;
+    cv::Point rb_rel = screenRect.br() - ReferenceScreenCenter;
+    lt_rel *= scaleToCaptured_;
+    rb_rel *= scaleToCaptured_;
+    cv::Point lt = lt_rel + captureCenter;
+    cv::Point rb = rb_rel + captureCenter;
+    screenRect = cv::Rect(lt, rb);
     return screenRect;
 }
 
+cv::Point2f ResolvedEnv::cvtCapturedToReference(const cv::Point2f& point) const {
+    if (!needScaling_ || inWarpMode_)
+        return point;
+    cv::Point2f referencePoint(point);
+    cv::Point2f lt_rel = referencePoint - cv::Point2f(captureCenter);
+    lt_rel /= scaleToCaptured_;
+    cv::Point2f lt = lt_rel + cv::Point2f(ReferenceScreenCenter);
+    referencePoint = lt;
+    return referencePoint;
+}
 cv::Point ResolvedEnv::cvtCapturedToReference(const cv::Point& point) const {
+    if (!needScaling_ || inWarpMode_)
+        return point;
     cv::Point referencePoint(point);
-    if (needScaling_) {
-        cv::Point lt_rel = referencePoint - captureCenter;
-        lt_rel /= scaleToCaptured_;
-        cv::Point lt = lt_rel + ReferenceScreenCenter;
-        referencePoint = lt;
-    }
+    cv::Point lt_rel = referencePoint - captureCenter;
+    lt_rel /= scaleToCaptured_;
+    cv::Point lt = lt_rel + ReferenceScreenCenter;
+    referencePoint = lt;
     return referencePoint;
 }
 cv::Rect ResolvedEnv::cvtCapturedToReference(const cv::Rect& rect) const {
+    if (!needScaling_ || inWarpMode_)
+        return rect;
     cv::Rect referenceRect(rect);
-    if (needScaling_) {
-        cv::Point lt_rel = referenceRect.tl() - captureCenter;
-        cv::Point rb_rel = referenceRect.br() - captureCenter;
-        lt_rel /= scaleToCaptured_;
-        rb_rel /= scaleToCaptured_;
-        cv::Point lt = lt_rel + ReferenceScreenCenter;
-        cv::Point rb = rb_rel + ReferenceScreenCenter;
-        referenceRect = cv::Rect(lt,rb);
-    }
+    cv::Point lt_rel = referenceRect.tl() - captureCenter;
+    cv::Point rb_rel = referenceRect.br() - captureCenter;
+    lt_rel /= scaleToCaptured_;
+    rb_rel /= scaleToCaptured_;
+    cv::Point lt = lt_rel + ReferenceScreenCenter;
+    cv::Point rb = rb_rel + ReferenceScreenCenter;
+    referenceRect = cv::Rect(lt,rb);
     return referenceRect;
+}
+
+cv::Point2f ResolvedEnv::unWarp(const cv::Point2f point) const {
+    std::vector<cv::Point2f> in {point};
+    std::vector<cv::Point2f> out;
+    cv::perspectiveTransform(in, out, unWarpMatrix);
+    //auto& m = warpMatrix.val;
+    //out.x = (m[0] * point.x + m[1] * point.y + m[2]) / (m[6] * point.x + m[7] * point.y + m[8]);
+    //out.y = (m[3] * point.x + m[4] * point.y + m[5]) / (m[6] * point.x + m[7] * point.y + m[8]);
+    //out.x = (warpMatrix(0,0) * point.x + warpMatrix(0,1) * point.y + warpMatrix(0,2)) / (warpMatrix(2,0) * point.x + warpMatrix(2,1) * point.y + warpMatrix(2,2));
+    //out.y = (warpMatrix(1,0) * point.x + warpMatrix(1,1) * point.y + warpMatrix(1,2)) / (warpMatrix(2,0) * point.x + warpMatrix(2,1) * point.y + warpMatrix(2,2));
+    return out[0];
+}
+cv::Point ResolvedEnv::unWarp(const cv::Point point) const {
+    cv::Point2f tmp = unWarp(cv::Point2f(point));
+    return {(int)std::round(tmp.x), (int)std::round(tmp.y)};
+}
+std::array<cv::Point,4> ResolvedEnv::unWarp(const cv::Rect& rect) const {
+    std::array<cv::Point,4> out;
+    out[0] = unWarp(rect.tl());
+    out[1] = unWarp(cv::Point(rect.x+rect.width, rect.y));
+    out[2] = unWarp(rect.br());
+    out[3] = unWarp(cv::Point(rect.x, rect.y+rect.height));
+    return out;
 }
 
 cv::Rect TileRect::calcReferenceRect(const ResolvedEnv& env) const {
@@ -156,45 +260,28 @@ cv::Rect TileRect::calcReferenceRect(const ResolvedEnv& env) const {
 ConstTransform::ConstTransform(cv::Point src_tl, cv::Point src_tr, cv::Point src_br, cv::Point src_bl)
     : EvalTransform(src_tl, src_tr, src_br, src_bl)
 {
-    float t_w = (float)cv::norm(src_tl - src_tr);
-    float b_w = (float)cv::norm(src_bl - src_br);
-    float l_h = (float)cv::norm(src_tl - src_bl);
-    float r_h = (float)cv::norm(src_tr - src_br);
-    float d_w = (t_w + b_w) * 0.5f;
-    float d_h = (l_h + r_h) * 0.5f;
-    d_w = std::round(d_w);
-    d_h = std::round(d_h);
-    transformedSize = { int(d_w), int(d_h) };
-    cv::Point2f dst_tl = {0.f,0.f};
-    cv::Point2f dst_tr = {d_w,0.f};
-    cv::Point2f dst_br = {d_w,d_h};
-    cv::Point2f dst_bl = {0.f,d_h};
-
-    transfromSrc[0] = src_tl;
-    transfromSrc[1] = src_tr;
-    transfromSrc[2] = src_br;
-    transfromSrc[3] = src_bl;
-    transfromDst[0] = dst_tl;
-    transfromDst[1] = dst_tr;
-    transfromDst[2] = dst_br;
-    transfromDst[3] = dst_bl;
-
-    transfromMatrix = cv::getPerspectiveTransform(transfromSrc, transfromDst);
 }
 
 cv::Mat EvalTransform::transformImage(const cv::Mat& image) const {
-    assert (!transformedSize.empty());
+    assert (valid);
     cv::Mat warped_image;
-    cv::warpPerspective(image, warped_image, transfromMatrix, transformedSize);
-    //if (image.channels() == 1)
-    //    cv::imwrite("warped-screen-gray.png", warped_image);
-    //else
-    //    cv::imwrite("warped-screen-color.png", warped_image);
+    cv::warpPerspective(image, warped_image, transfromMatrix, origSize);
     return warped_image;
 }
 
 bool ConstTransform::calcTransform(const ResolvedEnv& env) {
-    return !transformedSize.empty();
+    for (int i=0; i < 4; i++)
+        transfromSrc[i] = env.cvtReferenceToCaptured(orig[i]);
+
+    std::array<cv::Point2f,4> dst;
+    dst[0] = {0.f,0.f};
+    dst[1] = {(float)origSize.width,0.f};
+    dst[2] = {(float)origSize.width,(float)origSize.height};
+    dst[3] = {0.f,(float)origSize.height};
+    transfromMatrix = cv::getPerspectiveTransform(transfromSrc, dst);
+
+    valid = true;
+    return true;
 }
 
 LineTransform::LineTransform(std::string line, cv::Point src_tl, cv::Point src_tr, cv::Point src_br, cv::Point src_bl)
@@ -204,6 +291,7 @@ LineTransform::LineTransform(std::string line, cv::Point src_tl, cv::Point src_t
 }
 
 bool LineTransform::calcTransform(const ResolvedEnv& env) {
+    valid = false;
     const ClassifiedRect* crld = nullptr;
     for (auto& cr : env.classified) {
         if (cr.cdt == ClsDetType::LineDetected && cr.text == lineDetector) {
@@ -212,43 +300,25 @@ bool LineTransform::calcTransform(const ResolvedEnv& env) {
         }
     }
     if (!crld) {
-        transformedSize = {};
+        valid = false;
         return false;
     }
     float cos_a = (float)std::cos(crld->u.ldet.angle * M_PI / 180);
     float sin_a = (float)std::sin(crld->u.ldet.angle * M_PI / 180);
-    float x0 = crld->u.ldet.offset.x + orig_tl.x * cos_a - orig_tl.y * sin_a;
-    float y0 = crld->u.ldet.offset.y + orig_tl.x * sin_a + orig_tl.y * cos_a;
-    float x1 = crld->u.ldet.offset.x + orig_tr.x * cos_a - orig_tr.y * sin_a;
-    float y1 = crld->u.ldet.offset.y + orig_tr.x * sin_a + orig_tr.y * cos_a;
-    cv::Point2f src_tl = {x0, y0};
-    cv::Point2f src_tr = {x1, y1};
+    std::array<cv::Point2f,4> capt_orig;
+    for (int i=0; i < 4; i++)
+        capt_orig[i] = env.cvtReferenceToCaptured(orig[i]);
+    cv::Point offset = env.scaleToCaptured(crld->u.ldet.offset);
+    cv::Mat affine_matrix = (cv::Mat_<float>(2,3) << cos_a, -sin_a, offset.x, sin_a, cos_a, offset.y);
+    cv::transform(capt_orig, transfromSrc, affine_matrix);
 
-    float x2 = crld->u.ldet.offset.x + orig_bl.x * cos_a - orig_bl.y * sin_a;
-    float y2 = crld->u.ldet.offset.y + orig_bl.x * sin_a + orig_bl.y * cos_a;
-    float x3 = crld->u.ldet.offset.x + orig_br.x * cos_a - orig_br.y * sin_a;
-    float y3 = crld->u.ldet.offset.y + orig_br.x * sin_a + orig_br.y * cos_a;
-    cv::Point2f src_bl = {x2, y2};
-    cv::Point2f src_br = {x3, y3};
+    std::array<cv::Point2f,4> dst;
+    dst[0] = {0.f,0.f};
+    dst[1] = {(float)origSize.width,0.f};
+    dst[2] = {(float)origSize.width,(float)origSize.height};
+    dst[3] = {0.f,(float)origSize.height};
 
-    std::vector<cv::Point2f> orig {orig_tl, orig_tr, orig_br, orig_bl};
-    std::vector<cv::Point2f> src;
-    cv::Mat affine_matrix = (cv::Mat_<float>(2,3) << cos_a, -sin_a, crld->u.ldet.offset.x, sin_a, cos_a, crld->u.ldet.offset.y);
-    cv::transform(orig, src, affine_matrix);
-
-    float width = std::round((float)cv::norm(src_tl - src_tr));
-    float height = std::round((float)cv::norm(src_tl - src_bl));
-    transformedSize = { int(width), int(height) };
-
-    transfromSrc[0] = src[0]; //src_tl;
-    transfromSrc[1] = src[1]; //src_tr;
-    transfromSrc[2] = src[2]; //src_br;
-    transfromSrc[3] = src[3]; //src_bl;
-    transfromDst[0] = {0.f,   0.f};
-    transfromDst[1] = {width, 0.f};
-    transfromDst[2] = {width, height};
-    transfromDst[3] = {0.f,   height};
-
-    transfromMatrix = cv::getPerspectiveTransform(transfromSrc, transfromDst);
+    transfromMatrix = cv::getPerspectiveTransform(transfromSrc, dst);
+    valid = true;
     return true;
 }

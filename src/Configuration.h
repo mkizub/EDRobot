@@ -216,7 +216,7 @@ public:
     bool load();
     void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
     bool saveCalibration() const;
-    bool checkResolutionSupported(cv::Size gameSize);
+    bool checkResolutionSupported(cv::Size gameSize, std::string& error);
     bool checkNeedColorCalibration() const;
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }

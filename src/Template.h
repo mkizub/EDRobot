@@ -60,8 +60,7 @@ public:
     enum class CompareMode {
         Gray, Hsv, Luv, BGR
     };
-    HistogramTemplate(CompareMode mode, const cv::Rect& rect, const cv::Vec3b& colors);
-    HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::vector<cv::Vec3b>& colors);
+    HistogramTemplate(CompareMode mode, const cv::Rect& rect, const std::array<cv::Vec3b,4>& colors);
     ~HistogramTemplate() override = default;
 
     double match(ClassifyEnv& env) override;
@@ -69,12 +68,12 @@ public:
     double debugMatch(ClassifyEnv& env) override;
 
     cv::Vec3b mLastColorBGR;
-    std::vector<double> mLastDistance;
-    std::vector<double> mLastValues;
+    std::array<double,4> mLastDistance;
+    std::array<double,4> mLastValues;
     cv::Rect mRect;
 
 private:
-    const std::vector<cv::Vec3b> mColors;
+    const std::array<cv::Vec3b,4> mColors;
     const CompareMode mMode;
 };
 

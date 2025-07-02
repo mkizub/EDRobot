@@ -81,6 +81,7 @@ void UIDebug::setDebugOverlay(const cv::Mat& overlay) {
             mDebugOverlayPresent = false;
         } else {
             assert (!mOutputSize.empty());
+            // TODO: do not resize, let pRenderTarget resizes in hardware
             cv::resize(overlay, mDebugOverlay, mOutputSize, 0, 0);
             mDebugOverlayUpdated = true;
             mDebugOverlayPresent = true;
@@ -210,12 +211,56 @@ void UIDebug::resizeWindow() {
                  SWP_ASYNCWINDOWPOS/*|SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER|SWP_NOREDRAW*/);
 }
 
-
-
 INT_PTR UIDebug::onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     if (message == WM_ERASEBKGND)
         return 0;
+    if (message == WM_SIZING)
+        return onSizing((LPRECT)lParam, (UINT)wParam);
+    if (message == WM_EXITSIZEMOVE && wasResized) {
+        resizeWindow();
+        return 0;
+    }
     return UIWindow::onMessage(hWnd, message, wParam, lParam);
+}
+
+INT_PTR UIDebug::onSizing(LPRECT pRect, UINT edge) {
+    RECT pad {};
+    AdjustWindowRectEx(&pad, dwStyle, FALSE, dwExStyle);
+    RECT cRect {pRect->left - pad.left, pRect->top - pad.top,
+                pRect->right - pad.right, pRect->bottom - pad.bottom };
+
+    int newWidth = cRect.right - cRect.left;
+    int newHeight = cRect.bottom - cRect.top;
+
+    // Calculate the current aspect ratio
+    double gameAspectRatio = static_cast<double>(mGameSize.width) / mGameSize.height;
+    double currentAspectRatio = static_cast<double>(newWidth) / newHeight;
+
+    // Adjust dimensions to maintain aspect ratio
+    if (currentAspectRatio != gameAspectRatio) {
+        if (edge == WMSZ_LEFT || edge == WMSZ_RIGHT || edge == WMSZ_TOPLEFT || edge == WMSZ_TOPRIGHT || edge == WMSZ_BOTTOMLEFT || edge == WMSZ_BOTTOMRIGHT)
+            newHeight = static_cast<int>(newWidth / gameAspectRatio); // If width is being adjusted, calculate new height
+        else if (edge == WMSZ_TOP || edge == WMSZ_BOTTOM)
+            newWidth = static_cast<int>(newHeight * gameAspectRatio); // If height is being adjusted, calculate new width
+
+        // Update the RECT structure with the adjusted dimensions
+        if (edge == WMSZ_LEFT || edge == WMSZ_TOPLEFT || edge == WMSZ_BOTTOMLEFT)
+            cRect.left = cRect.right - newWidth;
+        else
+            cRect.right = cRect.left + newWidth;
+
+        if (edge == WMSZ_TOP || edge == WMSZ_TOPLEFT || edge == WMSZ_TOPRIGHT)
+            cRect.top = cRect.bottom - newHeight;
+        else
+            cRect.bottom = cRect.top + newHeight;
+    }
+    mOutputScale = float(cRect.right - cRect.left) / mGameSize.width;
+    pRect->left = cRect.left + pad.left;
+    pRect->top = cRect.top + pad.top;
+    pRect->right = cRect.right + pad.right;
+    pRect->bottom = cRect.bottom + pad.bottom;
+    wasResized = true;
+    return TRUE; // Indicate that the message has been handled
 }
 
 void UIDebug::onPaint() {
