@@ -12,8 +12,8 @@
       { name: 'lst-goods', action: 'dlg-trade', rect: [369,250,425,721], row: 36, gap: 2, ocr: true },
       { name: 'mod-sell',
         detect: [
-          { img: "at_market_sell-ru.png", t: [0.6, 0.8], at:[245, 172] },
-          { img: "at_market.png", t: 0.7, at:[92, 57] },
+          { img: "at_market_sell-*.png", t: [0.6, 0.8], rect:[245, 172, 230, 50] },
+          { img: "at_market.png", t: 0.7, rect:[92, 57, 50, 50] },
         ],
         have: [
           {
@@ -23,8 +23,8 @@
                 name: 'mod-less',
                 detect: [
                   // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
-                  { img: "at_market_sell_dialog-ru.png", t: [0.6, 0.9], at:[700, 170], ext: [0,30,0,20], name: "sdtl" },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[700, 714], ext: [0,30,10,70], name: "sdil" }
+                  { img: "at_market_sell_dialog-*.png", t: [0.6, 0.9], rect:[700, 170, 260, 100], ext: [0,30,0,20], name: "sdtl" },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[700, 714, 100, 100], ext: [0,30,10,70], name: "sdil" }
                 ],
                 have: [
                   { name: 'btn-cancel', action: 'close', rect: [714,"848+sdil.oy",242,38] },
@@ -37,8 +37,8 @@
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_sell_dialog-ru.png", t: [0.6, 0.9], at:[500, 170], ext: [0,30,0,20], name: "sdtm" },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[500, 714], ext: [0,30,10,70], name: "sdim" }
+                  { img: "at_market_sell_dialog-*.png", t: [0.6, 0.9], rect:[500, 170, 260, 100], ext: [0,30,0,20], name: "sdtm" },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[500, 714, 100, 100], ext: [0,30,10,70], name: "sdim" }
                 ],
                 have: [
                   { name: 'btn-cancel', action: 'close', rect: [509,"848+sdim.oy",242,38] },
@@ -56,8 +56,8 @@
       },
       { name: 'mod-buy',
         detect: [
-          { img: "at_market_buy-ru.png", t: [0.6, 0.8], at:[245, 172] },
-          { img: "at_market.png", t: 0.7, at:[92, 57] },
+          { img: "at_market_buy-*.png", t: [0.6, 0.8], rect:[245, 172, 230, 50] },
+          { img: "at_market.png", t: 0.7, rect:[92, 57, 50, 50] },
         ],
         have: [
           {
@@ -67,8 +67,8 @@
                 name: 'mod-less',
                 detect: [
                   // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
-                  { img: "at_market_buy_dialog-ru.png", t: [0.6, 0.9], at:[704, 185], ext: [0,30,0,20], name: "bdtl" },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[707, 701], ext: [0,30,10,70], name: "bdil" }
+                  { img: "at_market_buy_dialog-*.png", t: [0.6, 0.9], rect:[704,185,240,95], ext: [0,30,0,20], name: "bdtl" },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[707, 701, 100, 100], ext: [0,30,10,70], name: "bdil" }
                 ],
                 have: [
                   { name: 'btn-cancel', action: 'close', rect: [712,"832+bdil.oy",242,38] },
@@ -81,8 +81,8 @@
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_buy_dialog-ru.png", t: [0.6, 0.9], at:[501, 185], ext: [0,30,0,20], name: "bdtm" },
-                  { img: "at_market_dialog.png",      t: [0.6, 0.8], at:[504, 701], ext: [0,30,10,70], name: "bdim" }
+                  { img: "at_market_buy_dialog-*.png", t: [0.6, 0.9], rect:[501, 185, 240, 95], ext: [0,30,0,20], name: "bdtm" },
+                  { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[504, 701, 100, 100], ext: [0,30,10,70], name: "bdim" }
                 ],
                 have: [
                   { name: 'btn-cancel', action: 'close', rect: [509,"832+bdim.oy",242,38] },
@@ -103,36 +103,31 @@
   {
     name: 'scr-services',
     status: { gui: 'Services', docked: true },
-    detect: { tiles: [172,444,966,484], rows: 4, cols: 3, gap: 10, name: "serv", t: [0.7, 0.9], icons: [
-      // station
-      "tile-icon-market.png", "tile-icon-market-act.png",
-      "tile-icon-missions.png", "tile-icon-missions-act.png",
-      "tile-icon-shipyard.png", "tile-icon-shipyard-act.png",
-      "tile-icon-univcart.png", "tile-icon-univcart-act.png",
-      "tile-icon-contacts.png", "tile-icon-contacts-act.png",
-      "tile-icon-crew.png", "tile-icon-crew-act.png",
-      // fleet carrier
-      "tile-icon-tritium.png", "tile-icon-tritium-act.png",
-      "tile-icon-carriermgr.png", "tile-icon-carriermgr-act.png",
-      "tile-icon-redempt.png", "tile-icon-redempt-act.png",
-      "tile-icon-blackmarket.png", "tile-icon-blackmarket-act.png",
-      // architector
-      "tile-icon-arch.png", "tile-icon-arch-act.png"
-    ] },
+    detect: [
+      { tiles: [172,444,966,484], rows: [2,4], cols: 3, gap: 10, name: "dserv", t: [0.7, 0.9],
+        icons: "services/dock-*.png", rect: [0,0,50,50]},
+      { tiles: [1165,771,584,158], rows: 1, cols: 4, gap: 16, name: "sserv", t: [0.7, 0.9],
+        icons: "services/ship-*.png", rect: [0,0,90,80]}
+    ],
     have: [
       { name: 'btn-exit', action: 'close', rect: [162,960,306,38] },
-      { name: 'til-market',      action: 'market',      icon: "serv:tile-icon-market" },
-      { name: 'til-mission',     action: 'missions',    icon: "serv:tile-icon-missions" },
-      { name: 'til-shipyard',    action: 'shipyard',    icon: "serv:tile-icon-shipyard" },
-      { name: 'til-univcart',    action: 'univcart',    icon: "serv:tile-icon-univcart" },
-      { name: 'til-contacts',    action: 'contacts',    icon: "serv:tile-icon-contacts" },
-      { name: 'til-crew',        action: 'crew',        icon: "serv:tile-icon-crew" },
-      { name: 'til-tritium',     action: 'tritium',     icon: "serv:tile-icon-tritium" },
-      { name: 'til-carriermgr',  action: 'carriermgr',  icon: "serv:tile-icon-carriermgr" },
-      { name: 'til-redempt',     action: 'redempt',     icon: "serv:tile-icon-redempt" },
-      { name: 'til-blackmarket', action: 'blackmarket', icon: "serv:tile-icon-blackmarket" },
-      { name: 'til-arch',        action: 'arch',        icon: "serv:tile-icon-arch" },
-      { name: 'til-news',        action: 'news',        row: 3, col: 0 }
+      { name: 'til-market',      action: 'market',      icon: "dserv:dock-market" },
+      { name: 'til-mission',     action: 'missions',    icon: "dserv:dock-missions" },
+      { name: 'til-shipyard',    action: 'shipyard',    icon: "dserv:dock-shipyard" },
+      { name: 'til-univcart',    action: 'univcart',    icon: "dserv:dock-univcart" },
+      { name: 'til-contacts',    action: 'contacts',    icon: "dserv:dock-contacts" },
+      { name: 'til-crew',        action: 'crew',        icon: "dserv:dock-crew" },
+      { name: 'til-tritium',     action: 'tritium',     icon: "dserv:dock-tritium" },
+      { name: 'til-carriermgr',  action: 'carriermgr',  icon: "dserv:dock-carriermgr" },
+      { name: 'til-redempt',     action: 'redempt',     icon: "dserv:dock-redempt" },
+      { name: 'til-blackmarket', action: 'blackmarket', icon: "dserv:dock-blackmarket" },
+      { name: 'til-arch',        action: 'arch',        icon: "dserv:dock-arch" },
+      { name: 'til-news',        action: 'news',        row: 3, col: 0 },
+
+      { name: 'til-outfitting',  action: 'outfitting',   icon: "sserv:ship-outfitting" },
+      { name: 'til-design',      action: 'design',       icon: "sserv:ship-design" },
+      { name: 'til-maintenance', action: 'maintenance',  icon: "sserv:ship-maintenance" },
+      { name: 'til-workshop',    action: 'workshop',     icon: "sserv:ship-workshop" },
     ]
   },
   {
@@ -171,7 +166,7 @@
     name: 'scr-cockpit',
     status: { gui: 'None', docked: false },
     detect: {
-      img: "auto_pilot.png", t: [0.4, 0.8], at:[935, 350], ext: [60,60], name: "auto-pilot", filter: [
+      img: "auto_pilot.png", t: [0.4, 0.8], rect:[935, 350, 52, 48], ext: [60,60], name: "auto-pilot", filter: [
         { gauss: { kern: 3, sigma: 1.0 } },
         { hsv_crop: { h: [80,100], s:[30,255], v:[80,255] } },
         //{ laplacian: { kern: 1, scale: 1.0 } },
@@ -181,33 +176,51 @@
   {
     name: 'scr-left-panel', // warped reference size: 1086x657
     status: { gui: 'Left' },
-    detect: {
-      line: "lpline", p0: [236,300], p1: [1302,278], ext: [120,100], thr: 130,
-      anchor: ["at_left_panel.png", "at_left_panel-act.png"], at: [240,256], t: [0.4, 0.8],
-      filter: [
-        //{ gauss: { kern: [3,3] } }, // either scale or blur
-        { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
-      ],
-    },
-    transform: { line: "lpline", tl: [234,250], tr: [1320,235], bl: [287,905], br: [1332,798] },
+    detect: { best: [
+      {
+        line: "lpline", p0: [236,300], p1: [1302,278], ext: [120,100], thr: 130,
+        anchor: {
+          img: "at_left_panel*.png", rect: [240,256,37,37], angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
+          filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+        },
+        filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+      },
+      {
+        line: "nvline", p0: [396,275], p1: [1207,261], ext: [120,100], thr: 125,
+        anchor: {
+          img: "left/nav_select_icon_*.png", rect: [425,279,60,60], angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
+          filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+        },
+        filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+      },
+      {
+        line: "fltline", p0: [371,273], p1: [1207,258], ext: [120,100], thr: 110,
+        anchor: {
+          img: "left/filter_icon-*.png", rect: [374,278,76,28], angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
+          filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+        },
+        filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+      }
+    ]},
+    transform: { line: ["lpline","nvline"], tl: [234,250], tr: [1320,235], bl: [287,905], br: [1331,798] },
     have: [
       {
         name: "mod-sysinfo",
-        detect: { img: "at_left_sysinfo.png", t: 0.7, at:[5, 10] }
+        detect: { img: "at_left_sysinfo.png", t: 0.7, rect:[5,10,28,28] }
       },
       {
         name: "mod-navigation",
-        detect: { img: "at_left_navigation-ru.png", t: 0.7, at:[100, 10] },
+        detect: { img: "at_left_navigation-*.png", t: 0.7, rect:[100, 10, 128, 28] },
         have: [
           { name: 'btn-filter', action: 'dlg-filter', rect: [14,220,88,54] },
           { name: 'btn-galaxy', action: 'galaxy-map', rect: [12,474,90,56] },
           { name: 'btn-system', action: 'system-map', rect: [12,590,90,56] },
-          { name: 'lst-bodies', rect: [242,212,706,444], row: 37, gap: 2, ocr: true }
+          { name: 'lst-bodies', rect: [242,212,706,444], row: 37, gap: 2, ocr: true },
         ]
       },
       {
         name: "mod-transact",
-        detect: { img: "at_left_transact-ru.png", t: 0.7, at:[348, 10] },
+        detect: { img: "at_left_transact-*.png", t: 0.7, rect:[348,10,128,28] },
         have: [
           { name: 'btn-missions', rect: [4,64,94,76] },
           { name: 'btn-passengers', rect: [4,156,94,76] },
@@ -219,7 +232,7 @@
       },
       {
         name: "mod-contacts",
-        detect: { img: "at_left_contacts-ru.png", t: 0.7, at:[598, 10] },
+        detect: { img: "at_left_contacts-*.png", t: 0.7, rect:[598, 10, 128, 28] },
         have: [
           { name: 'btn-row-req', rect: [610,338,448,46] },
           { name: 'lst-contacts', rect: [2,64,584,590], row: 40, gap: 5, ocr: true },
@@ -228,10 +241,41 @@
       },
       {
         name: "mod-target",
-        detect: { img: "at_left_target-ru.png", t: 0.7, at:[872, 10] },
+        detect: { img: "at_left_target-*.png", t: 0.7, rect:[872,10,128,28] },
         have: [
           { name: 'btn-targets', rect: [4,132,94,74] },
           { name: 'btn-cargo', rect: [4,220,92,70] },
+        ]
+      },
+      { name: 'dlg-nav-select',
+        detect: {
+          tiles: [140,508,820,66], rows: 1, cols: [2,5], gap: 6, name: 'dest', t: [0.7, 0.9],
+          icons: 'left/ti-dest-*.png', rect: [0,0,40,40], // Y=520
+          hud: true // try hard
+        },
+        have: [
+          { name: 'til-lock-dest',    icon: "dest:ti-dest-lock" },
+          { name: 'til-unlock-dest',  icon: "dest:ti-dest-unlock" },
+          { name: 'til-see-starmap',  icon: "dest:ti-dest-see-starmap" },
+          { name: 'til-see-body',     icon: "dest:ti-dest-see-body" },
+          { name: 'til-codex',        icon: "dest:ti-dest-codex" },
+          { name: 'til-bookmark',     icon: "dest:ti-dest-bookmark" },
+          { name: 'btn-back', action: 'close', rect: [144,580,812,34] },
+        ]
+      },
+      { name: 'dlg-filters',
+        detect: {
+          img: "left/filter_icon-*.png", rect: [374,278,76,28], angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
+          filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+        },
+        have: [
+//          { name: 'til-lock-dest',    icon: "dest:ti-dest-lock" },
+//          { name: 'til-unlock-dest',  icon: "dest:ti-dest-unlock" },
+//          { name: 'til-see-starmap',  icon: "dest:ti-dest-see-starmap" },
+//          { name: 'til-see-body',     icon: "dest:ti-dest-see-body" },
+//          { name: 'til-codex',        icon: "dest:ti-dest-codex" },
+//          { name: 'til-bookmark',     icon: "dest:ti-dest-bookmark" },
+          { name: 'btn-back', action: 'close', rect: [144,580,812,34] },
         ]
       }
     ]
@@ -239,9 +283,9 @@
 //  {
 //    name: 'scr-carrier-trade-mgr',
 //    detect: [
-//      { img: "at_carrier.png", t: [0.7,0.9], at:[1308,873] },
-//      { img: "at_carrier_trade_mgr-ru.png", t: [0.7,0.9], at:[1403,855] },
-//      { img: "at_market.png", t: 0.7, at:[92, 57] },
+//      { img: "at_carrier.png", t: [0.7,0.9], rect:[1308,873,87,82] },
+//      { img: "at_carrier_trade_mgr-*.png", t: [0.7,0.9], rect:[1403,855,206,92] },
+//      { img: "at_market.png", t: 0.7, rect:[92, 57, 50, 50] },
 //    ],
 //    have: [
 //      { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
@@ -253,8 +297,8 @@
 //  {
 //    name: 'scr-space',
 //    detect: [
-//      { img: "space_compass.png", t: [0.4,0.8], at:[679,803], ext: [50,40], scale: [0.05,0.949,1.051], edge: true },
-//      { img: "space_target.png", t: [0.4,0.8], at:[900,480], ext: [300,380,300,120], scale: [0.05,0.949,1.051], edge: true },
+//      { img: "space_compass.png", t: [0.4,0.8], rect:[679,803,71,71], ext: [50,40], scale: [0.05,0.949,1.051], edge: true },
+//      { img: "space_target.png", t: [0.4,0.8], rect:[900,480,121,121], ext: [300,380,300,120], scale: [0.05,0.949,1.051], edge: true },
 //    ],
 //  }
 ]

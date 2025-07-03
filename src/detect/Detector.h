@@ -105,11 +105,12 @@ public:
 };
 
 
-class BaseImageTemplate : public Detector {
+class ImageTemplate : public Detector {
 public:
-    BaseImageTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect);
-    ~BaseImageTemplate() override = default;
+    ImageTemplate(const std::string& filename, cv::Rect rect);
+    ~ImageTemplate() override = default;
 
+    double match(ClassifyEnv& env) override;
     double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 
@@ -117,59 +118,45 @@ public:
     static bool extractImageMask(cv::Mat& image, cv::Mat& mask);
 
     double toResult(double matchValue); // something like logistic regression, S-curve
-    cv::Mat applyFilters(cv::Mat image);
-    cv::Mat scaleImage(cv::Mat image, double scaleX, double scaleY);
-    void fixNaNinResult(cv::Mat& result);
+
+    static cv::Mat applyFilters(const std::vector<std::unique_ptr<ImageFilter>>& filters, cv::Mat image);
+    static cv::Mat scaleImage(cv::Mat image, double scaleX, double scaleY = 0);
+    static cv::Mat rotateImage(cv::Mat image, int angle, double scale);
+    static void fixNaNinResult(cv::Mat& result, const std::string& filename);
+
+//protected:
+    void prepareImages(ClassifyEnv& env);
     std::string name;
     std::string filename;
-    spEvalRect referenceRect;
+    cv::Rect referenceRect;
+    int channels;
     cv::Point extendLT;
     cv::Point extendRB;
     double threshold_min;
     double threshold_max;
     std::vector<std::unique_ptr<ImageFilter>> filters;
 
-    cv::Mat templImage;
-    cv::Mat templMask;
+    struct ImageMatrix {
+        double scale;
+        double angle;
+        std::string name;
+        cv::Mat templImage;
+        cv::Mat templMask;
+    };
+    std::vector<ImageMatrix> imagesOrig;
+    std::vector<ImageMatrix> imagesPrepared;
+
     double preprocessedTemplateScale = 0;
 
     cv::Rect captureRect;
     cv::Rect matchRect;
     cv::Point matchedCaptureOffset;
-
-    struct ScaledMatrix {
-        double scale;
-        cv::Mat templImage;
-        cv::Mat templMask;
-    };
+    std::vector<double> testScales;
+    std::vector<int> testAngles;
+    int lastTemplatedx;
 };
 
-class ImageTemplate : public BaseImageTemplate {
-public:
-    ImageTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect);
-    ~ImageTemplate() override = default;
-
-    double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
-    cv::Mat templImageScaled;
-    cv::Mat templMaskScaled;
-};
-
-class ImageMultiScaleTemplate : public BaseImageTemplate {
-public:
-    ImageMultiScaleTemplate(const std::string& filename, cv::Mat image, spEvalRect refRect, std::vector<double> scales);
-    ~ImageMultiScaleTemplate() override = default;
-
-    double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
-private:
-    std::vector<double> scales;
-    std::vector<ScaledMatrix> scaledImages;
-    int lastScaleIdx;
-    double lastScale;
-};
-
-class CompassDetector : public ImageMultiScaleTemplate {
+class CompassDetector : public ImageTemplate {
 public:
     CompassDetector();
     ~CompassDetector() override = default;
@@ -177,8 +164,8 @@ public:
     double match(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 
-    std::vector<ScaledMatrix> compassScales;
-    std::vector<ScaledMatrix> compassDots;
+    std::vector<ImageMatrix> compassScales;
+    std::vector<ImageMatrix> compassDots;
 
     const double threshold_dot;
 
@@ -196,9 +183,10 @@ public:
     static void tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect);
 };
 
-class TilesDetector : public Detector {
+class TilesDetector : public ImageTemplate {
 public:
-    TilesDetector(const std::string& name, spEvalRect& rect, int rows, int cols, int gap, double tmin, double tmax, std::vector<std::string> icon_files);
+    TilesDetector(const std::string& name, cv::Rect& tilesRect, const std::string& icons, cv::Rect& iconsRect,
+                  int min_rows, int max_rows, int min_cols, int max_cols, int gap);
     ~TilesDetector() override = default;
 
     double match(ClassifyEnv& env) override;
@@ -206,42 +194,40 @@ public:
     double debugMatch(ClassifyEnv& env) override;
 
     const std::string name;
-    spEvalRect mRect;
+    cv::Rect mTilesRect;
     std::vector<std::string> mIconFiles;
+    bool hudTryHard {false};
 
     std::vector<ClassifiedRect> mDetectedTiles;
 
 private:
-    const double threshold_min;
-    const double threshold_max;
-    struct IconMatrix {
-        double scale;
-        std::string name;
-        cv::Mat templImage;
-    };
-    std::vector<IconMatrix> iconsSource;
-    std::vector<IconMatrix> iconsScaled;
-
     bool getColSpan(int& col, int& span, cv::Rect& bbox, cv::Rect& captureRect, int gap) const;
-    double mPreprocessedTemplateScale = 1;
+
+    int mMinRows;
     int mMaxRows;
+    int mMinCols;
     int mMaxCols;
     int mGap;
-
 };
 
-class LineDetector : public BaseImageTemplate {
+class LineDetector : public Detector {
 public:
-    LineDetector( std::vector<std::string> anchors, spEvalRect anchorAt, cv::Point p0, cv::Point p1);
+    LineDetector(ImageTemplate* anchor, cv::Point p0, cv::Point p1);
     ~LineDetector() override = default;
 
     double match(ClassifyEnv& env) override;
+    double classify(ClassifyEnv &env) override;
     double debugMatch(ClassifyEnv& env) override;
 
     void normalizeRotatedRect(cv::RotatedRect& rr);
     void tryCannyParamsGUI(ClassifyEnv &env);
 
-    const std::vector<std::string> anchorFiles;
+    std::unique_ptr<ImageTemplate> anchorDetector;
+    std::vector<std::unique_ptr<ImageFilter>> filters;
+
+    std::string name;
+    cv::Point extendLT;
+    cv::Point extendRB;
     const cv::Point referenceP0;
     const cv::Point referenceP1;
     // maybe scale (speedup and a kind of blur
@@ -249,13 +235,6 @@ public:
     double imageScaleY {1};
     // cv::threshold
     int binaryThreshold {127};
-
-    struct AnchorMatrix {
-        std::string name;
-        cv::Mat templImage;
-    };
-    std::vector<AnchorMatrix> anchorSource;
-    std::vector<AnchorMatrix> anchorScaled;
 
     cv::Point captureP0;
     cv::Point captureP1;

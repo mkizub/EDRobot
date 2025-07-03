@@ -9,82 +9,42 @@
 
 namespace detect {
 
-LineDetector::LineDetector(std::vector<std::string> anchors, spEvalRect anchorRect, cv::Point p0, cv::Point p1)
-        : BaseImageTemplate("", cv::Mat(), anchorRect), anchorFiles(std::move(anchors)), referenceP0(p0),
-          referenceP1(p1) {
-    for (auto &fname: anchorFiles) {
-        cv::Mat anchorImage;
-        cv::Mat anchorMask;
-        loadImageAndMask(fname, anchorImage, anchorMask);
-        anchorSource.emplace_back(fname, anchorImage);
-    }
+LineDetector::LineDetector(ImageTemplate* anchor, cv::Point p0, cv::Point p1)
+        : referenceP0(p0),
+          referenceP1(p1)
+{
+    anchorDetector.reset(anchor);
+}
+
+double LineDetector::classify(ClassifyEnv &env) {
+    return match(env);
 }
 
 double LineDetector::match(ClassifyEnv &env) {
-    if (!this->referenceRect || anchorSource.empty())
+    ImageTemplate* an = anchorDetector.get();
+    if (!an)
         return 0;
-    cv::Rect referenceRect = env.calcReferenceRect(this->referenceRect);
-    if (referenceRect.empty())
-        return 0;
-    if (env.getScale() != preprocessedTemplateScale) {
-        preprocessedTemplateScale = env.getScale();
-        anchorScaled.clear();
-        cv::Mat tmpImageFiltered = applyFilters(templImage);
-        for (auto &as: anchorSource) {
-            cv::Mat tmpImage;
-            cv::resize(applyFilters(as.templImage), tmpImage, cv::Size(), env.getScale(), env.getScale());
-            anchorScaled.emplace_back(as.name, tmpImage);
-        }
-    }
-    int ext = Master::getInstance().getSearchRegionExtent();
-    captureRect = env.cvtReferenceToCaptured(referenceRect);
-    matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
-                         captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
-    env.cropToCapture(matchRect);
-    AnchorMatrix *bestAnchor = nullptr;
-    double bestAnchorVal = 0;
-    cv::Point bestAnchorLoc;
-    cv::Mat imagePrepared = cv::Mat(env.getColorImage(), matchRect);
-    imagePrepared = applyFilters(imagePrepared);
-    for (auto &sm: anchorScaled) {
-        int result_cols = matchRect.width - sm.templImage.cols + 1;
-        int result_rows = matchRect.height - sm.templImage.rows + 1;
-        cv::Mat result(result_rows, result_cols, CV_32FC1);
-        cv::matchTemplate(imagePrepared, sm.templImage, result, cv::TM_CCOEFF_NORMED);
-        fixNaNinResult(result);
-        double maxVal;
-        cv::Point maxLoc;
-        cv::minMaxLoc(result, nullptr, &maxVal, nullptr, &maxLoc);
-        LOG(DEBUG) << "match result: " << std::setprecision(3) << maxVal << " for anchor " << sm.name;
-        if (maxVal > bestAnchorVal) {
-            bestAnchorVal = maxVal;
-            bestAnchorLoc = maxLoc;
-            bestAnchor = &sm;
-        }
-        //LOG(DEBUG) << "match result: " << std::setprecision(3) << maxVal << " for " << ic.name;
-    }
-    if (bestAnchorVal < threshold_min) {
-        LOG(INFO) << "LineDetector: anchor detect rate: " << bestAnchorVal << " less then minimal threshold "
-                  << threshold_min;
-        return bestAnchorVal;
-    }
-    matchedCaptureOffset = bestAnchorLoc - (captureRect.tl() - matchRect.tl());
-    captureRect += matchedCaptureOffset;
-    LOG(DEBUG) << "LineDetector: anchor found, offset: " << matchedCaptureOffset;
+    double anchorVal = an->match(env);
 
-    captureP0 = env.cvtReferenceToCaptured(referenceP0) + matchedCaptureOffset;
+    captureP0 = env.cvtReferenceToCaptured(referenceP0) + an->matchedCaptureOffset;
     captureP1 = captureP0 + env.scaleToCaptured(referenceP1 - referenceP0);
     int captureWidth = cv::norm(captureP1 - captureP0);
-    cv::Rect r0 = cv::Rect(captureP0 - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
-                           captureP0 + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
-    cv::Rect r1 = cv::Rect(captureP1 - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
-                           captureP1 + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
+    cv::Rect r0 = cv::Rect(captureP0 - env.scaleToCaptured(extendLT),
+                           captureP0 + env.scaleToCaptured(extendRB));
+    cv::Rect r1 = cv::Rect(captureP1 - env.scaleToCaptured(extendLT),
+                           captureP1 + env.scaleToCaptured(extendRB));
     lineMatchRect = r0 | r1;
     env.cropToCapture(lineMatchRect);
 
-    imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
-    imagePrepared = scaleImage(imagePrepared, imageScaleX, imageScaleY);
-    imagePrepared = applyFilters(imagePrepared);
+    if (anchorVal < an->threshold_min) {
+        LOG(INFO) << "LineDetector: anchor '" << anchorDetector->filename << "' not found";
+        return 0;
+    }
+    LOG(DEBUG) << "LineDetector '" << name << "' anchor found, offset: " << an->matchedCaptureOffset;
+
+    cv::Mat imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
+    imagePrepared = ImageTemplate::scaleImage(imagePrepared, imageScaleX, imageScaleY);
+    imagePrepared = ImageTemplate::applyFilters(filters, imagePrepared);
 
     cv::Mat thrMat;
     cv::threshold(imagePrepared, thrMat, binaryThreshold, 255, cv::THRESH_BINARY);
@@ -116,19 +76,19 @@ double LineDetector::match(ClassifyEnv &env) {
             lastDeltaAngle = detectedAngle - referenceAngle;
         }
     }
-    if (minDist > captureRect.width) {
+    if (minDist > an->captureRect.width) {
         if (lastDeltaAngle == 180)
-            LOG(WARNING) << "LineDetector: no lines found";
+            LOG(DEBUG) << "LineDetector '" << name << "': no lines found";
         else
-            LOG(WARNING) << "LineDetector: distance too large";
+            LOG(DEBUG) << "LineDetector '" << name << "': distance too large";
         return 0;
     }
     captureP1.x = captureP0.x + captureWidth * std::cos(lastLineAngle * M_PI / 180);
     captureP1.y = captureP0.y + captureWidth * std::sin(lastLineAngle * M_PI / 180);
 
     env.classified.emplace_back(ClsDetType::LineDetected, env.isWarpMode(), name,
-                                referenceRect + env.scaleToReference(matchedCaptureOffset));
-    env.classified.back().u.ldet.offset = env.scaleToReference(matchedCaptureOffset);
+                                an->referenceRect + env.scaleToReference(an->matchedCaptureOffset));
+    env.classified.back().u.ldet.offset = env.scaleToReference(an->matchedCaptureOffset);
     env.classified.back().u.ldet.angle = lastDeltaAngle;
     env.classified.back().u.ldet.scale = 1;
     env.classified.back().u.ldet.referenceP0 = env.cvtCapturedToReference(captureP0);
@@ -138,11 +98,12 @@ double LineDetector::match(ClassifyEnv &env) {
 
 double LineDetector::debugMatch(ClassifyEnv &env) {
     double value = match(env);
-    if (value >= threshold_max) {
+    if (value > 0.5) {
         cv::Scalar color(255, 255, 96);
         cv::line(env.getDebugImage(), captureP0, captureP1, color, 2);
     }
-    //tryCannyParamsGUI(env);
+    //if (!lineMatchRect.empty())
+    //    tryCannyParamsGUI(env);
     return value;
 }
 
@@ -163,7 +124,7 @@ void LineDetector::tryCannyParamsGUI(ClassifyEnv &env) {
     int minWidth = cv::norm(captureP1 - captureP0) * 0.8;
 
     cv::Mat imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
-    imagePrepared = applyFilters(scaleImage(imagePrepared, imageScaleX, imageScaleY));
+    imagePrepared = ImageTemplate::applyFilters(filters, ImageTemplate::scaleImage(imagePrepared, imageScaleX, imageScaleY));
 
     GaussFilter *gaussFilter = nullptr;
     for (auto &filter: filters) {
@@ -219,8 +180,8 @@ void LineDetector::tryCannyParamsGUI(ClassifyEnv &env) {
             const_cast<bool &>(gaussFilter->disabled) = gaussDisable > 0;
         }
         imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
-        imagePrepared = applyFilters(scaleImage(imagePrepared, imageScaleX, imageScaleY));
-        linesMat = scaleImage(cv::Mat(env.getColorImage(), lineMatchRect), imageScaleX, imageScaleY).clone();
+        imagePrepared = ImageTemplate::applyFilters(filters, ImageTemplate::scaleImage(imagePrepared, imageScaleX, imageScaleY));
+        linesMat = ImageTemplate::scaleImage(cv::Mat(env.getColorImage(), lineMatchRect), imageScaleX, imageScaleY).clone();
 
         cv::threshold(imagePrepared, edgeMat, thrMin, 255, cv::THRESH_BINARY);
 

@@ -284,7 +284,7 @@ bool ConstTransform::calcTransform(const ResolvedEnv& env) {
     return true;
 }
 
-LineTransform::LineTransform(std::string line, cv::Point src_tl, cv::Point src_tr, cv::Point src_br, cv::Point src_bl)
+LineTransform::LineTransform(std::vector<std::string> line, cv::Point src_tl, cv::Point src_tr, cv::Point src_br, cv::Point src_bl)
     : EvalTransform(src_tl, src_tr, src_br, src_bl)
     , lineDetector(std::move(line))
 {
@@ -294,9 +294,12 @@ bool LineTransform::calcTransform(const ResolvedEnv& env) {
     valid = false;
     const ClassifiedRect* crld = nullptr;
     for (auto& cr : env.classified) {
-        if (cr.cdt == ClsDetType::LineDetected && cr.text == lineDetector) {
-            crld = &cr;
-            break;
+        if (cr.cdt == ClsDetType::LineDetected) {
+            auto it = std::find(lineDetector.begin(), lineDetector.end(), cr.text);
+            if (it != lineDetector.end()) {
+                crld = &cr;
+                break;
+            }
         }
     }
     if (!crld) {

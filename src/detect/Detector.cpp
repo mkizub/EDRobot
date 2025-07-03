@@ -50,13 +50,13 @@ double Sequence::debugMatch(ClassifyEnv &env) {
     for (auto &oracle: oracles) {
         if (oracle->classifierWeight <= 0)
             continue;
-        double value = oracle->classify(env);
+        double value = oracle->debugMatch(env);
         j_arr.as_array().emplace_back(value);
         double weight = oracle->classifierWeight / sumWeights;
         sum += weight * (2 * value - 1);
     }
     double result = (sum + 1) / 2;
-    LOG(INFO) << "match result: " << result << " for " << j_arr;
+    LOG(INFO) << "Sequence match result: " << result << " for " << j_arr;
     return result;
 }
 
@@ -89,14 +89,14 @@ double BestOf::debugMatch(ClassifyEnv &env) {
     int bestIdx = -1;
     double bestVal = 0;
     for (int i = 0; i < oracles.size(); i++) {
-        double value = oracles[i]->classify(env);
+        double value = oracles[i]->debugMatch(env);
         j_arr.as_array().emplace_back(value);
         if (value > bestVal) {
             bestVal = value;
             bestIdx = i;
         }
     }
-    LOG(INFO) << "match result: " << bestVal << " index " << bestIdx << " between " << j_arr;
+    LOG(INFO) << "BestOf match result: " << bestVal << " index " << bestIdx << " between " << j_arr;
     return bestVal;
 }
 

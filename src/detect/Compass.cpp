@@ -10,10 +10,12 @@
 namespace detect {
 
 CompassDetector::CompassDetector()
-        : ImageMultiScaleTemplate("templates/space_compass.png", cv::Mat(),
-                                  spEvalRect(new ConstRect(cv::Rect(679, 803, 71, 71))),
-                                  {1, 1.025, 0.975, 1.05, 0.95, 1.075, 0.925, 1.1, 0.9, 1.125, 0.875}),
-          threshold_dot{0.7} {
+        : ImageTemplate("templates/space_compass.png", cv::Rect(679, 803, 71, 71))
+        , threshold_dot{0.7}
+{
+    testScales = {1, 1.025, 0.975, 1.05, 0.95, 1.075, 0.925, 1.1, 0.9, 1.125, 0.875};
+    testAngles = {0, -5, +5};
+
     extendLT = {40, 80};
     extendRB = {50, 140};
     threshold_min = 0.3;
@@ -24,12 +26,12 @@ CompassDetector::CompassDetector()
     cv::Mat dotBwdMask;
     loadImageAndMask("templates/space_compass_dot_fwd.png", dotFwdImage, dotFwdMask);
     loadImageAndMask("templates/space_compass_dot_bwd.png", dotBwdImage, dotBwdMask);
-    compassDots.emplace_back(1.0, dotFwdImage, dotFwdMask);
-    compassDots.emplace_back(1.0, dotBwdImage, dotBwdMask);
+    compassDots.emplace_back(1.0, 0, "space_compass_dot_fwd.png", dotFwdImage, dotFwdMask);
+    compassDots.emplace_back(1.0, 0, "space_compass_dot_bwd.png", dotBwdImage, dotBwdMask);
 }
 
 double CompassDetector::match(ClassifyEnv &env) {
-    double compassValue = ImageMultiScaleTemplate::match(env);
+    double compassValue = ImageTemplate::match(env);
     if (compassValue < threshold_min)
         return compassValue;
 
@@ -55,6 +57,8 @@ double CompassDetector::match(ClassifyEnv &env) {
 //        auto& sm = compassDots[dotIdx];
 //        int result_cols = captureRect.width - sm.templImage.cols + 1;
 //        int result_rows = captureRect.height - sm.templImage.rows + 1;
+//        if (result_cols <= 0 || result_rows <= 0)
+//            continue;
 //        cv::Mat result(result_rows, result_cols, CV_32FC1);
 //        cv::matchTemplate(imageFiltered, sm.templImage, result, cv::TM_SQDIFF_NORMED, sm.templMask);
 //        //LOG(ERROR) << "dot " << dotIdx << " match result: " << result;
@@ -166,7 +170,7 @@ void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenc
 }
 
 double CompassDetector::debugMatch(ClassifyEnv &env) {
-    double value = BaseImageTemplate::debugMatch(env);
+    double value = ImageTemplate::debugMatch(env);
     if (lastDotValue >= threshold_min && lastDotIdx >= 0) {
         cv::Scalar color;
         if ((lastDotIdx & 1) == 0)

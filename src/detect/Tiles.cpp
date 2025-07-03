@@ -9,63 +9,96 @@
 
 namespace detect {
 
-TilesDetector::TilesDetector(const std::string &name, spEvalRect &rect, int rows, int cols, int gap, double tmin,
-                             double tmax, std::vector<std::string> icon_files)
-        : name(name), mRect(rect), mMaxRows(rows), mMaxCols(cols), mGap(gap), threshold_min(tmin), threshold_max(tmax),
-          mIconFiles(icon_files) {
-    for (auto &icf: icon_files) {
-        cv::Mat image, mask;
-        std::string filename = "templates/" + icf;
-        if (BaseImageTemplate::loadImageAndMask(filename, image, mask)) {
-            std::string name = icf.substr(0, icf.size() - 4);
-            iconsSource.emplace_back(1.0, name, image);
-            iconsScaled.emplace_back(1.0, name, image);
-        }
-    }
+TilesDetector::TilesDetector(const std::string& name, cv::Rect& tilesRect,
+                             const std::string& icons, cv::Rect& iconsRect,
+                             int rows_min, int rows_max, int cols_min, int cols_max, int gap)
+        : ImageTemplate(icons, iconsRect)
+        , name(name)
+        , mTilesRect(tilesRect)
+        , mMinRows(rows_min)
+        , mMaxRows(rows_max)
+        , mMinCols(cols_min)
+        , mMaxCols(cols_max)
+        , mGap(gap)
+{
+   testScales.push_back(1);
+   testAngles.push_back(0);
+   channels = 1; // force grayscale
 }
 
-bool TilesDetector::getColSpan(int &col, int &span, cv::Rect &bbox, cv::Rect &captureRect, int gap) const {
-    col = -1;
-    span = -1;
-    for (int i = 0; i <= mMaxCols; i++) {
-        int x_col = i * captureRect.width / mMaxCols;
-        if (bbox.x >= x_col - gap && bbox.x <= x_col + gap) {
-            col = i;
+bool TilesDetector::getColSpan(int &out_col, int &out_span, cv::Rect &bbox, cv::Rect &captureRect, int gap) const {
+    int best_col = -1;
+    int best_span = -1;
+    int best_col_dist = 1000;
+    for (int numCols = mMinCols; numCols <= mMaxCols; numCols++) {
+        int col = -1;
+        int span = -1;
+        int dist = 0;
+        for (int i = 0; i <= numCols; i++) {
+            int x_col = i * captureRect.width / numCols;
+            if (bbox.x >= x_col - gap && bbox.x <= x_col + gap) {
+                col = i;
+                dist += std::abs(bbox.x - x_col);
+            }
+            if ((bbox.x + bbox.width) >= x_col - gap && (bbox.x + bbox.width) <= x_col + gap) {
+                span = i - col;
+                dist += std::abs((bbox.x + bbox.width) - x_col);
+            }
         }
-        if ((bbox.x + bbox.width) >= x_col - gap && (bbox.x + bbox.width) <= x_col + gap) {
-            span = i - col;
+        if (col < 0 || span < 0)
+            continue;
+        if (dist < best_col_dist) {
+            best_col_dist = dist;
+            best_col = col;
+            best_span = span;
         }
     }
-    return col >= 0 && span > 0;
+    if (best_col <0 || best_span <= 0)
+        return false;
+    out_col = best_col;
+    out_span = best_span;
+    return true;
 }
 
 double TilesDetector::match(ClassifyEnv &env) {
-    cv::Rect captureRect = env.cvtReferenceToCaptured(mRect->calcReferenceRect(env));
+    cv::Rect captureRect = env.cvtReferenceToCaptured(mTilesRect);
     cv::Mat roiImage(env.getGrayImage(), captureRect);
     if (roiImage.empty())
         return 0;
 
-    unsigned buttonGrayColor = Master::getInstance().getConfiguration()->getButtonGrayColor(WState::Normal);
+    unsigned buttonGrayColor;
+    if (hudTryHard) {
+        int histSize = 256;
+        float range[]{0, 256}; //the upper boundary is exclusive
+        const float *histRange[]{range};
+        cv::Mat hist;
+        cv::calcHist(&roiImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+        std::vector<float> hv;
+        for (int i = 0; i < hist.total(); ++i)
+            hv.push_back(hist.at<float>(i));
+        int maxLoc[4]{};
+        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+        buttonGrayColor = maxLoc[0] - 4;
+    } else {
+        buttonGrayColor = Master::getInstance().getConfiguration()->getButtonGrayColor(WState::Normal);
+    }
+
     cv::Mat thrImage;
     cv::threshold(roiImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
 
-    if (mPreprocessedTemplateScale != env.getScale()) {
-        mPreprocessedTemplateScale = env.getScale();
-        iconsScaled.clear();
-        for (size_t i = 0; i < iconsSource.size(); i++) {
-            IconMatrix &src = iconsSource[i];
-            cv::Mat templImageScaled;
-            cv::resize(src.templImage, templImageScaled, cv::Size(), env.getScale(), env.getScale());
-            iconsScaled.emplace_back(env.getScale(), src.name, templImageScaled);
-        }
+    if (hudTryHard) {
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+        cv::Mat erodedImage;
+        cv::erode(thrImage, erodedImage, kernel, cv::Point(-1, -1), 2, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+        cv::threshold(erodedImage, thrImage, 250, 255, cv::THRESH_BINARY);
     }
 
     int hGaps = (mMaxCols - 1) * mGap * env.getScale();
-    int minTileWidth = (captureRect.width - hGaps) / mMaxCols - 8;
+    int minTileWidth = (captureRect.width - hGaps) / mMaxCols - mGap;
     int vGaps = (mMaxRows - 1) * mGap * env.getScale();
-    int minTileHeight = (captureRect.height - vGaps) / mMaxRows - 6;
+    int minTileHeight = (captureRect.height - vGaps) / mMaxRows - mGap;
     int minTileArea = minTileWidth * minTileHeight;
-    int maxTileArea = captureRect.area() - minTileArea;
+    int maxTileArea = captureRect.area() - std::min(minTileArea*mMinCols,minTileArea*mMinRows);
 
     mDetectedTiles.clear();
     std::vector<std::vector<cv::Point>> contours;
@@ -92,6 +125,7 @@ double TilesDetector::match(ClassifyEnv &env) {
             }
         }
     }
+    LOG(DEBUG) << "TilesDetector '" << name << "' found " << mDetectedTiles.size() << " tiles";
 
     int area = 0;
     for (auto &cr: mDetectedTiles)
@@ -117,15 +151,19 @@ double TilesDetector::match(ClassifyEnv &env) {
         }
     }
 
+    prepareImages(env);
+
     for (auto &cr: mDetectedTiles) {
         cv::Rect tileRect = env.cvtReferenceToCaptured(cr.detectedRect);
         tileRect &= captureRect;
         tileRect -= captureRect.tl();
-        IconMatrix *bestIcon = nullptr;
+        ImageMatrix *bestIcon = nullptr;
         double bestIconVal = 0;
-        for (auto &ic: iconsScaled) {
+        for (auto &ic: imagesPrepared) {
             int result_cols = tileRect.width - ic.templImage.cols + 1;
             int result_rows = tileRect.height - ic.templImage.rows + 1;
+            if (result_cols <= 0 || result_rows <= 0)
+                continue;
             cv::Mat result(result_rows, result_cols, CV_32FC1);
             cv::Mat tileImage = cv::Mat(roiImage, tileRect);
             cv::matchTemplate(tileImage, ic.templImage, result, cv::TM_CCOEFF_NORMED);
@@ -172,7 +210,7 @@ double TilesDetector::debugMatch(ClassifyEnv &env) {
     }
     cv::Scalar colorOk(96, 255, 255);
     cv::Scalar colorNo(96, 96, 255);
-    cv::Rect captureRect = env.cvtReferenceToCaptured(mRect->calcReferenceRect(env));
+    cv::Rect captureRect = env.cvtReferenceToCaptured(mTilesRect);
     cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), (value < 0.5 ? colorNo : colorOk), 1);
     for (auto &cr: mDetectedTiles) {
         cv::Rect r = env.cvtReferenceToCaptured(cr.detectedRect);

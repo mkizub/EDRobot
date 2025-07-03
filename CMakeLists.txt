@@ -31,6 +31,7 @@ add_executable(EDRobot
         src/ClassifyEnv.cpp
         src/ClassifyEnv.h
         src/Configuration.cpp
+        src/EventParser.cpp
         src/Configuration.h
         src/EDWidget.cpp
         src/EDWidget.h
@@ -43,6 +44,15 @@ add_executable(EDRobot
         src/Utils.cpp
         src/Utils.h
 
+        src/ai/AutopilotTasks.cpp
+        src/ai/AutopilotTasks.h
+        src/ai/TaskCalibrate.cpp
+        src/ai/TaskCalibrate.h
+        src/ai/TaskDebug.cpp
+        src/ai/TaskDebug.h
+        src/ai/TaskSell.cpp
+        src/ai/TaskSell.h
+
         src/detect/Detector.h
         src/detect/Detector.cpp
         src/detect/ImageTemplate.cpp
@@ -50,22 +60,26 @@ add_executable(EDRobot
         src/detect/Tiles.cpp
         src/detect/Lines.cpp
 
-        src/ui/UIToast.cpp
-        src/ui/UIToast.h
-        src/ui/UIManager.cpp
-        src/ui/UIManager.h
-        src/ui/UIStartupDialog.cpp
-        src/ui/UIStartupDialog.h
-        src/ui/UISellInput.cpp
-        src/ui/UISellInput.h
-        src/ui/UICalibration.cpp
-        src/ui/UICalibration.h
-        src/ui/UISelectRect.cpp
-        src/ui/UISelectRect.h
-        src/ui/UIDialog.cpp
-        src/ui/UIDialog.h
         src/ui/AddTask.cpp
         src/ui/AddTask.h
+        src/ui/Main.cpp
+        src/ui/Main.h
+        src/ui/UICalibration.cpp
+        src/ui/UICalibration.h
+        src/ui/UIDebug.cpp
+        src/ui/UIDebug.h
+        src/ui/UIDialog.cpp
+        src/ui/UIDialog.h
+        src/ui/UIManager.cpp
+        src/ui/UIManager.h
+        src/ui/UISellInput.cpp
+        src/ui/UISellInput.h
+        src/ui/UISelectRect.cpp
+        src/ui/UISelectRect.h
+        src/ui/UIStartupDialog.cpp
+        src/ui/UIStartupDialog.h
+        src/ui/UIToast.cpp
+        src/ui/UIToast.h
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
 
@@ -73,11 +87,10 @@ add_executable(EDRobot
         src/capture/Capturer.cpp
         src/capture/CapturerWin32.cpp
         src/capture/CapturerWin32.h
+        src/capture/CapturerDXGI.cpp
+        src/capture/CapturerDXGI.h
         src/capture/CaptureWinRT.cpp
         src/capture/CapturerWinRT.h
-
-        src/ui/UIDebug.cpp
-        src/ui/UIDebug.h
 
         ui/Dialogs.rc
 
@@ -89,20 +102,9 @@ add_executable(EDRobot
         thirdparty/dirlistener/ReadDirectoryChangesPrivate.h
         thirdparty/dirlistener/ThreadSafeQueue.h
         thirdparty/CLI11/CLI11.hpp
+        thirdparty/glob/glob.cpp
+        thirdparty/glob/glob.h
         thirdparty/xml/xml.h
-        src/capture/CapturerDXGI.cpp
-        src/capture/CapturerDXGI.h
-        src/EventParser.cpp
-        src/ui/Main.cpp
-        src/ui/Main.h
-        src/ai/AutopilotTasks.cpp
-        src/ai/AutopilotTasks.h
-        src/ai/TaskCalibrate.cpp
-        src/ai/TaskCalibrate.h
-        src/ai/TaskDebug.cpp
-        src/ai/TaskDebug.h
-        src/ai/TaskSell.cpp
-        src/ai/TaskSell.h
 )
 #target_sources(EDRobot PUBLIC
 #        FILE_SET CXX_MODULES FILES

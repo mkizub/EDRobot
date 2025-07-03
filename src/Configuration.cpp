@@ -1484,6 +1484,70 @@ static cv::Vec3b color_from_json(const json5pp::value& v) {
     return encodeBGR(bgr);
 }
 
+static cv::Rect rect_from_json(const json::value& v) {
+    cv::Rect rect;
+    rect.x = v[0].as_integer();
+    rect.y = v[1].as_integer();
+    rect.width = v[2].as_integer();
+    rect.height = v[3].as_integer();
+    return rect;
+}
+
+static cv::Rect rect_from_json(const json5pp::value& v) {
+    cv::Rect rect;
+    rect.x = v[0].as_integer();
+    rect.y = v[1].as_integer();
+    rect.width = v[2].as_integer();
+    rect.height = v[3].as_integer();
+    return rect;
+}
+
+template<class Tp>
+static void minmax_from_json(const json5pp::value& v, Tp& vmin, Tp& vmax) {
+    Tp tmin = vmin;
+    Tp tmax = vmax;
+    if (v.is_number())
+        tmin = tmax = v.as_number();
+    else if (v.is_array()) {
+        auto& jt = v.as_array();
+        if (!jt.empty())
+            tmin = jt[0].as_number();
+        if (jt.size() > 1)
+            tmax = jt[1].as_number();
+        else
+            tmax = tmin;
+    }
+    if (tmax < tmin)
+        std::swap(tmin, tmax);
+    vmin = tmin;
+    vmax = tmax;
+}
+
+static void ext_from_json(const json5pp::value& v, cv::Point& extendLT, cv::Point& extendRB) {
+    if (!v)
+        return;
+    int extL = 0;
+    int extT = 0;
+    int extR = 0;
+    int extB = 0;
+    if (v.is_number())
+        extL = extT = extR = extB = v.as_integer();
+    else if (v.is_array()) {
+        auto& jext = v.as_array();
+        if (!jext.empty())
+            extL = extT = extR = extB = jext[0].as_integer();
+        if (jext.size() > 1)
+            extT = extB = jext[1].as_integer();
+        if (jext.size() > 2)
+            extR = jext[2].as_integer();
+        if (jext.size() > 3)
+            extB = jext[3].as_integer();
+
+        extendLT = {extL, extT};
+        extendRB = {extR, extB};
+    }
+}
+
 static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFilter>& f) {
     if (!jf.is_object())
         return;
@@ -1551,75 +1615,33 @@ static void from_json(const json5pp::value& j, Detector*& o) {
     if (j.is_null())
         return;
     if (j.is_object()) {
-        Detector* oracle = nullptr;
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
-            auto image = cv::imread(filename, cv::IMREAD_UNCHANGED);
-            if (image.empty()) {
-                LOG(ERROR) << "Template image " << filename << " not found";
-                return;
-            }
-            json5pp::value atX = j.at("at").as_array()[0];
-            json5pp::value atY = j.at("at").as_array()[1];
-            spEvalRect screenRect = makeEvalRect(j.at("at"), image.cols, image.rows);
+            cv::Rect rect = rect_from_json(j["rect"]);
 
-            BaseImageTemplate* templ;
-
-            std::vector<double> scales;
-            if (j.at("scale").is_array()) {
-                for (auto& scl : j.at("scale").as_array())
-                    scales.push_back(scl.as_number());
-                templ = new ImageMultiScaleTemplate(filename, image, screenRect, scales);
-            } else {
-                templ = new ImageTemplate(filename, image, screenRect);
-            }
+            ImageTemplate* templ = new ImageTemplate(filename, rect);
             o = templ;
 
             if (j.at("name").is_string()) {
                 templ->name = j.at("name").as_string();
             }
 
-            if (j.at("ext")) {
-                int extL = 0;
-                int extT = 0;
-                int extR = 0;
-                int extB = 0;
-                if (j.at("ext").is_number())
-                    extL = extT = extR = extB = j.at("ext").as_integer();
-                else if (j.at("ext").is_array()) {
-                    auto& jext = j.at("ext").as_array();
-                    if (!jext.empty())
-                        extL = extT = extR = extB = jext[0].as_integer();
-                    if (jext.size() > 1)
-                        extT = extB = jext[1].as_integer();
-                    if (jext.size() > 2)
-                        extR = jext[2].as_integer();
-                    if (jext.size() > 3)
-                        extB = jext[3].as_integer();
-                }
-                templ->extendLT = {extL, extT};
-                templ->extendRB = {extR, extB};
+            if (j.at("scale").is_number())
+                templ->testScales.push_back(j["scale"].as_number());
+            else if (j.at("scale").is_array()) {
+                for (auto& scl : j.at("scale").as_array())
+                    templ->testScales.push_back(scl.as_number());
             }
 
-            if (j.at("t")) {
-                double tmin = 0.8;
-                double tmax = 0.8;
-                if (j.at("t").is_number())
-                    tmax = tmin = j.at("t").as_number();
-                else if (j.at("t").is_array()) {
-                    auto& jt = j.at("t").as_array();
-                    if (!jt.empty())
-                        tmin = jt[0].as_number();
-                    if (jt.size() > 1)
-                        tmax = jt[1].as_number();
-                    else
-                        tmax = tmin;
-                }
-                if (tmax < tmin)
-                    std::swap(tmin, tmax);
-                templ->threshold_min = tmin;
-                templ->threshold_max = tmax;
+            if (j.at("angle").is_integer())
+                templ->testAngles.push_back(j["angle"].as_integer());
+            else if (j.at("angle").is_array()) {
+                for (auto& angle : j.at("angle").as_array())
+                    templ->testAngles.push_back(angle.as_integer());
             }
+
+            ext_from_json(j["ext"], templ->extendLT, templ->extendRB);
+            minmax_from_json(j["t"], templ->threshold_min, templ->threshold_max);
 
             if (j.at("filter")) {
                 if (j.at("filter").is_object()) {
@@ -1639,30 +1661,16 @@ static void from_json(const json5pp::value& j, Detector*& o) {
             }
         }
         if (j.as_object().contains("line")) {
-            std::vector<std::string> anchors;
-            if (j["anchor"].is_string())
-                anchors.push_back("templates/"+j["anchor"].as_string());
-            else {
-                for (auto& a : j["anchor"].as_array())
-                    anchors.push_back("templates/"+a.as_string());
-            }
-            int width = 0;
-            int height = 0;
-            for (auto& fname : anchors) {
-                auto image = cv::imread(fname, cv::IMREAD_UNCHANGED);
-                if (image.empty()) {
-                    LOG(ERROR) << "Template image " << fname << " not found";
-                } else {
-                    width = std::max(width, image.cols);
-                    height = std::max(height, image.rows);
-                }
-            }
+            Detector* anchor = nullptr;
+
+            if (!j["anchor"].is_object() || !j["anchor"]["img"].is_string())
+                throw std::runtime_error("Anchor image template required for line detector");
+            from_json(j["anchor"], anchor);
 
             cv::Point p0 {j["p0"][0].as_integer(), j["p0"][1].as_integer()};
             cv::Point p1 {j["p1"][0].as_integer(), j["p1"][1].as_integer()};
 
-            spEvalRect screenRect = makeEvalRect(j.at("at"), width, height);
-            LineDetector* ldet = new LineDetector(anchors, screenRect, p0, p1);
+            LineDetector* ldet = new LineDetector(dynamic_cast<ImageTemplate*>(anchor), p0, p1);
             ldet->name = j["line"].as_string();
 
             o = ldet;
@@ -1679,47 +1687,7 @@ static void from_json(const json5pp::value& j, Detector*& o) {
                 ldet->imageScaleX = scaleX;
                 ldet->imageScaleY = scaleY;
             }
-            if (j.at("ext")) {
-                int extL = 0;
-                int extT = 0;
-                int extR = 0;
-                int extB = 0;
-                if (j.at("ext").is_number())
-                    extL = extT = extR = extB = j.at("ext").as_integer();
-                else if (j.at("ext").is_array()) {
-                    auto& jext = j.at("ext").as_array();
-                    if (!jext.empty())
-                        extL = extT = extR = extB = jext[0].as_integer();
-                    if (jext.size() > 1)
-                        extT = extB = jext[1].as_integer();
-                    if (jext.size() > 2)
-                        extR = jext[2].as_integer();
-                    if (jext.size() > 3)
-                        extB = jext[3].as_integer();
-                }
-                ldet->extendLT = {extL, extT};
-                ldet->extendRB = {extR, extB};
-            }
-
-            if (j.at("t")) {
-                double tmin = 0.8;
-                double tmax = 0.8;
-                if (j.at("t").is_number())
-                    tmax = tmin = j.at("t").as_number();
-                else if (j.at("t").is_array()) {
-                    auto& jt = j.at("t").as_array();
-                    if (!jt.empty())
-                        tmin = jt[0].as_number();
-                    if (jt.size() > 1)
-                        tmax = jt[1].as_number();
-                    else
-                        tmax = tmin;
-                }
-                if (tmax < tmin)
-                    std::swap(tmin, tmax);
-                ldet->threshold_min = tmin;
-                ldet->threshold_max = tmax;
-            }
+            ext_from_json(j["ext"], ldet->extendLT, ldet->extendRB);
 
             if (j.at("thr"))
                 ldet->binaryThreshold = j["thr"].as_number();
@@ -1742,35 +1710,28 @@ static void from_json(const json5pp::value& j, Detector*& o) {
             }
         }
         else if (j.as_object().contains("tiles")) {
-            auto& jo = j.as_object();
-            spEvalRect rect = makeEvalRect(jo.at("tiles"));
-            std::string name = j.at("name").as_string();
-            int rows = jo.at("rows").as_integer();
-            int cols = jo.at("cols").as_integer();
-            int gap = jo.at("gap").as_integer();
-            double tmin = 0.8;
-            double tmax = 0.8;
-            if (j.at("t")) {
-                if (j.at("t").is_number())
-                    tmax = tmin = j.at("t").as_number();
-                else if (j.at("t").is_array()) {
-                    auto& jt = j.at("t").as_array();
-                    if (!jt.empty())
-                        tmin = jt[0].as_number();
-                    if (jt.size() > 1)
-                        tmax = jt[1].as_number();
-                    else
-                        tmax = tmin;
-                }
-                if (tmax < tmin)
-                    std::swap(tmin, tmax);
-            }
-            std::vector<std::string> icons;
-            if (jo.contains("icons") && jo.at("icons").is_array()) {
-                for (auto &jic: jo.at("icons").as_array())
-                    icons.push_back(jic.as_string());
-            }
-            o = new TilesDetector(name, rect, rows, cols, gap, tmin, tmax, icons);
+            cv::Rect tilesRect = rect_from_json(j["tiles"]);
+            cv::Rect iconsRect = rect_from_json(j["rect"]);
+
+            std::string name = j["name"].as_string();
+            int rows_min = 1;
+            int rows_max = 1;
+            minmax_from_json(j["rows"], rows_min, rows_max);
+            int cols_min = 1;
+            int cols_max = 1;
+            minmax_from_json(j["cols"], cols_min, cols_max);
+
+            int gap = j["gap"].as_integer();
+
+            std::string icons = "templates/"+j["icons"].as_string();
+
+            TilesDetector* tiles = new TilesDetector(name, tilesRect, icons, iconsRect,
+                                                     rows_min, rows_max, cols_min, cols_max, gap);
+            o = tiles;
+
+            minmax_from_json(j["t"], tiles->threshold_min, tiles->threshold_max);
+            if (j["hud"].is_boolean())
+                tiles->hudTryHard = j["hud"].as_boolean();
         }
         else if (j.as_object().contains("best")) {
             std::vector<std::unique_ptr<Detector>> oracles;
@@ -1858,9 +1819,15 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
             cv::Point2f tr{(float) jt["tr"][0].as_number(), (float) jt["tr"][1].as_number()};
             cv::Point2f br{(float) jt["br"][0].as_number(), (float) jt["br"][1].as_number()};
             cv::Point2f bl{(float) jt["bl"][0].as_number(), (float) jt["bl"][1].as_number()};
-            if (jt["line"].is_string()) {
-                std::string line = jt["line"].as_string();
-                scr->transform = spEvalTransform(new LineTransform(line, tl, tr, br, bl));
+            if (jt["line"]) {
+                std::vector<std::string> lines;
+                if (jt["line"].is_array()) {
+                    for (auto& l : jt["line"].as_array())
+                        lines.push_back(l.as_string());
+                } else {
+                    lines.push_back(jt["line"].as_string());
+                }
+                scr->transform = spEvalTransform(new LineTransform(lines, tl, tr, br, bl));
             }
             else {
                 scr->transform = spEvalTransform(new ConstTransform(tl, tr, br, bl));

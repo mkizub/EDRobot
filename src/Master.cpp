@@ -960,8 +960,8 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             el::Loggers::flushAll();
             if (w && !foundWidget) {
                 foundWidget = w;
-                if (screen->transform) {
-                    debugEnv.warpPerspective(screen->transform);
+                if (screen->transform && screen->transform->valid) {
+                    //debugEnv.warpPerspective(screen->transform);
                     cv::imwrite("warped-screen-color.png", debugEnv.getWarpedColorImage());
                     cv::imwrite("warped-screen-gray.png", debugEnv.getWarpedGrayImage());
                 }
@@ -983,10 +983,26 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
     } else {
         if (debugMatchItem(item, *env)) {
             Widget* foundWidget = nullptr;
-            for (Widget* i : item->have) {
-                auto w = debugTemplates(i, env);
-                if (w && !foundWidget)
-                    foundWidget = w;
+            if (item->tp == WidgetType::Screen) {
+                bool savedWarpMode = mClassifyEnv.isWarpMode();
+                widget::Screen *screen = static_cast<widget::Screen *>(item);
+                if (screen->transform) {
+                    mClassifyEnv.warpPerspective(screen->transform);
+                    mClassifyEnv.setWarpMode(true);
+                }
+                for (Widget* i : item->have) {
+                    Widget* res = debugTemplates(i, env);
+                    if (res && !foundWidget)
+                        foundWidget = res;
+                }
+                mClassifyEnv.setWarpMode(savedWarpMode);
+                return item;
+            } else {
+                for (Widget *i: item->have) {
+                    Widget *res = debugTemplates(i, env);
+                    if (res && !foundWidget)
+                        foundWidget = res;
+                }
             }
             return foundWidget ? foundWidget : item;
         }
@@ -1529,9 +1545,6 @@ bool Master::detectEDState(DetectLevel level) {
         LOG(ERROR) << "Unknown state";
         return true;
     }
-    //if (mLastUIState.screen->transform) {
-    //    mClassifyEnv.warpPerspective(mLastUIState.screen->transform);
-    //}
     if (level >= DetectLevel::Buttons) {
         TRY {
             if (mButtonStateDetector) {

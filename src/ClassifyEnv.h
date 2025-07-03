@@ -88,10 +88,10 @@ public:
 
 class LineTransform : public EvalTransform {
 public:
-    LineTransform(std::string line, cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl);
+    LineTransform(std::vector<std::string> lines, cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl);
     bool calcTransform(const ResolvedEnv& detectorState) override;
 
-    const std::string lineDetector;
+    const std::vector<std::string> lineDetector;
 };
 
 enum class ClsDetType {
@@ -115,6 +115,7 @@ struct ClassifiedRect {
         struct {
             cv::Rect referenceRect;   // originally expected rect in reference coordinates
             double scale; // detected scale for multi-scale templates, environment (screen) scale is not counted
+            int angle;  // detected rotation angle for multi-scale templates
         } tdet;
         struct {
             cv::Point2f offset;
