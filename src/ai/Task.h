@@ -15,6 +15,7 @@ class Task {
 public:
     Task(Task* parent, AIManager& mgr, const TaskTemplate& templ);
     virtual ~Task() = default;
+    Result safe_run();
     virtual Result run() = 0;
     virtual Result run_sub_task(upTask& task);
 
@@ -35,11 +36,11 @@ public:
 
     void notifyProgress(const char* msg) const;
     void notifyProgress(const std::string& msg) const;
-    [[noreturn]] void notifyError(const char* msg, Result result) const;
-    [[noreturn]] void notifyError(const std::string& msg, Result result) const;
+    [[noreturn]] void notifyError(const char* msg, Result result);
+    [[noreturn]] void notifyError(const std::string& msg, Result result);
 
-    [[noreturn]] void task_return(Result result) const;
-    [[noreturn]] void task_return(Result result, const char* msg) const;
+    [[noreturn]] void task_return(Result result);
+    [[noreturn]] void task_return(Result result, const char* msg);
 
     std::string taskName;
     json5pp::value taskActions;

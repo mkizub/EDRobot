@@ -37,22 +37,6 @@ enum class POIType {
     Salvage,
 };
 
-struct CompassInfo {
-    double pitchToTarget; // in degrees, left -180...+180 right
-    double yawToTarget;   // in degrees, down -180...+180 up
-    double rollToTarget;  // in degrees, counterclockwise -90...+90 clockwise
-    bool frontHemisphere;
-};
-
-struct EDState {
-    FlyState flyState;
-    ViewMode viewMode;
-
-    CompassInfo compass;
-    const widget::Widget* uiWidget;
-    const widget::Widget* uiFocused;
-};
-
 enum class Result {
     Created,    // just created, need planning and execution
     Started,    // already started, maybe was interrupted/suspended
@@ -98,24 +82,24 @@ struct TaskTemplate {
 
 class nonlocal_return : public std::exception {
 public:
-    explicit nonlocal_return(Result result, const Task * const task)
+    explicit nonlocal_return(Result result, Task* task)
         : result(result)
         , task(task)
         , std::exception()
     {}
-    explicit nonlocal_return(Result result, const Task * const task, const char *arg)
+    explicit nonlocal_return(Result result, Task* task, const char *arg)
         : result(result)
         , task(task)
         , std::exception(arg)
     {}
-    explicit nonlocal_return(Result result, const Task * const task, const std::string& arg)
+    explicit nonlocal_return(Result result, Task* task, const std::string& arg)
             : result(result)
             , task(task)
             , std::exception(arg.c_str())
     {}
 
     const Result result;
-    const Task * const task;
+    Task * const task;
 };
 
 class interrupted_error : public std::exception {

@@ -253,7 +253,8 @@ void AIManager::initTemplates() {
             { .name = ED_TASK_MARKET_SELL,
               .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }, {Param::Int, "chunk", 0 }},
               .maxMisses = 3 },
-            { ED_TASK_DEPART },
+            { .name = ED_TASK_DEPART, .maxMisses = 5 },
+            { .name = ED_TASK_DOCK, .maxMisses = 5 },
             { ED_TASK_CALIBRATE },
             { ED_TASK_DEBUG_FILE_ALL_COMMODITIES },
     };

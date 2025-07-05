@@ -31,7 +31,6 @@ private:
 
     std::array<cv::Vec3b, 4> mButtonBGRAverage;
     std::array<cv::Vec3b, 4> mLstRowBGRAverage;
-    std::unique_ptr <detect::Histogram> mDetector;
     cv::Mat colorImage;
 };
 

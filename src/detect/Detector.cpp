@@ -100,95 +100,79 @@ double BestOf::debugMatch(ClassifyEnv &env) {
     return bestVal;
 }
 
-
-Histogram::Histogram(CompareMode mode, const cv::Rect &rect, const std::array<cv::Vec3b, 4> &colors)
-        : mMode(mode), mRect(rect), mColors(colors) {
-}
-
-double gaussian(double x) {
-    return exp(-x * x / 2) / (sqrt(2 * M_PI));
-}
-
-double xxx(double x, double downscale) {
-    return gaussian(x / downscale) / gaussian(0);
-}
-
-double Histogram::match(ClassifyEnv &env) {
+bool Histogram::calc(ClassifyEnv &env) {
     cv::Rect rect = mRect;
     rect = env.cvtReferenceToCaptured(rect);
     env.cropToCapture(rect);
     if (rect.empty())
-        return 0;
+        return false;
     int colorPlanes;
-    std::vector<cv::Mat> imagePlanes;
-    if (mMode == CompareMode::Gray) {
+    if (mMode == Mode::Gray) {
         colorPlanes = 1;
-        imagePlanes.push_back(env.getGrayImage());
-    } else {
-        colorPlanes = 3;
-        cv::split(env.getColorImage(), imagePlanes);
-    }
-    unsigned resultColor = 0;
-    for (auto i = 0; i < colorPlanes; i++) {
         int histSize = 256;
         float range[]{0, 256}; //the upper boundary is exclusive
         const float *histRange[]{range};
-        cv::Mat subImage(imagePlanes[i], rect);
+        cv::Mat subImage(env.getGrayImage(), rect);
         cv::Mat hist;
         cv::calcHist(&subImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
         int maxLoc[4]{};
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-        resultColor |= maxLoc[0] << (i * 8);
+        uchar gray = maxLoc[0];
+        mLastColor = {gray, gray, gray};
     }
-    mLastColorBGR = encodeBGR(resultColor);
-    cv::Vec3b cmpColor;
-    switch (mMode) {
-    case CompareMode::Gray:
-        mLastColorBGR = sGray2sBgr(resultColor);
-        for (size_t i = 0; i < mColors.size(); i++) {
-            mLastDistance[i] = std::abs(int(resultColor) - int(mColors[i][0]));
-            mLastValues[i] = xxx(mLastDistance[i], 15);
-        }
-        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for gray level "
-                   << resultColor << " and colors " << mColors << " with distance " << mLastDistance;
-        break;
-    case CompareMode::Hsv:
-        cmpColor = sBgr2Hsv(mLastColorBGR);
-        for (size_t i = 0; i < mColors.size(); i++) {
-            mLastDistance[i] = distanceHsv(cmpColor, mColors[i]);
-            mLastValues[i] = xxx(mLastDistance[i], 50);
-        }
-        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for hsv color "
-                   << cmpColor << " and colors " << mColors << " with distance " << mLastDistance;
-        break;
-    case CompareMode::Luv:
-        cmpColor = sBgr2Luv(mLastColorBGR);
-        for (size_t i = 0; i < mColors.size(); i++) {
-            mLastDistance[i] = distanceLuv(cmpColor, mColors[i]);
-            mLastValues[i] = xxx(mLastDistance[i], 40);
-        }
-        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for luv color "
-                   << cmpColor << " and colors " << mColors << " with distance " << mLastDistance;
-        break;
-    case CompareMode::BGR:
-        for (size_t i = 0; i < mColors.size(); i++) {
-            mLastDistance[i] = distanceBGR(mLastColorBGR, mColors[i]);
-            mLastValues[i] = xxx(mLastDistance[i], 50);
-        }
-        LOG(DEBUG) << "Colors result: " << std::fixed << std::setprecision(3) << mLastValues << " for bgr color "
-                   << mLastColorBGR << " and colors " << mColors << " with distance " << mLastDistance;
-        break;
+    else if (mMode == Mode::Hsv) {
+        cv::Mat bgrSubImage(env.getColorImage(), rect);
+        cv::Mat hsvSubImage;
+        cv::cvtColor(bgrSubImage, hsvSubImage, cv::COLOR_BGR2HSV_FULL);
+        int channels[3] {0, 1, 2};
+        int histSize[3] {256/8, 256/8, 256/8};
+        float range[]{0, 256}; //the upper boundary is exclusive
+        const float *histRange[3]{range,range,range};
+        cv::Mat hist;
+        cv::calcHist(&hsvSubImage, 1, channels, cv::Mat(), hist, 3, histSize, histRange);
+        int maxLoc[4]{};
+        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+        uchar h = maxLoc[0] * 8 + 4;
+        h = h * 179. / 255.;
+        uchar s = maxLoc[1] * 8 + 4;
+        uchar v = maxLoc[2] * 8 + 4;
+        mLastColor = {h, s, v};
     }
-    imagePlanes.clear();
-    return *std::max_element(mLastValues.begin(), mLastValues.end());
-}
-
-double Histogram::classify(ClassifyEnv &env) {
-    return match(env) >= 0.8;
-}
-
-double Histogram::debugMatch(ClassifyEnv &env) {
-    return match(env);
+    else if (mMode == Mode::Luv) {
+        cv::Mat bgrSubImage(env.getColorImage(), rect);
+        cv::Mat luvSubImage;
+        cv::cvtColor(bgrSubImage, luvSubImage, cv::COLOR_BGR2Luv);
+        int channels[3] {0, 1, 2};
+        int histSize[3] {256/8, 256/8, 256/8};
+        float range[2] {0, 256};
+        const float *histRange[3]{range,range,range};
+        cv::Mat hist;
+        cv::calcHist(&luvSubImage, 1, channels, cv::Mat(), hist, 3, histSize, histRange);
+        int maxLoc[4]{};
+        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+        uchar l = maxLoc[0] * 8 + 4;
+        uchar u = maxLoc[1] * 8 + 4;
+        uchar v = maxLoc[2] * 8 + 4;
+        mLastColor = {l, u, v};
+    }
+    else /*if (mMode == Mode::BGR)*/ {
+        cv::Mat subImage(env.getColorImage(), rect);
+        std::vector<cv::Mat> imagePlanes;
+        cv::split(subImage, imagePlanes);
+        int channels[3] {0, 1, 2};
+        int histSize[3] {256/8, 256/8, 256/8};
+        float range[2] {0, 256};
+        const float *histRange[3]{range,range,range};
+        cv::Mat hist;
+        cv::calcHist(&subImage, 1, channels, cv::Mat(), hist, 3, histSize, histRange);
+        int maxLoc[4]{};
+        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+        uchar b = maxLoc[0] * 8 + 4;
+        uchar g = maxLoc[1] * 8 + 4;
+        uchar r = maxLoc[2] * 8 + 4;
+        mLastColor = {b, g, r};
+    }
+    return true;
 }
 
 } // namespace detect

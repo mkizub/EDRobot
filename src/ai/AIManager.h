@@ -52,7 +52,6 @@ public:
     std::vector<TaskTemplate*> AllImplementedTaskRefs;
     std::map<std::string,TaskTemplate*> AllImplementedTaskMap;
 
-    EDState edState;
     upTask activeTask;
     std::vector<upTask> archivedTasks;
     std::chrono::milliseconds nextDelay;
@@ -66,6 +65,7 @@ public:
     std::atomic_bool isLoopWaiting;
     ResolvedEnv rEnv;
     UIState uiState;
+    CompassInfo compassInfo;
 };
 
 }

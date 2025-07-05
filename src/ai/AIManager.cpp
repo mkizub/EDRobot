@@ -155,6 +155,8 @@ bool AIManager::new_task(const TaskTemplate& templ) {
         task.reset(new TaskSell(nullptr, *this, templ));
     if (templ.name == ED_TASK_DEPART)
         task.reset(new TaskDepart(nullptr, *this, templ));
+    if (templ.name == ED_TASK_DOCK)
+        task.reset(new TaskDock(nullptr, *this, templ));
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
     return new_task(std::move(task));
 }
@@ -210,6 +212,8 @@ void AIManager::step() {
             return;
         case Result::Trouble:
             if (activeTask->missCount >= activeTask->templ.maxMisses) {
+                UIManager::showToast("EDRobot task", std::format("Too many failures ({}), task '{}' aborted",
+                                                                 activeTask->missCount, activeTask->taskName));
                 activeTask->result = Result::Failure;
                 archivedTasks.emplace_back(std::move(activeTask));
                 return;
@@ -225,15 +229,9 @@ void AIManager::step() {
     if (activeTask) {
         master.setGameForeground();
         LOG(INFO) << "AIManager::loop(): executing active task: " << activeTask->taskName;
-        Result res;
-        try {
-            res = activeTask->run();
-        } catch (const nonlocal_return& ex) {
-            res = ex.result;
-        }
-        activeTask->result = res;
+        activeTask->safe_run();
         LOG(INFO) << "AIManager::loop(): active task result: " << enum_name<Result>(activeTask->result);
-        UIManager::showToast("EDRobot task", std::format("Task '{}' result {}", activeTask->taskName, enum_name<Result>(activeTask->result)));
+        UIManager::showToast("EDRobot task", std::format("Active task '{}' result {}", activeTask->taskName, enum_name<Result>(activeTask->result)));
         return;
     }
 }
@@ -269,20 +267,36 @@ void AIManager::step() {
 //}
 
 const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
+    if (isInterrupted)
+        throw interrupted_error();
+#ifdef NDEBUG
+    std::chrono::milliseconds timeout = 2000ms;
+#else
+    std::chrono::milliseconds timeout = 5000ms;
+#endif
+    auto now = std::chrono::system_clock::now();
+    auto until = now + timeout;
     uiState.valid = false;
-    DetectRequest request { level, &uiState, &rEnv, colorImage, grayImage };
+    DetectRequest request { level, &uiState, &rEnv, &compassInfo, colorImage, grayImage };
     std::promise<bool> promise;
     std::future<bool> future = promise.get_future();
     master.pushDetectRequest(std::move(promise), std::move(request));
-    std::chrono::milliseconds timeout;
-#ifdef NDEBUG
-    timeout = 2000ms;
-#else
-    timeout = 5000ms;
-#endif
-    auto status = future.wait_for(timeout);
-    if (status != std::future_status::ready)
+    while (now < until) {
+        if (isInterrupted)
+            throw interrupted_error();
+        auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
+        if (left.count() < 5)
+            break;
+        auto duration = std::min(std::chrono::milliseconds(250), left);
+        auto status = future.wait_for(duration);
+        std::this_thread::sleep_for(duration);
+        if (status == std::future_status::ready)
+            break;
+        now = std::chrono::system_clock::now();
+    }
+    if (!future.valid())
         return false;
+    //    throw nonlocal_return(Result::Trouble, nullptr, "detectEDState() timeout");
     bool ok = future.get();
     return ok && uiState.valid;
 }

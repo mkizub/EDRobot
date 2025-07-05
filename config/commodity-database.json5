@@ -8,6 +8,21 @@
         en: "Limpets",
         ru: "Дрон",
       },
+      gromcounterintelligence: {
+        id: 0,
+        en: "",
+        ru: "Разведданные Грома",
+      },
+      undergroundsupport: {
+        id: 0,
+        en: "",
+        ru: "Подпольная поддержка Грома",
+      },
+      gromwartrophies: {
+        id: 0,
+        en: "",
+        ru: "Военные припасы Грома",
+      },
     },
   },
   'foods': {
@@ -345,15 +360,15 @@
         en: "Altairian Skin",
         ru: "Альтаирская кожа",
       },
-      trinketsoffortune: {
-        id: 128671444,
-        en: "",
-        ru: "Безделушки таинственной Фортуны",
-      },
       buckyballbeermats: {
         id: 128748428,
         en: "Buckyball Beer Mats",
         ru: "Подставка под пиво Buckyball",
+      },
+      trinketsoffortune: {
+        id: 128671444,
+        en: "",
+        ru: "Безделушки таинственной Фортуны",
       },
       clothing: {
         id: 128049241,
@@ -1115,10 +1130,20 @@
         en: "Guardian Totem",
         ru: "Тотем Стражей",
       },
+      antimattercontainmentunit: {
+        id: 128682053,
+        en: "",
+        ru: "Контейнер с антиматерией",
+      },
       antiquejewellery: {
         id: 128672159,
         en: "Antique Jewellery",
         ru: "Древние ювелирные украшения",
+      },
+      antiquities: {
+        id: 128668551,
+        en: "",
+        ru: "Древние реликвии",
       },
       assaultplans: {
         id: 128672129,
@@ -1139,6 +1164,11 @@
         id: 128672432,
         en: "Crystalline Spheres",
         ru: "Прозрачные сферы",
+      },
+      damagedescapepod: {
+        id: 128672811,
+        en: "",
+        ru: "Поврежденная спасательная капсула",
       },
       datacore: {
         id: 128682049,
@@ -1180,15 +1210,35 @@
         en: "Mollusc Soft Tissue",
         ru: "Мягкие ткани моллюска",
       },
+      militaryintelligence: {
+        id: 128668552,
+        en: "",
+        ru: "Разведданные",
+      },
       mysteriousidol: {
         id: 128682051,
         en: "Mysterious Idol",
         ru: "Таинственный идол",
       },
+      usscargomilitaryplans: {
+        id: 128666755,
+        en: "",
+        ru: "Военные планы",
+      },
+      occupiedcryopod: {
+        id: 128672125,
+        en: "",
+        ru: "Спасательная капсула с пассажиром",
+      },
       p_particulatesample: {
         id: 128922523,
         en: "Anomaly Particles",
         ru: "Аномальные частицы",
+      },
+      personaleffects: {
+        id: 128672126,
+        en: "",
+        ru: "Личные вещи",
       },
       preciousgems: {
         id: 128672160,
@@ -1335,40 +1385,25 @@
         en: "Unoccupied Escape Pod",
         ru: "Пустая спасательная капсула",
       },
-      usscargorareartwork: {
-        id: 128666757,
-        en: "Rare Artwork",
-        ru: "Редкие произведения искусства",
+      usscargoancientartefact: {
+        id: 128666756,
+        en: "",
+        ru: "Древний артефакт",
       },
       usscargoblackbox: {
         id: 128666752,
         en: "",
         ru: "Черный ящик",
       },
-      usscargoancientartefact: {
-        id: 128666756,
-        en: "",
-        ru: "Древний артефакт",
-      },
-      usscargotradedata: {
-        id: 128666754,
-        en: "",
-        ru: "Торговая информация",
-      },
-      occupiedcryopod: {
-        id: 128672125,
-        en: "",
-        ru: "Спасательная капсула с пассажиром",
-      },
-      usscargomilitaryplans: {
-        id: 128666755,
-        en: "",
-        ru: "Военные планы",
-      },
       usscargoexperimentalchemicals: {
         id: 128666758,
         en: "",
         ru: "Экспериментальные химикаты",
+      },
+      usscargorareartwork: {
+        id: 128666757,
+        en: "Rare Artwork",
+        ru: "Редкие произведения искусства",
       },
       usscargorebeltransmissions: {
         id: 128666759,
@@ -1380,30 +1415,10 @@
         en: "",
         ru: "Промышленные чертежи",
       },
-      antiquities: {
-        id: 128668551,
+      usscargotradedata: {
+        id: 128666754,
         en: "",
-        ru: "Древние реликвии",
-      },
-      militaryintelligence: {
-        id: 128668552,
-        en: "",
-        ru: "Разведданные",
-      },
-      personaleffects: {
-        id: 128672126,
-        en: "",
-        ru: "Личные вещи",
-      },
-      damagedescapepod: {
-        id: 128672811,
-        en: "",
-        ru: "Поврежденная спасательная капсула",
-      },
-      antimattercontainmentunit: {
-        id: 128682053,
-        en: "",
-        ru: "Контейнер с антиматерией",
+        ru: "Торговая информация",
       },
     },
   },
@@ -1572,6 +1587,11 @@
         en: "Gold",
         ru: "Золото",
       },
+      hafnium178: {
+        id: 128668549,
+        en: "",
+        ru: "Гафний-178",
+      },
       helvetitjpearls: {
         id: 128667052,
         en: "Helvetitj Pearls",
@@ -1631,11 +1651,6 @@
         id: 128049172,
         en: "Uranium",
         ru: "Уран",
-      },
-      hafnium178: {
-        id: 128668549,
-        en: "",
-        ru: "Гафний-178",
       },
     },
   },
@@ -2076,6 +2091,9 @@
     },
   },
   'carrier-order-en': [
+    "gromcounterintelligence", //  | Разведданные Грома
+    "gromwartrophies", //  | Военные припасы Грома
+    "undergroundsupport", //  | Подпольная поддержка Грома
     "platinum", // Platinum | Платина
     "palladium", // Palladium | Палладий
     "gold", // Gold | Золото
@@ -2474,6 +2492,9 @@
     "thargoidpod", //  | Таргоидская капсула для биоматериалов
   ],
   'carrier-order-ru': [
+    "gromcounterintelligence", //  | Разведданные Грома
+    "gromwartrophies", //  | Военные припасы Грома
+    "undergroundsupport", //  | Подпольная поддержка Грома
     "platinum", // Platinum | Платина
     "palladium", // Palladium | Палладий
     "gold", // Gold | Золото

@@ -162,8 +162,8 @@ struct ResolvedEnv {
     double getScale() const { return needScaling() ? scaleToCaptured_ : 1.0; }
 
     void cropToCapture(cv::Rect& rect) {
-        if (!inWarpMode_)
-            rect &= captureCrop;
+        if (inWarpMode_)
+            rect &= warpRect;
         else
             rect &= captureCrop;
     }

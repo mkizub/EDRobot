@@ -5,15 +5,8 @@
 #include "pch.h"
 #include "Configuration.h"
 
-bool Configuration::parseTimestamp(const json::value& value, Timestamp& timestamp) {
-    if (value.is_string())
-        return parseTimestamp(value.as_string(), timestamp);
-    if (!value.is_object() || !value.contains("timestamp"))
-        return false;
-    return parseTimestamp(value.at("timestamp").as_string(), timestamp);
-}
 
-bool Configuration::parseTimestamp(const std::string& str, Timestamp& timestamp) {
+static inline bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
     std::istringstream iss(str);
     iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
     if (iss.fail()) {
@@ -23,54 +16,71 @@ bool Configuration::parseTimestamp(const std::string& str, Timestamp& timestamp)
     return true;
 }
 
-bool Configuration::parseEvent(std::string& line, std::string& event, Timestamp& timestamp) {
-    std::string error;
-    auto jres = json::parse5(line, &error);
-    if (!jres.has_value()) {
-        LOG(ERROR) << "Error parsing journal file: " << error;
+static inline bool parseTimestamp(const json::value& value, Timestamp& timestamp) {
+    if (value.is_string())
+        return parseTimestampString(value.as_string(), timestamp);
+    if (!value.is_object() || !value.contains("timestamp"))
         return false;
-    }
-    auto& je = jres.value();
-    if (!je.is_object() || !je.contains("event")) {
-        LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << je;
-        return false;
+    return parseTimestampString(value.at("timestamp").as_string(), timestamp);
+}
+
+GameEvent::GameEvent(json::value&& j) : data(std::move(j.as_object())) {
+    if (!data.contains("event") || !data.contains("timestamp"))
+        return;
+    if (parseTimestamp(data, timestamp))
+        event = data["event"].as_string();
+}
+
+spGameEvent Configuration::parseEvent(const std::string& line) {
+    spGameEvent gameEvent;
+    {
+        std::string error;
+        auto res = json::parse5(line, &error);
+        if (!res.has_value()) {
+            LOG(ERROR) << "Error parsing journal file: " << error;
+            return {};
+        }
+        gameEvent.reset(new GameEvent(std::move(res.value())));
+        if (gameEvent->event.empty())
+            return {};
     }
 
-    if (!je.contains("event") || !je.contains("timestamp"))
-        return false;
-
-    event = je.at("event").as_string();
-    if (!parseTimestamp(je.at("timestamp"), timestamp))
-        return false;
+    auto& event = gameEvent->event;
+    LOG(DEBUG) << "Journal event: " << event;
 
     if (event == "Fileheader" || event == "LoadGame")
-        return parseEvent_LoadGame(je, event, timestamp);
-    if (event == "Shutdown")
-        return true;
-    if (event == "Commander")
-        return parseEvent_Commander(je, event, timestamp);
-    if (event == "CarrierLocation")
-        return parseEvent_CarrierLocation(je, event, timestamp);
-    if (event == "Location")
-        return parseEvent_Location(je, event, timestamp);
-    if (event == "Loadout")
-        return parseEvent_Loadout(je, event, timestamp);
-    if (event == "Cargo")
-        return parseEvent_Cargo(je, event, timestamp);
-    if (event == "ShipyardSwap")
-        return parseEvent_ShipyardSwap(je, event, timestamp);
+        parseEvent_LoadGame(gameEvent);
+    else if (event == "Commander")
+        parseEvent_Commander(gameEvent);
+    else if (event == "CarrierLocation")
+        parseEvent_CarrierLocation(gameEvent);
+    else if (event == "Location")
+        parseEvent_Location(gameEvent);
+    else if (event == "Loadout")
+        parseEvent_Loadout(gameEvent);
+    else if (event == "Cargo")
+        parseEvent_Cargo(gameEvent);
+    else if (event == "ShipyardSwap")
+        parseEvent_ShipyardSwap(gameEvent);
+    else if (event == "Docked")
+        parseEvent_Docked(gameEvent);
+    else if (event == "Undocked" || event == "Liftoff")
+        parseEvent_Undocked(gameEvent);
+    else if (event.starts_with("Docking"))
+        parseEvent_Docking(gameEvent);
 
-    return true;
+    return gameEvent;
 }
 
-bool Configuration::parseEvent_Commander(json::value& je, const std::string& event, const Timestamp& timestamp_out) {
-    if (!je.contains("Name"))
-        return false;
-    mCmdrName = je["Name"].as_string();
-    return true;
+void Configuration::parseEvent_Commander(spGameEvent& ge) {
+    auto& je = ge->data;
+    if (je.contains("Name")) {
+        mCmdrName = je["Name"].as_string();
+    }
 }
 
-bool Configuration::parseEvent_LoadGame(json::value& je, const std::string& event, const Timestamp& timestamp_out) {
+void Configuration::parseEvent_LoadGame(spGameEvent& ge) {
+    auto& je = ge->data;
     if (je.contains("Commander"))
         mCmdrName = je["Commander"].as_string();
 
@@ -99,15 +109,14 @@ bool Configuration::parseEvent_LoadGame(json::value& je, const std::string& even
         mShipTypeLocalized = je["Ship_Localised"].as_string();
     if (je.contains("ShipName"))
         mShipUserName = je["ShipName"].as_string();
-
-    return true;
 }
 
-bool Configuration::parseEvent_CarrierLocation(json::value& je, const std::string& event, const Timestamp& timestamp_out) {
-    return true;
+void Configuration::parseEvent_CarrierLocation(spGameEvent& ge) {
 }
 
-bool Configuration::parseEvent_Location(json::value& je, const std::string& event, const Timestamp& timestamp_out) {
+void Configuration::parseEvent_Location(spGameEvent& ge) {
+    auto& je = ge->data;
+
     if (je.contains("Docked") && je["Docked"].as_boolean()) {
         currentDock.marketId = je["MarketID"].as_unsigned_long_long();
         currentDock.stationType = je["StationType"].as_string();
@@ -121,11 +130,11 @@ bool Configuration::parseEvent_Location(json::value& je, const std::string& even
         currentStarSystem.pos.y = jpos[1].as_double();
         currentStarSystem.pos.z = jpos[2].as_double();
     }
-
-    return true;
 }
 
-bool Configuration::parseEvent_Loadout(json::value& je, const std::string& event, const Timestamp& timestamp_out) {
+void Configuration::parseEvent_Loadout(spGameEvent& ge) {
+    auto& je = ge->data;
+
     mShipType.clear();
     mShipTypeLocalized.clear();
     mShipUserName.clear();
@@ -136,16 +145,15 @@ bool Configuration::parseEvent_Loadout(json::value& je, const std::string& event
         mShipTypeLocalized = je["Ship_Localised"].as_string();
     if (je.contains("ShipName"))
         mShipUserName = je["ShipName"].as_string();
-
-    return true;
 }
 
-bool Configuration::parseEvent_Cargo(json::value& je, const std::string& event, const Timestamp& timestamp_out) {
+void Configuration::parseEvent_Cargo(spGameEvent& ge) {
     // TODO: call loadCargo(), with timestamp check
-    return true;
 }
 
-bool Configuration::parseEvent_ShipyardSwap(json::value& je, const std::string& event, const Timestamp& timestamp_out) {
+void Configuration::parseEvent_ShipyardSwap(spGameEvent& ge) {
+    auto& je = ge->data;
+
     mShipType.clear();
     mShipTypeLocalized.clear();
     mShipUserName.clear();
@@ -156,6 +164,25 @@ bool Configuration::parseEvent_ShipyardSwap(json::value& je, const std::string& 
         mShipTypeLocalized = je["Ship_Localised"].as_string();
     if (je.contains("ShipName"))
         mShipUserName = je["ShipName"].as_string();
+}
 
-    return true;
+void Configuration::parseEvent_Docked(spGameEvent& ge) {
+    dockingEvent = ge;
+}
+
+void Configuration::parseEvent_Undocked(spGameEvent& ge) {
+    dockingEvent.reset();
+}
+
+void Configuration::parseEvent_Docking(spGameEvent& ge) {
+    dockingEvent = ge;
+//    if (event == "DockingDenied") {
+//        // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
+//        if (je.contains("Reason"))
+//            dockingStatus = "DockingDenied:" + je["Reason"].as_string();
+//        else
+//            dockingStatus = "DockingDenied:NoReason";
+//    } else {
+//        dockingStatus = event;
+//    }
 }

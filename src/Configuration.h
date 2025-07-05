@@ -26,6 +26,7 @@ typedef std::chrono::time_point<std::chrono::utc_clock> Timestamp;
 class CommodityCategory {
     friend class Configuration;
 public:
+    int intId; // from market filter
     std::string nameId;
     std::string name;   // current localization
     std::wstring wide;  // same as 'name'
@@ -50,7 +51,7 @@ struct Commodity {
 public:
     int intId;
     std::string nameId;
-    CommodityCategory* const category;
+    CommodityCategory* category;
     std::string name;   // current localization
     std::wstring wide;  // same as 'name'
     std::array<std::string,2> translation;
@@ -80,7 +81,6 @@ struct Market {
     std::string starSystem;
     std::unordered_map<Commodity*,MarketLine> items;
 };
-typedef std::shared_ptr<Market> spMarket;
 
 struct ShipCargo {
     Timestamp timestamp;
@@ -88,7 +88,6 @@ struct ShipCargo {
     int count {0};
     std::vector<Commodity*> inventory;
 };
-typedef std::shared_ptr<ShipCargo> spShipCargo;
 
 struct ShipStatus {
     Timestamp timestamp;
@@ -171,12 +170,44 @@ struct ShipStatus {
     float planetRadius;
     // "Destination":{ "System":22659307939297, "Body":0, "Name":"Col 285 Sector IK-K b23-10" } before system jump, or
     // "Destination":{ "System":22659307939297, "Body":17, "Name":"Giraud Prospect" } when in system
-    std::string destination;
+    int64 destinationSystem {};
+    int destinationBody {};
+    std::string destinationName;
 
     friend std::ostream& operator<<(std::ostream& os, const ShipStatus& obj);
 };
 
+struct GameEvent {
+    GameEvent(json::value&& data);
+    json::object data;
+    Timestamp timestamp;
+    std::string event;
+};
+
+typedef std::shared_ptr<Market> spMarket;
+typedef std::shared_ptr<ShipCargo> spShipCargo;
 typedef std::shared_ptr<ShipStatus> spShipStatus;
+typedef std::shared_ptr<ShipCargo> spShipCargo;
+typedef std::shared_ptr<GameEvent> spGameEvent;
+
+union LocationPanelFilters {
+    LocationPanelFilters() : mask(0) {}
+    struct {
+        bool pointOfInterest: 1;
+        bool star: 1;
+        bool settlement: 1;
+        bool station: 1;
+        bool signalSource: 1;
+        bool asteroidCluster: 1;
+        bool landablePlanetOrMoon: 1;
+        bool system: 1;
+        bool fleetCarrier: 1;
+        bool planetOrMoon: 1;
+    } bits;
+    int mask;
+    bool operator==(const LocationPanelFilters& other) const { return this->mask == other.mask; }
+    bool operator!=(const LocationPanelFilters& other) const { return this->mask != other.mask; }
+};
 
 struct StarSystem {
     uint32_t address;
@@ -260,9 +291,22 @@ public:
             return mCalibratedLstRowGray[int(ws)];
         return mCalcLstRowGray[int(ws)];
     }
+    const std::array<cv::Vec3b, 4>& getButtonHsvColors() const {
+        if (mUseCalibratedColors)
+            return mCalibratedButtonHsv;
+        return mCalcButtonHsv;
+    }
+    const std::array<cv::Vec3b, 4>& getLstRowHsvColors() const {
+        if (mUseCalibratedColors)
+            return mCalibratedLstRowHsv;
+        return mCalcLstRowHsv;
+    }
 
     const Lang lng {XX};
     const bool isOdyssey {false};
+    const LocationPanelFilters configLocationPanelFilters {};
+
+    spGameEvent dockingEvent;
 
 private:
     friend class Master;
@@ -273,9 +317,10 @@ private:
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers);
     bool parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag);
     bool loadGameSettings(bool initial);
+    bool loadPlayerOptions();
+    bool loadInputBindings();
     bool findLatestJournalFile();
     bool preloadGameJournal();
-    bool loadGameJournal(std::wstring journalFilename);
     bool loadCommodityDatabase();
     bool dumpCommodityDatabase();
     bool loadGameStatus();
@@ -283,20 +328,21 @@ private:
     Commodity& getOrAddCommodity(Commodity&& c);
     void changeDirThreadLoop();
 
-    bool parseTimestamp(const json::value&, Timestamp&);
-    bool parseTimestamp(const std::string&, Timestamp&);
-    bool parseEvent(std::string& line, std::string& event_out, Timestamp& timestamp_out);
-    bool parseEvent_Commander(json::value& je, const std::string& event, const Timestamp& timestamp_out);
-    bool parseEvent_LoadGame(json::value& je, const std::string& event, const Timestamp& timestamp_out);
-    bool parseEvent_CarrierLocation(json::value& je, const std::string& event, const Timestamp& timestamp_out);
-    bool parseEvent_Location(json::value& je, const std::string& event, const Timestamp& timestamp_out);
-    bool parseEvent_Loadout(json::value& je, const std::string& event, const Timestamp& timestamp_out);
-    bool parseEvent_Cargo(json::value& je, const std::string& event, const Timestamp& timestamp_out);
-    bool parseEvent_ShipyardSwap(json::value& je, const std::string& event, const Timestamp& timestamp_out);
-
+    void readJournalChanges(std::ifstream& journalStream, std::string& journalLine);
+    spGameEvent parseEvent(const std::string& line);
+    void parseEvent_Commander(spGameEvent& ge);
+    void parseEvent_LoadGame(spGameEvent& ge);
+    void parseEvent_CarrierLocation(spGameEvent& ge);
+    void parseEvent_Location(spGameEvent& ge);
+    void parseEvent_Loadout(spGameEvent& ge);
+    void parseEvent_Cargo(spGameEvent& ge);
+    void parseEvent_ShipyardSwap(spGameEvent& ge);
+    void parseEvent_Docked(spGameEvent& ge);
+    void parseEvent_Undocked(spGameEvent& ge);
+    void parseEvent_Docking(spGameEvent& ge);
 
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;
-    HANDLE hShutdownChangDirListenerEvent {};
+    HANDLE hShutdownEvent {};
     std::thread changeDirThread;
 
     int defaultKeyHoldTime = 35;
@@ -372,6 +418,14 @@ private:
     spShipStatus currentStatus;
     StarSystem currentStarSystem;
     DockStation currentDock;
+
+    const unsigned marketCommodityFilterShowAll {0xFFFFFFFFu};
+    const unsigned marketCommodityFilterShowNone {0xFFFE0001u};
+    bool marketShowInCargo {true};
+    bool marketShowRequiredForMission {true};
+    bool marketShowHighDemand {true};
+    bool marketShowRareGoods {true};
+    unsigned marketCommodityFilter {0xFFFFFFFFu};
 
 };
 

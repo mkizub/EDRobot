@@ -46,21 +46,31 @@ struct UIState {
     UIState() = default;
     void clear();
     const std::string& path() const;
+    const std::string& screen_name() const;
+    const std::string& focused_name() const;
     bool match(const std::string& state) const;
     bool valid {false};
     GuiFocus guiFocus {GuiFocus::None};
     const widget::Screen* screen {nullptr};
-    const widget::Widget* widget {nullptr};
+    const widget::BaseDialog* widget {nullptr};
     const widget::Widget* focused {nullptr};
     bool autopilot {false};
     friend std::ostream& operator<<(std::ostream& os, const UIState& obj);
     std::string to_string() const;
 };
 
+struct CompassInfo {
+    CompassInfo() : hemisphere(-1) {}
+    short targetPitch;
+    short targetYaw;
+    short targetRoll;
+    short hemisphere; // 0: front, 1: back, -1: invalid
+};
 struct DetectRequest {
     DetectLevel level;
     UIState* uiState;
     ResolvedEnv* rEnv;
+    CompassInfo* compass;
     cv::Mat* colorImage;
     cv::Mat* grayImage;
 };
@@ -101,8 +111,9 @@ public:
     void pushDetectRequest(std::promise<bool>&& p, DetectRequest&& req);
     void pushDevRectScreenshotCommand(cv::Rect rect);
 
-    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
     tesseract::TessBaseAPI* getTesseractApi() { return mTesseractApiForMarket.get(); }
+    static int ocrMarketText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
+    static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr);
 
 private:
     friend class Configuration;
@@ -112,7 +123,6 @@ private:
     ~Master();
 
     void initializeInternal(std::string ocr_dir);
-    void initButtonStateDetector();
 
     static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
 
@@ -132,11 +142,6 @@ private:
     bool stopAITask();
 
     bool captureWindow(ClassifyEnv& env);
-    WState detectButtonState(const widget::Widget* item);
-    void detectListState(const widget::List* item, DetectLevel level);
-    static int ocrMarketText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
-    static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr);
-    widget::Widget* detectAllButtonsStates(const widget::Widget* parent, DetectLevel level);
     widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
     void processDetectRequest(pCommand& cmd);
@@ -162,11 +167,9 @@ private:
     UIState mLastUIState;
     ClassifyEnv mClassifyEnv;
     bool mDuplicateToDebugWindow {false};
-    DetectLevel mDetectLevelIdle {DetectLevel::None};
+    DetectLevel mDetectLevelIdle {DetectLevel::Screen};
     std::chrono::milliseconds mLoopWakeup;
     std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
-    std::unique_ptr<detect::Histogram> mButtonStateDetector;
-    std::unique_ptr<detect::Histogram> mLstRowStateDetector;
     std::unique_ptr<detect::CompassDetector> mCompassDetector;
     Configuration* mConfiguration {nullptr};
     ai::AIManager* mAIManager {nullptr};

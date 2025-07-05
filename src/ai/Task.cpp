@@ -22,19 +22,33 @@ Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ)
 {
 }
 
+Result Task::safe_run() {
+    try {
+        this->result = this->run();
+        if (this->result == Result::Trouble)
+            this->missCount += 1;
+        return this->result;
+    } catch (const nonlocal_return& ex) {
+        if (ex.task) {
+            ex.task->result = ex.result;
+            if (ex.task->result == Result::Trouble)
+                ex.task->missCount += 1;
+        }
+        else if (ex.task->result == Result::Trouble) {
+            this->missCount += 1;
+        }
+        return ex.task->result;
+    } catch (const std::exception& ex) {
+        this->result = Result::Failure;
+        return Result::Failure;
+    }
+}
+
 Result Task::run_sub_task(upTask& pTask) {
     Task* task  = pTask.get();
     if (!task)
         return Result::Failure;
-
-    Result t_res;
-    try {
-        t_res = task->run();
-    } catch (const nonlocal_return& ex) {
-        t_res = ex.result;
-    }
-    task->result = t_res;
-    return t_res;
+    return task->safe_run();
 }
 
 void Task::check_interrupted() const {
@@ -77,6 +91,8 @@ void Task::sleep(int milliseconds) const {
 
 bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms) const {
     try {
+        if (!mgr.master.setGameForeground())
+            return false;
         const KeyBindings& keyBindings = mgr.cfg.getGameKeyBindings(name);
         const GameKey* gk = nullptr;
         if (keyBindings.primary.device != GameKey::Void)
@@ -124,6 +140,8 @@ bool Task::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) co
 }
 
 bool Task::sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) const {
+    if (!mgr.master.setGameForeground())
+        return false;
     cv::Point screen = mgr.rEnv.cvtReferenceToDesktop(point);
     bool virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
     //LOG(INFO) << "sendMouseClick recalculated from reference " << point << " to screen " << screen;
@@ -392,22 +410,22 @@ void Task::notifyProgress(const std::string& msg) const {
     LOG(INFO) << msg;
     UIManager::showToast(taskName, msg);
 }
-void Task::notifyError(const char* msg, Result res) const {
+void Task::notifyError(const char* msg, Result res) {
     LOG(ERROR) << msg;
     UIManager::showToast(taskName, msg);
     throw nonlocal_return(res, this, msg);
 }
-void Task::notifyError(const std::string& msg, Result res) const {
+void Task::notifyError(const std::string& msg, Result res) {
     LOG(ERROR) << msg;
     UIManager::showToast(taskName, msg);
     throw nonlocal_return(res, this, msg);
 }
 
-void Task::task_return(Result res) const {
+void Task::task_return(Result res) {
     throw nonlocal_return(res, this);
 }
 
-void Task::task_return(Result res, const char* msg) const {
+void Task::task_return(Result res, const char* msg) {
     throw nonlocal_return(res, this, msg);
 }
 

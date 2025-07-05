@@ -15,8 +15,6 @@ namespace ai {
 TaskCalibrate::TaskCalibrate(Task* parent, AIManager& mgr, const TaskTemplate& templ)
         : Task(parent, mgr, templ)
 {
-    std::array<cv::Vec3b,4> dummyColors {};
-    mDetector = std::make_unique<detect::Histogram>(detect::Histogram::CompareMode::Hsv, cv::Rect(), dummyColors);
     assert(templ.name == ED_TASK_CALIBRATE);
     taskName = "Calibration";
 }
@@ -29,9 +27,9 @@ void TaskCalibrate::recordButton(const char* button, WState bs) {
     }
     ClassifyEnv cEnv;
     cEnv.init(mgr.rEnv, &colorImage, nullptr);
-    mDetector->mRect = rect;
-    mDetector->match(cEnv);
-    cv::Vec3b bgr = mDetector->mLastColorBGR;
+    detect::Histogram histDet(detect::Histogram::Mode::BGR, rect);
+    histDet.calc(cEnv);
+    cv::Vec3b bgr = histDet.mLastColor;
     mButtonBGR[int(bs)].push_back(bgr);
     const char* names[] = {"Normal   ", "Focused  ", "Active   ", "Disabled "};
     LOG(INFO) << names[int(bs)] << " button: bgr=" << mButtonBGR[int(bs)].back()
@@ -52,13 +50,12 @@ void TaskCalibrate::recordLstRow(const char* list, cv::Point mouse, WState bs) {
         ClassifyEnv cEnv;
         cEnv.init(mgr.rEnv, &colorImage, nullptr);
         cv::Rect refRect = cr.detectedRect;
-        mDetector->mRect = refRect;
-        mDetector->match(cEnv);
-        cv::Vec3b bgr = mDetector->mLastColorBGR;
+        detect::Histogram histDet(detect::Histogram::Mode::BGR, rect);
+        histDet.calc(cEnv);
         if (refRect.contains(mouse)) {
-            mLstRowBGR[int(WState::Focused)].push_back(bgr);
+            mLstRowBGR[int(WState::Focused)].push_back(histDet.mLastColor);
         } else {
-            colors.push_back(bgr);
+            colors.push_back(histDet.mLastColor);
             lums.push_back(sBgr2Hsv(colors.back())[2]);
         }
     }
@@ -136,7 +133,7 @@ bool TaskCalibrate::calculateAverage(bool incomplete) {
             LOG(ERROR) << "Luv color for " << enum_name(ws) << ", has too high deviation " << stddev;
         }
     }
-    mgr.master.setCalibrationResult(mButtonBGRAverage, mLstRowBGRAverage);
+    mgr.cfg.setCalibrationResult(mButtonBGRAverage, mLstRowBGRAverage);
     return buttonSuccess;
 }
 

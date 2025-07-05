@@ -55,26 +55,18 @@ private:
     std::vector<std::unique_ptr<Detector>> oracles;
 };
 
-class Histogram : public Detector {
+class Histogram {
 public:
-    enum class CompareMode {
+    enum class Mode {
         Gray, Hsv, Luv, BGR
     };
-    Histogram(CompareMode mode, const cv::Rect& rect, const std::array<cv::Vec3b,4>& colors);
-    ~Histogram() override = default;
+    Histogram(Mode mode, const cv::Rect rect) : mMode(mode), mRect(rect) {}
 
-    double match(ClassifyEnv& env) override;
-    double classify(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
+    bool calc(ClassifyEnv& env);
 
-    cv::Vec3b mLastColorBGR;
-    std::array<double,4> mLastDistance;
-    std::array<double,4> mLastValues;
+    Mode mMode;
+    cv::Vec3b mLastColor;
     cv::Rect mRect;
-
-private:
-    const std::array<cv::Vec3b,4> mColors;
-    const CompareMode mMode;
 };
 
 class ImageFilter {
@@ -164,14 +156,16 @@ public:
     double match(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 
-    std::vector<ImageMatrix> compassScales;
-    std::vector<ImageMatrix> compassDots;
+    std::vector<std::unique_ptr<ImageFilter>> dotsFilters;
+    std::vector<ImageMatrix> compassDotsOrig;
+    std::vector<ImageMatrix> compassDotsPrepared;
+    double preprocessedDotsScale = 0;
 
     const double threshold_dot;
 
     int lastScaleIdx;
     double lastScale;
-    int lastDotIdx;
+    int lastHemisphere;
     double lastTgtPitch;
     double lastTgtYaw;
     double lastTgtRoll;

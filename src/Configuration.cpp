@@ -66,9 +66,9 @@ Configuration::Configuration()
 }
 
 Configuration::~Configuration() {
-    if (hShutdownChangDirListenerEvent) {
-        SetEvent(hShutdownChangDirListenerEvent);
-        CloseHandle(hShutdownChangDirListenerEvent);
+    if (hShutdownEvent) {
+        SetEvent(hShutdownEvent);
+        CloseHandle(hShutdownEvent);
         if (changeDirThread.joinable())
             changeDirThread.join();
     }
@@ -145,7 +145,8 @@ bool Configuration::load() {
 
         preloadGameJournal(); // game language & version
         loadGameSettings(true);
-        //loadGameJournal(L""); // may change game language
+        loadPlayerOptions();
+        loadInputBindings();
 
         loadCommodityDatabase(); // initialization depends on game language
         //dumpCommodityDatabase();
@@ -162,11 +163,12 @@ bool Configuration::load() {
         if (!changeDirListener) {
             changeDirListener = std::make_unique<CReadDirectoryChanges>(100);
             changeDirListener->Init();
-            DWORD dirNotificationFlags = FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION;
-            std::wstring dirname = mEDSettingsPath + LR"(\Options\Graphics\)";
-            changeDirListener->AddDirectory(dirname, false, dirNotificationFlags);
+            DWORD dirNotificationFlags = FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION;
+            changeDirListener->AddDirectory(mEDSettingsPath + LR"(\Options\Graphics\)", false, dirNotificationFlags);
+            changeDirListener->AddDirectory(mEDSettingsPath + LR"(\Options\Bindings\)", false, dirNotificationFlags);
+            changeDirListener->AddDirectory(mEDSettingsPath + LR"(\Options\Player\)", false, dirNotificationFlags);
             changeDirListener->AddDirectory(mEDLogsPath, false, dirNotificationFlags);
-            hShutdownChangDirListenerEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+            hShutdownEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
             changeDirThread = std::thread(&Configuration::changeDirThreadLoop, this);
         }
     }
@@ -328,6 +330,22 @@ bool Configuration::parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::
     return true;
 }
 
+static bool getBoolNodeValue(XMLNode* root, const char* tag) {
+    if (auto node = xml_node_find_tag(root, tag, true)) {
+        if (auto val = xml_node_attr(node, "Value"))
+            return (val[0] != '0');
+    }
+    return false;
+}
+
+static int64_t getIntNodeValue(XMLNode* root, const char* tag) {
+    if (auto node = xml_node_find_tag(root, tag, true)) {
+        if (auto val = xml_node_attr(node, "Value"))
+            return std::stoll(val);
+    }
+    return 0;
+}
+
 bool Configuration::loadGameSettings(bool initial) {
     LOG(INFO) << "Loading game settings";
     bool ok = true;
@@ -393,8 +411,6 @@ bool Configuration::loadGameSettings(bool initial) {
                 mCalcLstRowLuv[i] = sBgr2Luv(mCalcLstRowBGR[i]);
                 mCalcButtonGray[i] = sBgr2sGray(mCalcButtonBGR[i]);
                 mCalcLstRowGray[i] = sBgr2sGray(mCalcLstRowBGR[i]);
-                if (!initial)
-                    Master::getInstance().initButtonStateDetector();
             }
         } else {
             ok = false;
@@ -403,123 +419,183 @@ bool Configuration::loadGameSettings(bool initial) {
         mUseCalibratedColors = checkNeedColorCalibration();
     }
 
-    //
-    // Options/Player/... preset
-    //
-    {
-        filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
-        std::ifstream ifs(filename, std::ifstream::in);
-        if (ifs.is_open()) {
-            std::string preset;
-            std::getline(ifs, preset);
-            filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Player\)", preset, "misc");
-            XMLNode *rootNode = xml_parse_file(filename.c_str());
-            if (rootNode) {
-                if (auto node = xml_node_find_tag(rootNode, "DashboardGUIBrightness", true)) {
-                    if (auto val = xml_node_attr(node, "Value"))
-                        configDashboardGUIBrightness = atof(val);
-                }
-                xml_node_free(rootNode);
-                rootNode = nullptr;
-            } else {
-                ok = false;
-                configDashboardGUIBrightness = 0.5;
-                LOG(ERROR) << "Cannot parse " << filename;
-            }
-        } else {
-            ok = false;
-            LOG(ERROR) << "Cannot parse " << filename;
-        }
-    }
-
-    //
-    // Options/Bindings/... preset
-    //
-    {
-        keyBindingsGeneric.clear();
-        keyBindingsShip.clear();
-        filename = toUtf8(mEDSettingsPath) + R"(\Options\Bindings\StartPreset.4.start)";
-        std::ifstream ifs(filename, std::ifstream::in);
-        if (ifs.is_open()) {
-            XMLNode * rootNode = nullptr;
-            std::string preset;
-            std::getline(ifs, preset);
-            if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
-            else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
-            else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
-            else if (preset == "Empty") filename = "Empty.binds";
-            else
-                filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
-            rootNode = xml_parse_file(filename.c_str());
-            if (rootNode) {
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Up");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Down");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Left");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Right");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Select");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Back");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Toggle");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPanel");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPanel");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPage");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPage");
-                xml_node_free(rootNode);
-                rootNode = nullptr;
-            } else {
-                ok = false;
-                LOG(ERROR) << "Cannot parse " << filename;
-            }
-
-            std::getline(ifs, preset);
-            if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
-            else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
-            else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
-            else if (preset == "Empty") filename = "Empty.binds";
-            else
-                filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
-            rootNode = xml_parse_file(filename.c_str());
-            if (rootNode) {
-                parseKeyBindings(rootNode, keyBindingsGeneric, "RollLeftButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "RollRightButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "PitchUpButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "PitchDownButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "YawLeftButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "YawRightButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "LeftThrustButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "RightThrustButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "UpThrustButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "DownThrustButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardThrustButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardThrustButton");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardKey");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardKey");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus100");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus75");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus50");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus25");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedZero");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed25");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed50");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed75");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed100");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "HyperSuperCombination");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "Supercruise");
-                parseKeyBindings(rootNode, keyBindingsGeneric, "Hyperspace");
-                xml_node_free(rootNode);
-                rootNode = nullptr;
-            } else {
-                ok = false;
-                LOG(ERROR) << "Cannot parse " << filename;
-            }
-        } else {
-            ok = false;
-            LOG(ERROR) << "Cannot parse " << filename;
-        }
-    }
-
     if (needCapturerReset)
         Master::getInstance().pushCommand(Command::ResetCapturer);
 
+    return ok;
+}
+
+//
+// Options/Player/... preset
+//
+bool Configuration::loadPlayerOptions() {
+    LOG(INFO) << "Loading player options";
+    std::string filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
+    std::ifstream ifs(filename, std::ifstream::in);
+    if (!ifs.is_open()) {
+        LOG(ERROR) << "Cannot parse " << filename;
+        return false;
+    }
+
+    std::string preset;
+    std::getline(ifs, preset);
+    filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Player\)", preset, "misc");
+
+    XMLNode *rootNode = xml_parse_file(filename.c_str());
+    if (rootNode) {
+        if (auto node = xml_node_find_tag(rootNode, "DashboardGUIBrightness", true)) {
+            if (auto val = xml_node_attr(node, "Value"))
+                configDashboardGUIBrightness = atof(val);
+        }
+        LocationPanelFilters& lpf = const_cast<LocationPanelFilters&>(configLocationPanelFilters);
+        if (auto filters = xml_node_find_tag(rootNode, "LocationPanelFilters", true)) {
+            lpf.mask = 0;
+            lpf.bits.star = getBoolNodeValue(filters, "Star");
+            lpf.bits.asteroidCluster = getBoolNodeValue(filters, "AsteroidCluster");
+            lpf.bits.planetOrMoon = getBoolNodeValue(filters, "PlanetOrMoon");
+            lpf.bits.landablePlanetOrMoon = getBoolNodeValue(filters, "LandablePlanetOrMoon");
+            lpf.bits.settlement = getBoolNodeValue(filters, "Settlement");
+            lpf.bits.station = getBoolNodeValue(filters, "station");
+            lpf.bits.fleetCarrier = getBoolNodeValue(filters, "fleetCarrier");
+            lpf.bits.pointOfInterest = getBoolNodeValue(filters, "PointOfInterest");
+            lpf.bits.signalSource = getBoolNodeValue(filters, "SignalSource");
+            lpf.bits.system = getBoolNodeValue(filters, "System");
+        }
+        //	<RouteStartSystem Value="2381282543995" />
+        //	<RouteDestinationSystem Value="0" />
+        //	<RouteDestinationBody Value="0" />
+        //	<RouteDestinationMarketID Value="18446744073709551615" />
+        //	<RouteDestinationBodysiteID Value="18446744073709551615" />
+        //	<RouteDestinationIsCluster Value="0" />
+        //	<RouteDestinationIsSurfaceSettlement Value="0" />
+        //		<categories>
+        //			<Minerals Value="1" />
+        //			<Weapons Value="1" />
+        //			<ConsumerItems Value="1" />
+        //			<Foods Value="1" />
+        //			<Textiles Value="1" />
+        //			<Metals Value="1" />
+        //			<Narcotics Value="1" />
+        //			<Medicines Value="1" />
+        //			<IndustrialMaterials Value="1" />
+        //			<Technology Value="1" />
+        //			<Chemicals Value="1" />
+        //			<Machinery Value="1" />
+        //			<Other Value="1" />
+        //		</categories>
+
+        // 	<MarketFilter_inCargo Value="1" />
+        //	<MarketFilter_requiredForMission Value="1" />
+        //	<MarketFilter_highDemand Value="1" />
+        //	<MarketFilter_rareGoods Value="1" />
+        //	<MarketFilter_commodTypeFlags Value="4294967295" />
+
+        marketShowInCargo = getBoolNodeValue(rootNode, "MarketFilter_inCargo");
+        marketShowHighDemand = getBoolNodeValue(rootNode, "MarketFilter_highDemand");
+        marketShowRareGoods = getBoolNodeValue(rootNode, "MarketFilter_rareGoods");
+        marketShowRequiredForMission = getBoolNodeValue(rootNode, "MarketFilter_requiredForMission");
+        marketCommodityFilter = getIntNodeValue(rootNode, "MarketFilter_commodTypeFlags");
+
+        xml_node_free(rootNode);
+        rootNode = nullptr;
+        return true;
+    } else {
+        configDashboardGUIBrightness = 0.5;
+        const_cast<LocationPanelFilters&>(configLocationPanelFilters) = {};
+        LOG(ERROR) << "Cannot parse " << filename;
+        return false;
+    }
+}
+
+//
+// Options/Bindings/... preset
+//
+bool Configuration::loadInputBindings() {
+    LOG(INFO) << "Loading input bindings";
+    bool ok = true;
+    keyBindingsGeneric.clear();
+    keyBindingsShip.clear();
+    std::string filename = toUtf8(mEDSettingsPath) + R"(\Options\Bindings\StartPreset.4.start)";
+    std::ifstream ifs(filename, std::ifstream::in);
+    if (ifs.is_open()) {
+        XMLNode * rootNode = nullptr;
+        std::string preset;
+        std::getline(ifs, preset);
+        if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
+        else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
+        else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
+        else if (preset == "Empty") filename = "Empty.binds";
+        else
+            filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
+        rootNode = xml_parse_file(filename.c_str());
+        if (rootNode) {
+            parseKeyBindings(rootNode, keyBindingsGeneric, "Pause");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "FocusLeftPanel");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Up");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Down");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Left");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Right");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Select");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Back");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Toggle");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPanel");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPanel");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPage");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPage");
+            xml_node_free(rootNode);
+            rootNode = nullptr;
+        } else {
+            ok = false;
+            LOG(ERROR) << "Cannot parse " << filename;
+        }
+
+        std::getline(ifs, preset);
+        if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
+        else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
+        else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
+        else if (preset == "Empty") filename = "Empty.binds";
+        else
+            filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
+        rootNode = xml_parse_file(filename.c_str());
+        if (rootNode) {
+            parseKeyBindings(rootNode, keyBindingsGeneric, "Pause");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "FocusLeftPanel");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "RollLeftButton");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "RollRightButton");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "PitchUpButton");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "PitchDownButton");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "YawLeftButton");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "YawRightButton");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "LeftThrustButton");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "RightThrustButton");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "UpThrustButton");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "DownThrustButton");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardThrustButton");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardThrustButton");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardKey");
+            //parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardKey");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus100");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus75");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus50");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus25");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedZero");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed25");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed50");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed75");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed100");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "HyperSuperCombination");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "Supercruise");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "Hyperspace");
+            xml_node_free(rootNode);
+            rootNode = nullptr;
+        } else {
+            ok = false;
+            LOG(ERROR) << "Cannot parse " << filename;
+        }
+    } else {
+        ok = false;
+        LOG(ERROR) << "Cannot parse " << filename;
+    }
     return ok;
 }
 
@@ -564,81 +640,60 @@ bool Configuration::preloadGameJournal() {
         std::string event;
         Timestamp timestamp;
 
-        if (!parseEvent(line, event, timestamp))
+        auto ge = parseEvent(line);
+        if (!ge)
             return false;
         if (start) {
             start = false;
-            if (event != "Fileheader") {
+            if (ge->event != "Fileheader") {
                 LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << line;
                 return false;
             }
         }
-        else if (event == "Shutdown" || event == "Loadout")
+        else if (ge->event == "Shutdown" || ge->event == "Loadout")
             return true;
     }
-}
-
-bool Configuration::loadGameJournal(std::wstring journalFilename) {
-    LOG(INFO) << "Loading game journal";
-    if (journalFilename.empty()) {
-        if (!findLatestJournalFile())
-            return false;
-        journalFilename = mEDCurrentJournalFile;
-    }
-    std::ifstream ifs(journalFilename, std::ifstream::in);
-    if (!ifs.is_open()) {
-        LOG(ERROR) << "Cannot open journal file: " << journalFilename;
-        return false;
-    }
-
-    bool start = true;
-    for (;;) {
-        std::string line;
-        getline(ifs, line);
-
-        std::string event;
-        Timestamp timestamp;
-
-        if (!parseEvent(line, event, timestamp))
-            return false;
-        if (start) {
-            start = false;
-            if (event != "Fileheader") {
-                LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << line;
-                return false;
-            }
-        }
-        else if (event == "Shutdown" || event == "Loadout")
-            return true;
-    }
-
-    return true;
 }
 
 bool Configuration::loadGameStatus() {
+    static std::ifstream ifs;
     LOG(INFO) << "Loading Status.json";
-    std::string filename = toUtf8(mEDLogsPath) + "/Status.json";
-    std::ifstream ifs(filename);
-    if (!ifs)
-        return false;
-    std::stringstream buffer;
-    buffer << ifs.rdbuf();
-    std::string error;
-    std::optional<json::value> res = json::parse5(buffer.str(), &error);
-    if (!res.has_value()) {
-        LOG(ERROR) << "Error loading Status.json: " << error;
-        return false;
+    if (!ifs.is_open()) {
+        std::wstring filename = mEDLogsPath + L"\\Status.json";
+        ifs.open(filename);
+        if (!ifs.is_open())
+            return false;
     }
-    json::value j_status = res.value();
-    if (!j_status.is_object())
+
+    std::optional<json::value> read_result;
+    spGameEvent ge;
+    for (int cnt=0; ; cnt++) {
+        if (!ifs) {
+            ifs.clear();
+            ifs.seekg(0, std::ios::beg);
+        }
+        std::stringstream buffer;
+        buffer << ifs.rdbuf();
+        ifs.clear();
+        ifs.seekg(0, std::ios::beg);
+        ge = parseEvent(buffer.str());
+        if (!ge) {
+            if (cnt < 3) {
+                Sleep(50);
+                ifs.clear();
+                ifs.seekg(0, std::ios::beg);
+                continue;
+            }
+            LOG(ERROR) << "Error loading Status.json";
+            return false;
+        }
+        break;
+    }
+    if (ge->event != "Status")
         return false;
-    json::object j = j_status.as_object();
-    //{ "Cargo":29.000000, "LegalState":"Allied", "Balance":8269738711 }
-    if (j["event"] != "Status")
-        return false;
+    json::object& j = ge->data;
     spShipStatus status = std::make_shared<ShipStatus>();
-    if (!parseTimestamp(j.at("timestamp"), status->timestamp))
-        return false;
+    status->timestamp = ge->timestamp;
     if (j.contains("Flags"))
         status->flags.all = j["Flags"].as_unsigned();
     if (j.contains("Flags2"))
@@ -666,6 +721,19 @@ bool Configuration::loadGameStatus() {
         status->balance = j.at("Balance").as_unsigned_long_long();
     if (j.contains("LegalState"))
         status->legalState = j.at("LegalState").as_string();
+
+    if (j.contains("BodyName"))
+        status->bodyName = j["LegalState"].as_string();
+
+    if (j.contains("Destination")) {
+        auto& jd = j["Destination"].as_object();
+        if (jd.contains("Name"))
+            status->destinationName = jd["Name"].as_string();
+        if (jd.contains("System"))
+            status->destinationSystem = jd["System"].as_long_long();
+        if (jd.contains("Body"))
+            status->destinationBody = jd["Body"].as_integer();
+    }
 
     guiFocus = status->guiFocus;
     currentStatus.swap(status);
@@ -957,6 +1025,14 @@ Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
     if (it != commodityMap.end()) {
         Commodity& c = *it->second;
         for (int i=0; i < 2; i++) {
+            if (c.intId == 0 && c_add.intId != 0) {
+                c.intId = c_add.intId;
+                mCommodityDatabaseUpdated = true;
+            }
+            if (c.category != c_add.category && !c_add.category->nameId.empty()) {
+                c.category = c_add.category;
+                mCommodityDatabaseUpdated = true;
+            }
             if (c.translation[i].empty() && !c_add.translation[i].empty()) {
                 c.translation[i] = c_add.translation[i];
                 mCommodityDatabaseUpdated = true;
@@ -1048,18 +1124,26 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     spMarket market = currentMarket;
     if (!market)
         return out;
+    // check filters are supported
+    if (marketCommodityFilter != marketCommodityFilterShowAll) {
+        if (marketShowRequiredForMission || marketShowHighDemand)
+            return out;
+    }
     bool isFC = (market->stationType == "FleetCarrier");
     // add everything we can sell, then sort according to market order
     for (auto& c : allKnownCommodities) {
         if (!market->items.contains(&c))
             continue;
-        if (isFC) {
-            if (c.market.demand > 0)
-                out.push_back(&c);
-        } else {
-            if (c.market.isConsumer || c.ship.count > c.ship.stolen)
-                out.push_back(&c);
-        }
+        if (isFC && c.market.demand <= 0)
+            continue;
+        if (marketShowRareGoods && c.rare)
+            out.push_back(&c);
+        else if (marketShowInCargo && c.ship.count > c.ship.stolen)
+            out.push_back(&c);
+        else if ((marketCommodityFilter & c.category->intId) != 0)
+            out.push_back(&c);
+        else if ((marketCommodityFilter == marketCommodityFilterShowNone) && !marketShowRareGoods && !marketShowInCargo)
+            out.push_back(&c);
     }
     std::sort(out.begin(), out.end(), [](Commodity* a, Commodity* b) {
         int cmp = a->category->wide.compare(b->category->wide);
@@ -1079,11 +1163,24 @@ std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
     spMarket market = currentMarket;
     if (!market)
         return out;
+    // check filters are supported
+    if (marketCommodityFilter != marketCommodityFilterShowAll) {
+        if (marketShowRequiredForMission || marketShowHighDemand)
+            return out;
+    }
     // add everything we can buy, then sort according to market order
     for (auto& c : allKnownCommodities) {
         if (!market->items.contains(&c))
             continue;
-        if (c.market.stock > 0)
+        if (c.market.stock <= 0)
+            continue;
+        if (marketShowRareGoods && c.rare)
+            out.push_back(&c);
+        else if (marketShowInCargo && c.ship.count > c.ship.stolen)
+            out.push_back(&c);
+        else if ((marketCommodityFilter & c.category->intId) != 0)
+            out.push_back(&c);
+        else if ((marketCommodityFilter == marketCommodityFilterShowNone) && !marketShowRareGoods && !marketShowInCargo)
             out.push_back(&c);
     }
     std::sort(out.begin(), out.end(), [](Commodity* a, Commodity* b) {
@@ -1233,8 +1330,14 @@ bool Configuration::loadCargo() {
         }
         Commodity* c = getCommodityByName(name, false);
         if (!c) {
-            LOG(ERROR) << "Unknown cargo item name: " << name;
-            continue;
+            LOG(ERROR) << "Unknown cargo item name: " << name << ", adding to dummy category";
+            std::array<std::string,2> translation;
+            CommodityCategory* cc = getCommodityCategoryByName("");
+            if (lng == EN)
+                translation = {item.at("Name_Localised").as_string(),""};
+            if (lng == RU)
+                translation = {"",item.at("Name_Localised").as_string()};
+            c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
         }
         c->ship.timestamp = timestamp;
         c->ship.count = item.at("Count").as_integer();
@@ -1387,7 +1490,11 @@ static const char* ExplainAction(DWORD dwAction)
 void Configuration::changeDirThreadLoop() {
     SetThreadDescription(GetCurrentThread(), L"Directory listener");
 
-    const HANDLE handles[] = {hShutdownChangDirListenerEvent, changeDirListener->GetWaitHandle()};
+    const HANDLE handles[] = {hShutdownEvent, changeDirListener->GetWaitHandle()};
+
+    std::string journalLine;
+    std::ifstream journalStream(mEDCurrentJournalFile, std::ifstream::in);
+    journalStream.seekg(0, std::ios::end);
 
     for(;;) {
         DWORD rc = ::MsgWaitForMultipleObjectsEx(
@@ -1403,45 +1510,93 @@ void Configuration::changeDirThreadLoop() {
 
         // We've received a notification in the queue.
         bool needReloadSettings = false;
+        bool needReloadOptions = false;
+        bool needReloadBindings = false;
         bool needReloadMarket = false;
         bool needReloadCargo = false;
         bool needReloadStatus = false;
         bool needOpenNewLog = false;
         std::wstring newLogFilenameW;
 
-
         DWORD action;
         std::wstring filenameW;
+        Sleep(100); // let ED finish writes
         while (changeDirListener->Pop(action, filenameW)) {
             LOG(DEBUG) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
-            if (filenameW.ends_with(L"Settings.xml"))
-                needReloadSettings = true;
-            if (filenameW.ends_with(L"Market.json"))
-                needReloadMarket = true;
-            if (filenameW.ends_with(L"Cargo.json"))
-                needReloadCargo = true;
-            if (filenameW.ends_with(L"Status.json"))
-                needReloadStatus = true;
             if (action == FILE_ACTION_ADDED && filenameW.starts_with(L"Journal.") && filenameW.ends_with(L".log")) {
                 needOpenNewLog = true;
                 newLogFilenameW = filenameW;
-            }
+            } else if (filenameW.ends_with(L"\\Status.json"))
+                needReloadStatus = true;
+            else if (filenameW.ends_with(L"\\Cargo.json"))
+                needReloadCargo = true;
+            else if (filenameW.ends_with(L"\\Market.json"))
+                needReloadMarket = true;
+            else if (filenameW.ends_with(LR"(\Options\Graphics\DisplaySettings.xml)"))
+                needReloadSettings = true;
+            else if (filenameW.ends_with(LR"(\Options\Graphics\Settings.xml)"))
+                needReloadSettings = true;
+            else if (filenameW.contains(LR"(\Options\Player\)"))
+                needReloadOptions = true;
+            else if (filenameW.contains(LR"(\Options\Bindings\)"))
+                needReloadBindings = true;
         }
-
-        Sleep(500);
 
         if (needReloadSettings)
             loadGameSettings(false);
-        if (needOpenNewLog)
-            loadGameJournal(newLogFilenameW);
+        if (needReloadOptions)
+            loadPlayerOptions();
+        if (needReloadBindings)
+            loadInputBindings();
         if (needReloadMarket)
             loadMarket();
         if (needReloadCargo)
             loadCargo();
         if (needReloadStatus)
             loadGameStatus();
+
+        // real all events from journal
+        readJournalChanges(journalStream, journalLine);
+
+        if (needOpenNewLog) {
+            mEDCurrentJournalFile = newLogFilenameW;
+            if (journalStream.is_open())
+                journalStream.close();
+            journalStream.open(mEDCurrentJournalFile, std::ifstream::in);
+            // real all events from journal
+            readJournalChanges(journalStream, journalLine);
+        }
     }
 }
+
+void Configuration::readJournalChanges(std::ifstream& journalStream, std::string& journalLine) {
+    if (!journalStream.is_open())
+        return;
+    for (;;) {
+        journalStream.clear();
+        char buffer[1024];
+        journalStream.getline(buffer, sizeof(buffer));
+        int count = journalStream.gcount();
+        if (count == 0) {
+            if (journalStream.eof())
+                return;
+            if (journalStream.fail()) {
+                LOG(ERROR) << "Journal read error: " << strerror(errno);
+                return;
+            }
+        } else {
+            int len = strlen(buffer);
+            journalLine.append(buffer, len);
+            if (len == count)
+                continue; // no '\n' was extracted from stream
+            auto ge = parseEvent(journalLine);
+            if (ge && ge->event == "Shutdown")
+                journalStream.close();
+            journalLine.clear();
+        }
+    }
+}
+
 
 #include "detect/Detector.h"
 
@@ -1846,8 +2001,16 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
     else if (name.starts_with("btn-")) {
         auto btn = new Button(name, parent);
         child = btn;
-        if (jo.contains("rect"))
-            child->setRect(jo.at("rect"));
+        child->setRect(jo.at("rect"));
+        if (jo.contains("ext"))
+            ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
+    }
+    else if (name.starts_with("spn-")) {
+        auto btn = new Spinner(name, parent);
+        child = btn;
+        child->setRect(jo.at("rect"));
+        if (jo.contains("ext"))
+            ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
     }
     else if (name.starts_with("til-")) {
         std::string icon;
@@ -1861,11 +2024,6 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
             col = jo.at("col").as_integer();
         auto btn = new TileBtn(name, parent, icon, row, col);
         child = btn;
-    }
-    else if (name.starts_with("spn-")) {
-        auto btn = new Spinner(name, parent);
-        child = btn;
-        child->setRect(jo.at("rect"));
     }
     else if (name.starts_with("lbl-")) {
         auto lbl = new Label(name, parent);
@@ -1903,4 +2061,3 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
     }
     return child;
 }
-

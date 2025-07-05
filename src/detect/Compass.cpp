@@ -15,6 +15,13 @@ CompassDetector::CompassDetector()
 {
     testScales = {1, 1.025, 0.975, 1.05, 0.95, 1.075, 0.925, 1.1, 0.9, 1.125, 0.875};
     testAngles = {0, -5, +5};
+    auto hsvFilter = new HsvColorCropFilter();
+    hsvFilter->ranges.emplace_back(cv::Vec3b(0,0,120),cv::Vec3b(30,255,255)); // limit Hue[0..30] and Value[120..]
+    filters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
+
+    hsvFilter = new HsvColorCropFilter();
+    hsvFilter->ranges.emplace_back(cv::Vec3b(0,0,80),cv::Vec3b(255,90,255)); // limit Saturation[..90] and Value[80..]
+    dotsFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
 
     extendLT = {40, 80};
     extendRB = {50, 140};
@@ -26,93 +33,94 @@ CompassDetector::CompassDetector()
     cv::Mat dotBwdMask;
     loadImageAndMask("templates/space_compass_dot_fwd.png", dotFwdImage, dotFwdMask);
     loadImageAndMask("templates/space_compass_dot_bwd.png", dotBwdImage, dotBwdMask);
-    compassDots.emplace_back(1.0, 0, "space_compass_dot_fwd.png", dotFwdImage, dotFwdMask);
-    compassDots.emplace_back(1.0, 0, "space_compass_dot_bwd.png", dotBwdImage, dotBwdMask);
+    compassDotsOrig.emplace_back(1.0, 0, "space_compass_dot_fwd.png", dotFwdImage, dotFwdMask);
+    compassDotsOrig.emplace_back(1.0, 0, "space_compass_dot_bwd.png", dotBwdImage, dotBwdMask);
 }
 
 double CompassDetector::match(ClassifyEnv &env) {
+    lastHemisphere = -1;
     double compassValue = ImageTemplate::match(env);
-    if (compassValue < threshold_min)
+    if (compassValue < threshold_min) {
         return compassValue;
+    }
 
-//    //
-//    // Detect compass dot
-//    //
-//
-//    int bestDotIdx = -1;
-//    double bestDotVal = 0;
-//    cv::Point bestDotLoc;
-//    cv::Size bestDotSize;
-//
-//    cv::Point dotMatchedCaptureOffset;
-//    imageFiltered = cv::Mat(env.getColorImage(), captureRect);
-//
-////    cv::imshow("Detected compass", imageFiltered);
-////    cv::imshow("Dot fwd compass", compassDots[0].templImage);
-////    cv::imshow("Dot bwd compass", compassDots[1].templImage);
-////    cv::waitKey();
-////    cv::destroyAllWindows();
-//
-//    for (int dotIdx=0; dotIdx < compassDots.size(); dotIdx++) {
-//        auto& sm = compassDots[dotIdx];
-//        int result_cols = captureRect.width - sm.templImage.cols + 1;
-//        int result_rows = captureRect.height - sm.templImage.rows + 1;
-//        if (result_cols <= 0 || result_rows <= 0)
-//            continue;
-//        cv::Mat result(result_rows, result_cols, CV_32FC1);
-//        cv::matchTemplate(imageFiltered, sm.templImage, result, cv::TM_SQDIFF_NORMED, sm.templMask);
-//        //LOG(ERROR) << "dot " << dotIdx << " match result: " << result;
-//        fixNaNinResult(result);
-//        double minVal, maxVal;
-//        cv::Point minLoc, maxLoc;
-//        cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
-//        // TM_SQDIFF_NORMED - the lower - the better, so use 1-minVal and minLoc
-//        LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", (1-minVal), ((dotIdx&1)? "backward" : "forward"));
-//        if (1-minVal > bestDotVal) {
-//            bestDotVal = 1-minVal;
-//            bestDotIdx = dotIdx;
-//            bestDotLoc = minLoc;
-//            bestDotSize = {sm.templImage.cols, sm.templImage.rows};
-//        }
-//    }
-//    if (bestDotVal >= threshold_dot) {
-//        lastDotValue = bestDotVal;
-//        lastDotIdx = bestDotIdx;
-//        dotCaptureRect = { captureRect.tl()+bestDotLoc, bestDotSize };
-//        dotSpherePosition = {
-//                std::clamp( ((bestDotLoc.x+bestDotSize.width*0.5) - captureRect.width*0.5) / ((captureRect.width-16)*0.5), -1.0, +1.0),
-//                std::clamp(-((bestDotLoc.y+bestDotSize.height*0.5) - captureRect.height*0.5) / ((captureRect.height-16)*0.5), -1.0, +1.0),
-//        };
-//
-//        double pitch = std::asin(dotSpherePosition.y) * 90 / M_PI_2;
-//        double yaw = std::asin(dotSpherePosition.x) * 90 / M_PI_2;
-//        double roll = 90-std::atan2(dotSpherePosition.y, dotSpherePosition.x) * 90 / M_PI_2;
-//
-//        if (lastDotIdx&1)
-//            pitch = 180 - pitch;
-//        if (lastDotIdx&1)
-//            yaw = 180 - yaw;
-//        if (pitch > 180) pitch = 360 - pitch;
-//        if (pitch < -180) pitch = 360 + pitch;
-//        if (yaw > 180) yaw = 360 - yaw;
-//        if (yaw < -180) yaw = 360 + yaw;
-//        if (roll > 180) roll = 360 - roll;
-//        if (roll < -180) roll = 360 + roll;
-//        lastTgtPitch = pitch;
-//        lastTgtYaw = yaw;
-//        lastTgtRoll = roll;
-//
-//        LOG(INFO) << std::format("Compass dot value={:.3f}, direction={}",
-//                                 lastDotValue, ((lastDotIdx&1) ? "backward" : "forward"))
-//                  << ", sphere pos=" << dotSpherePosition
-//                  << " pitch,yaw,roll=" << std_format("{:.0f},{:.0f},{:.0f}", pitch, yaw, roll);
-//    } else {
-//        lastDotIdx = -1;
-//        dotCaptureRect = {};
-//        lastTgtPitch = 0;
-//        lastTgtYaw = 0;
-//        lastTgtRoll = 0;
-//    }
+    //
+    // Detect compass dot
+    //
+    if (preprocessedDotsScale != env.getScale()) {
+        preprocessedDotsScale = env.getScale();
+        for (auto &im: compassDotsOrig) {
+            cv::Mat templImagePrepared = applyFilters(dotsFilters, im.templImage);
+            templImagePrepared = scaleImage(templImagePrepared, env.getScale(), env.getScale());
+            cv::Mat templMaskPrepared;
+            compassDotsPrepared.emplace_back(1, 0, im.name, templImagePrepared, templMaskPrepared);
+        }
+    }
+
+    int bestDotIdx = -1;
+    double bestDotVal = 0;
+    cv::Point bestDotLoc;
+    cv::Size bestDotSize;
+
+    cv::Mat imagePrepared = ImageTemplate::applyFilters(dotsFilters, cv::Mat(env.getColorImage(), captureRect));
+
+    for (int dotIdx=0; dotIdx < compassDotsPrepared.size(); dotIdx++) {
+        auto& sm = compassDotsPrepared[dotIdx];
+        int result_cols = captureRect.width - sm.templImage.cols + 1;
+        int result_rows = captureRect.height - sm.templImage.rows + 1;
+        if (result_cols <= 0 || result_rows <= 0)
+            continue;
+        cv::Mat result(result_rows, result_cols, CV_32FC1);
+        cv::matchTemplate(imagePrepared, sm.templImage, result, cv::TM_SQDIFF_NORMED, sm.templMask);
+        //LOG(ERROR) << "dot " << dotIdx << " match result: " << result;
+        //fixNaNinResult(result, sm.name);
+        double minVal, maxVal;
+        cv::Point minLoc, maxLoc;
+        cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+        // TM_SQDIFF_NORMED - the lower - the better, so use 1-minVal and minLoc
+        LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", (1-minVal), ((dotIdx&1)? "backward" : "forward"));
+        if (1-minVal > bestDotVal) {
+            bestDotVal = 1-minVal;
+            bestDotIdx = dotIdx;
+            bestDotLoc = minLoc;
+            bestDotSize = {sm.templImage.cols, sm.templImage.rows};
+        }
+    }
+    if (bestDotVal >= threshold_dot) {
+        lastDotValue = bestDotVal;
+        lastHemisphere = bestDotIdx;
+        dotCaptureRect = { captureRect.tl()+bestDotLoc, bestDotSize };
+        double radius = env.getScale() * (referenceRect.width-15.5) * 0.5;
+        dotSpherePosition = {
+                std::clamp( ((bestDotLoc.x+bestDotSize.width*0.5) - captureRect.width*0.5) / radius, -1.0, +1.0),
+                std::clamp(-((bestDotLoc.y+bestDotSize.height*0.5) - captureRect.height*0.5) / radius, -1.0, +1.0),
+        };
+
+        double pitch = std::asin(dotSpherePosition.y) * 90 / M_PI_2;
+        double yaw = std::asin(dotSpherePosition.x) * 90 / M_PI_2;
+        double roll = std::atan2(dotSpherePosition.x, dotSpherePosition.y) * 90 / M_PI_2;
+
+        if (lastHemisphere & 1) {
+            if (pitch > 0)
+                pitch = 180 - pitch;
+            else
+                pitch = -180 - pitch;
+        }
+        if (lastHemisphere & 1) {
+            if (yaw > 0)
+                yaw = 180 - yaw;
+            else
+                yaw = -180 - yaw;
+        }
+        lastTgtPitch = pitch;
+        lastTgtYaw = yaw;
+        lastTgtRoll = roll;
+
+        LOG(DEBUG) << std::format("Compass dot value={:.3f}, direction={}",
+                                  lastDotValue, ((lastHemisphere&1) ? "backward" : "forward"))
+                  << ", sphere pos=" << dotSpherePosition
+                  << std_format(" pitch:{}, yaw:{}, roll:{}", int(pitch), int(yaw), int(roll));
+    }
 
     return compassValue;
 }
@@ -171,9 +179,9 @@ void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenc
 
 double CompassDetector::debugMatch(ClassifyEnv &env) {
     double value = ImageTemplate::debugMatch(env);
-    if (lastDotValue >= threshold_min && lastDotIdx >= 0) {
+    if (lastDotValue >= threshold_min && lastHemisphere >= 0) {
         cv::Scalar color;
-        if ((lastDotIdx & 1) == 0)
+        if ((lastHemisphere & 1) == 0)
             color = {255, 96, 96};
         else
             color = {96, 96, 255};
@@ -183,6 +191,13 @@ double CompassDetector::debugMatch(ClassifyEnv &env) {
         color = {254, 254, 254};
         cv::putText(env.getDebugImage(), text, orig, cv::FONT_HERSHEY_PLAIN, 1, color);
     }
+
+//    int ext = Master::getInstance().getSearchRegionExtent();
+//    cv::Rect matchRect = cv::Rect(
+//            referenceRect.tl() - extendLT - cv::Point(ext, ext),
+//            referenceRect.br() + extendRB + cv::Point(ext, ext));
+//    tryLowerUpperBoundsGUI(env, matchRect);
+
     return value;
 }
 

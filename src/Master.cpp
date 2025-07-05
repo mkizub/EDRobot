@@ -114,6 +114,19 @@ const std::string& UIState::path() const {
     return empty;
 }
 
+const std::string& UIState::screen_name() const {
+    static std::string empty;
+    if (!screen)
+        return empty;
+    return screen->name;
+}
+const std::string& UIState::focused_name() const {
+    static std::string empty;
+    if (!focused)
+        return empty;
+    return focused->name;
+}
+
 std::ostream& operator<<(std::ostream& os, const UIState& obj) {
     bool add_path = false;
     switch (obj.guiFocus) {
@@ -317,7 +330,6 @@ void Master::initializeInternal(std::string ocr_dir) {
 
     mConfiguration = new Configuration();
     mConfiguration->load();
-    initButtonStateDetector();
 
     mAIManager = new ai::AIManager();
 
@@ -354,19 +366,6 @@ void Master::initializeInternal(std::string ocr_dir) {
     keyboard::intercept(keys);
     keyboard::start(tradingKbHook);
 }
-
-
-void Master::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR) {
-    mConfiguration->setCalibrationResult(buttonBGR, lstRowBGR);
-    initButtonStateDetector();
-}
-void Master::initButtonStateDetector() {
-    mButtonStateDetector.reset(new detect::Histogram(detect::Histogram::CompareMode::Hsv, cv::Rect(), mConfiguration->mCalibratedButtonHsv));
-    LOG(INFO) << "Button state detector installed";
-    mLstRowStateDetector.reset(new detect::Histogram(detect::Histogram::CompareMode::Hsv, cv::Rect(), mConfiguration->mCalibratedLstRowHsv));
-    LOG(INFO) << "List row state detector installed";
-}
-
 
 Master::Master() {
     mScreensRoot = std::make_unique<widget::Root>();
@@ -897,7 +896,7 @@ Widget* Master::matchWithSubItems(Widget* item) {
             widget::Screen *screen = static_cast<widget::Screen *>(item);
             if (screen->transform) {
                 mClassifyEnv.warpPerspective(screen->transform);
-                mClassifyEnv.setWarpMode(true);
+                mClassifyEnv.setWarpMode(screen->transform->valid);
             }
             for (Widget* i : item->have) {
                 Widget* res = matchWithSubItems(i);
@@ -954,16 +953,18 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             if (widget->tp != WidgetType::Screen)
                 continue;
             widget::Screen* screen = static_cast<widget::Screen*>(widget);
-            if (!screen || !screen->checkStatus(*this,*mConfiguration))
+            if (!screen || !screen->checkStatus(*mConfiguration))
                 continue;
             auto w = debugTemplates(screen, &debugEnv);
             el::Loggers::flushAll();
             if (w && !foundWidget) {
                 foundWidget = w;
-                if (screen->transform && screen->transform->valid) {
-                    //debugEnv.warpPerspective(screen->transform);
-                    cv::imwrite("warped-screen-color.png", debugEnv.getWarpedColorImage());
-                    cv::imwrite("warped-screen-gray.png", debugEnv.getWarpedGrayImage());
+                if (screen->transform) {
+                    debugEnv.warpPerspective(screen->transform);
+                    if (screen->transform->valid) {
+                        cv::imwrite("warped-screen-color.png", debugEnv.getWarpedColorImage());
+                        cv::imwrite("warped-screen-gray.png", debugEnv.getWarpedGrayImage());
+                    }
                 }
             }
             //std::string fname = "debug-match-"+screen->name+".png";
@@ -988,7 +989,7 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
                 widget::Screen *screen = static_cast<widget::Screen *>(item);
                 if (screen->transform) {
                     mClassifyEnv.warpPerspective(screen->transform);
-                    mClassifyEnv.setWarpMode(true);
+                    mClassifyEnv.setWarpMode(screen->transform->valid);
                 }
                 for (Widget* i : item->have) {
                     Widget* res = debugTemplates(i, env);
@@ -1175,23 +1176,38 @@ bool Master::debugWindowUpdate(bool idle) {
     if (!hWndED)
         return false;
     mDuplicateToDebugWindow = UIManager::hasDebugWindow();
-    if (!mDuplicateToDebugWindow || (idle && mDetectLevelIdle == DetectLevel::None))
+    if (!mDuplicateToDebugWindow)
         return false;
-    if (idle) {
+    if (idle && !mAIManager->active()) {
         if (!detectEDState(mDetectLevelIdle))
             return false;
     }
     ClassifyEnv& cEnv = mClassifyEnv;
     cv::Mat& debugImage = cEnv.getDebugImage();
-    if (!mLastUIState.screen || debugImage.empty())
-        return UIManager::postToDebugWindow(cEnv.getColorImage());
-    if (mLastUIState.screen->transform && mLastUIState.screen->transform->valid) {
-        for (int p=0; p < 4; p++) {
-            auto& p0 = mLastUIState.screen->transform->transfromSrc[p];
-            auto& p1 = mLastUIState.screen->transform->transfromSrc[(p+1)%4];
-            cv::line(debugImage, p0, p1, {200,200,200}, 2, cv::LINE_AA);
-        }
+    if (debugImage.empty())
+        return UIManager::postToDebugWindow(cEnv.getColorImage(), debugImage);
+
+    if (mConfiguration->guiFocus == GuiFocus::None && mCompassDetector->lastHemisphere >= 0) {
+        detect::CompassDetector& c = *mCompassDetector.get();
+
+        cv::Point center = (c.captureRect.tl() + c.captureRect.br()) / 2;
+        int radius = (c.captureRect.width + c.captureRect.height) / 4;
+        if ((c.lastHemisphere & 1) == 0)
+            cv::circle(debugImage, center, radius, {0,255,0}, 2);
+        else
+            cv::circle(debugImage, center, radius, {255,0,0}, 2);
+
+        if ((c.lastHemisphere & 1) == 0)
+            cv::rectangle(debugImage, c.dotCaptureRect, {0,255,0}, 2);
+        else
+            cv::rectangle(debugImage, c.dotCaptureRect, {255,0,0}, 2);
+
+        std::string text = std::format("{}/{}/{}", int(c.lastTgtPitch), int(c.lastTgtYaw), int(c.lastTgtRoll));
+        cv::Point orig = c.captureRect.tl() + cv::Point(0, -10);
+        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 3, {0, 0, 0});
+        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1, {254, 254, 254});
     }
+
     for (auto& cr : cEnv.classified) {
         if (cr.cdt == ClsDetType::Detected) {
             if (cr.warped) {
@@ -1229,6 +1245,17 @@ bool Master::debugWindowUpdate(bool idle) {
             }
         }
     }
+
+    if (!mLastUIState.screen)
+        return UIManager::postToDebugWindow(cEnv.getColorImage(), debugImage);
+    if (mLastUIState.screen->transform && mLastUIState.screen->transform->valid) {
+        for (int p=0; p < 4; p++) {
+            auto& p0 = mLastUIState.screen->transform->transfromSrc[p];
+            auto& p1 = mLastUIState.screen->transform->transfromSrc[(p+1)%4];
+            cv::line(debugImage, p0, p1, {200,200,200}, 2, cv::LINE_AA);
+        }
+    }
+
     return UIManager::postToDebugWindow(mClassifyEnv.getColorImage(), debugImage);
 }
 
@@ -1295,122 +1322,6 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     return true;
 }
 
-WState Master::detectButtonState(const widget::Widget* item) {
-    if (!item)
-        return WState::Unknown;
-    cv::Rect r = mClassifyEnv.calcReferenceRect(item->rect);
-    if (r.empty())
-        return WState::Unknown;
-    mClassifyEnv.classified.emplace_back(ClsDetType::Widget, mClassifyEnv.isWarpMode(), item->name, r);
-
-    int sz = int(16 * mClassifyEnv.getScale());
-    int x, y;
-    if (r.width > 9*sz || item->tp == WidgetType::Spinner) {
-        x = r.x + r.width - 2*sz;
-        y = r.y + r.height / 2 - sz/2;
-        if (item->tp == WidgetType::Spinner)
-            x -= r.height + sz;
-    } else {
-        x = r.x + r.width - sz - 2;
-        y = r.y + r.height / 2 - sz/2;
-    }
-    ClassifiedRect& clsBtnRect = mClassifyEnv.classified.back();
-    clsBtnRect.u.widg.widget = item;
-    mButtonStateDetector->mRect = cv::Rect(cv::Point(x,y), cv::Size(sz,sz));
-    mButtonStateDetector->classify(mClassifyEnv);
-    auto& values = mButtonStateDetector->mLastValues;
-    int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
-    double value = values[idx];
-    WState ws = WState::Unknown;
-    if (value > 0.70) {
-        ws = enum_cast<WState>(idx).value();
-        clsBtnRect.u.widg.ws = ws;
-        LOG_IF(ws == WState::Focused, INFO) << "Focused: " << item->name;
-        LOG_IF(ws == WState::Disabled, INFO) << "Disabld: " << item->name;
-    }
-    return ws;
-}
-
-void Master::detectListState(const widget::List* lst, DetectLevel level) {
-    if (!lst)
-        return;
-    cv::Rect listReferenceRect = mClassifyEnv.calcReferenceRect(lst->rect);
-    cv::Rect rect =  mClassifyEnv.cvtReferenceToCaptured(listReferenceRect);
-    if (rect.empty())
-        return;
-
-    mClassifyEnv.classified.emplace_back(ClsDetType::Widget, mClassifyEnv.isWarpMode(), lst->name, listReferenceRect);
-    ClassifiedRect& clsListRect = mClassifyEnv.classified.back();
-    clsListRect.u.widg.widget = lst;
-
-    //unsigned buttonGrayColor = mConfiguration->getLstRowGrayColor(WState::Normal);
-    cv::Vec3b hsvColorMin {0, 127, 25};
-    cv::Vec3b hsvColorMax {30, 255, 255};
-    cv::Mat hsvImage;
-    cv::cvtColor(cv::Mat(mClassifyEnv.getColorImage(), rect), hsvImage, cv::COLOR_BGR2HSV);
-    cv::Mat thrImage;
-    cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
-
-    auto expected_row_size = mClassifyEnv.scaleToCaptured(cv::Size(listReferenceRect.width, lst->row_height));
-    double minArea =  expected_row_size.area() * 0.75;
-
-    std::vector<int> detectedRows;
-    std::vector<std::vector<cv::Point>> contours;
-    cv::findContoursLinkRuns(thrImage, contours);
-    for (const auto &contour: contours) {
-        std::vector<cv::Point> convex;
-        cv::convexHull(contour, convex);
-        if (convex.size() >= 4) {
-            std::vector<cv::Point> approx;
-            cv::approxPolyN(convex, approx, 4, 5, true);
-            if (cv::contourArea(approx) > minArea) {
-                cv::Rect bbox = cv::boundingRect(approx);
-                if (bbox.height < expected_row_size.height * 0.9)
-                    continue;
-                if (bbox.height < expected_row_size.height * 1.5) {
-                    int y = bbox.y + bbox.height/2 - expected_row_size.height/2;
-                    detectedRows.push_back(y);
-                } else {
-                    int count = (int)std::floor(0.1 + double(bbox.height) / double(expected_row_size.height));
-                    int split_height = bbox.height / count;
-                    for (int i=0; i < count; i++) {
-                        int y = bbox.y+(i*split_height) + split_height/2 - expected_row_size.height/2;
-                        detectedRows.push_back(y);
-                    }
-                }
-            }
-        }
-    }
-
-    for (auto& row_top : detectedRows) {
-        WState ws = WState::Unknown;
-        int x = rect.x + rect.width - 36;
-        int y = rect.y + row_top + expected_row_size.height / 2 - 8;
-        mLstRowStateDetector->mRect = mClassifyEnv.cvtCapturedToReference(cv::Rect(cv::Point(x,y), cv::Size(16,16)));
-        mLstRowStateDetector->classify(mClassifyEnv);
-        auto& values = mLstRowStateDetector->mLastValues;
-        int idx = int(std::max_element(values.begin(), values.end()) - values.begin());
-        double value = values[idx];
-        if (value > 0.70)
-            ws = enum_cast<WState>(idx).value();
-
-        cv::Rect r {0, row_top, expected_row_size.width, expected_row_size.height};
-        std::string text;
-        if (mTesseractApiForMarket && ws == WState::Focused && level >= DetectLevel::ListOcrFocusedRow) {
-            cv::Mat grayImage(mClassifyEnv.getGrayImage(), rect);
-            ocrMarketText(grayImage, r, text);
-        }
-
-        cv::Rect rowReferenceRect = mClassifyEnv.cvtCapturedToReference(r+rect.tl());
-        mClassifyEnv.classified.emplace_back(ClsDetType::ListRow, mClassifyEnv.isWarpMode(), text, rowReferenceRect);
-        ClassifiedRect& clsRowRect = mClassifyEnv.classified.back();
-        clsRowRect.u.lrow.list = lst;
-        clsRowRect.u.lrow.ws = ws;
-        if (ws == WState::Focused)
-            clsListRect.u.widg.ws = WState::Focused;
-    }
-}
-
 int Master::ocrMarketText(const cv::Mat& grayImage, cv::Rect rect, std::string& text, std::optional<bool> invert) {
     text.clear();
     tesseract::TessBaseAPI* tesseractApi = Master::getInstance().mTesseractApiForMarket.get();
@@ -1460,35 +1371,6 @@ int Master::ocrMarketText(const cv::Mat& grayImage, cv::Rect rect, std::string& 
     return outConf;
 }
 
-Widget* Master::detectAllButtonsStates(const widget::Widget* parent, DetectLevel level) {
-    if (!parent)
-        return nullptr;
-    widget::Widget* focused = nullptr;
-    for (Widget* item : parent->have) {
-        if (item->tp == WidgetType::Button || item->tp == WidgetType::TileBtn || item->tp == WidgetType::Spinner) {
-            WState ws = detectButtonState(item);
-            if (ws == WState::Focused) {
-                if (!focused)
-                    focused = item;
-            }
-        }
-        if (item->tp == WidgetType::Label) {
-            cv::Rect r = mClassifyEnv.calcReferenceRect(item->rect);
-            mClassifyEnv.classified.emplace_back(ClsDetType::Widget, mClassifyEnv.isWarpMode(), item->name, r);
-            mClassifyEnv.classified.back().u.widg.widget = item;
-        }
-        if (item->tp == WidgetType::List && level >= DetectLevel::ListRows) {
-            detectListState(dynamic_cast<List*>(item), level);
-        }
-    }
-    widget::Widget* parent_focused = nullptr;
-    if (parent->tp == WidgetType::Mode) {
-        parent_focused = detectAllButtonsStates(parent->parent, level);
-    }
-    if (focused)
-        return focused;
-    return parent_focused;
-}
 bool Master::detectEDState(DetectLevel level) {
     mLastUIState.clear();
     // make screenshot
@@ -1501,37 +1383,19 @@ bool Master::detectEDState(DetectLevel level) {
         if (mDetectLevelIdle != level)
             mDetectLevelIdle = level;
     } else {
-        mDetectLevelIdle = DetectLevel::None;
+        mDetectLevelIdle = DetectLevel::Screen;
     }
     mLastUIState.valid = true;
     mLastUIState.guiFocus = mConfiguration->getGuiFocus();
-    if (level == DetectLevel::None)
+    if (level == DetectLevel::None) {
+        debugWindowUpdate(false);
         return true;
+    }
 
     // detect screen and widget
+    Widget::DetectParams params {mClassifyEnv, mLastUIState, *this, *mConfiguration, level};
+    mScreensRoot->detect(params);
     GuiFocus guiFocus = mConfiguration->guiFocus;
-    for (auto widget: mScreensRoot->have) {
-        if (widget->tp != WidgetType::Screen)
-            continue;
-        widget::Screen *screen = static_cast<widget::Screen *>(widget);
-        if (!screen || !screen->checkStatus(*this, *mConfiguration))
-            continue;
-        TRY {
-            Widget *subItem = matchWithSubItems(screen);
-            if (subItem) {
-                if (!mLastUIState.widget) {
-                    mLastUIState.screen = screen;
-                    mLastUIState.widget = subItem;
-                }
-            }
-        } CATCH(const std::exception& e) {
-#ifdef NDEBUG
-            LOG(ERROR) << "Exception in screen " << screen->name << " detection: " << GET_EXCEPTION_STACK_TRACE;
-#else
-            throw;
-#endif
-        }
-    }
     if (guiFocus == GuiFocus::None) {
         // detect autopilot
         for (auto& cr : mClassifyEnv.classified) {
@@ -1540,38 +1404,16 @@ bool Master::detectEDState(DetectLevel level) {
                 break;
             }
         }
-    }
-    if (!mLastUIState.widget) {
-        LOG(ERROR) << "Unknown state";
-        return true;
-    }
-    if (level >= DetectLevel::Buttons) {
-        TRY {
-            if (mButtonStateDetector) {
-                bool savedWarpMode = mClassifyEnv.isWarpMode();
-                mClassifyEnv.setWarpMode(mLastUIState.screen->transform && mLastUIState.screen->transform->valid);
-                // detect focused button
-                const Widget *focused = detectAllButtonsStates(mLastUIState.widget, level);
-                if (focused) {
-                    mLastUIState.focused = focused;
-                    LOG(DEBUG) << "Detected focused button: " << focused->name;
-                } else {
-                    LOG(DEBUG) << "Focused button not detected";
-                }
-                mClassifyEnv.setWarpMode(savedWarpMode);
-            } else {
-                LOG(ERROR) << "Colors not calibrated, cannot detect focused widget";
-            }
-        } CATCH(const std::exception& e) {
-#ifdef NDEBUG
-            LOG(ERROR) << "Exception in buttons state detection: " << GET_EXCEPTION_STACK_TRACE;
-#else
-            throw;
-#endif
+        // detect compass
+        if (!mConfiguration->getCurrentStatus()->destinationName.empty()) {
+            mCompassDetector->classify(mClassifyEnv);
+        } else {
+            mCompassDetector->lastHemisphere = -1;
         }
     }
 
-    LOG(INFO) << "Detected UI state: " << mLastUIState;
+    LOG(DEBUG) << "Detected UI state: " << mLastUIState;
+    debugWindowUpdate(false);
     return true;
 }
 
@@ -1631,6 +1473,12 @@ void Master::processDetectRequest(pCommand &cmd) {
                 *c->request.uiState = mLastUIState;
             if (c->request.rEnv)
                 *c->request.rEnv = mClassifyEnv;
+            if (c->request.compass) {
+                c->request.compass->hemisphere = mCompassDetector->lastHemisphere;
+                c->request.compass->targetPitch = (int) std::round(mCompassDetector->lastTgtPitch);
+                c->request.compass->targetYaw = (int) std::round(mCompassDetector->lastTgtYaw);
+                c->request.compass->targetRoll = (int) std::round(mCompassDetector->lastTgtRoll);
+            }
             if (c->request.colorImage)
                 *c->request.colorImage = mClassifyEnv.getColorImage();
             if (c->request.grayImage)

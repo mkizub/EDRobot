@@ -74,6 +74,7 @@ namespace widget {
     class Root;
     class Widget;
     class List;
+    class BaseDialog;
     class Screen;
 }
 

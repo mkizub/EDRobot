@@ -130,38 +130,38 @@
       { name: 'til-workshop',    action: 'workshop',     icon: "sserv:ship-workshop" },
     ]
   },
-  {
-    name: 'scr-dock',
-    status: { gui: 'None', docked: true },
-    have: [
-      {
-        name: 'mod-type9',
-        status: { ship: 'type9' },
-        have: [
-          { name: 'btn-refuel',    rect: [805,773,71,39] },
-          { name: 'btn-repair',    rect: [885,773,71,39] },
-          { name: 'btn-rearm',     rect: [965,773,71,39] },
-          { name: 'btn-dock-lpad', rect: [1044,773,71,39] },
-          { name: 'btn-services',  rect: [803,818,314,39] },
-          { name: 'btn-launch',    rect: [803,866,314,39] },
-          { name: 'btn-disembark', rect: [803,915,314,39] },
-        ]
-      },
-      {
-        name: 'mod-type9',
-        status: { ship: 'cutter' },
-        have: [
-          { name: 'btn-refuel',    rect: [791,836,76,41] },
-          { name: 'btn-repair',    rect: [879,836,76,41] },
-          { name: 'btn-rearm',     rect: [968,836,76,41] },
-          { name: 'btn-dock-lpad', rect: [1055,836,76,41] },
-          { name: 'btn-services',  rect: [787,887,349,44] },
-          { name: 'btn-launch',    rect: [787,943,349,44] },
-          { name: 'btn-disembark', rect: [787,1001,349,44] },
-        ]
-      }
-    ]
-  },
+//  {
+//    name: 'scr-dock',
+//    status: { gui: 'None', docked: true },
+//    have: [
+//      {
+//        name: 'mod-type9',
+//        status: { ship: 'type9' },
+//        have: [
+//          { name: 'btn-refuel',    rect: [805,773,71,39] },
+//          { name: 'btn-repair',    rect: [885,773,71,39] },
+//          { name: 'btn-rearm',     rect: [965,773,71,39] },
+//          { name: 'btn-dock-lpad', rect: [1044,773,71,39] },
+//          { name: 'btn-services',  rect: [803,818,314,39] },
+//          { name: 'btn-launch',    rect: [803,866,314,39] },
+//          { name: 'btn-disembark', rect: [803,915,314,39] },
+//        ]
+//      },
+//      {
+//        name: 'mod-type9',
+//        status: { ship: 'cutter' },
+//        have: [
+//          { name: 'btn-refuel',    rect: [791,836,76,41] },
+//          { name: 'btn-repair',    rect: [879,836,76,41] },
+//          { name: 'btn-rearm',     rect: [968,836,76,41] },
+//          { name: 'btn-dock-lpad', rect: [1055,836,76,41] },
+//          { name: 'btn-services',  rect: [787,887,349,44] },
+//          { name: 'btn-launch',    rect: [787,943,349,44] },
+//          { name: 'btn-disembark', rect: [787,1001,349,44] },
+//        ]
+//      }
+//    ]
+//  },
   {
     name: 'scr-cockpit',
     status: { gui: 'None', docked: false },
@@ -202,7 +202,7 @@
         filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
       }
     ]},
-    transform: { line: ["lpline","nvline"], tl: [234,250], tr: [1320,235], bl: [287,905], br: [1331,798] },
+    transform: { line: ["lpline","nvline","fltline"], tl: [234,250], tr: [1320,235], bl: [287,905], br: [1331,798] },
     have: [
       {
         name: "mod-sysinfo",
@@ -234,9 +234,8 @@
         name: "mod-contacts",
         detect: { img: "at_left_contacts-*.png", t: 0.7, rect:[598, 10, 128, 28] },
         have: [
-          { name: 'btn-row-req', rect: [610,338,448,46] },
-          { name: 'lst-contacts', rect: [2,64,584,590], row: 40, gap: 5, ocr: true },
-          { name: 'btn-landing', rect: [610,338,448,46] }
+          { name: 'btn-landing', rect: [607,292,461,56], ext: [5,40] },
+          { name: 'lst-contacts', rect: [2,64,544,590], row: 40, gap: 5, ocr: true }, // rect: [2,64,584,590]
         ]
       },
       {
