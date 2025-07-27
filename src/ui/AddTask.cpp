@@ -17,15 +17,18 @@ AddTask::AddTask() : aiManager(nullptr) {
 
     on_message(WM_INITDIALOG, [this](wl::params p){return initialize(p);});
 
-    on_command(IDC_COMBO_TEMPLATES, [this](wl::params p) { return on_template_selected(p); });
+    on_command(IDC_COMBO_TEMPLATES, [this](wl::params p) {
+        on_template_selected(p);
+        return 0;
+    });
     for (int i=0; i < 20; i++)
-        on_command(ctrlId+i, [this](wl::params p) { return on_ctrl_change(p); });
+        on_command(ctrlId+i, [this](wl::params p) { on_ctrl_change(p); return 0; });
 
     on_command(IDCANCEL, [this](wl::params params) {
         templ_controls.clear();
         curr_templ = nullptr;
-        EndDialog(hwnd(), params.message);
-        return (INT_PTR) TRUE;
+        EndDialog(hwnd(), IDCANCEL);
+        return 0;
     });
     on_command(IDOK, [this](wl::params params) {
         if (curr_templ) {
@@ -33,8 +36,8 @@ AddTask::AddTask() : aiManager(nullptr) {
             templ_controls.clear();
             curr_templ = nullptr;
         }
-        EndDialog(hwnd(), params.message);
-        return (INT_PTR) TRUE;
+        EndDialog(hwnd(), IDOK);
+        return 0;
     });
 
 }
@@ -95,7 +98,7 @@ int AddTask::on_template_selected(wl::params &params) {
 }
 
 int AddTask::on_ctrl_change(wl::params& p) {
-    if (HIWORD(p.wParam) != EN_CHANGE)
+    if (HIWORD(p.wParam) != EN_CHANGE && HIWORD(p.wParam) != BN_CLICKED)
         return TRUE;
     if (!curr_templ)
         return TRUE;

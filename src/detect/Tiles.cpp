@@ -12,7 +12,7 @@ namespace detect {
 TilesDetector::TilesDetector(const std::string& name, cv::Rect& tilesRect,
                              const std::string& icons, cv::Rect& iconsRect,
                              int rows_min, int rows_max, int cols_min, int cols_max, int gap)
-        : ImageTemplate(icons, iconsRect)
+        : ImageTemplate(icons, std::make_shared<ConstRect>(iconsRect))
         , name(name)
         , mTilesRect(tilesRect)
         , mMinRows(rows_min)
@@ -73,9 +73,6 @@ double TilesDetector::match(ClassifyEnv &env) {
         const float *histRange[]{range};
         cv::Mat hist;
         cv::calcHist(&roiImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
-        std::vector<float> hv;
-        for (int i = 0; i < hist.total(); ++i)
-            hv.push_back(hist.at<float>(i));
         int maxLoc[4]{};
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
         buttonGrayColor = maxLoc[0] - 4;
@@ -94,9 +91,9 @@ double TilesDetector::match(ClassifyEnv &env) {
     }
 
     int hGaps = (mMaxCols - 1) * mGap * env.getScale();
-    int minTileWidth = (captureRect.width - hGaps) / mMaxCols - mGap;
+    int minTileWidth = (captureRect.width - hGaps) / mMaxCols - mGap - 10;
     int vGaps = (mMaxRows - 1) * mGap * env.getScale();
-    int minTileHeight = (captureRect.height - vGaps) / mMaxRows - mGap;
+    int minTileHeight = (captureRect.height - vGaps) / mMaxRows - mGap - 10;
     int minTileArea = minTileWidth * minTileHeight;
     int maxTileArea = captureRect.area() - std::min(minTileArea*mMinCols,minTileArea*mMinRows);
 
@@ -110,10 +107,11 @@ double TilesDetector::match(ClassifyEnv &env) {
             std::vector<cv::Point> approx;
             cv::approxPolyN(convex, approx, 4, 5, true);
             cv::Rect bbox = cv::boundingRect(approx);
+            bbox &= cv::Rect(cv::Point(),captureRect.size());
             if (bbox.width >= minTileWidth && bbox.height >= minTileHeight &&
                 bbox.area() >= minTileArea && bbox.area() <= maxTileArea) {
                 int col, span;
-                if (!getColSpan(col, span, bbox, captureRect, int(mGap * env.getScale())))
+                if (!getColSpan(col, span, bbox, captureRect, 2*int(mGap * env.getScale())))
                     continue;
                 bbox += captureRect.tl();
                 bbox &= captureRect;
@@ -130,7 +128,7 @@ double TilesDetector::match(ClassifyEnv &env) {
     int area = 0;
     for (auto &cr: mDetectedTiles)
         area += env.scaleToCaptured(cr.detectedRect.size()).area();
-    if (area < captureRect.area() * 0.8)
+    if (area < captureRect.area() * 0.5)
         return 0;
 
     for (int c = 0; c < mMaxCols; c++) {
@@ -192,10 +190,6 @@ double TilesDetector::match(ClassifyEnv &env) {
         }
     }
     return 1;
-}
-
-double TilesDetector::classify(ClassifyEnv &env) {
-    return match(env);
 }
 
 double TilesDetector::debugMatch(ClassifyEnv &env) {

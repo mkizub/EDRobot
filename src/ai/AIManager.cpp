@@ -147,15 +147,19 @@ bool AIManager::new_task(const TaskTemplate& templ) {
     upTask task;
     if (templ.name == ED_TASK_CALIBRATE)
         task.reset(new TaskCalibrate(nullptr, *this, templ));
-    if (templ.name == ED_TASK_DEBUG_FILE_ALL_COMMODITIES)
+    else if (templ.name == ED_TASK_DEBUG_FIND_ALL_COMMODITIES)
         task.reset(new TaskDebugFindAllCommodities(nullptr, *this, templ));
-    if (templ.name == ED_TASK_MARKET_SELL_ALL)
+    else if (templ.name == ED_TASK_DEBUG_FIND_ALL_NAV_POINTS)
+        task.reset(new TaskDebugFindAllNavPoints(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_DEBUG_FIX_OCR)
+        task.reset(new TaskDebugFixOCR(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_MARKET_SELL_ALL)
         task.reset(new TaskSellAll(nullptr, *this, templ));
-    if (templ.name == ED_TASK_MARKET_SELL)
+    else if (templ.name == ED_TASK_MARKET_SELL)
         task.reset(new TaskSell(nullptr, *this, templ));
-    if (templ.name == ED_TASK_DEPART)
+    else if (templ.name == ED_TASK_DEPART)
         task.reset(new TaskDepart(nullptr, *this, templ));
-    if (templ.name == ED_TASK_DOCK)
+    else if (templ.name == ED_TASK_DOCK)
         task.reset(new TaskDock(nullptr, *this, templ));
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
     return new_task(std::move(task));
@@ -188,7 +192,7 @@ void AIManager::loop() {
             if (auto ir = dynamic_cast<const interrupted_error*>(&ex)) {
                 //mark_interrupted();
             } else {
-                LOG(ERROR) << "Exception in ai loop: " << GET_EXCEPTION_STACK_TRACE;
+                LOG(ERROR) << "Exception in ai loop: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
                 //mark_miss();
             }
         }
@@ -296,7 +300,6 @@ const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::
     }
     if (!future.valid())
         return false;
-    //    throw nonlocal_return(Result::Trouble, nullptr, "detectEDState() timeout");
     bool ok = future.get();
     return ok && uiState.valid;
 }

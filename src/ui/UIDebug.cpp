@@ -198,6 +198,16 @@ void UIDebug::resizeWindow() {
 
 //    pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Blue), &pBrush);
 
+    MONITORINFOEX monitorInfo;
+    monitorInfo.cbSize = sizeof(monitorInfo);
+    HMONITOR hCurrMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTOPRIMARY);
+    GetMonitorInfo(hCurrMonitor, &monitorInfo);
+    if (hCurrMonitor != hMonitor) {
+        hMonitor = hCurrMonitor;
+        mMonitorFullRect = fromRECT(monitorInfo.rcMonitor);
+        mMonitorWorkRect = fromRECT(monitorInfo.rcWork);
+    }
+
     RECT windowRect;
     RECT clientRect;
     GetWindowRect(hWnd, &windowRect);

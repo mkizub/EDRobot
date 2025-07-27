@@ -21,11 +21,8 @@
 
 
 static cv::Vec3b color_from_json(const json::value& v);
-static void from_json(const json::value& j, cv::Rect& r);
-
-static void from_json(const json5pp::value& j, detect::Detector*& o);
-static void from_json(const json5pp::value& j, cv::Rect& r);
-static widget::Widget* from_json(const json5pp::value& j, widget::Widget* parent);
+static detect::Detector* detector_from_json(const json5pp::value& j, widget::Widget& widget);
+static widget::Widget* widget_from_json(const json5pp::value& j, widget::Widget* parent);
 
 Configuration::Configuration()
 {
@@ -83,7 +80,6 @@ bool Configuration::load() {
             {{"printscreen",0}, Command::Start},
             {{"scrolllock",0}, Command::Resume},
             {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
-            {{"printscreen",keyboard::CTRL|keyboard::WIN}, Command::DebugButtons},
             {{"c",keyboard::CTRL|keyboard::ALT}, Command::DebugCompass},
             {{"c",keyboard::CTRL|keyboard::ALT|keyboard::SHIFT}, Command::DebugCompass},
             {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect},
@@ -123,7 +119,6 @@ bool Configuration::load() {
             parseShortcutConfig(Command::Resume, "resume", obj);
             parseShortcutConfig(Command::Stop,  "stop",  obj);
             parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
-            parseShortcutConfig(Command::DebugButtons,    "debug-buttons",  obj);
             parseShortcutConfig(Command::DebugCompass,    "debug-compass",  obj);
             parseShortcutConfig(Command::DebugWindow,     "debug-window",  obj);
             parseShortcutConfig(Command::DevRectSelect,   "dev-rect-select",  obj);
@@ -187,7 +182,7 @@ bool Configuration::load() {
         std::ifstream ifs_config("screens.json5");
         auto j_screens = json5pp::parse5(ifs_config).as_array();
         for (json5pp::value& s: j_screens) {
-            screensRoot->addSubItem(from_json(s, screensRoot));
+            screensRoot->addSubItem(widget_from_json(s, screensRoot));
         }
     }
 
@@ -521,10 +516,10 @@ bool Configuration::loadInputBindings() {
         XMLNode * rootNode = nullptr;
         std::string preset;
         std::getline(ifs, preset);
-        if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
-        else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
-        else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
-        else if (preset == "Empty") filename = "Empty.binds";
+        if (preset == "KeyboardMouseOnlyYaw") filename = "ControlSchemes\\KeyboardMouseOnlyYaw.binds";
+        else if (preset == "KeyboardMouseOnly") filename = "ControlSchemes\\KeyboardMouseOnly.binds";
+        else if (preset == "ClassicKeyboardOnly") filename = "ControlSchemes\\ClassicKeyboardOnly.binds";
+        else if (preset == "Empty") filename = "ControlSchemes\\Empty.binds";
         else
             filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
         rootNode = xml_parse_file(filename.c_str());
@@ -550,10 +545,10 @@ bool Configuration::loadInputBindings() {
         }
 
         std::getline(ifs, preset);
-        if (preset == "KeyboardMouseOnlyYaw") filename = "KeyboardMouseOnlyYaw.binds";
-        else if (preset == "KeyboardMouseOnly") filename = "KeyboardMouseOnly.binds";
-        else if (preset == "ClassicKeyboardOnly") filename = "ClassicKeyboardOnly.binds";
-        else if (preset == "Empty") filename = "Empty.binds";
+        if (preset == "KeyboardMouseOnlyYaw") filename = "ControlSchemes\\KeyboardMouseOnlyYaw.binds";
+        else if (preset == "KeyboardMouseOnly") filename = "ControlSchemes\\KeyboardMouseOnly.binds";
+        else if (preset == "ClassicKeyboardOnly") filename = "ControlSchemes\\ClassicKeyboardOnly.binds";
+        else if (preset == "Empty") filename = "ControlSchemes\\Empty.binds";
         else
             filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
         rootNode = xml_parse_file(filename.c_str());
@@ -1047,6 +1042,8 @@ Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
     else
         c.name = c.nameId;
     c.wide = toUtf16(c.name);
+    FuzzyMatch fm;
+    c.wocr = fm.toOCR(c.wide);
     commodityMap[nameId] = &c;
     mCommodityDatabaseUpdated = true;
     if (changeDirListener)
@@ -1074,35 +1071,38 @@ Commodity* Configuration::getCommodityById(const std::string& id) {
     return nullptr;
 }
 
-Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy) {
+Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy_ocr) {
     if (name.empty())
         return nullptr;
     auto it = commodityMap.find(name);
     if (it != commodityMap.end())
         return it->second;
-    for (auto& c : allKnownCommodities) {
-        if (name == c.name)
-            return &c;
-    }
-    if (!fuzzy)
+    if (!fuzzy_ocr) {
+        for (auto &c: allKnownCommodities) {
+            if (name == c.name)
+                return &c;
+        }
         return nullptr;
+    }
     return getCommodityByName(toUtf16(name), true);
 }
-Commodity* Configuration::getCommodityByName(const std::wstring& name, bool fuzzy) {
+Commodity* Configuration::getCommodityByName(const std::wstring& name, bool fuzzy_ocr) {
     if (name.empty())
         return nullptr;
-    for (auto& c : allKnownCommodities) {
-        if (name == c.wide)
-            return &c;
-    }
-    if (!fuzzy)
+    if (!fuzzy_ocr) {
+        for (auto &c: allKnownCommodities) {
+            if (name == c.wide)
+                return &c;
+        }
         return nullptr;
+    }
 
+    FuzzyMatch matcher;
+    std::wstring wocr = matcher.toOCR(name);
     double bestScore = -1;
     int bestScoreIndex = -1;
-    FuzzyMatch matcher;
     for (int i=0; i < allKnownCommodities.size(); i++) {
-        double score = matcher.ratio(name, allKnownCommodities[i].wide);
+        double score = matcher.ratio(wocr, allKnownCommodities[i].wocr);
         if (score > bestScore) {
             bestScore = score;
             bestScoreIndex = i;
@@ -1140,7 +1140,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
             out.push_back(&c);
         else if (marketShowInCargo && c.ship.count > c.ship.stolen)
             out.push_back(&c);
-        else if ((marketCommodityFilter & c.category->intId) != 0)
+        else if ((marketCommodityFilter & (1 << c.category->intId)) != 0)
             out.push_back(&c);
         else if ((marketCommodityFilter == marketCommodityFilterShowNone) && !marketShowRareGoods && !marketShowInCargo)
             out.push_back(&c);
@@ -1178,7 +1178,7 @@ std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
             out.push_back(&c);
         else if (marketShowInCargo && c.ship.count > c.ship.stolen)
             out.push_back(&c);
-        else if ((marketCommodityFilter & c.category->intId) != 0)
+        else if ((marketCommodityFilter & (1 << c.category->intId)) != 0)
             out.push_back(&c);
         else if ((marketCommodityFilter == marketCommodityFilterShowNone) && !marketShowRareGoods && !marketShowInCargo)
             out.push_back(&c);
@@ -1367,32 +1367,33 @@ bool Configuration::loadCommodityDatabase() {
         LOG(ERROR) << "Error loading commodity-database.json5: " << error;
         return false;
     }
-    for (auto& jcc : j.value().as_object()) {
-        if (jcc.first.contains("-order-"))
+    for (auto& jcc_it : j.value().as_object()) {
+        if (jcc_it.first.contains("-order-"))
             continue;
         CommodityCategory cc_add;
-        cc_add.nameId = jcc.first;
-        auto& jv = jcc.second;
-        cc_add.translation[EN] = jv["en"].as_string();
-        cc_add.translation[RU] = jv["ru"].as_string();
+        cc_add.nameId = jcc_it.first;
+        auto& jcc = jcc_it.second;
+        cc_add.intId = jcc["id"].as_integer();
+        cc_add.translation[EN] = jcc["en"].as_string();
+        cc_add.translation[RU] = jcc["ru"].as_string();
         CommodityCategory& cc = getOrAddCommodityCategory(std::move(cc_add));
-        for (auto& jc : jv["items"].as_object()) {
-            auto& jv = jc.second;
+        for (auto& jc_it : jcc["items"].as_object()) {
+            auto& jc = jc_it.second;
             Commodity c_add{
-                    .intId = jv["id"].as_long(),
-                    .nameId = jc.first,
+                    .intId = jc["id"].as_long(),
+                    .nameId = jc_it.first,
                     .category = &cc,
-                    .translation = {jv["en"].as_string(), jv["ru"].as_string()}
+                    .translation = {jc["en"].as_string(), jc["ru"].as_string()}
             };
             getOrAddCommodity(std::move(c_add));
         }
     }
-    for (auto& jcc : j.value().as_object()) {
-        if (!jcc.first.contains("-order-"))
+    for (auto& jcc_it : j.value().as_object()) {
+        if (!jcc_it.first.contains("-order-"))
             continue;
-        Lang l = jcc.first.ends_with("-en") ? EN : RU;
+        Lang l = jcc_it.first.ends_with("-en") ? EN : RU;
         int64_t commodityOrder = 1;
-        for (auto& jn : jcc.second.as_array()) {
+        for (auto& jn : jcc_it.second.as_array()) {
             if (!jn.is_string())
                 continue;
             auto c = getCommodityByName(jn.as_string(), false);
@@ -1412,6 +1413,7 @@ bool Configuration::dumpCommodityDatabase() {
     for (auto& ccit : commodityCategoryMap) {
         auto& cc = *ccit.second;
         wf << "  '" << cc.nameId << "': {" << std::endl;
+        wf << "    en: " << cc.intId << "," << std::endl;
         wf << "    en: " << j(cc.translation[EN]) << "," << std::endl;
         wf << "    ru: " << j(cc.translation[RU]) << "," << std::endl;
         wf << "    items: {" << std::endl;
@@ -1452,12 +1454,14 @@ bool Configuration::dumpCommodityDatabase() {
 }
 
 const char* Configuration::makeTesseractWordsFile() {
+    FuzzyMatch fuzzyMatch;
     std::set<std::wstring> allWords;
     for (auto& c : allKnownCommodities) {
         std::wistringstream iss(c.wide);
         std::wstring word;
         while (iss >> word) {
-            allWords.insert(trimWithPunktuation(word));
+            std::wstring ocr = fuzzyMatch.toOCR(trimWithPunktuation(word));
+            allWords.insert(ocr);
         }
     }
     std::ofstream wf("tesseract-words.txt", std::ios::out | std::ios::trunc | std::ios::binary);
@@ -1494,7 +1498,8 @@ void Configuration::changeDirThreadLoop() {
 
     std::string journalLine;
     std::ifstream journalStream(mEDCurrentJournalFile, std::ifstream::in);
-    journalStream.seekg(0, std::ios::end);
+    // real all events from journal
+    readJournalChanges(journalStream, journalLine);
 
     for(;;) {
         DWORD rc = ::MsgWaitForMultipleObjectsEx(
@@ -1639,6 +1644,20 @@ static cv::Vec3b color_from_json(const json5pp::value& v) {
     return encodeBGR(bgr);
 }
 
+static cv::Point point_from_json(const json::value& v) {
+    cv::Point p;
+    p.x = v[0].as_integer();
+    p.y = v[1].as_integer();
+    return p;
+}
+
+static cv::Point point_from_json(const json5pp::value& v) {
+    cv::Point p;
+    p.x = v[0].as_integer();
+    p.y = v[1].as_integer();
+    return p;
+}
+
 static cv::Rect rect_from_json(const json::value& v) {
     cv::Rect rect;
     rect.x = v[0].as_integer();
@@ -1650,10 +1669,10 @@ static cv::Rect rect_from_json(const json::value& v) {
 
 static cv::Rect rect_from_json(const json5pp::value& v) {
     cv::Rect rect;
-    rect.x = v[0].as_integer();
-    rect.y = v[1].as_integer();
-    rect.width = v[2].as_integer();
-    rect.height = v[3].as_integer();
+    rect.x = v.at(0,0).as_integer();
+    rect.y = v.at(1,0).as_integer();
+    rect.width = v.at(2,0).as_integer();
+    rect.height = v.at(3,0).as_integer();
     return rect;
 }
 
@@ -1765,17 +1784,19 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
     }
 }
 
-static void from_json(const json5pp::value& j, Detector*& o) {
-    o = nullptr;
+static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
     if (j.is_null())
-        return;
+        return nullptr;
+    if (j.is_string()) {
+        std::string referred = j.as_string();
+        return new detect::ReferDetector(referred);
+    }
     if (j.is_object()) {
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
-            cv::Rect rect = rect_from_json(j["rect"]);
+            spEvalRect rect = makeEvalRect(widget, "rect", j);
 
             ImageTemplate* templ = new ImageTemplate(filename, rect);
-            o = templ;
 
             if (j.at("name").is_string()) {
                 templ->name = j.at("name").as_string();
@@ -1814,21 +1835,20 @@ static void from_json(const json5pp::value& j, Detector*& o) {
                     }
                 }
             }
+            return templ;
         }
         if (j.as_object().contains("line")) {
             Detector* anchor = nullptr;
 
             if (!j["anchor"].is_object() || !j["anchor"]["img"].is_string())
                 throw std::runtime_error("Anchor image template required for line detector");
-            from_json(j["anchor"], anchor);
+            anchor = detector_from_json(j["anchor"], widget);
 
-            cv::Point p0 {j["p0"][0].as_integer(), j["p0"][1].as_integer()};
-            cv::Point p1 {j["p1"][0].as_integer(), j["p1"][1].as_integer()};
+            spEvalPoint p0 = makeEvalPoint(widget, "p0", j);
+            spEvalPoint p1 = makeEvalPoint(widget, "p1", j);
 
             LineDetector* ldet = new LineDetector(dynamic_cast<ImageTemplate*>(anchor), p0, p1);
             ldet->name = j["line"].as_string();
-
-            o = ldet;
 
             if (j.at("scale")) {
                 double scaleX = 1;
@@ -1863,6 +1883,7 @@ static void from_json(const json5pp::value& j, Detector*& o) {
                     }
                 }
             }
+            return ldet;
         }
         else if (j.as_object().contains("tiles")) {
             cv::Rect tilesRect = rect_from_json(j["tiles"]);
@@ -1882,81 +1903,60 @@ static void from_json(const json5pp::value& j, Detector*& o) {
 
             TilesDetector* tiles = new TilesDetector(name, tilesRect, icons, iconsRect,
                                                      rows_min, rows_max, cols_min, cols_max, gap);
-            o = tiles;
 
             minmax_from_json(j["t"], tiles->threshold_min, tiles->threshold_max);
             if (j["hud"].is_boolean())
                 tiles->hudTryHard = j["hud"].as_boolean();
+            return tiles;
         }
         else if (j.as_object().contains("best")) {
             std::vector<std::unique_ptr<Detector>> oracles;
             for (auto& jo : j["best"].as_array()) {
-                Detector *oracle = nullptr;
-                from_json(jo, oracle);
-                if (!oracle) {
-                    oracles.clear();
-                    break;
-                }
-                oracles.emplace_back(oracle);
+                Detector *oracle = detector_from_json(jo, widget);
+                if (oracle)
+                    oracles.emplace_back(oracle);
             }
-            o = new BestOf(std::move(oracles));
+            return new BestOf(std::move(oracles));
         }
-        return;
+        return nullptr;
     }
     if (j.is_array()) {
         std::vector<std::unique_ptr<Detector>> oracles;
         for (auto& jo : j.as_array()) {
-            Detector *oracle = nullptr;
-            from_json(jo, oracle);
-            if (!oracle) {
-                oracles.clear();
-                break;
-            }
-            oracles.emplace_back(oracle);
+            Detector *oracle = detector_from_json(jo, widget);
+            if (oracle)
+                oracles.emplace_back(oracle);
         }
-        if (!oracles.empty())
-            o = new Sequence(std::move(oracles));
-        return;
+        return new Sequence(std::move(oracles));
+    }
+    return nullptr;
+}
+
+static void from_json(const json5pp::value& j, std::map<std::string,std::vector<BaseDialog::Vars>>& varSetMap) {
+    for (auto& varSet_it : j.as_object()) {
+        std::string varSetName = varSet_it.first;
+        for (auto& vars_it : varSet_it.second.as_array()) {
+            BaseDialog::Vars& vars = varSetMap[varSetName].emplace_back();
+            if (vars_it.at("ship").is_string())
+                vars.ships.push_back(vars_it.at("ship").as_string());
+            else if (vars_it.at("ship").is_array()) {
+                for (auto& js : vars_it.at("ship").as_array())
+                    vars.ships.push_back(js.as_string());
+            }
+            for (auto& jv_it : vars_it.as_object()) {
+                if (jv_it.first == "ship")
+                    continue;
+                vars.values[jv_it.first] = rect_from_json(jv_it.second);
+            }
+        }
     }
 }
 
-static void from_json(const json::value& j, cv::Rect& r) {
-    if (j.is_null()) {
-        LOG(WARNING) << "No rect provided";
-        return;
-    }
-    if (!j.is_array() || j.as_array().size() != 4) {
-        LOG(ERROR) << "rect must be an array of [x,y,width,height] int numbers";
-        return;
-    }
-    auto arr = j.as_array();
-    r.x = arr[0].as_integer();
-    r.y = arr[1].as_integer();
-    r.width = arr[2].as_integer();
-    r.height = arr[3].as_integer();
-}
-
-static void from_json(const json5pp::value& j, cv::Rect& r) {
-    if (j.is_null()) {
-        LOG(WARNING) << "No rect provided";
-        return;
-    }
-    if (!j.is_array() || j.as_array().size() != 4) {
-        LOG(ERROR) << "rect must be an array of [x,y,width,height] int numbers";
-        return;
-    }
-    auto arr = j.as_array();
-    r.x = arr[0].as_integer();
-    r.y = arr[1].as_integer();
-    r.width = arr[2].as_integer();
-    r.height = arr[3].as_integer();
-}
-
-static Widget* from_json(const json5pp::value& j, Widget* parent) {
+static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     if (j.is_null()) {
         return nullptr;
     }
-    Widget* child = nullptr;
+    Widget* widget = nullptr;
     auto& jo = j.as_object();
     auto name = jo.at("name").as_string();
     if (name.starts_with("scr-")) {
@@ -1966,14 +1966,18 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
             status = json::parse5(s).value();
         }
         auto scr = new Screen(name, parent, status);
+        if (jo.contains("vars")) {
+            from_json(jo.at("vars"), scr->varSetMap);
+        }
         if (jo.contains("transform")) {
             // transform: { tl: [212,256], tr: [1276,242], br: [1296,800], bl: [270,912] }
-            // transform: { from: "lpline", tl: [0,-50], tr: [0,-50], ratio: 1.77777777 }
+            // transform: { line: "lpline", tl: [0,-50], tr: [0,-50], ratio: 1.77777777 }
             auto& jt = jo.at("transform");
-            cv::Point2f tl{(float) jt["tl"][0].as_number(), (float) jt["tl"][1].as_number()};
-            cv::Point2f tr{(float) jt["tr"][0].as_number(), (float) jt["tr"][1].as_number()};
-            cv::Point2f br{(float) jt["br"][0].as_number(), (float) jt["br"][1].as_number()};
-            cv::Point2f bl{(float) jt["bl"][0].as_number(), (float) jt["bl"][1].as_number()};
+            spEvalPoint tl = makeEvalPoint(*scr, "tl", jt);
+            spEvalPoint tr = makeEvalPoint(*scr, "tr", jt);
+            spEvalPoint br = makeEvalPoint(*scr, "br", jt);
+            spEvalPoint bl = makeEvalPoint(*scr, "bl", jt);
+            cv::Size sz = point_from_json(jt["size"]);
             if (jt["line"]) {
                 std::vector<std::string> lines;
                 if (jt["line"].is_array()) {
@@ -1982,33 +1986,33 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
                 } else {
                     lines.push_back(jt["line"].as_string());
                 }
-                scr->transform = spEvalTransform(new LineTransform(lines, tl, tr, br, bl));
+                scr->transform = spEvalTransform(new LineTransform(lines, tl, tr, br, bl, sz));
             }
             else {
-                scr->transform = spEvalTransform(new ConstTransform(tl, tr, br, bl));
+                scr->transform = spEvalTransform(new ConstTransform(tl, tr, br, bl, sz));
             }
         }
-        child = scr;
+        widget = scr;
     }
     else if (name.starts_with("dlg-")) {
         auto dlg = new Dialog(name, parent);
-        child = dlg;
+        widget = dlg;
     }
     else if (name.starts_with("mod-")) {
         auto mode = new Mode(name, parent);
-        child = mode;
+        widget = mode;
     }
     else if (name.starts_with("btn-")) {
         auto btn = new Button(name, parent);
-        child = btn;
-        child->setRect(jo.at("rect"));
+        widget = btn;
+        widget->setRect("rect", j);
         if (jo.contains("ext"))
             ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
     }
     else if (name.starts_with("spn-")) {
         auto btn = new Spinner(name, parent);
-        child = btn;
-        child->setRect(jo.at("rect"));
+        widget = btn;
+        widget->setRect("rect", j);
         if (jo.contains("ext"))
             ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
     }
@@ -2023,27 +2027,40 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
         if (jo.contains("col"))
             col = jo.at("col").as_integer();
         auto btn = new TileBtn(name, parent, icon, row, col);
-        child = btn;
+        widget = btn;
     }
     else if (name.starts_with("lbl-")) {
         auto lbl = new Label(name, parent);
-        child = lbl;
-        child->setRect(jo.at("rect"));
-        if (jo.contains("row") && jo.at("row").is_integer())
-            lbl->row_height = jo.at("row").as_integer();
-        if (jo.contains("invert") && jo.at("invert").is_boolean())
-            lbl->invert = jo.at("invert").as_boolean();
+        widget = lbl;
+        widget->setRect("rect", j);
+        if (jo.contains("ocr_top") && jo.contains("ocr_bot")) {
+            lbl->ocr_top = jo.at("ocr_top").as_integer();
+            lbl->ocr_bot = jo.at("ocr_bot").as_integer();
+        }
     }
     else if (name.starts_with("lst-")) {
         auto lst = new List(name, parent);
-        child = lst;
-        child->setRect(jo.at("rect"));
-        if (jo.at("row").is_integer())
-            lst->row_height = jo.at("row").as_integer();
-        if (jo.at("gap").is_integer())
-            lst->row_gap = jo.at("gap").as_integer();
-        if (jo.at("ocr").is_boolean())
-            lst->ocr = jo.at("ocr").as_boolean();
+        widget = lst;
+        widget->setRect("rect", j);
+        if (jo.contains("row_height") && jo.contains("row_gap")) {
+            lst->row_height = (float) jo.at("row_height").as_number();
+            lst->row_gap = (float) jo.at("row_gap").as_number();
+        }
+        if (jo.contains("tabs")) {
+            auto& jtabs = jo.at("tabs").as_array();
+            for (auto& jt : jtabs) {
+                List::Tab tab;
+                if (jt.at("name"))
+                    tab.name = jt.at("name").as_string();
+                tab.tab_left = jt.at("left").as_integer();
+                tab.tab_right = jt.at("right").as_integer();
+                if (jt.at("ocr_top") && jt.at("ocr_bot")) {
+                    tab.ocr_top = jt.at("ocr_top").as_integer();
+                    tab.ocr_bot = jt.at("ocr_bot").as_integer();
+                }
+                lst->tabs.push_back(tab);
+            }
+        }
     }
     else {
         LOG(ERROR) << "Unknown widget type: " << name;
@@ -2051,13 +2068,12 @@ static Widget* from_json(const json5pp::value& j, Widget* parent) {
     }
     if (jo.contains("have") && jo.at("have").is_array()) {
         for (auto &h: jo.at("have").as_array()) {
-            child->addSubItem(from_json(h, child));
+            widget->addSubItem(widget_from_json(h, widget));
         }
     }
     if (jo.contains("detect")) {
-        Detector* oracle = nullptr;
-        from_json(jo.at("detect"), oracle);
-        child->oracle.reset(oracle);
+        Detector* oracle = detector_from_json(jo.at("detect"), *widget);
+        widget->oracle.reset(oracle);
     }
-    return child;
+    return widget;
 }

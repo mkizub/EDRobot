@@ -32,6 +32,8 @@ extern std::string toLower(const std::string& str);
 extern std::string toUpper(const std::string& str);
 extern bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2);
 inline bool isLatinLetter(char ch) { return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z'; }
+std::vector<std::string> split(const std::string &s, char delim);
+bool contains(const std::vector<std::string>& strings, const std::string& str);
 
 extern cv::Vec3b encodeBGR(unsigned bgr);
 extern unsigned decodeBGR(const cv::Vec3b& bgr);

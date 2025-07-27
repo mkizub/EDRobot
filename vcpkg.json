@@ -7,7 +7,7 @@
     "version>=" : "1.0.0"
   }, {
     "name" : "opencv4",
-    "features" : [ "win32ui", "highgui", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "world" ],
+    "features" : [ "win32ui", "highgui", "dnn", "contrib", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "world" ],
     "default-features" : false
   }, {
     "name" : "gettext",
@@ -20,5 +20,11 @@
   }, {
     "name" : "winlamb",
     "version>=" : "2020-10-15"
+  }, {
+    "name" : "curl",
+    "version>=" : "8.14.1"
+  }, {
+    "name" : "curlcpp",
+    "version>=" : "3.1#1"
   } ]
 }

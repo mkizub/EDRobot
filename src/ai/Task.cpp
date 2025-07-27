@@ -11,37 +11,65 @@
 #include "../EDWidget.h"
 #include <synchapi.h>
 
+#ifndef NDEBUG
+#include <cpptrace/cpptrace.hpp>
+#include "cpptrace/from_current.hpp"
+#endif
+
+#ifdef CPPTRACE_TRY
+# define TRY CPPTRACE_TRY
+# define CATCH(param) CPPTRACE_CATCH(param)
+# define GET_STACK_TRACE std::stacktrace::current().to_string()
+# define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
+#else
+# define TRY try
+# define CATCH(param) catch(param)
+# ifdef _GLIBCXX_HAVE_STACKTRACE
+#  include <stacktrace>
+#  define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
+# else
+#  define GET_EXCEPTION_STACK_TRACE "(stack trace unavailable)"
+# endif
+#endif
+
 namespace ai {
 
-Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ)
+Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
     : parent(parent)
     , mgr(mgr)
-    , templ(templ)
+    , templ(templ_)
     , taskName(templ.name)
     , maxMisses(templ.maxMisses)
 {
 }
 
 Result Task::safe_run() {
-    try {
+    TRY {
         this->result = this->run();
         if (this->result == Result::Trouble)
             this->missCount += 1;
-        return this->result;
-    } catch (const nonlocal_return& ex) {
-        if (ex.task) {
-            ex.task->result = ex.result;
-            if (ex.task->result == Result::Trouble)
-                ex.task->missCount += 1;
+    } CATCH (const std::exception& ex) {
+        if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
+            if (nlr->task) {
+                nlr->task->result = nlr->result;
+                if (nlr->task->result == Result::Trouble)
+                    nlr->task->missCount += 1;
+            }
+            else if (nlr->result == Result::Trouble) {
+                this->missCount += 1;
+            }
+            return nlr->result;
         }
-        else if (ex.task->result == Result::Trouble) {
-            this->missCount += 1;
+        else if (dynamic_cast<const interrupted_error*>(&ex)) {
+            throw;
         }
-        return ex.task->result;
-    } catch (const std::exception& ex) {
-        this->result = Result::Failure;
-        return Result::Failure;
+        else {
+            LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+            this->result = Result::Failure;
+            return Result::Failure;
+        }
     }
+    return this->result;
 }
 
 Result Task::run_sub_task(upTask& pTask) {
@@ -93,6 +121,9 @@ bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms) const {
     try {
         if (!mgr.master.setGameForeground())
             return false;
+        LOG(INFO) << "sendKey('" << name << "',"
+                  << (delay_ms > 0 ? delay_ms : mgr.cfg.getDefaultKeyHoldTime()) << ","
+                  << (pause_ms > 0 ? pause_ms : mgr.cfg.getDefaultKeyAfterTime()) << ")";
         const KeyBindings& keyBindings = mgr.cfg.getGameKeyBindings(name);
         const GameKey* gk = nullptr;
         if (keyBindings.primary.device != GameKey::Void)

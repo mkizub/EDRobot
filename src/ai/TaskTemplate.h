@@ -124,7 +124,9 @@ extern const std::string ED_TASK_DOCK;              // ask permission to land, t
 extern const std::string ED_TASK_STEP;              // some trivial step, like button press or wait for UI update
 
 extern const std::string ED_TASK_CALIBRATE;         // calibrate colors
-extern const std::string ED_TASK_DEBUG_FILE_ALL_COMMODITIES;
+extern const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES;
+extern const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS;
+extern const std::string ED_TASK_DEBUG_FIX_OCR;
 
 class UIModePage {
     const std::string name;

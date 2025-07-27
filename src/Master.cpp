@@ -12,22 +12,19 @@
 #include "Capturer.h"
 #include "FuzzyMatch.h"
 #include "EDWidget.h"
+#include "OCR.h"
 #include <fstream>
 #include <memory>
 #include <string>
 #include <iterator>
+#include <ranges>
 #include "opencv2/core/utils/logger.hpp"
 #include <CLI11/CLI11.hpp>
 #include <magic_enum/magic_enum.hpp>
 
-#include <tesseract/baseapi.h>
-#include <leptonica/allheaders.h>
-
 #ifndef NDEBUG
-//#include <cpptrace/cpptrace.hpp>
+#include <cpptrace/cpptrace.hpp>
 #include "cpptrace/from_current.hpp"
-#include "Master.h"
-
 #endif
 
 #ifdef CPPTRACE_TRY
@@ -315,7 +312,7 @@ int Master::initialize(int argc, char* argv[]) {
     TRY {
         initializeInternal(ocr_dir);
     } CATCH(const std::exception& e) {
-        LOG(ERROR) << "Exception in initialization: " << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in initialization: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
         return 1;
     }
 
@@ -337,24 +334,7 @@ void Master::initializeInternal(std::string ocr_dir) {
         ocr_dir = mConfiguration->mTesseractDataPath;
     if (ocr_dir.empty())
         ocr_dir = "tessdata-fast";
-
-    {
-        LOG(INFO) << "Initializing Tesseract OCR for commodities";
-        const char* tesseractLang = "eng";
-        if (mConfiguration->lng == RU)
-            tesseractLang = "edo";
-        mTesseractApiForMarket = std::make_unique<tesseract::TessBaseAPI>();
-        const std::vector<std::string> vars_vec{"user_words_file"};
-        const std::vector<std::string> vars_values{mConfiguration->makeTesseractWordsFile()};
-        // "eng" for English language
-        if (mTesseractApiForMarket->Init(ocr_dir.c_str(), tesseractLang, tesseract::OEM_LSTM_ONLY,
-                                         nullptr, 0, &vars_vec, &vars_values, true)) {
-            LOG(ERROR) << "Error: Could not initialize tesseract.";
-            mTesseractApiForMarket.reset();
-        } else {
-            mTesseractApiForMarket->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
-        }
-    }
+    ocr::init(ocr_dir, mConfiguration->lng);
 
     LOG(INFO) << "Initializing compass detector";
     mCompassDetector = std::make_unique<detect::CompassDetector>();
@@ -380,10 +360,7 @@ Master::~Master() {
         mCapturer->stop();
         mCapturer = nullptr;
     }
-    if (mTesseractApiForMarket) {
-        mTesseractApiForMarket->End();
-        mTesseractApiForMarket.reset();
-    }
+    ocr::shutdown();
 }
 
 
@@ -402,7 +379,7 @@ void Master::loop() {
                 //clearCurrentTask();
                 break;
             case Command::Start:
-                startTrade();
+                UIManager::showMainDialog();
                 break;
             case Command::Pause:
                 stopAITask();
@@ -418,9 +395,6 @@ void Master::loop() {
                 break;
             case Command::DebugTemplates:
                 debugTemplates(nullptr, nullptr);
-                break;
-            case Command::DebugButtons:
-                debugButtons();
                 break;
             case Command::DebugFindAllCommodities:
                 debugFindAllCommodities();
@@ -451,7 +425,7 @@ void Master::loop() {
         }
     }
     CATCH(const std::exception& e) {
-        LOG(ERROR) << "Exception in main loop: " << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in main loop: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
         //clearCurrentTask();
     }
 }
@@ -581,8 +555,8 @@ bool Master::startCalibration() {
 }
 
 
-const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
-    Widget* widget = getCfgItem(lbl_name);
+const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lbl_name) {
+    Widget* widget = getInstance().getCfgItem(lbl_name);
     if (!widget) {
         LOG(ERROR) << "Widget '" << lbl_name << "' not found";
         return nullptr;
@@ -593,7 +567,7 @@ const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
     }
     Label* lbl = (Label*)widget;
     ClassifiedRect* cr = nullptr;
-    for (auto& it : mClassifyEnv.classified) {
+    for (auto& it : rEnv.classified) {
         if (it.cdt == ClsDetType::Widget && it.u.widg.widget == widget) {
             cr = &it;
             break;
@@ -604,31 +578,14 @@ const Commodity* Master::getLabelCommodity(const std::string& lbl_name) {
         return nullptr;
     }
 
-    cv::Rect rect = mClassifyEnv.cvtReferenceToCaptured(cr->detectedRect);
+    cv::Rect rect = rEnv.cvtReferenceToCaptured(cr->detectedRect);
 
     std::string text;
-    int ocr_conf = 0;
-    if (!lbl->row_height.has_value() || lbl->row_height.value() <= 0) {
-        ocr_conf = ocrMarketText(mClassifyEnv.getGrayImage(), rect, text, lbl->invert);
-    } else {
-        int row_height = mClassifyEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
-        int lines = (int)std::round(double(rect.height) / double(row_height));
-        row_height = (int)std::round(rect.height / lines);
-        int ocr_conf_sum = 0;
-        for (int l=0; l < lines; l++) {
-            cv::Rect r (rect.x, rect.y+l*row_height, rect.width, row_height);
-            std::string line;
-            ocr_conf_sum += ocrMarketText(mClassifyEnv.getGrayImage(), r, line, lbl->invert);
-            if (l > 0)
-                text += " ";
-            text += line;
-        }
-        ocr_conf = ocr_conf_sum / lines;
-    }
+    int ocr_conf = ocr::ocrMarketLblText(grayImage, rEnv, *cr, text);
     const Commodity* commodity = nullptr;
     if (ocr_conf > 30) {
         LOG(DEBUG) << "Label text OCR: '" << text << "' conf=" << ocr_conf << "%";
-        commodity = mConfiguration->getCommodityByName(text, true);
+        commodity = getInstance().getConfiguration()->getCommodityByName(text, true);
     }
     LOG_IF(!commodity,ERROR) << "Commodity '" << text << "' not found";
     return commodity;
@@ -653,8 +610,9 @@ const Commodity* Master::ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat&
         return cr->u.lrow.commodity;
     Configuration* cfg = Master::getInstance().mConfiguration;
     if (cr->text.empty()) {
-        cv::Rect rect = rEnv.cvtReferenceToCaptured(cr->detectedRect);
-        if (ocrMarketText(grayImage, rect, cr->text) > 50) {
+        int conf = ocr::ocrRowText(grayImage, rEnv, *cr, 1, cr->text);
+        cr->u.lrow.text_confidence = conf;
+        if (conf > 50) {
             cr->u.lrow.commodity = cfg->getCommodityByName(cr->text, true);
         } else {
             cr->text.clear();
@@ -758,9 +716,9 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
                 verify->emplace_back(nullptr, 0, 0);
                 continue;
             }
-            cv::Rect rect = rEnv.cvtReferenceToCaptured(lr->detectedRect);
             std::string text;
-            int ocr_conf = ocrMarketText(grayImage, rect, text);
+            int ocr_conf = ocr::ocrRowText(grayImage, rEnv, *lr, 1, text);
+            lr->u.lrow.text_confidence = ocr_conf;
             int fuzzy_conf = 0;
             if (ocr_conf > 30) {
                 std::string match;
@@ -768,7 +726,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
                     match = "EXACT";
                     fuzzy_conf = 100;
                 } else {
-                    fuzzy_conf = (int)matcher.ratio(toUtf16(text), lr->u.lrow.commodity->wide);
+                    fuzzy_conf = (int)matcher.ratio(toUtf16(text), lr->u.lrow.commodity->wocr);
                     match = std::to_string(fuzzy_conf) + "%";
                 }
                 LOG(INFO) << "OCR for row # " << std::to_string(idx) << " found: '" << text
@@ -781,32 +739,32 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
     return true;
 }
 
-bool Master::startTrade() {
-    int total = 0;
-    int chunk = mSellChunk;
-    Commodity* commodity = nullptr;
-    bool res = UIManager::askSellInput(total, chunk, commodity);
-    if (!res || total <= 0 || chunk <= 0)
-        return false;
-    mSellChunk = chunk;
-
-    if (!preInitTask())
-        return false;
-
-    LOG(INFO) << "Staring new trade task";
-    if (commodity) {
-        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL);
-        templ.set("commodity", commodity->nameId);
-        templ.set("amount", total);
-        templ.set("chunk", chunk);
-        mAIManager->new_task(templ);
-    } else {
-        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL_ALL);
-        templ.set("chunk", chunk);
-        mAIManager->new_task(templ);
-    }
-    return true;
-}
+//bool Master::startTrade() {
+//    int total = 0;
+//    int chunk = mSellChunk;
+//    Commodity* commodity = nullptr;
+//    bool res = UIManager::askSellInput(total, chunk, commodity);
+//    if (!res || total <= 0 || chunk <= 0)
+//        return false;
+//    mSellChunk = chunk;
+//
+//    if (!preInitTask())
+//        return false;
+//
+//    LOG(INFO) << "Staring new trade task";
+//    if (commodity) {
+//        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL);
+//        templ.set("commodity", commodity->nameId);
+//        templ.set("amount", total);
+//        templ.set("chunk", chunk);
+//        mAIManager->new_task(templ);
+//    } else {
+//        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL_ALL);
+//        templ.set("chunk", chunk);
+//        mAIManager->new_task(templ);
+//    }
+//    return true;
+//}
 
 bool Master::pauseAITask() {
     mAIManager->interrupt();
@@ -827,7 +785,7 @@ bool Master::debugFindAllCommodities() {
     if (!preInitTask())
         return false;
     LOG(INFO) << "Staring new debug task";
-    auto& templ = mAIManager->getTaskTemplate(ai::ED_TASK_DEBUG_FILE_ALL_COMMODITIES);
+    auto& templ = mAIManager->getTaskTemplate(ai::ED_TASK_DEBUG_FIND_ALL_COMMODITIES);
     return mAIManager->new_task(templ);
 }
 
@@ -922,7 +880,7 @@ Widget* Master::matchWithSubItems(Widget* item) {
 bool Master::matchItem(Widget* item) {
     if (!item || !item->oracle)
         return false;
-    return item->oracle->classify(mClassifyEnv);
+    return item->oracle->match(mClassifyEnv) >= 0.5;
 }
 
 bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
@@ -931,13 +889,13 @@ bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
     if (!item->oracle) {
         for (Widget* m : item->have) {
             if (m->tp == WidgetType::Mode && m->oracle) {
-                if (m->oracle->debugMatch(env) >= 0.8)
+                if (m->oracle->debugMatch(env) >= 0.5)
                     return true;
             }
         }
         return false;
     }
-    return item->oracle->debugMatch(env) >= 0.8;
+    return item->oracle->debugMatch(env) >= 0.5;
 }
 
 widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
@@ -985,18 +943,18 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
         if (debugMatchItem(item, *env)) {
             Widget* foundWidget = nullptr;
             if (item->tp == WidgetType::Screen) {
-                bool savedWarpMode = mClassifyEnv.isWarpMode();
+                bool savedWarpMode = env->isWarpMode();
                 widget::Screen *screen = static_cast<widget::Screen *>(item);
                 if (screen->transform) {
-                    mClassifyEnv.warpPerspective(screen->transform);
-                    mClassifyEnv.setWarpMode(screen->transform->valid);
+                    env->warpPerspective(screen->transform);
+                    env->setWarpMode(screen->transform->valid);
                 }
                 for (Widget* i : item->have) {
                     Widget* res = debugTemplates(i, env);
                     if (res && !foundWidget)
                         foundWidget = res;
                 }
-                mClassifyEnv.setWarpMode(savedWarpMode);
+                env->setWarpMode(savedWarpMode);
                 return item;
             } else {
                 for (Widget *i: item->have) {
@@ -1009,141 +967,6 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
         }
         return nullptr;
     }
-}
-
-static const int USE_EROSION = 0;
-
-void Master::drawButton(widget::Widget* item) {
-    if (!(item->tp == WidgetType::Button || item->tp == WidgetType::TileBtn ||
-          item->tp == WidgetType::Spinner || item->tp == WidgetType::Label ||
-          item->tp == WidgetType::List))
-        return;
-    cv::Rect rect = mClassifyEnv.calcCapturedRect(item->rect);
-    if (rect.empty())
-        return;
-    cv::Mat& debugImage = mClassifyEnv.getDebugImage();
-    cv::Scalar color(200, 80, 80);
-    int size = (item == mLastUIState.focused) ? 2 : 1;
-    cv::rectangle(debugImage, rect.tl(), rect.br(), color, size);
-    if (item->tp == WidgetType::Button || item->tp == WidgetType::TileBtn)
-        return;
-    if (item->tp == WidgetType::Spinner) {
-        cv::Point p1 = rect.tl();
-        p1.x += rect.height;
-        cv::Point p2 = p1;
-        p2.y += rect.height;
-        cv::line(debugImage, p1, p2, color, size);
-        p1.x = rect.br().x - rect.height;
-        p2.x = p1.x;
-        cv::line(debugImage, p1, p2, color, size);
-        return;
-    }
-    if (item->tp == WidgetType::Label) {
-        Label* lbl = (Label*)item;
-        std::string text;
-        int ocr_conf = 0;
-        if (!lbl->row_height.has_value() || lbl->row_height.value() <= 0) {
-            ocr_conf = ocrMarketText(mClassifyEnv.getGrayImage(), rect, text, lbl->invert);
-        } else {
-            int row_height = mClassifyEnv.scaleToCaptured(cv::Size(0,lbl->row_height.value())).height;
-            int lines = (int)std::round(double(rect.height) / double(row_height));
-            row_height = (int)std::round(rect.height / lines);
-            int ocr_conf_sum = 0;
-            for (int l=0; l < lines; l++) {
-                cv::Rect r (rect.x, rect.y+l*row_height, rect.width, row_height);
-                std::string line;
-                ocr_conf_sum += ocrMarketText(mClassifyEnv.getGrayImage(), r, line, lbl->invert);
-                if (l > 0)
-                    text += " ";
-                text += line;
-                cv::line(debugImage, cv::Point(r.x, r.y+r.height), r.br(), color, size);
-            }
-            ocr_conf = ocr_conf_sum / lines;
-        }
-        //std::wstring wide = toUtf16(text);
-        //if (ocr_conf > 30) {
-            LOG(ERROR) << "Label text OCR: '" << text << "' conf=" << ocr_conf << "%";
-            auto commodity = mConfiguration->getCommodityByName(text, true);
-            LOG(ERROR) << "Label commodity: " << (commodity ? commodity->name : "(not found)");
-        //} else {
-        //    LOG(ERROR) << "Label text not recognized, ocr: '" << text << "' conf=" << ocr_conf << "%";
-        //}
-        return;
-    }
-    if (item->tp == WidgetType::List) {
-        List* lst = static_cast<List*>(item);
-        ////////////////////////////////////////////////
-        unsigned buttonGrayColor = mConfiguration->getLstRowGrayColor(WState::Normal);
-        cv::Mat listImage(mClassifyEnv.getGrayImage(), rect);
-
-        //cv::imshow("List image: " + mLastEDState.path(), listImage);
-
-        cv::Mat thrImage;
-        cv::Mat erodedImage;
-        cv::threshold(listImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
-        //cv::imshow("Threshold image: " + mLastEDState.path(), thrImage);
-        if (USE_EROSION > 0) {
-            cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-            cv::erode(thrImage, erodedImage, kernel, cv::Point(-1, -1), USE_EROSION, cv::BORDER_CONSTANT, cv::Scalar::all(0));
-            //cv::imshow("Eroded image: " + mLastEDState.path(), erodedImage);
-        } else {
-            erodedImage = thrImage;
-        }
-
-        auto expected_row_height = mClassifyEnv.scaleToCaptured(cv::Size(0, lst->row_height)).height;
-        double minArea =  rect.width * expected_row_height * 0.75;
-
-        std::vector<cv::Rect> detectedRows;
-        std::vector<std::vector<cv::Point>> contours;
-        cv::findContoursLinkRuns(erodedImage, contours);
-        for (const auto &contour: contours) {
-            std::vector<cv::Point> convex;
-            cv::convexHull(contour, convex);
-            if (convex.size() >= 4) {
-                std::vector<cv::Point> approx;
-                cv::approxPolyN(convex, approx, 4, 5, true);
-                if (cv::contourArea(approx) > minArea) {
-                    cv::Rect bbox = cv::boundingRect(approx);
-                    if (bbox.height < expected_row_height * 1.5) {
-                        detectedRows.push_back(bbox);
-                        cv::rectangle(debugImage, bbox + rect.tl(), cv::Scalar(0, 255, 0), 1);
-                    } else {
-                        int count = (int)std::floor(0.1 + double(bbox.height) / double(expected_row_height));
-                        int split_height = bbox.height / count;
-                        for (int i=0; i < count; i++) {
-                            cv::Rect bb(bbox.x, bbox.y+(i*split_height), bbox.width, split_height-2);
-                            detectedRows.push_back(bb);
-                            cv::rectangle(debugImage, bb + rect.tl(), cv::Scalar(0, 255, 0), 1);
-                        }
-                    }
-                }
-            }
-        }
-
-        //cv::imshow("Contour image: " + mLastEDState.path(), debugImage);
-
-        //cv::waitKey();
-        //cv::destroyAllWindows();
-    }
-}
-
-bool Master::debugButtons() {
-    detectEDState(DetectLevel::ListRows);
-    const widget::Widget* widget = mLastUIState.widget;
-    if (widget) {
-        for (Widget* item : widget->have)
-            drawButton(item);
-        if (widget->tp == WidgetType::Mode) {
-            for (Widget *item: widget->parent->have)
-                drawButton(item);
-        }
-    }
-    mDuplicateToDebugWindow = UIManager::showDebugWindow();
-    if (mDuplicateToDebugWindow) {
-        if (!UIManager::postToDebugWindow(mClassifyEnv.getColorImage(), mClassifyEnv.getDebugImage()))
-            mDuplicateToDebugWindow = false;
-    }
-    return true;
 }
 
 bool Master::debugCompass() {
@@ -1220,28 +1043,42 @@ bool Master::debugWindowUpdate(bool idle) {
             }
         }
         if (cr.cdt == ClsDetType::LineDetected) {
+            cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
+            cv::rectangle(debugImage, r, {255, 255, 96}, 2);
             cv::Point p0 = cEnv.cvtReferenceToCaptured(cr.u.ldet.referenceP0);
             cv::Point p1 = cEnv.cvtReferenceToCaptured(cr.u.ldet.referenceP1);
             cv::line(debugImage, p0, p1, {255, 255, 96}, 2, cv::LINE_AA);
         }
-        if (cr.cdt == ClsDetType::Widget && cr.u.widg.ws == WState::Focused) {
+        if (cr.cdt == ClsDetType::Widget) {
+            cv::Scalar color = {255, 96, 96};
+            int thickness = 1;
+            if (cr.u.widg.ws == WState::Focused) {
+                color = {255, 255, 96};
+                thickness = 2;
+            }
             if (cr.warped) {
                 auto points = cEnv.unWarp(cr.detectedRect);
                 for (int j = 0; j < 4; j++)
-                    cv::line(debugImage, points[j], points[(j+1) % 4], {255, 255, 96}, 2, cv::LINE_AA);
+                    cv::line(debugImage, points[j], points[(j+1) % 4], color, thickness, cv::LINE_AA);
             } else {
                 cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-                cv::rectangle(debugImage, r, {255, 255, 96}, 2);
+                cv::rectangle(debugImage, r, color, thickness);
             }
         }
-        if (cr.cdt == ClsDetType::ListRow && cr.u.lrow.ws == WState::Focused) {
+        if (cr.cdt == ClsDetType::ListRow) {
+            cv::Scalar color = {255, 96, 96};
+            int thickness = 1;
+            if (cr.u.lrow.ws == WState::Focused) {
+                color = {255, 255, 96};
+                thickness = 2;
+            }
             if (cr.warped) {
                 auto points = cEnv.unWarp(cr.detectedRect);
                 for (int j = 0; j < 4; j++)
-                    cv::line(debugImage, points[j], points[(j+1) % 4], {255, 255, 96}, 2, cv::LINE_AA);
+                    cv::line(debugImage, points[j], points[(j+1) % 4], color, thickness, cv::LINE_AA);
             } else {
                 cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-                cv::rectangle(debugImage, r, {255, 255, 96}, 2);
+                cv::rectangle(debugImage, r, color, thickness);
             }
         }
     }
@@ -1322,54 +1159,66 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     return true;
 }
 
-int Master::ocrMarketText(const cv::Mat& grayImage, cv::Rect rect, std::string& text, std::optional<bool> invert) {
-    text.clear();
-    tesseract::TessBaseAPI* tesseractApi = Master::getInstance().mTesseractApiForMarket.get();
-    if (!tesseractApi)
-        return 0;
-    cv::Mat rowImage(grayImage, rect);
-    int outConf = 0;
-    if (!invert.has_value() || !invert.value()) {
-        tesseractApi->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
-        char *outText = tesseractApi->GetUTF8Text();
-        text = trim(outText);
-        outConf = tesseractApi->MeanTextConf();
-        delete[] outText;
-        if (outConf > 30) {
-            LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "%";
-            return outConf;
-        }
-    }
-
-    if (!invert.has_value() || invert.value()) {
-        // try hard - detect background, and if it's dark - threshold and invert the image
-        int histSize = 256;
-        float range[]{0, 256}; //the upper boundary is exclusive
-        const float *histRange[]{range};
-        cv::Mat hist;
-        cv::calcHist(&rowImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
-        int maxLoc[4]{};
-        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-        int background = maxLoc[0] + 5;
-        if (background > 127)
-            return 0;
-
-        cv::Mat invertedImage;
-        cv::bitwise_not(rowImage, invertedImage);
-        cv::Mat thrImage;
-        cv::threshold(invertedImage, thrImage, 255 - background, 255, cv::THRESH_BINARY);
-        tesseractApi->SetImage(thrImage.data, thrImage.cols, thrImage.rows, 1, thrImage.step);
-        char *outText = tesseractApi->GetUTF8Text();
-        text = trim(outText);
-        outConf = tesseractApi->MeanTextConf();
-        delete[] outText;
-        if (outConf > 30) {
-            LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "% (retried with negative)";
-            return outConf;
-        }
-    }
-    return outConf;
-}
+//int Master::ocrNavText(const cv::Mat& grayImage, cv::Rect rect, std::string& text, std::optional<bool> invert) {
+//    text.clear();
+//    tesseract::TessBaseAPI* tesseractApi = Master::getInstance().mTesseractApiForNav.get();
+//    if (!tesseractApi)
+//        return 0;
+//    cv::Mat rowImage(grayImage, rect);
+//    int normConf = 0;
+//    std::string normText;
+//    if (!invert.has_value() || !invert.value()) {
+//        tesseractApi->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
+//        char *outText = tesseractApi->GetUTF8Text();
+//        normText = trim(outText);
+//        normConf = tesseractApi->MeanTextConf();
+//        delete[] outText;
+//        if (normConf > 70) {
+//            text = normText;
+//            LOG(INFO) << "OCR Output: '" << normText << "' words conf=" << normConf << "%";
+//            return normConf;
+//        }
+//    }
+//
+//    int invertedConf = 0;
+//    std::string invertedText;
+//    if (!invert.has_value() || invert.value()) {
+//        int background = 127;
+//        if (!invert.has_value()) {
+//            // try hard - detect background, and if it's dark - threshold and invert the image
+//            int histSize = 16;
+//            float range[]{0, 256}; //the upper boundary is exclusive
+//            const float *histRange[]{range};
+//            cv::Mat hist;
+//            cv::calcHist(&rowImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+//            int maxLoc[4]{};
+//            cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
+//            background = (maxLoc[0]+1) * 16;
+//            if (background > 127)
+//                return 0;
+//        }
+//
+//        cv::Mat invertedImage;
+//        cv::bitwise_not(rowImage, invertedImage);
+//        cv::Mat thrImage;
+//        cv::threshold(invertedImage, thrImage, 255 - background, 255, cv::THRESH_BINARY);
+//        tesseractApi->SetImage(thrImage.data, thrImage.cols, thrImage.rows, 1, thrImage.step);
+//        char *outText = tesseractApi->GetUTF8Text();
+//        invertedText = trim(outText);
+//        invertedConf = tesseractApi->MeanTextConf();
+//        delete[] outText;
+//    }
+//
+//    if (normConf >= invertedConf) {
+//        text = normText;
+//        LOG(INFO) << "OCR Output: '" << normText << "' words conf=" << normConf << "% (as black-on-white)";
+//        return normConf;
+//    } else {
+//        text = invertedText;
+//        LOG(INFO) << "OCR Output: '" << invertedText << "' words conf=" << invertedConf << "% (as negative)";
+//        return invertedConf;
+//    }
+//}
 
 bool Master::detectEDState(DetectLevel level) {
     mLastUIState.clear();
@@ -1405,8 +1254,8 @@ bool Master::detectEDState(DetectLevel level) {
             }
         }
         // detect compass
-        if (!mConfiguration->getCurrentStatus()->destinationName.empty()) {
-            mCompassDetector->classify(mClassifyEnv);
+        if (!mLastUIState.autopilot && !mConfiguration->getCurrentStatus()->destinationName.empty()) {
+            mCompassDetector->match(mClassifyEnv);
         } else {
             mCompassDetector->lastHemisphere = -1;
         }
@@ -1456,6 +1305,8 @@ bool Master::captureWindow(ClassifyEnv& env) {
     upFrame recycle;
     env.mFrame.swap(recycle);
     recycle = capturer->capture(std::move(recycle));
+    if (!recycle)
+        return false;
     cv::Rect captureRect = capturer->getCaptureRect();
     cv::Rect monitorRect = capturer->getMonitorVirtualRect();
     env.init(monitorRect, captureRect, std::move(recycle));
@@ -1479,14 +1330,22 @@ void Master::processDetectRequest(pCommand &cmd) {
                 c->request.compass->targetYaw = (int) std::round(mCompassDetector->lastTgtYaw);
                 c->request.compass->targetRoll = (int) std::round(mCompassDetector->lastTgtRoll);
             }
-            if (c->request.colorImage)
-                *c->request.colorImage = mClassifyEnv.getColorImage();
-            if (c->request.grayImage)
-                *c->request.grayImage = mClassifyEnv.getGrayImage();
+            if (c->request.colorImage) {
+                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
+                    *c->request.colorImage = mClassifyEnv.getWarpedColorImage();
+                else
+                    *c->request.colorImage = mClassifyEnv.getColorImage();
+            }
+            if (c->request.grayImage) {
+                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
+                    *c->request.grayImage = mClassifyEnv.getWarpedGrayImage();
+                else
+                    *c->request.grayImage = mClassifyEnv.getGrayImage();
+            }
         }
         c->promise.set_value(ok);
     } catch (const std::exception& ex) {
-        LOG(ERROR) << "Exception in processDetectRequest: " << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in processDetectRequest: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
         c->promise.set_value(false);
     }
 }

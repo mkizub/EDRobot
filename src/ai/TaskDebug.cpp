@@ -7,21 +7,94 @@
 #include "TaskDebug.h"
 #include "AIManager.h"
 #include "../EDWidget.h"
+#include "../FuzzyMatch.h"
+#include "../OCR.h"
 
 #include <tesseract/baseapi.h>
+#include <curlcpp/curl_easy.h>
+#include <curlcpp/curl_ios.h>
+#include <curlcpp/curl_exception.h>
+#include <curlcpp/curl_header.h>
 
 namespace ai {
 
-TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Task* parent, AIManager& mgr, const TaskTemplate& templ)
-        : Task(parent, mgr, templ)
+void TaskDebugFindAllBase::checkAndFixOCRText() {
+    std::string dirname = "testset-edr";
+
+    LOG(INFO) << "Checking OCR texts in dir: " << dirname;
+    FuzzyMatch fuzzyMatch;
+    int errorCount = 0;
+    for (const auto &entry: std::filesystem::directory_iterator(dirname)) {
+        if (!entry.is_regular_file())
+            continue;
+        auto &ep = entry.path();
+        if (!ep.has_extension() || ep.extension() != ".txt")
+            continue;
+
+        std::vector<std::wstring> fixedLines;
+        {
+            std::ifstream ifs(ep, std::ifstream::in);
+            if (!ifs.is_open()) {
+                LOG(ERROR) << "Cannot open text file: " << ep << " for reading";
+                continue;
+            }
+            bool badChar = false;
+            std::string line;
+            while ( getline(ifs, line) ) {
+                std::wstring lineWide = toUtf16(line);
+                std::wstring lineOCR = fuzzyMatch.toOCR(lineWide);
+                if (lineOCR != lineWide) {
+                    LOG(ERROR) << "Bad OCR char in text file: " << ep << " text: " << toUtf8(lineWide);
+                    badChar = true;
+                }
+                fixedLines.push_back(lineOCR);
+            }
+            ifs.close();
+            if (!badChar)
+                continue;
+        }
+        errorCount += 1;
+        {
+            std::ofstream ofs(ep, std::ifstream::out | std::ifstream::trunc);
+            if (!ofs.is_open()) {
+                LOG(ERROR) << "Cannot open text file: " << ep << " for writing";
+                continue;
+            }
+            bool first = true;
+            for (auto& line : fixedLines) {
+                if (!first)
+                    ofs << '\n';
+                first = false;
+                ofs << toUtf8(line);
+            }
+            ofs.close();
+        }
+    }
+    if (!errorCount)
+        LOG(INFO) << "No OCR text error found";
+    else
+        LOG(INFO) << "Fixed " << errorCount << " OCR text errors";
+}
+
+TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+        : TaskDebugFindAllBase(parent, mgr, templ_, true)
         , shuffle(false)
-        , dump_index(4)
+        , dump_images(false)
         , start_index(0)
 {
-    assert (templ.name == ED_TASK_DEBUG_FILE_ALL_COMMODITIES);
+    assert (templ.name == ED_TASK_DEBUG_FIND_ALL_COMMODITIES);
+    for (auto& p : templ.params) {
+        if (p.name == "shuffle")
+            shuffle = std::get<bool>(p.value);
+        if (p.name == "dump_images")
+            dump_images = std::get<bool>(p.value);
+        if (p.name == "start_index")
+            start_index = (int)std::get<int64_t>(p.value);
+    }
 }
 
 Result TaskDebugFindAllCommodities::run() {
+    checkAndFixOCRText();
     mgr.detectEDState(DetectLevel::Screen);
     if (!mgr.uiState.match("scr-market:*"))
         notifyError("Not in market?", Result::Failure);
@@ -55,37 +128,50 @@ Result TaskDebugFindAllCommodities::run() {
             checkCommoditiesTable.pop_front();
     }
     int left = checkCommoditiesTable.size();
+    int offset = start_index;
     int checkIdx = 0;
     while (!checkCommoditiesTable.empty()) {
-        if (shuffle)
+        if (shuffle) {
             checkIdx = std::rand() % checkCommoditiesTable.size();
+        }
         Commodity *commodity = checkCommoditiesTable[checkIdx];
+        if (!shuffle) {
+            LOG(INFO) << "Testing offset " << offset << " out of " << table.size() << " commodity '"
+                      << commodity->nameId << "' (" << commodity->name << ")";
+        }
         std::vector<CommodityMatch> verify;
-        bool ok = checkCommodity(commodity, marketMode, table, &verify);
+        bool ok;
+        if (!dump_images)
+            ok = checkCommodity(commodity, marketMode, table, &verify);
+        else
+            ok = checkCommodity(commodity, marketMode, table, nullptr);
         if (!ok)
             failed += 1;
         else
             passed += 1;
         left -= 1;
+        offset += 1;
         notifyProgress("Test for commodity '"+commodity->name+"' "+(ok?" PASSED\n":" FAILED\n")+
                        "Progress: "+std::to_string(passed)+" passed and "+std::to_string(failed)+" failed\n"+
                        "left "+std::to_string(left)+" out of "+std::to_string(table.size()-start_index));
         std::erase(checkCommoditiesTable, commodity);
-        for (auto& v : verify) {
-            if (!v.commodity) {
-                verifyUnrecognized += 1;
-                continue;
+        if (!dump_images) {
+            for (auto &v: verify) {
+                if (!v.commodity) {
+                    verifyUnrecognized += 1;
+                    continue;
+                }
+                auto &vs = verifyMap[v.commodity];
+                if (v.ocr_conf < vs.ocr_min_conf)
+                    vs.ocr_min_conf = v.ocr_conf;
+                if (v.ocr_conf > vs.ocr_max_conf)
+                    vs.ocr_max_conf = v.ocr_conf;
+                if (v.fuzzy_conf < vs.fuzzy_min_conf)
+                    vs.fuzzy_min_conf = v.fuzzy_conf;
+                if (v.fuzzy_conf > vs.fuzzy_max_conf)
+                    vs.fuzzy_max_conf = v.fuzzy_conf;
+                vs.total_samples += 1;
             }
-            auto& vs = verifyMap[v.commodity];
-            if (v.ocr_conf < vs.ocr_min_conf)
-                vs.ocr_min_conf = v.ocr_conf;
-            if (v.ocr_conf > vs.ocr_max_conf)
-                vs.ocr_max_conf = v.ocr_conf;
-            if (v.fuzzy_conf < vs.fuzzy_min_conf)
-                vs.fuzzy_min_conf = v.fuzzy_conf;
-            if (v.fuzzy_conf > vs.fuzzy_max_conf)
-                vs.fuzzy_max_conf = v.fuzzy_conf;
-            vs.total_samples += 1;
         }
     }
 
@@ -106,11 +192,26 @@ Result TaskDebugFindAllCommodities::run() {
 
 bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const std::string &marketMode,
                                                  const std::vector<Commodity *> &table,
-                                                 std::vector<CommodityMatch> *verify) {
+                                                 std::vector<CommodityMatch> *verify)
+{
+    if (dump_images) {
+        std::string lbl_filename = std::format("testset-edr/{}-lbl-gray.png", currCommodity->nameId);
+        std::string row_filename = std::format("testset-edr/{}-row-gray.png", currCommodity->nameId);
+        if (std::filesystem::exists(lbl_filename) && std::filesystem::exists(row_filename)) {
+            LOG(INFO) << "Files already generated for: " << currCommodity->nameId;
+            return true;
+        }
+    }
+
     for (;;) {
+        sleep(500);
         cv::Mat grayImage;
         mgr.detectEDState(DetectLevel::ListOcrFocusedRow, nullptr, &grayImage);
         if (!mgr.uiState.match("scr-market:"+marketMode)) {
+            if (mgr.uiState.match("scr-market:"+marketMode+":dlg-trade:*")) {
+                sendKey("UI_Back", 50, 1000);
+                continue;
+            }
             notifyProgress("Not at market?");
             return false;
         }
@@ -121,6 +222,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
         mgr.rEnv.classified = mgr.rEnv.classified;
         const ClassifiedRect* focusedRow = nullptr;
         const Commodity* focusedCommodity = nullptr;
+        bool isOnScreen = false;
         for (auto &cr: mgr.rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                 continue;
@@ -138,14 +240,8 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
                 LOG(INFO) << "Row with required commodity '" << focusedCommodity->name << "' found, focused";
                 break;
             }
-            if (rowCommodity == currCommodity) {
-                LOG(INFO) << "Row with required commodity '" << rowCommodity->name << "' found, not focused";
-                cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
-                sendMouseMove(mouse, 100);
-                focusedCommodity = currCommodity;
-                focusedRow = &cr;
-                break;
-            }
+            if (rowCommodity == currCommodity)
+                isOnScreen = true;
         }
         if (!focusedRow) {
             LOG(INFO) << "No focused row found, moving mouse to the list area";
@@ -162,21 +258,26 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
             return false;
         }
         if (focusedCommodity == currCommodity) {
-            /*if (dlgCommodity == currCommodity)*/ {
-                mgr.detectEDState(DetectLevel::ListOcrFocusedRow, nullptr, &grayImage);
-                cv::Rect r = mgr.rEnv.cvtReferenceToCaptured(focusedRow->detectedRect);
-                saveOcrTrainingData(grayImage, r, currCommodity, false);
-            }
+            saveOcrMarketRow(grayImage, *focusedRow, currCommodity);
+
             hardcodedStep("[{key:'UI_Select', after:200},"
                           "{wait: 'scr-market:"+marketMode+":dlg-trade:*', during: 3000},"
-                                                           "{goto:'btn-cancel', after:200}]",
-                          DetectLevel::Buttons);
-            const Commodity* dlgCommodity = mgr.master.getLabelCommodity("lbl-commodity");
+                          "{sleep: 1000}]",
+                          DetectLevel::Buttons, nullptr, &grayImage);
+            const Commodity* dlgCommodity = Master::getLabelCommodity(mgr.rEnv, grayImage, "lbl-commodity");
             if (dlgCommodity != currCommodity) {
                 notifyProgress("Dialog commodity mismatch");
-                Sleep(3000);
+                Sleep(1000);
             }
-            hardcodedStep("[{ key: 'UI_Select' },"
+            {
+                for (auto& cr : mgr.rEnv.classified) {
+                    if (cr.cdt == ClsDetType::Widget && cr.text == "lbl-commodity" && cr.u.widg.widget->tp == widget::WidgetType::Label) {
+                        saveOcrMarketLbl(grayImage, cr, currCommodity);
+                        break;
+                    }
+                }
+            }
+            hardcodedStep("[{ key: 'UI_Back' },"
                           "{ wait: 'scr-market:"+marketMode+"', during: 3000 }]",
                           DetectLevel::Buttons);
             return (dlgCommodity == currCommodity);
@@ -196,21 +297,25 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
             if (needIdx < focusedIdx) {
                 int count = focusedIdx - needIdx;
                 for (int cnt=0; cnt < count; cnt++)
-                    sendKey("up");
-                count = std::min(3, needIdx);
-                for (int cnt=0; cnt < count; cnt++)
-                    sendKey("up");
-                for (int cnt=0; cnt < count; cnt++)
-                    sendKey("down");
+                    sendKey("UI_Up");
+                if (!isOnScreen) {
+                    count = std::min(3, needIdx);
+                    for (int cnt = 0; cnt < count; cnt++)
+                        sendKey("up");
+                    for (int cnt = 0; cnt < count; cnt++)
+                        sendKey("down");
+                }
             } else {
                 int count = needIdx-focusedIdx;
-                for (int cnt=0; cnt < needIdx-focusedIdx; cnt++)
-                    sendKey("down");
-                count = std::min(shuffle ? 3 : 10, int(table.size())-1-needIdx);
                 for (int cnt=0; cnt < count; cnt++)
-                    sendKey("down");
-                for (int cnt=0; cnt < count; cnt++)
-                    sendKey("up");
+                    sendKey("UI_Down");
+                if (!isOnScreen) {
+                    count = std::min(shuffle ? 3 : 10, int(table.size()) - 1 - needIdx);
+                    for (int cnt = 0; cnt < count; cnt++)
+                        sendKey("down");
+                    for (int cnt = 0; cnt < count; cnt++)
+                        sendKey("up");
+                }
             }
             continue;
         }
@@ -219,77 +324,1221 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
     }
 }
 
-void TaskDebugFindAllCommodities::saveOcrTrainingData(const cv::Mat& grayImage, cv::Rect rect, const Commodity* commodity, bool invert) {
-    std::string lng;
-    if (mgr.cfg.lng == Lang::RU)
-        lng += "rus";
-    else if (mgr.cfg.lng == Lang::EN)
-        lng += "eng";
-    else if (mgr.cfg.lng)
-        lng += "xxx";
-    std::string filename = std::format("testset-{}/{}-{:02d}-{}.png", lng, commodity->nameId, dump_index, lng);
+void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, const ClassifiedRect& cr, const Commodity* commodity) {
+    if (!dump_images)
+        return;
+    assert(cr.cdt == ClsDetType::ListRow && cr.u.lrow.ws == WState::Focused && cr.u.lrow.commodity);
+    if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.ws != WState::Focused || !cr.u.lrow.commodity)
+        return;
+    assert(cr.u.lrow.commodity == commodity);
+    if (commodity != cr.u.lrow.commodity)
+        return;
+    std::string filename = std::format("testset-edr/{}-row-gray.png", commodity->nameId);
     if (std::filesystem::exists(filename))
         return;
 
-    tesseract::TessBaseAPI* tesseractApi = mgr.master.getTesseractApi();
-    if (!tesseractApi)
-        return;
-    cv::Mat rowImage(grayImage, rect);
-    int outConf = 0;
     std::string text;
-    if (!invert) {
-        tesseractApi->SetImage(rowImage.data, rowImage.cols, rowImage.rows, 1, rowImage.step);
-        tesseractApi->Recognize(nullptr);
-        tesseract::ResultIterator* ri = tesseractApi->GetIterator();
-        const char* outText = ri->GetUTF8Text(tesseract::PageIteratorLevel::RIL_TEXTLINE);
-        outConf = ri->Confidence(tesseract::PageIteratorLevel::RIL_TEXTLINE);
-        int left, top, right, bottom;
-        ri->BoundingBox(tesseract::PageIteratorLevel::RIL_TEXTLINE, 2, &left, &top, &right, &bottom);
-        text = trim(outText);
-        delete[] outText;
-        cv::Rect textRect = {rect.tl()+cv::Point(left,top), rect.tl()+cv::Point(right,bottom)};
-        LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "%" << " rect: " << textRect;
-        if (textRect.empty() || outConf == 0)
-            textRect = rect;
-        {
-            cv::Mat textImage(grayImage, textRect);
-            cv::imwrite(filename, textImage);
-            filename = std::format("testset-{}/{}-{:02d}-{}.gt.txt", lng, commodity->nameId, dump_index, lng);
-            std::ofstream gt_txt(filename, std::ios::trunc | std::ios::binary);
-            gt_txt << commodity->name;
-            gt_txt.close();
-            return;
+    cv::Mat rowDumpImage;
+    int conf = ocr::ocrRowTextForTraining(grayImage, mgr.rEnv, cr, 1, text, rowDumpImage);
+
+    filename = std::format("testset-edr/{}-row-gray.png", commodity->nameId);
+    cv::imwrite(filename, rowDumpImage);
+
+//    cv::Mat rowOtsuImage;
+//    cv::threshold(rowDumpImage, rowOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+//    filename = std::format("testset-edr/{}-row-otsu.png", commodity->nameId);
+//    cv::imwrite(filename, rowOtsuImage);
+
+    FuzzyMatch fm;
+    std::wstring nameOCR = fm.toOCR(commodity->wide);
+
+    std::ofstream gt_txt;
+    filename = std::format("testset-edr/{}-row-gray.gt.txt", commodity->nameId);
+    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+    gt_txt << toUtf8(nameOCR);
+    gt_txt.close();
+//    filename = std::format("testset-edr/{}-row-otsu.gt.txt", commodity->nameId);
+//    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+//    gt_txt << toUtf8(nameOCR);
+//    gt_txt.close();
+}
+
+void TaskDebugFindAllCommodities::saveOcrMarketLbl(const cv::Mat& grayImage, const ClassifiedRect& cr, const Commodity* commodity) {
+    if (!dump_images)
+        return;
+    assert(cr.cdt == ClsDetType::Widget && cr.u.widg.widget->tp == widget::WidgetType::Label);
+    if (cr.cdt != ClsDetType::Widget || cr.u.widg.widget->tp != widget::WidgetType::Label)
+        return;
+    assert(commodity);
+    if (!commodity)
+        return;
+    std::string filename = std::format("testset-edr/{}-lbl-gray.png", commodity->nameId);
+    if (std::filesystem::exists(filename))
+        return;
+
+    std::vector<std::string> texts;
+    std::vector<cv::Mat> lblDumpImages;
+    int conf = ocr::ocrMarketLblTextForTraining(grayImage, mgr.rEnv, cr, texts, lblDumpImages);
+
+    assert (texts.size() == lblDumpImages.size());
+
+    FuzzyMatch fm;
+    bool textsMatch = true;
+    std::vector<std::wstring> dumpTexts;
+    if (texts.size() == 1) {
+        dumpTexts.push_back(commodity->wocr);
+    } else {
+        std::string text;
+        for (int l=0; l < texts.size(); l++) {
+            dumpTexts.push_back(fm.toOCR(toUtf16(texts[l])));
+            text += " " + texts[l];
+        }
+        std::wstring wocr = fm.toOCR(toUtf16(trim(text)));
+        if (wocr != commodity->wocr)
+            textsMatch = false;
+    }
+
+    for (int l=0; l < texts.size(); l++) {
+        if (l > 0)
+            filename = std::format("testset-edr/{}-lbl{}-gray.png", commodity->nameId, l);
+        else
+            filename = std::format("testset-edr/{}-lbl-gray.png", commodity->nameId);
+        cv::imwrite(filename, lblDumpImages[l]);
+
+//        cv::Mat lblOtsuImage;
+//        cv::threshold(lblDumpImages[l], lblOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+//        if (l > 0)
+//            filename = std::format("testset-edr/{}-lbl{}-otsu.png", commodity->nameId, l);
+//        else
+//            filename = std::format("testset-edr/{}-lbl-otsu.png", commodity->nameId);
+//        cv::imwrite(filename, lblOtsuImage);
+
+        if (l > 0)
+            filename = std::format("testset-edr/{}-lbl{}-gray.gt.txt", commodity->nameId, l);
+        else
+            filename = std::format("testset-edr/{}-lbl-gray.gt.txt", commodity->nameId);
+        std::ofstream gt_txt(filename, std::ios::trunc | std::ios::binary);
+        if (textsMatch) {
+            gt_txt << toUtf8(dumpTexts[l]);
+        } else {
+            if (l == 0)
+                gt_txt << toUtf8(commodity->wocr);
+        }
+        gt_txt.close();
+
+//        if (l > 0)
+//            filename = std::format("testset-edr/{}-lbl{}-otsu.gt.txt", commodity->nameId, l);
+//        else
+//            filename = std::format("testset-edr/{}-lbl-otsu.gt.txt", commodity->nameId);
+//        gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+//        if (textsMatch) {
+//            gt_txt << toUtf8(dumpTexts[l]);
+//        } else {
+//            if (l == 0)
+//                gt_txt << toUtf8(commodity->wocr);
+//        }
+//        gt_txt.close();
+    }
+}
+
+TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Task *parent, AIManager &mgr, const TaskTemplate &templ)
+    : TaskDebugFindAllBase(parent, mgr, templ, false)
+    , dump_images(false)
+    , resume(false)
+    , ocr_confidence(90)
+    , txt_confidence(90)
+    , offset_append(0)
+{
+    assert (templ.name == ED_TASK_DEBUG_FIND_ALL_NAV_POINTS);
+    for (auto& p : templ.params) {
+        if (p.name == "dump_images")
+            dump_images = std::get<bool>(p.value);
+        if (p.name == "resume")
+            resume = std::get<bool>(p.value);
+        if (p.name == "ocr_confidence")
+            ocr_confidence = (int)std::get<int64_t >(p.value);
+        if (p.name == "txt_confidence")
+            txt_confidence = (int)std::get<int64_t >(p.value);
+    }
+    //std::string filename = std::format("testset-edr/nav-{}-lbl-gray.png", lng, offset);
+    //std::string filename = std::format("testset-edr/nav-{}-row-gray.png", lng, offset);
+    //std::string filename = std::format("testset-edr/nav-{}-num-gray.png", lng, offset);
+    std::string dirname = "testset-edr";
+
+    int max_offset = -1;
+    for (const auto &entry: std::filesystem::directory_iterator(dirname)) {
+        if (!entry.is_regular_file())
+            continue;
+        auto &ep = entry.path();
+        if (!ep.has_extension() || ep.extension() != ".png")
+            continue;
+        if (!ep.filename().string().starts_with("nav-"))
+            continue;
+        auto strings = split(ep.filename().string(), '-');
+        int nav = std::stoi(strings[1], nullptr, 10);
+        max_offset = std::max(nav, max_offset);
+    }
+    offset_append = max_offset+1;
+    LOG(INFO) << "Start nav numbering offset: " << offset_append;
+}
+
+Result TaskDebugFindAllNavPoints::run() {
+    checkAndFixOCRText();
+    mgr.detectEDState(DetectLevel::Screen);
+    if (!mgr.uiState.match("scr-left-panel:mod-navigation"))
+        notifyError("Not in mod-navigation?", Result::Failure);
+
+    //if (!getSystemStations())
+    //    notifyError("Cannot get system stations?", Result::Failure);
+    //if (!getSystemBodies())
+    //    notifyError("Cannot get system bodies?", Result::Failure);
+    if (!getSpanishInfo())
+        LOG(ERROR) << "Cannot get system info from spansh.co.uk";
+
+    if (!resume) {
+        sendKey("UI_Right");
+        sendKey("UI_Down");
+        sendKey("UI_Up", 2000, 100);
+    }
+
+    int offset = 0;
+    int failCount=0;
+    for (;;) {
+        int row = 0;
+        int focused_row = -1;
+        std::vector<int> rows_with_error;
+        ClassifiedRect* focused = nullptr;
+        mgr.detectEDState(DetectLevel::ListOcrAllRows);
+        for (auto& cr : mgr.rEnv.classified) {
+            if (cr.cdt != ClsDetType::ListRow)
+                continue;
+            if (!focused && cr.u.lrow.ws == WState::Focused) {
+                focused = &cr;
+                focused_row = row;
+            }
+            if (cr.u.lrow.text_confidence <= ocr_confidence && checkOcrError(cr))
+                rows_with_error.push_back(row);
+            row += 1;
+        }
+        if (!focused) {
+            LOG(ERROR) << "Focused row not found";
+            failCount += 1;
+            if (failCount >= 3)
+                return Result::Failure;
+            sendKey("UI_Down", 0, 500);
+            sendKey("UI_Up", 0, 500);
+            continue;
+        }
+        failCount = 0;
+        if (focused_row == 0 && offset > 0) {
+            LOG(INFO) << "Nav list wrapped at offset " << offset << "; finishing task";
+            break;
+        }
+        if (focused->u.lrow.text_confidence <= ocr_confidence && checkOcrError(*focused)) {
+            LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
+            checkNavPoint(offset);
+            offset += 1;
+            sendKey("UI_Down", 0, 100);
+            continue;
+        }
+        LOG(INFO) << "Skip nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
+        int skip_rows = -1;
+        for (int bad_row : rows_with_error) {
+            if (bad_row > focused_row) {
+                skip_rows = bad_row - focused_row;
+                break;
+            }
+        }
+        if (skip_rows > 0) {
+            for (int dn = 0; dn < skip_rows; dn++)
+                sendKey("UI_Down", 0, 100);
+            continue;
+        }
+        for (int dn = 0; dn < (10-focused_row) + 8; dn++)
+            sendKey("UI_Down", 0, 100);
+        for (int up = 0; up < 8; up++)
+            sendKey("UI_Up", 0, 100);
+    }
+    return Result::Success;
+}
+
+bool TaskDebugFindAllNavPoints::checkOcrError(const ClassifiedRect& cr) {
+    std::wstring wide = toUtf16(cr.text);
+    StationRowInfo rowInfo {};
+    if (!parseRowInfo(wide, rowInfo))
+        return true;
+    nav::NavType* nav_type = nullptr;
+    for (auto nt : nav::ALL_NAV_TYPES) {
+        if (nt->charOCR == rowInfo.type) {
+            nav_type = nt;
+            break;
+        }
+    }
+    if (!nav_type)
+        return true;
+    std::string text = toUtf8(rowInfo.name);
+    if (guessBestStation(text, nav_type) < txt_confidence)
+        return true;
+    return false;
+}
+
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
+json::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
+    const spStarSystem& ss = mgr.cfg.getCurrentStarSystem();
+    if (!ss || ss->name.empty() || !ss->address)
+        return nullptr;
+    std::ostringstream resp;
+    curl::curl_ios<std::ostringstream> writer(resp);
+    curl::curl_easy easy(writer);
+    std::string url = base_url;
+    if (url.contains("www.edsm.net")) {
+        std::string systemName = ss->name;
+        easy.escape(systemName);
+        url += "?systemName=" + systemName;
+    } else {
+        url += std::to_string(ss->address);
+    }
+    easy.add<CURLOPT_URL>(url.c_str());
+    easy.add<CURLOPT_FOLLOWLOCATION>(1L);
+    easy.add<CURLOPT_HTTPGET>(1L);
+    easy.add<CURLOPT_TIMEOUT>(5);
+    try {
+        easy.perform();
+    } catch (const curl::curl_easy_exception& ex) {
+        LOG(ERROR) << "EDSM request error: " << ex.what();
+        return nullptr;
+        //ex.print_traceback();
+    }
+    //LOG(INFO) << "EDSM responce: " << resp.str();
+    std::string error;
+    auto jresp = json::parse5(resp.str(), &error);
+    if (!jresp.has_value()) {
+        LOG(ERROR) << "Error parsing EDSM response: " << error;
+        return nullptr;
+    }
+    if (!jresp.value().contains("record")) {
+        LOG(ERROR) << "Bad response, expecting 'record': " << jresp.value();
+        return nullptr;
+    }
+    return std::move(jresp.value().at("record"));
+}
+
+json::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, json::value& data) {
+    std::string readBuffer;
+
+    CURL* curl = curl_easy_init();
+    if (!curl)
+        return {};
+
+    // Set URL and perform the request
+    curl_easy_setopt(curl, CURLOPT_URL, base_url);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json; charset: utf-8");
+    headers = curl_slist_append(headers, "Accept: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);
+    std::string payload = data.to_string();
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, payload.size());
+    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    char errbuf[CURL_ERROR_SIZE] = {};
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK)
+        LOG(ERROR) << "Curl error: " << errbuf;
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK)
+        return {};
+
+    std::string error;
+    auto jresp = json::parse5(readBuffer, &error);
+    if (!jresp.has_value()) {
+        LOG(ERROR) << "Error parsing response: " << error;
+        return nullptr;
+    }
+    if (!jresp.value().contains("results")) {
+        LOG(ERROR) << "Bad response, expecting 'results': " << jresp.value();
+        return nullptr;
+    }
+    json::array results = jresp.value()["results"].as_array();
+    for (auto& r : results) {
+        r.as_object().erase("bodies");
+        r.as_object().erase("stations");
+        r.as_object().erase("minor_faction_presences");
+        r.as_object().erase("power");
+    }
+    return results;
+}
+
+// For nearest systems:
+// https://www.spansh.co.uk/api/systems/search
+// POST /api/systems/search HTTP/1.1
+//Accept: */*
+//Accept-Encoding: deflate, gzip
+//User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 OPR/120.0.0.0
+//Host: www.spansh.co.uk
+//Content-Type: application/json
+//Content-Length: 156
+//
+//{
+//    "filters": {
+//        "distance": {
+//            "min": 0, "max": 10
+//        }
+//    },
+//    "size": 100,
+//    "page": 0,
+//    "reference_system": "Aornum"
+//}
+//
+bool TaskDebugFindAllNavPoints::getSpanishInfo() {
+    auto j = curlGetRequest("https://www.spansh.co.uk/api/system/");
+    if (j.empty())
+        return false;
+    spanishSystemInfo = std::move(j);
+    LOG(DEBUG) << "Got system info: " << spanishSystemInfo;
+
+    const spStarSystem& ss = mgr.cfg.getCurrentStarSystem();
+    std::string systemName = ss->name;
+
+    json::value payload;
+    payload["reference_system"] = systemName;
+    payload["filters"] = { { "distance", { {"min", 0}, {"max", 20} } } };
+    payload["size"] = 100;
+    payload["page"] = 0;
+
+    j = curlPostRequest("https://www.spansh.co.uk/api/systems/search", payload);
+    if (j.empty())
+        return false;
+    spanishNearSystems = std::move(j);
+    LOG(DEBUG) << "Got near systems: " << spanishNearSystems;
+
+    return true;
+}
+//bool TaskDebugFindAllNavPoints::getSystemStations() {
+//    auto j = curlRequest("https://www.edsm.net/api-system-v1/stations");
+//    if (!j.contains("stations") || !j["stations"].is_array())
+//        return false;
+//    LOG(INFO) << "Got system stations: " << j;
+//    systemStations = std::move(j["stations"].as_array());
+//    return true;
+//}
+//
+//bool TaskDebugFindAllNavPoints::getSystemBodies() {
+//    auto j = curlRequest("https://www.edsm.net/api-system-v1/bodies");
+//    if (!j.contains("bodies") || !j["bodies"].is_array())
+//        return false;
+//    systemBodies = std::move(j["bodies"].as_array());
+//    return true;
+//}
+
+
+bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
+    std::string lbl_text;
+    std::string lbl_anchor;
+    const nav::NavType* navType = nullptr;
+    cv::Mat grayImage;
+    sendKey("UI_Select", 0, 1500);
+    mgr.detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
+    for (auto& cr : mgr.rEnv.classified) {
+        if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
+            lbl_anchor = cr.text.substr(7);
+            navType = guessNavType(lbl_text, lbl_anchor);
+        }
+        if (cr.cdt == ClsDetType::Widget && cr.text == "lbl-title") {
+            saveOcrNavigationLbl(grayImage, cr, offset, lbl_text, navType);
         }
     }
 
-//    if (invert) {
-//        // try hard - detect background, and if it's dark - threshold and invert the image
-//        int histSize = 256;
-//        float range[]{0, 256}; //the upper boundary is exclusive
-//        const float *histRange[]{range};
-//        cv::Mat hist;
-//        cv::calcHist(&rowImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
-//        int maxLoc[4]{};
-//        cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-//        int background = maxLoc[0] + 5;
-//        if (background > 127)
-//            return 0;
-//
-//        cv::Mat invertedImage;
-//        cv::bitwise_not(rowImage, invertedImage);
-//        cv::Mat thrImage;
-//        cv::threshold(invertedImage, thrImage, 255 - background, 255, cv::THRESH_BINARY);
-//        mTesseractApiForMarket->SetImage(thrImage.data, thrImage.cols, thrImage.rows, 1, thrImage.step);
-//        char *outText = mTesseractApiForMarket->GetUTF8Text();
-//        text = trim(outText);
-//        outConf = mTesseractApiForMarket->MeanTextConf();
-//        delete[] outText;
-//        if (outConf > 30) {
-//            LOG(INFO) << "OCR Output: '" << text << "' words conf=" << outConf << "% (retried with negative)";
-//            return outConf;
-//        }
-//    }
-//    return outConf;
+    sendKey("UI_Back", 50, 1000);
+
+    mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+    for (auto& cr : mgr.rEnv.classified) {
+        if (cr.cdt != ClsDetType::ListRow)
+            continue;
+        if (cr.u.lrow.ws == WState::Focused) {
+            saveOcrNavigationRow(grayImage, cr, offset, lbl_text, navType);
+            break;
+        }
+    }
+    return true;
+}
+
+static std::string prependChar(wchar_t ch, std::string str) {
+    wchar_t prefix[2] {ch, L' '};
+    return toUtf8(prefix, 2) + str;
+}
+
+const nav::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& lbl_name, const std::string& lbl_anchor) const {
+    for (auto nt : nav::ALL_NAV_TYPES) {
+        if (contains(nt->navIcons, lbl_anchor)) {
+            LOG(INFO) << "Guessed type from label '" << lbl_anchor << "'";
+            return nt;
+        }
+    }
+
+    auto ss = mgr.cfg.getCurrentStarSystem();
+    if (!ss || ss->fssSignalDiscovered.empty())
+        return nullptr;
+    FuzzyMatch fm;
+    json::value signal;
+    std::wstring text_ocr = fm.toOCR(toUtf16(lbl_name));
+    for (auto it : ss->fssSignalDiscovered) {
+        std::string name;
+        if (it.second->data.contains("SignalName_Localised"))
+            name = it.second->data.at("SignalName_Localised").as_string();
+        else
+            name = it.second->data.at("SignalName").as_string();
+        std::wstring name_ocr = fm.toOCR(toUtf16(name));
+        if (name_ocr == text_ocr) {
+            signal = it.second->data;
+            break;
+        }
+    }
+
+    if (signal.is_null() || !signal.contains("SignalType")) {
+        LOG(INFO) << "No signal found for name '" << lbl_anchor;
+        return nullptr;
+    }
+
+    std::string signalType = signal.at("SignalType").as_string();
+    for (auto nt : nav::ALL_NAV_TYPES) {
+        if (contains(nt->typeAliases, signalType)) {
+            LOG(INFO) << "Guessed type from signal type '" << signalType << "'";
+            return nt;
+        }
+    }
+    LOG(ERROR) << "Unknown starport for type: '" << signalType << "'";
+    return nullptr;
+}
+
+int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const nav::NavType* nav_type) const {
+    auto ss = mgr.cfg.getCurrentStarSystem();
+    // find best station name
+    std::string best_name;
+    double best_rate = 0;
+    FuzzyMatch fm;
+    std::wstring text_ocr = fm.toOCR(toUtf16(text));
+    POIType poiType = nav_type ? nav_type->poiType : POIType::None;
+    if (poiType == POIType::Station || poiType == POIType::FleetCarrier || poiType == POIType::Place || poiType == POIType::Signal) {
+        if (ss && !ss->fssSignalDiscovered.empty()) {
+            for (auto &it: ss->fssSignalDiscovered) {
+                std::string name = it.first;
+                if (it.second->data.contains("SignalName_Localised"))
+                    name = it.second->data.at("SignalName_Localised").as_string();
+                if (it.second->data.contains("SignalType") &&
+                    !contains(nav_type->typeAliases, it.second->data.at("SignalType").as_string()))
+                    continue;
+                std::wstring name_ocr = fm.toOCR(toUtf16(name));
+                double rate = fm.ratio(text_ocr, name_ocr);
+                if (rate > best_rate) {
+                    best_rate = rate;
+                    best_name = name;
+                    if (best_rate >= 100) {
+                        text = best_name;
+                        LOG(INFO) << "Guessed station name: '" << text << "' with conf rate: " << best_rate;
+                        return best_rate;
+                    }
+                }
+            }
+        }
+    }
+    if ((poiType == POIType::Star || poiType == POIType::Planet) && spanishSystemInfo.contains("bodies")) {
+        for (auto &js: spanishSystemInfo.at("bodies").as_array()) {
+            if (!js.contains("type"))
+                continue;
+            if (!contains(nav_type->typeAliases, js.at("type").as_string()))
+                continue;
+            std::string name = js.at("name").as_string();
+            std::wstring name_ocr = fm.toOCR(toUtf16(name));
+            double rate = fm.ratio(text_ocr, name_ocr);
+            if (rate > best_rate) {
+                best_rate = rate;
+                best_name = name;
+            }
+        }
+    }
+    else if ((poiType == POIType::Station || poiType == POIType::Port || poiType == POIType::Place || poiType == POIType::FleetCarrier) && spanishSystemInfo.contains("stations")) {
+        for (auto &js: spanishSystemInfo.at("stations").as_array()) {
+            if (js.contains("type") && !contains(nav_type->typeAliases, js.at("type").as_string()))
+                continue;
+            std::string name = js.at("name").as_string();
+            while (name.ends_with("+"))
+                name = trim(name.substr(0, name.size() - 1));
+            std::wstring name_ocr = fm.toOCR(toUtf16(name));
+            double rate = fm.ratio(text_ocr, name_ocr);
+            if (rate > best_rate) {
+                best_rate = rate;
+                best_name = name;
+            }
+        }
+    }
+    else if (poiType == POIType::System && spanishNearSystems.is_array()) {
+        for (auto &js: spanishNearSystems.as_array()) {
+            std::string name = js.at("name").as_string();
+            std::wstring name_ocr = fm.toOCR(toUtf16(name));
+            double rate = fm.ratio(text_ocr, name_ocr);
+            if (rate > best_rate) {
+                best_rate = rate;
+                best_name = name;
+            }
+        }
+    }
+    if (best_name.empty())
+        best_rate = 0;
+    if (best_rate < 60) {
+        LOG(WARNING) << "Station not found for: '" << text << "'";
+        return best_rate;
+    }
+    text = best_name;
+    LOG(INFO) << "Guessed station name: '" << text << "' with conf rate: " << best_rate;
+    return best_rate;
+}
+
+void TaskDebugFindAllNavPoints::saveOcrNavigationLbl(const cv::Mat &grayImage, const ClassifiedRect& cr,
+                                                     int offset, std::string& lbl_text, const nav::NavType* navType)
+{
+    lbl_text.clear();
+    offset += offset_append;
+
+    std::string filename = std::format("testset-edr/nav-{}-lbl-gray.png", offset);
+    if (std::filesystem::exists(filename))
+        return;
+
+    std::string text;
+    cv::Mat dumpImage;
+    int conf = ocr::ocrNavigationLblTextForTraining(grayImage, mgr.rEnv, cr, text, dumpImage);
+    if (conf < 50) {
+        LOG(ERROR) << "Bad ocr for label, conf: " << conf << ", text: "<< text;
+        text.clear();
+    }
+    else if (conf < 93) {
+        LOG(INFO) << "Unsure ocr for label, conf: " << conf << ", text: "<< text;
+        if (guessBestStation(text, navType) < 60)
+            text.clear();
+    }
+    else {
+        LOG(INFO) << "Confident ocr for label, conf: " << conf << ", text: "<< text;
+        guessBestStation(text, navType);
+    }
+    lbl_text = text;
+
+    if (!dump_images)
+        return;
+
+    filename = std::format("testset-edr/nav-{}-lbl-gray.png", offset);
+    cv::imwrite(filename, dumpImage);
+
+//    cv::Mat otsuImage;
+//    cv::threshold(dumpImage, otsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+//    filename = std::format("testset-edr/nav-{}-lbl-otsu.png", offset);
+//    cv::imwrite(filename, otsuImage);
+
+    FuzzyMatch fm;
+    std::wstring wide = toUtf16(text);
+    std::wstring nameOCR = fm.toOCR(wide);
+
+    filename = std::format("testset-edr/nav-{}-lbl-gray.gt.txt", offset);
+    std::ofstream gt_txt(filename, std::ios::trunc | std::ios::binary);
+    gt_txt << toUtf8(nameOCR);
+    gt_txt.close();
+
+//    filename = std::format("testset-edr/nav-{}-lbl-otsu.gt.txt", offset);
+//    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+//    gt_txt << toUtf8(nameOCR);
+//    gt_txt.close();
+}
+
+bool TaskDebugFindAllNavPoints::parseRowInfo(std::wstring text, StationRowInfo& rowInfo) {
+    text = trim(text);
+    if (text.empty())
+        return false;
+    wchar_t ch = text.front();
+    if (text[0] >= 0x2000 && text[0] <= 0x2FFF) {
+        rowInfo.type = text[0];
+        text = trim(text.substr(1));
+        if (text.empty())
+            return false;
+    }
+    ch = text.back();
+    wchar_t ch1 = text[text.size()-2];
+    wchar_t ch2 = text[text.size()-3];
+    if (ch == nav::LOCATION.charOCR ||
+        (ch1 == nav::SHIELD1.charOCR || ch1 == nav::SHIELD2.charOCR || ch1 == nav::SHIELD3.charOCR) ||
+        (ch1 == L' ' && (ch2 == nav::SHIELD1.charOCR || ch2 == nav::SHIELD2.charOCR || ch2 == nav::SHIELD3.charOCR))
+    ) {
+        rowInfo.isLocation = true;
+        text.pop_back();
+        text = trim(text);
+        if (text.empty())
+            return false;
+    }
+    ch = text.back();
+    if (ch == nav::SHIELD1.charOCR || ch == nav::SHIELD2.charOCR || ch == nav::SHIELD3.charOCR) {
+        rowInfo.danger = ch;
+        text.pop_back();
+        text = trim(text);
+        if (text.empty())
+            return false;
+    }
+    ch = text.back();
+    while (ch == L'+') {
+        rowInfo.size += 1;
+        text.pop_back();
+        text = trim(text);
+        if (text.empty())
+            return false;
+        ch = text.back();
+    }
+    if (text[0] == L'<' && ch == '>') {
+        rowInfo.isTarget = true;
+        text = text.substr(1,text.size()-2);
+        text.pop_back();
+        text = trim(text.substr(1));
+        if (text.empty())
+            return false;
+    }
+    rowInfo.name = text;
+    return true;
+}
+
+void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, const ClassifiedRect& cr, int offset,
+                                                     const std::string& lbl_text, const nav::NavType* navType)
+{
+    offset += offset_append;
+
+    std::string filename = std::format("testset-edr/nav-{}-row-gray.png", offset);
+    if (std::filesystem::exists(filename))
+        return;
+
+    StationRowInfo rowInfo {};
+    std::string text;
+    cv::Mat dumpImage;
+    int conf = ocr::ocrRowTextForTraining(grayImage, mgr.rEnv, cr, 0, text, dumpImage);
+    if (conf < 50) {
+        LOG(ERROR) << "Bad ocr for nav row, conf: " << conf << ", text: "<< text;
+        text.clear();
+    }
+    else if (conf < 93) {
+        LOG(INFO) << "Unsure ocr for nav row, conf: " << conf << ", text: "<< text;
+        parseRowInfo(toUtf16(text), rowInfo);
+    }
+    else {
+        LOG(INFO) << "Confident ocr for nav row, conf: " << conf << ", text: "<< text;
+        parseRowInfo(toUtf16(text), rowInfo);
+    }
+
+    std::string distText;
+    cv::Mat distImage;
+    conf = ocr::ocrRowTextForTraining(grayImage, mgr.rEnv, cr, 1, distText, distImage);
+    if (conf < 50) {
+        LOG(ERROR) << "Bad ocr for nav dist, conf: " << conf << ", text: "<< distText;
+        distText.clear();
+    }
+    else if (conf < 93) {
+        LOG(INFO) << "Unsure ocr for nav dist, conf: " << conf << ", text: "<< distText;
+    }
+    else {
+        LOG(INFO) << "Confident ocr for nav dist, conf: " << conf << ", text: "<< distText;
+    }
+
+    if (!dump_images)
+        return;
+
+    FuzzyMatch fm;
+    std::wstring distOCR = fm.toOCR(toUtf16(distText));
+    std::wstring nameOCR = fm.toOCR(toUtf16(lbl_text));
+    if (rowInfo.size > 0) {
+        nameOCR += L" ";
+        for (int i = 0; i < rowInfo.size; i++)
+            nameOCR += L"+";
+    }
+    if (rowInfo.isTarget)
+        nameOCR = L"< " + nameOCR + L" > ";
+    if (rowInfo.danger)
+        nameOCR += rowInfo.danger;
+    if (rowInfo.isLocation)
+        nameOCR += nav::LOCATION.charOCR;
+    if (navType)
+        nameOCR = navType->charOCR + (L" " + nameOCR);
+
+    filename = std::format("testset-edr/nav-{}-row-gray.png", offset);
+    cv::imwrite(filename, dumpImage);
+//    cv::Mat rowOtsuImage;
+//    cv::threshold(dumpImage, rowOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+//    filename = std::format("testset-edr/nav-{}-row-otsu.png", offset);
+//    cv::imwrite(filename, rowOtsuImage);
+
+    filename = std::format("testset-edr/nav-{}-num-gray.png", offset);
+    cv::imwrite(filename, distImage);
+//    cv::Mat distOtsuImage;
+//    cv::threshold(distImage, distOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+//    filename = std::format("testset-edr/nav-{}-num-otsu.png", offset);
+//    cv::imwrite(filename, distOtsuImage);
+
+    std::ofstream gt_txt;
+    filename = std::format("testset-edr/nav-{}-row-gray.gt.txt", offset);
+    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+    gt_txt << toUtf8(nameOCR);
+    gt_txt.close();
+//    filename = std::format("testset-edr/nav-{}-row-otsu.gt.txt", offset);
+//    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+//    gt_txt << toUtf8(nameOCR);
+//    gt_txt.close();
+    filename = std::format("testset-edr/nav-{}-num-gray.gt.txt", offset);
+    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+    gt_txt << toUtf8(distOCR);
+    gt_txt.close();
+//    filename = std::format("testset-edr/nav-{}-num-otsu.gt.txt", offset);
+//    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+//    gt_txt << toUtf8(distOCR);
+//    gt_txt.close();
+}
+
+
+TaskDebugFixOCR::TaskDebugFixOCR(Task *parent, AIManager &mgr, const TaskTemplate &templ)
+    : TaskDebugFindAllBase(parent, mgr, templ, true)
+{
+    assert (templ.name == ED_TASK_DEBUG_FIX_OCR);
+    for (auto& p : templ.params) {
+        if (p.name == "use_tess")
+            use_tess = (int)std::get<bool>(p.value);
+        if (p.name == "use_lstm")
+            use_lstm = (int)std::get<bool>(p.value);
+        if (p.name == "use_edr")
+            use_edr = (int)std::get<bool>(p.value);
+        if (p.name == "rus+eng")
+            rus_eng = std::get<bool>(p.value);
+    }
+}
+
+struct BoxLine;
+struct BoxEntry {
+    wchar_t ch;
+    int left;
+    int top;
+    int right;
+    int bottom;
+    int page;
+    BoxLine* line {nullptr};
+    bool bad {false};
+};
+
+struct BoxLine {
+    std::vector<BoxEntry> boxes;
+    int position {0};
+    void consume(BoxEntry* box);
+};
+
+void BoxLine::consume(BoxEntry *box) {
+    assert (box && box->line == this);
+    for (int i=0; i < boxes.size(); i++) {
+        if (box == &boxes[i]) {
+            position = i+1;
+            return;
+        }
+    }
+}
+
+std::istream& operator>>(std::istream& is, BoxEntry& box) {
+    std::string chStr;
+    is >> chStr >> box.left >> box.bottom >> box.right >> box.top >> box.page;
+    box.ch = toUtf16(chStr)[0];
+    return is;
+}
+std::ostream& operator<<(std::ostream& os, const BoxEntry& box) {
+    std::string chStr = toUtf8(&box.ch, 1);
+    os << chStr << " " << box.left << " " << box.bottom << " " << box.right << " " << box.top << " " << box.page << "\n";
+    return os;
+}
+
+static ai::BoxEntry* findBox(BoxLine& line, wchar_t ch, int right=0) {
+    for (int pos = line.position; pos < line.boxes.size(); pos++) {
+        BoxEntry& box = line.boxes[pos];
+        if (right && box.left-5 > right)
+            return nullptr;
+        if (box.ch != ch)
+            continue;
+        assert (box.line == &line);
+        return &box;
+    }
+    return nullptr;
+}
+
+static double stdDevBoxes(std::vector<BoxEntry*>& guessBoxes) {
+    std::vector<cv::Scalar> values;
+    for (BoxEntry* box: guessBoxes) {
+        values.emplace_back(box->left, box->top, box->right, box->bottom);
+    }
+    cv::Scalar meanS;
+    cv::Scalar stddevS;
+    cv::meanStdDev(values, meanS, stddevS);
+    return stddevS[0] + stddevS[1] + stddevS[2] + stddevS[3];
+}
+
+static void filterBoxes(std::vector<BoxEntry*>& guessBoxes, double minDev, double expected, std::function<double(BoxEntry&)> func) {
+    while (guessBoxes.size() > 2) {
+        std::vector<double> values;
+        for (BoxEntry* box: guessBoxes) {
+            values.push_back(func(*box));
+        }
+        cv::Scalar meanS;
+        cv::Scalar stddevS;
+        cv::meanStdDev(values, meanS, stddevS);
+        if (stddevS[0] < minDev)
+            return;
+        std::vector<double> delta;
+        for (auto &v: values) {
+            if (expected > 0)
+                delta.push_back(std::abs(v - 0.5*(meanS[0] - expected)));
+            else
+                delta.push_back(std::abs(v - meanS[0]));
+        }
+        int maxIdx[4]{};
+        cv::minMaxIdx(delta, 0, 0, 0, maxIdx);
+        guessBoxes.erase(guessBoxes.begin() + maxIdx[1]);
+    }
+}
+
+Result TaskDebugFixOCR::run() {
+    checkAndFixOCRText();
+
+    std::string dirname = "testset-edr";
+
+    tesseract::OcrEngineMode ocrEngineMode = tesseract::OEM_DEFAULT;
+    if (use_tess && use_lstm)
+        ocrEngineMode = tesseract::OEM_TESSERACT_LSTM_COMBINED;
+    else if (use_tess && !use_lstm)
+        ocrEngineMode = tesseract::OEM_TESSERACT_ONLY;
+    else if (!use_tess && use_lstm)
+        ocrEngineMode = tesseract::OEM_LSTM_ONLY;
+
+    std::vector<tesseract::TessBaseAPI*> engines;
+    {
+        tesseract::TessBaseAPI *tesseractApi;
+        if (rus_eng && use_tess) {
+            tesseractApi = new tesseract::TessBaseAPI();
+            tesseractApi->Init("tessdata-box", "eng", tesseract::OEM_TESSERACT_ONLY, nullptr, 0, 0, 0, false);
+            engines.push_back(tesseractApi);
+        }
+        if (rus_eng && use_lstm) {
+            tesseractApi = new tesseract::TessBaseAPI();
+            tesseractApi->Init("tessdata-box", "eng", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
+            engines.push_back(tesseractApi);
+        }
+
+        if (rus_eng && use_tess) {
+            tesseractApi = new tesseract::TessBaseAPI();
+            tesseractApi->Init("tessdata-box", "rus", tesseract::OEM_TESSERACT_ONLY, nullptr, 0, 0, 0, false);
+            engines.push_back(tesseractApi);
+        }
+        if (rus_eng && use_lstm) {
+            tesseractApi = new tesseract::TessBaseAPI();
+            tesseractApi->Init("tessdata-box", "rus", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
+            engines.push_back(tesseractApi);
+        }
+
+//        tesseractApi = new tesseract::TessBaseAPI();
+//        tesseractApi->Init("tessdata-box", "eng+rus", tesseract::OEM_TESSERACT_ONLY, nullptr, 0, 0, 0, false);
+//        engines.push_back(tesseractApi);
+//        tesseractApi = new tesseract::TessBaseAPI();
+//        tesseractApi->Init("tessdata-box", "eng+rus", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
+//        engines.push_back(tesseractApi);
+
+        if (use_edr) {
+            tesseractApi = new tesseract::TessBaseAPI();
+            tesseractApi->Init("tessdata-box", "edr", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
+            engines.push_back(tesseractApi);
+        }
+
+        if (engines.empty()) {
+            tesseractApi = new tesseract::TessBaseAPI();
+            tesseractApi->Init("tessdata-box", "edr+rus+eng", tesseract::OEM_DEFAULT, nullptr, 0, 0, 0, false);
+            engines.push_back(tesseractApi);
+        }
+    }
+
+    LOG(INFO) << "FixOCR in dir: " << dirname;
+    int errorCount = 0;
+    for (const auto &entry: std::filesystem::directory_iterator(dirname)) {
+        if (!entry.is_regular_file())
+            continue;
+        auto &pngPath = entry.path();
+        if (!pngPath.has_extension() || pngPath.extension() != ".png")
+            continue;
+
+        auto boxPath = entry.path();
+        boxPath.replace_extension(".box");
+        if (std::filesystem::exists(boxPath)) {
+            LOG(INFO) << "Box file '" << boxPath << "' already exists";
+            continue;
+        }
+
+        auto gtPath = entry.path();
+        gtPath.replace_extension(".gt.txt");
+
+        if (!std::filesystem::exists(gtPath)) {
+            errorCount += 1;
+            LOG(ERROR) << "GroundTruth file '" << gtPath << "' not found";
+            continue;
+        }
+
+        std::wstring gtLine;
+        {
+            std::ifstream ifs(gtPath, std::ifstream::in);
+            if (!ifs.is_open()) {
+                errorCount += 1;
+                LOG(ERROR) << "Cannot open text file: " << gtPath << " for reading";
+                continue;
+            }
+            bool manyLines = false;
+            std::string line;
+            while ( getline(ifs, line) ) {
+                if (!gtLine.empty()) {
+                    manyLines = true;
+                    errorCount += 1;
+                    LOG(ERROR) << "Only single line in GroundTruth allowed: " << gtPath;
+                    break;
+                }
+                gtLine = toUtf16(line);
+            }
+            ifs.close();
+            if (manyLines)
+                continue;
+        }
+
+        cv::Mat image = cv::imread(pngPath.string(), cv::IMREAD_GRAYSCALE); // assume grayscale
+        if (image.channels() != 1) {
+            errorCount += 1;
+            LOG(ERROR) << "Expecting grayscale image: " << pngPath;
+            continue;
+        }
+        cv::Rect imageRect {0, 0, image.cols, image.rows};
+
+        std::vector<BoxLine> boxLines;
+        boxLines.reserve(engines.size());
+        for (tesseract::TessBaseAPI *tesseractApi: engines) {
+            tesseractApi->SetPageSegMode(tesseract::PageSegMode::PSM_RAW_LINE);
+            tesseractApi->SetVariable("chop_enable", "0");
+            tesseractApi->SetVariable("wordrec_enable_assoc", "0");
+            //tesseractApi->SetVariable("wordrec_display_splits", "0");
+            //tesseractApi->SetVariable("wordrec_display_all_blobs", "1");
+            //tesseractApi->SetVariable("wordrec_display_segmentations", "2");
+            //tesseractApi->SetVariable("classify_debug_level", "1");
+            //tesseractApi->SetVariable("stopper_debug_level", "1");
+
+            tesseractApi->SetImage(image.data, image.cols, image.rows, 1, image.step);
+            //tesseractApi->Recognize(nullptr);
+            //{
+            //    const char *outText = tesseractApi->GetUTF8Text();
+            //    int outConf = tesseractApi->MeanTextConf();
+            //    LOG(INFO) << "OCR Output: '" << outText << "' words conf=" << outConf << "%";
+            //    delete outText;
+            //}
+
+            boxLines.emplace_back();
+            BoxLine& engineLine = boxLines.back();
+            FuzzyMatch fm;
+            {
+                int charPos = 0;
+                const char *boxText = tesseractApi->GetBoxText(0);
+                std::wstring boxTextWide = toUtf16(boxText, strlen(boxText));
+                std::istringstream boxss(boxText);
+                std::string boxLine;
+                while (!boxss.eof()) {
+                    char buff[1024];
+                    boxss.getline(buff, sizeof(buff));
+                    if (!buff[0])
+                        continue;
+                    BoxEntry box;
+                    std::istringstream liness(buff);
+                    liness >> box;
+                    box.ch = fm.toOCR(box.ch);
+                    box.line = &engineLine;
+                    engineLine.boxes.push_back(box);
+                }
+                delete boxText;
+            }
+        }
+
+        int left = 0;
+        int lookup = 0;
+        BoxLine resultLine;
+        resultLine.boxes.reserve(gtLine.size());
+        // process confident boxes
+        for (int idx = 0; idx < gtLine.size(); idx++) {
+            wchar_t ch = gtLine[idx];
+            if (ch == L' ') {
+                BoxEntry space{L' ', 0, 0, 0, 0, 0, &resultLine};
+                resultLine.boxes.push_back(space);
+                continue;
+            }
+            if (left > imageRect.width - 5)
+                left = imageRect.width - 5;
+            std::vector<BoxEntry*> guessBoxes;
+            for (auto& line : boxLines) {
+                BoxEntry* box = findBox(line, ch);
+                if (box)
+                    guessBoxes.push_back(box);
+            }
+            if (guessBoxes.empty()) {
+                BoxEntry box{ch, left, imageRect.height-1, left+5, 0, 0, &resultLine, true};
+                resultLine.boxes.push_back(box);
+                continue;
+            }
+            if (guessBoxes.size() == 1) {
+                BoxEntry* box = guessBoxes[0];
+                resultLine.boxes.push_back(*box);
+                resultLine.boxes.back().line = &resultLine;
+                box->line->consume(box);
+                left = box->right;
+                lookup = box->left + 5;
+                continue;
+            }
+            filterBoxes(guessBoxes, 2, 0, [](BoxEntry& box) {
+                return box.left;
+            });
+            double stdDev = stdDevBoxes(guessBoxes);
+            if (stdDev > 100) {
+                BoxEntry box{ch, left, imageRect.height-1, left+5, 0, 0, &resultLine, true};
+                resultLine.boxes.push_back(box);
+                left = box.right;
+                lookup = box.left + 5;
+                continue;
+            }
+            filterBoxes(guessBoxes, 2, 0, [](BoxEntry& box) {
+                int w = std::abs(box.right - box.left);
+                int h = std::abs(box.bottom - box.top);
+                return std::sqrt(w * h);
+            });
+            filterBoxes(guessBoxes, 2, lookup, [](BoxEntry& box) {
+                return box.left;
+            });
+            filterBoxes(guessBoxes, 1, 0, [](BoxEntry& box) {
+                return (box.bottom + box.top) * 0.5;
+            });
+            std::vector<cv::Scalar> rects;
+            for (auto box: guessBoxes) {
+                box->line->consume(box);
+                rects.emplace_back(box->left, box->top, box->right, box->bottom);
+            }
+            cv::Scalar mean = cv::mean(rects);
+            int l = std::clamp((int)std::round(mean[0]), 0, imageRect.width-3);
+            int r = std::clamp((int)std::round(mean[2]), l+1, imageRect.width-1);
+            int b = std::clamp((int)std::round(mean[3]-1), 0, imageRect.height-3);
+            int t = std::clamp((int)std::round(mean[1]+2), b+2, imageRect.height-1);
+            BoxEntry box{ch, l, t, r, b, 0, &resultLine, false};
+            resultLine.boxes.push_back(box);
+            left = box.right;
+            lookup = box.left + 5;
+        }
+        // process unsure boxes
+        for (auto& line : boxLines)
+            line.position = 0;
+        for (int idx = 0; idx < resultLine.boxes.size(); idx++) {
+            BoxEntry& badBox = resultLine.boxes[idx];
+            assert (badBox.line == &resultLine);
+            if (!badBox.bad || badBox.ch == L' ') {
+                resultLine.consume(&badBox);
+                continue;
+            }
+            lookup = resultLine.boxes[idx-1].right - 3;
+            int right = imageRect.width-1;
+            for (int nxt=idx+1; nxt < resultLine.boxes.size(); nxt++) {
+                if (!resultLine.boxes[nxt].bad && resultLine.boxes[nxt].ch != L' ') {
+                    right = resultLine.boxes[nxt].left + 3;
+                    break;
+                }
+            }
+            std::vector<BoxEntry*> guessBoxes;
+            for (auto& line : boxLines) {
+                BoxEntry* box = findBox(line, badBox.ch, right);
+                if (box)
+                    guessBoxes.push_back(box);
+            }
+            if (guessBoxes.empty()) {
+                continue;
+            }
+            if (guessBoxes.size() == 1) {
+                BoxEntry* box = guessBoxes[0];
+                badBox.left = box->left;
+                badBox.top = box->top;
+                badBox.right = box->right;
+                badBox.bottom = box->bottom;
+                badBox.bad = false;
+                resultLine.consume(&badBox);
+                continue;
+            }
+            //filterBoxes(guessBoxes, 2, 0, [](BoxEntry& box) {
+            //    int w = std::abs(box.right - box.left);
+            //    int h = std::abs(box.bottom - box.top);
+            //    return std::sqrt(w * h);
+            //});
+            //filterBoxes(guessBoxes, 2, lookup, [](BoxEntry& box) {
+            //    return box.left;
+            //});
+            std::vector<cv::Scalar> rects;
+            for (auto &box: guessBoxes) {
+                rects.emplace_back(box->left, box->top, box->right, box->bottom);
+            }
+            cv::Scalar mean = cv::mean(rects);
+            badBox.left = std::clamp((int)std::round(mean[0]), 0, imageRect.width-3);
+            badBox.right = std::clamp((int)std::round(mean[2]), badBox.left+1, imageRect.width-1);
+            badBox.bottom = std::clamp((int)std::round(mean[3]-1), 0, imageRect.height-3);
+            badBox.top = std::clamp((int)std::round(mean[1]+2), badBox.bottom+2, imageRect.height-1);
+            badBox.bad = false;
+        }
+        for (int idx = 0; idx < resultLine.boxes.size(); idx++) {
+            BoxEntry& box = resultLine.boxes[idx];
+            if (box.ch != L' ')
+                continue;
+            BoxEntry& prev = resultLine.boxes[idx-1];
+            BoxEntry& next = resultLine.boxes[idx+1];
+            box.left = prev.right;
+            box.right = next.left;
+            box.top = std::max(prev.top, next.top);
+            box.bottom = std::min(prev.bottom, next.bottom);
+            box.bad = false;
+        }
+
+        LOG(INFO) << "Creating box file '" << boxPath << "'";
+        std::ofstream boxfs(boxPath, std::ifstream::out | std::ifstream::binary);
+        if (!boxfs.is_open()) {
+            errorCount += 1;
+            LOG(ERROR) << "Cannot open box file: " << boxPath << " for writing";
+            continue;
+        }
+        for (auto& box : resultLine.boxes)
+            boxfs << box;
+        boxfs.close();
+    }
+
+    for (tesseract::TessBaseAPI *tesseractApi: engines) {
+        tesseractApi->End();
+        delete tesseractApi;
+    }
+    engines.clear();
+
+    if (!errorCount)
+        LOG(INFO) << "No OCR text error found";
+    else
+        LOG(INFO) << "Has " << errorCount << " OCR errors";
+    return Result::Success;
 }
 
 } // ai

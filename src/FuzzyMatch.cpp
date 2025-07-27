@@ -6,47 +6,67 @@
 
 #include "FuzzyMatch.h"
 
-FuzzyMatch::FuzzyMatch() {
-    delete_cost_table = {{'.',0.4},{',',0.5},{'-',0.6},{'`',0.5},{'\'',0.5},{'\"',0.7}};
-    insert_cost_table = delete_cost_table;
-    replace_cost_table = {
-            {L'A',L'А',0.1},
-            {L'a',L'а',0.1},
-            {L'B',L'В',0.1},
-            {L'E',L'Е',0.1},
-            {L'e',L'е',0.1},
-            {L'E',L'Ё',0.4},
-            {L'е',L'ё',0.4},
-            {L'З',L'3',0.3},
-            {L'И',L'Й',0.4},
-            {L'и',L'й',0.4},
-            {L'K',L'К',0.1},
-            {L'k',L'к',0.3},
-            {L'M',L'М',0.1},
-            {L'm',L'м',0.3},
-            {L'H',L'Н',0.1},
-            {L'O',L'О',0.1},
-            {L'o',L'о',0.1},
-            {L'O',L'0',0.5},
-            {L'О',L'0',0.5},
-            {L'P',L'Р',0.1},
-            {L'p',L'р',0.1},
-            {L'C',L'С',0.1},
-            {L'c',L'с',0.1},
-            {L'T',L'Т',0.1},
-            {L'Y',L'У',0.3},
-            {L'y',L'у',0.2},
-            {L'X',L'Х',0.1},
-            {L'x',L'х',0.1},
-            {L'Ъ',L'ь',0.3},
-            {L'ъ',L'ь',0.3},
-            {L'Щ',L'Ш',0.3},
-            {L'щ',L'ш',0.3},
-            {L'i',L'l',0.3},
-            {L'i',L'j',0.3},
-            {L'O',L'Q',0.3},
-    };
-}
+const std::vector<FuzzyMatch::Cost> FuzzyMatch::delete_cost_table {{' ',0.3},{'.',0.4},{',',0.5},{'-',0.6},{'`',0.5},{'\'',0.5},{'\"',0.7}};
+const std::vector<FuzzyMatch::Cost> FuzzyMatch::insert_cost_table (delete_cost_table);
+const std::vector<FuzzyMatch::Cost> FuzzyMatch::replace_cost_table {
+        {L'A',L'А',0.1},
+        {L'a',L'а',0.1},
+        {L'B',L'В',0.1},
+        {L'B',L'8',0.4},
+        {L'E',L'Е',0.1},
+        {L'e',L'е',0.1},
+        {L'E',L'Ё',0.4},
+        {L'е',L'ё',0.4},
+        {L'З',L'3',0.3},
+        {L'И',L'Й',0.4},
+        {L'и',L'й',0.4},
+        {L'K',L'К',0.1},
+        {L'k',L'к',0.2},
+        {L'M',L'М',0.1},
+        {L'm',L'м',0.3},
+        {L'H',L'Н',0.1},
+        {L'O',L'О',0.1},
+        {L'o',L'о',0.1},
+        {L'O',L'0',0.5},
+        {L'О',L'0',0.5},
+        {L'P',L'Р',0.1},
+        {L'p',L'р',0.1},
+        {L'C',L'С',0.1},
+        {L'c',L'с',0.1},
+        {L'T',L'Т',0.1},
+        {L'Y',L'У',0.2},
+        {L'y',L'у',0.1},
+        {L'X',L'Х',0.1},
+        {L'x',L'х',0.1},
+        {L'Ъ',L'ь',0.3},
+        {L'ъ',L'ь',0.3},
+        {L'Щ',L'Ш',0.3},
+        {L'щ',L'ш',0.3},
+        {L'г',L'т',0.3},
+        {L'н',L'и',0.3},
+        {L'C',L'G',0.3},
+        {L'I',L'l',0.3},
+        {L'i',L'i',0.3},
+        {L'i',L'l',0.3},
+        {L'i',L'j',0.3},
+        {L'O',L'Q',0.3},
+        {L'n',L'п',0.3},
+        {L'S',L'5',0.6},
+        {L'K',L'X',0.6},
+        {L' ',L' ',0.},
+        {L'\'',L'’',0.},
+        {L'\'',L'‘',0.},
+        {L'\'',L'′',0.},
+        {L'\"',L'”',0.},
+        {L'\"',L'“',0.},
+        {L'\"',L'″',0.},
+        {L'-',L'‐',0.},
+        {L'-',L'‑',0.},
+        {L'-',L'‒',0.},
+        {L'-',L'–',0.1},
+        {L'-',L'—',0.1},
+};
+
 
 double FuzzyMatch::ratio(const std::wstring &source, const std::wstring &target) const {
     double dist, dist_max;
@@ -110,4 +130,41 @@ double FuzzyMatch::replace_cost(wchar_t ch1, wchar_t ch2) const {
         if (ch1 == it->org && ch2 == it->alt || ch1 == it->alt && ch2 == it->org)
             return it->cost;
     return 1;
+}
+
+std::wstring FuzzyMatch::toOCR(const std::wstring& source) {
+    std::wstring out;
+    out.reserve(source.size());
+    for (auto ch : source) {
+        bool found = false;
+        for (auto it=replace_cost_table.begin(); it != replace_cost_table.end(); ++it) {
+            if (it->org == ch || it->alt == ch) {
+                if (it->alt == ch && it->cost < 0.15) {
+                    found = true;
+                    assert (it->org > 0 && it->org < 255);
+                    out.push_back(it->org);
+                }
+                break;
+            }
+        }
+        if (!found)
+            out.push_back(ch);
+    }
+    size_t space_pos = 0;
+    while ((space_pos = out.find(L"  ", space_pos)) != std::wstring::npos)
+        out.replace(space_pos, 2, L" ");
+    return trim(out);
+}
+
+wchar_t FuzzyMatch::toOCR(wchar_t ch) {
+    for (auto it=replace_cost_table.begin(); it != replace_cost_table.end(); ++it) {
+        if (it->org == ch || it->alt == ch) {
+            if (it->alt == ch && it->cost < 0.15) {
+                assert (it->org > 0 && it->org < 255);
+                return it->org;
+            }
+            break;
+        }
+    }
+    return ch;
 }

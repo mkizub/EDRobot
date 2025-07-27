@@ -23,12 +23,12 @@ public:
     static bool shutdown();
 
     static bool showStartupDialog(const std::string& message);
+    static bool showMainDialog();
     static bool showToast(const std::string& title, const std::string& text);
     static bool hasDebugWindow();
     static bool showDebugWindow();
     static bool postToDebugWindow(const cv::Mat& image);
     static bool postToDebugWindow(const cv::Mat& image, const cv::Mat& overlay);
-    static bool askSellInput(int& total, int& chunk, Commodity*& commodity);
     static bool askCalibrationDialog(const std::string& line1);
     static bool askSelectRectWindow();
 

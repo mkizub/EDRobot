@@ -3,6 +3,7 @@
 //
 
 #include "pch.h"
+#include <ranges>
 
 #include "Keyboard.h"
 

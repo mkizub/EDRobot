@@ -68,6 +68,12 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
         parseEvent_Undocked(gameEvent);
     else if (event.starts_with("Docking"))
         parseEvent_Docking(gameEvent);
+    else if (event == "StartJump")
+        parseEvent_StartJump(gameEvent);
+    else if (event == "FSDJump")
+        parseEvent_FSDJump(gameEvent);
+    else if (event == "FSSSignalDiscovered")
+        parseEvent_FSSSignalDiscovered(gameEvent);
 
     return gameEvent;
 }
@@ -123,12 +129,15 @@ void Configuration::parseEvent_Location(spGameEvent& ge) {
         currentDock.name = je["StationName"].as_string();
     }
     if (je.contains("StarSystem")) {
-        currentStarSystem.address = je["SystemAddress"].as_unsigned_long_long();
-        currentStarSystem.name = je["StarSystem"].as_string();
-        auto& jpos = je["StarPos"].as_array();
-        currentStarSystem.pos.x = jpos[0].as_double();
-        currentStarSystem.pos.y = jpos[1].as_double();
-        currentStarSystem.pos.z = jpos[2].as_double();
+        int64_t address = je["SystemAddress"].as_long_long();
+        if (!currentStarSystem || currentStarSystem->address != address) {
+            StarSystem* ss = new StarSystem();
+            ss->address = je["SystemAddress"].as_long_long();
+            ss->name = je["StarSystem"].as_string();
+            currentStarSystem.reset(ss);
+        }
+        auto& jp = je["StarPos"].as_array();
+        currentStarSystem->pos = {jp[0].as_double(), jp[1].as_double(), jp[2].as_double()};
     }
 }
 
@@ -185,4 +194,44 @@ void Configuration::parseEvent_Docking(spGameEvent& ge) {
 //    } else {
 //        dockingStatus = event;
 //    }
+}
+
+void Configuration::parseEvent_StartJump(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    if (!je.contains("JumpType")) // "Hyperspace" or "Supercruise"
+        return;
+    if (je["JumpType"] == "Hyperspace") {
+        StarSystem* ss = new StarSystem();
+        ss->address = je["SystemAddress"].as_long_long();
+        ss->name = je["StarSystem"].as_string();
+        currentStarSystem.reset(ss);
+    }
+}
+
+void Configuration::parseEvent_FSDJump(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    if (!je.contains("SystemAddress"))
+        return;
+    int64_t address = je["SystemAddress"].as_long_long();
+    if (!currentStarSystem || currentStarSystem->address != address) {
+        StarSystem* ss = new StarSystem();
+        ss->address = je["SystemAddress"].as_long_long();
+        ss->name = je["StarSystem"].as_string();
+        currentStarSystem.reset(ss);
+    }
+    if (je.contains("StarPos")) {
+        auto& jp = je["StarPos"].as_array();
+        currentStarSystem->pos = {jp[0].as_double(), jp[1].as_double(), jp[2].as_double()};
+    }
+}
+
+void Configuration::parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    int64_t address = je["SystemAddress"].as_long_long();
+    if (!currentStarSystem || currentStarSystem->address != address)
+        return;
+    currentStarSystem->fssSignalDiscovered[je["SignalName"].as_string()] = ge;
 }

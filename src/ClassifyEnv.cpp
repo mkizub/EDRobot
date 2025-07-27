@@ -18,6 +18,11 @@ ResolvedEnv& ResolvedEnv::operator=(const ResolvedEnv& other) {
     return *this;
 }
 
+ResolvedEnv::ResolvedEnv() {
+    cv::Rect r {0, 0, ReferenceScreenSize.width, ReferenceScreenSize.height};
+    init(r, r);
+}
+
 void ResolvedEnv::init(const cv::Rect& monRect, const cv::Rect& captRect) {
     const_cast<cv::Rect&>(monitorRect) = monRect;
     const_cast<cv::Rect&>(captureRect) = captRect;
@@ -257,8 +262,8 @@ cv::Rect TileRect::calcReferenceRect(const ResolvedEnv& env) const {
     return {};
 }
 
-ConstTransform::ConstTransform(cv::Point src_tl, cv::Point src_tr, cv::Point src_br, cv::Point src_bl)
-    : EvalTransform(src_tl, src_tr, src_br, src_bl)
+ConstTransform::ConstTransform(spEvalPoint tl, spEvalPoint tr, spEvalPoint br, spEvalPoint bl, cv::Size sz)
+    : EvalTransform(tl, tr, br, bl, sz)
 {
 }
 
@@ -270,8 +275,10 @@ cv::Mat EvalTransform::transformImage(const cv::Mat& image) const {
 }
 
 bool ConstTransform::calcTransform(const ResolvedEnv& env) {
-    for (int i=0; i < 4; i++)
-        transfromSrc[i] = env.cvtReferenceToCaptured(orig[i]);
+    for (int i=0; i < 4; i++) {
+        auto p = orig[i]->calcReferencePoint(env);
+        transfromSrc[i] = env.cvtReferenceToCaptured(p);
+    }
 
     std::array<cv::Point2f,4> dst;
     dst[0] = {0.f,0.f};
@@ -284,8 +291,8 @@ bool ConstTransform::calcTransform(const ResolvedEnv& env) {
     return true;
 }
 
-LineTransform::LineTransform(std::vector<std::string> line, cv::Point src_tl, cv::Point src_tr, cv::Point src_br, cv::Point src_bl)
-    : EvalTransform(src_tl, src_tr, src_br, src_bl)
+LineTransform::LineTransform(std::vector<std::string> line, spEvalPoint tl, spEvalPoint tr, spEvalPoint br, spEvalPoint bl, cv::Size sz)
+    : EvalTransform(tl, tr, br, bl, sz)
     , lineDetector(std::move(line))
 {
 }
@@ -295,7 +302,11 @@ bool LineTransform::calcTransform(const ResolvedEnv& env) {
     const ClassifiedRect* crld = nullptr;
     for (auto& cr : env.classified) {
         if (cr.cdt == ClsDetType::LineDetected) {
-            auto it = std::find(lineDetector.begin(), lineDetector.end(), cr.text);
+            std::string_view name = cr.text;
+            int sep = name.find(':');
+            if (sep != std::string_view::npos)
+                name = name.substr(0, sep);
+            auto it = std::find(lineDetector.begin(), lineDetector.end(), name);
             if (it != lineDetector.end()) {
                 crld = &cr;
                 break;
@@ -309,8 +320,10 @@ bool LineTransform::calcTransform(const ResolvedEnv& env) {
     float cos_a = (float)std::cos(crld->u.ldet.angle * M_PI / 180);
     float sin_a = (float)std::sin(crld->u.ldet.angle * M_PI / 180);
     std::array<cv::Point2f,4> capt_orig;
-    for (int i=0; i < 4; i++)
-        capt_orig[i] = env.cvtReferenceToCaptured(orig[i]);
+    for (int i=0; i < 4; i++) {
+        auto p = orig[i]->calcReferencePoint(env);
+        capt_orig[i] = env.cvtReferenceToCaptured(p);
+    }
     cv::Point offset = env.scaleToCaptured(crld->u.ldet.offset);
     cv::Mat affine_matrix = (cv::Mat_<float>(2,3) << cos_a, -sin_a, offset.x, sin_a, cos_a, offset.y);
     cv::transform(capt_orig, transfromSrc, affine_matrix);

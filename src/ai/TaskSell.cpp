@@ -247,7 +247,7 @@ Result TaskSell::run() {
             notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
         } else if (mgr.uiState.match("scr-market:mod-sell:dlg-trade:*")) {
             LOG(INFO) << "At market sell dialog, checking commodity '" << mCommodity->name << "'";
-            auto lblCommodity = mgr.master.getLabelCommodity("lbl-commodity");
+            auto lblCommodity = Master::getLabelCommodity(mgr.rEnv, grayImage, "lbl-commodity");
             if (lblCommodity != mCommodity) {
                 executeAction("restart");
                 notifyError(_("Wrong sell dialog commodity, aborting"), Result::Trouble);

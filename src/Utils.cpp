@@ -128,6 +128,27 @@ bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2
     return true;
 }
 
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> elems;
+    // Check to see if empty string, give consistent result
+    if(s.empty()) {
+        elems.emplace_back();
+    } else {
+        std::stringstream ss;
+        ss.str(s);
+        std::string item;
+        while(std::getline(ss, item, delim)) {
+            elems.push_back(item);
+        }
+    }
+    return elems;
+}
+
+bool contains(const std::vector<std::string>& strings, const std::string& str) {
+    auto it = std::find(strings.begin(), strings.end(), str);
+    return it != strings.end();
+}
+
 cv::Vec3b encodeBGR(unsigned bgr) {
     return cv::Vec3b(bgr & 0xFF, (bgr>>8) & 0xFF, (bgr>>16)&0xFF);
 }

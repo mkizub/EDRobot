@@ -10,7 +10,7 @@
 namespace detect {
 
 CompassDetector::CompassDetector()
-        : ImageTemplate("templates/space_compass.png", cv::Rect(679, 803, 71, 71))
+        : ImageTemplate("templates/space_compass.png", std::make_shared<ConstRect>(679,803,71,71))
         , threshold_dot{0.7}
 {
     testScales = {1, 1.025, 0.975, 1.05, 0.95, 1.075, 0.925, 1.1, 0.9, 1.125, 0.875};
@@ -39,9 +39,9 @@ CompassDetector::CompassDetector()
 
 double CompassDetector::match(ClassifyEnv &env) {
     lastHemisphere = -1;
-    double compassValue = ImageTemplate::match(env);
-    if (compassValue < threshold_min) {
-        return compassValue;
+    double compassMatch = ImageTemplate::match(env);
+    if (compassMatch < 0.5) {
+        return compassMatch;
     }
 
     //
@@ -90,7 +90,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         lastDotValue = bestDotVal;
         lastHemisphere = bestDotIdx;
         dotCaptureRect = { captureRect.tl()+bestDotLoc, bestDotSize };
-        double radius = env.getScale() * (referenceRect.width-15.5) * 0.5;
+        double radius = env.getScale() * (refRect.width-15.5) * 0.5;
         dotSpherePosition = {
                 std::clamp( ((bestDotLoc.x+bestDotSize.width*0.5) - captureRect.width*0.5) / radius, -1.0, +1.0),
                 std::clamp(-((bestDotLoc.y+bestDotSize.height*0.5) - captureRect.height*0.5) / radius, -1.0, +1.0),
@@ -122,7 +122,7 @@ double CompassDetector::match(ClassifyEnv &env) {
                   << std_format(" pitch:{}, yaw:{}, roll:{}", int(pitch), int(yaw), int(roll));
     }
 
-    return compassValue;
+    return compassMatch;
 }
 
 void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect) {

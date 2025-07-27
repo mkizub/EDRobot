@@ -1,5 +1,6 @@
 {
   '': {
+    id: 0,
     en: "",
     ru: "",
     items: {
@@ -26,6 +27,7 @@
     },
   },
   'foods': {
+    id: 4,
     en: "Foods",
     ru: "Продукты питания",
     items: {
@@ -287,6 +289,7 @@
     },
   },
   'consumer_items': {
+    id: 2,
     en: "Consumer items",
     ru: "Потребительские товары",
     items: {
@@ -453,6 +456,7 @@
     },
   },
   'chemicals': {
+    id: 1,
     en: "Chemicals",
     ru: "Химикаты",
     items: {
@@ -549,6 +553,7 @@
     },
   },
   'drugs': {
+    id: 3,
     en: "Legal drugs",
     ru: "Легальные психоактивные вещества",
     items: {
@@ -735,6 +740,7 @@
     },
   },
   'machinery': {
+    id: 6,
     en: "Machinery",
     ru: "Машинное оборудование",
     items: {
@@ -881,6 +887,7 @@
     },
   },
   'industrial_materials': {
+    id: 5,
     en: "Industrial materials",
     ru: "Промышленные материалы",
     items: {
@@ -932,6 +939,7 @@
     },
   },
   'salvage': {
+    id: 15,
     en: "Salvage",
     ru: "Спасенное имущество",
     items: {
@@ -1423,6 +1431,7 @@
     },
   },
   'medicines': {
+    id: 7,
     en: "Medicines",
     ru: "Лекарства",
     items: {
@@ -1509,6 +1518,7 @@
     },
   },
   'metals': {
+    id: 8,
     en: "Metals",
     ru: "Металлы",
     items: {
@@ -1655,6 +1665,7 @@
     },
   },
   'weapons': {
+    id: 14,
     en: "Weapons",
     ru: "Оружие",
     items: {
@@ -1711,6 +1722,7 @@
     },
   },
   'minerals': {
+    id: 9,
     en: "Minerals",
     ru: "Минералы",
     items: {
@@ -1862,6 +1874,7 @@
     },
   },
   'slaves': {
+    id: 10,
     en: "Slavery",
     ru: "Рабы",
     items: {
@@ -1883,6 +1896,7 @@
     },
   },
   'technology': {
+    id: 11,
     en: "Technology",
     ru: "Технологии",
     items: {
@@ -1994,6 +2008,7 @@
     },
   },
   'textiles': {
+    id: 12,
     en: "Textiles",
     ru: "Текстиль",
     items: {
@@ -2065,6 +2080,7 @@
     },
   },
   'waste': {
+    id: 13,
     en: "Waste",
     ru: "Отходы",
     items: {

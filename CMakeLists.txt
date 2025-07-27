@@ -15,12 +15,14 @@ find_package(Tesseract CONFIG REQUIRED)
 
 #find_package(Gettext REQUIRED)
 find_library(GETTEXT_LIBRARIES intl iconv)
-
+find_package(CURL REQUIRED)
+find_package(curlcpp CONFIG REQUIRED)
 
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
-add_compile_options(/Zc:__cplusplus /await)
+add_compile_options(/Zc:__cplusplus /await /utf-8 /Zi)
+add_link_options(/DEBUG)
 
 find_package(cpptrace CONFIG REQUIRED)
 
@@ -43,6 +45,8 @@ add_executable(EDRobot
         src/Master.h
         src/Utils.cpp
         src/Utils.h
+        src/OCR.cpp
+        src/OCR.h
 
         src/ai/AutopilotTasks.cpp
         src/ai/AutopilotTasks.h
@@ -126,11 +130,13 @@ target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/include")
 target_include_directories(EDRobot PRIVATE thirdparty)
 
-target_link_libraries(EDRobot PUBLIC ${GETTEXT_LIBRARIES})
-target_link_libraries(EDRobot PUBLIC ${OpenCV_LIBS} Tesseract::libtesseract)
-target_link_libraries(EDRobot PUBLIC dxgi d3d11 winmm shcore dwmapi d2d1) # windowsapp
+target_link_libraries(EDRobot PRIVATE ${GETTEXT_LIBRARIES})
+target_link_libraries(EDRobot PRIVATE ${OpenCV_LIBS})
+target_link_libraries(EDRobot PRIVATE Tesseract::libtesseract)
+target_link_libraries(EDRobot PRIVATE curlcpp::curlcpp CURL::libcurl)
+target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1) # windowsapp
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_link_libraries(EDRobot PUBLIC cpptrace::cpptrace)
+    target_link_libraries(EDRobot PRIVATE cpptrace::cpptrace)
 endif()
 
 install(TARGETS EDRobot RUNTIME_DEPENDENCIES
@@ -143,9 +149,9 @@ install(DIRECTORY config/templates DESTINATION "." FILES_MATCHING PATTERN "*.png
 install(DIRECTORY config/locales DESTINATION ".")
 install(DIRECTORY config/tessdata-best DESTINATION ".")
 install(DIRECTORY config/tessdata-fast DESTINATION ".")
+install(DIRECTORY config/ControlSchemes DESTINATION ".")
 install(FILES
         config/actions.json5 config/configuration.json5 config/screens.json5 config/logging.conf
-        config/KeyboardMouseOnlyYaw.binds config/KeyboardMouseOnly.binds config/ClassicKeyboardOnly.binds config/Empty.binds
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 

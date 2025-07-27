@@ -20,7 +20,7 @@ Main::Main()
     this->base_msg_pubm::on_message(WM_INITDIALOG, [this](wl::params p){return initialize(p);});
 
     this->base_msg_pubm::on_message(WM_CLOSE, [this](wl::params) noexcept -> INT_PTR {
-        ShowWindow(this->hwnd(), SW_HIDE);
+        hide();
         return TRUE;
     });
     this->base_msg_pubm::on_message(WM_DESTROY, [this](wl::params) noexcept -> INT_PTR {
@@ -31,8 +31,7 @@ Main::Main()
         switch (LOWORD(params.lParam)) // Check the mouse event
         {
         case WM_LBUTTONDOWN:
-            ShowWindow(this->hwnd(), SW_RESTORE);
-            SetForegroundWindow(this->hwnd());
+            show();
             break;
         case WM_RBUTTONDOWN:
             // Handle right-click (e.g., display context menu)
@@ -44,10 +43,13 @@ Main::Main()
         return FALSE;
     });
     this->base_msg_pubm::on_command({IDOK,IDCANCEL}, [this](wl::params params) noexcept -> INT_PTR {
-        ShowWindow(this->hwnd(), SW_HIDE);
-        return (INT_PTR) TRUE;
+        hide();
+        return 0;
     });
-    this->base_msg_pubm::on_command(IDC_BUTTON_CURRENT_TASK, [this](wl::params p){return curr_task_command(p);});
+    this->base_msg_pubm::on_command(IDC_BUTTON_CURRENT_TASK, [this](wl::params p){
+        curr_task_command(p);
+        return 0;
+    });
 }
 
 
@@ -74,17 +76,27 @@ int Main::initialize(wl::params &params) {
     return TRUE;
 }
 
+bool Main::show() {
+    ShowWindow(this->hwnd(), SW_RESTORE);
+    SetForegroundWindow(this->hwnd());
+    return true;
+}
+
+bool Main::hide() {
+    ShowWindow(this->hwnd(), SW_HIDE);
+    return true;
+}
+
 int Main::curr_task_command(wl::params &params) {
     try {
         auto &curr_templ = aiManager->curr_task();
         if (curr_templ.name.empty()) {
-            ShowWindow(hwnd(), SW_HIDE);
+            hide();
             AddTask addTaskDlg;
             int res = addTaskDlg.show(this);
             if (res == IDOK)
                 return TRUE;
-//            ShowWindow(hwnd(), SW_RESTORE);
-//            SetForegroundWindow(hwnd());
+            show();
         } else {
             aiManager->stop();
         }

@@ -14,7 +14,7 @@ namespace ai {
     class AIManager;
 }
 enum class DetectLevel {
-    None, Screen, Buttons, ListRows, ListOcrFocusedRow
+    None, Screen, Buttons, ListRows, ListOcrFocusedRow, ListOcrAllRows
 };
 enum class Command {
     NoOp,
@@ -25,7 +25,6 @@ enum class Command {
     Stop,
     Calibrate,
     DebugTemplates,
-    DebugButtons,
     DebugFindAllCommodities,
     DebugCompass,
     DebugWindow,
@@ -104,15 +103,14 @@ public:
     int getSearchRegionExtent() const { return mConfiguration->searchRegionExtent; }
 
     int canSell(Commodity* commodity) const;
-    const Commodity* getLabelCommodity(const std::string& lbl_name);
+    static const Commodity* getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lbl_name);
     static bool approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lst_name, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify = nullptr);
 
     void pushCommand(Command cmd);
     void pushDetectRequest(std::promise<bool>&& p, DetectRequest&& req);
     void pushDevRectScreenshotCommand(cv::Rect rect);
 
-    tesseract::TessBaseAPI* getTesseractApi() { return mTesseractApiForMarket.get(); }
-    static int ocrMarketText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
+    //static int ocrNavText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
     static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr);
 
 private:
@@ -136,7 +134,7 @@ private:
 
     bool preInitTask();
     bool startCalibration();
-    bool startTrade();
+//    bool startTrade();
     bool pauseAITask();
     bool resumeAITask();
     bool stopAITask();
@@ -148,8 +146,6 @@ private:
     bool matchItem(widget::Widget* item);
     widget::Widget* debugTemplates(widget::Widget* item, ClassifyEnv* env);
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
-    void drawButton(widget::Widget* item);
-    bool debugButtons();
     bool debugRectScreenshot(pCommand& cmd);
     bool debugFindAllCommodities();
     bool debugCompass();
@@ -169,7 +165,6 @@ private:
     bool mDuplicateToDebugWindow {false};
     DetectLevel mDetectLevelIdle {DetectLevel::Screen};
     std::chrono::milliseconds mLoopWakeup;
-    std::unique_ptr<tesseract::TessBaseAPI> mTesseractApiForMarket;
     std::unique_ptr<detect::CompassDetector> mCompassDetector;
     Configuration* mConfiguration {nullptr};
     ai::AIManager* mAIManager {nullptr};

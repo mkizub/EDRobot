@@ -16,12 +16,9 @@ public:
     Detector() = default;
     virtual ~Detector() = default;
 
-    // return matching value, i.e. how much a template image is similar to given image
-    virtual double match(ClassifyEnv& env) = 0;
     // classifies evaluated matching value, i.e. classifies by returning probability of being the same class
     // returns value in range [0..1]
-    virtual double classify(ClassifyEnv& env) = 0;
-
+    virtual double match(ClassifyEnv& env) = 0;
     virtual double debugMatch(ClassifyEnv& env) = 0;
 
     double classifierWeight {1};
@@ -35,7 +32,6 @@ public:
     ~Sequence() override = default;
 
     double match(ClassifyEnv& env) override;
-    double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 private:
     std::vector<std::unique_ptr<Detector>> oracles;
@@ -49,10 +45,22 @@ public:
     ~BestOf() override = default;
 
     double match(ClassifyEnv& env) override;
-    double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 private:
     std::vector<std::unique_ptr<Detector>> oracles;
+};
+
+class ReferDetector : public Detector {
+public:
+    ReferDetector(std::string referred)
+            : referred(referred)
+    {}
+    ~ReferDetector() override = default;
+
+    double match(ClassifyEnv& env) override;
+    double debugMatch(ClassifyEnv& env) override;
+private:
+    string referred;
 };
 
 class Histogram {
@@ -99,11 +107,10 @@ public:
 
 class ImageTemplate : public Detector {
 public:
-    ImageTemplate(const std::string& filename, cv::Rect rect);
+    ImageTemplate(const std::string& filename, spEvalRect rect);
     ~ImageTemplate() override = default;
 
     double match(ClassifyEnv& env) override;
-    double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 
     static bool loadImageAndMask(const std::string& filename, cv::Mat& image, cv::Mat& mask);
@@ -120,7 +127,7 @@ public:
     void prepareImages(ClassifyEnv& env);
     std::string name;
     std::string filename;
-    cv::Rect referenceRect;
+    spEvalRect referenceRect;
     int channels;
     cv::Point extendLT;
     cv::Point extendRB;
@@ -140,12 +147,14 @@ public:
 
     double preprocessedTemplateScale = 0;
 
+    cv::Rect refRect;
     cv::Rect captureRect;
     cv::Rect matchRect;
     cv::Point matchedCaptureOffset;
     std::vector<double> testScales;
     std::vector<int> testAngles;
     int lastTemplatedx;
+    double lastMatch {0};
 };
 
 class CompassDetector : public ImageTemplate {
@@ -184,7 +193,6 @@ public:
     ~TilesDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    double classify(ClassifyEnv& env) override;
     double debugMatch(ClassifyEnv& env) override;
 
     const std::string name;
@@ -206,11 +214,10 @@ private:
 
 class LineDetector : public Detector {
 public:
-    LineDetector(ImageTemplate* anchor, cv::Point p0, cv::Point p1);
+    LineDetector(ImageTemplate* anchor, spEvalPoint p0, spEvalPoint p1);
     ~LineDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    double classify(ClassifyEnv &env) override;
     double debugMatch(ClassifyEnv& env) override;
 
     void normalizeRotatedRect(cv::RotatedRect& rr);
@@ -222,8 +229,8 @@ public:
     std::string name;
     cv::Point extendLT;
     cv::Point extendRB;
-    const cv::Point referenceP0;
-    const cv::Point referenceP1;
+    const spEvalPoint referenceP0;
+    const spEvalPoint referenceP1;
     // maybe scale (speedup and a kind of blur
     double imageScaleX {1};
     double imageScaleY {1};

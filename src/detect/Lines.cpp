@@ -9,25 +9,23 @@
 
 namespace detect {
 
-LineDetector::LineDetector(ImageTemplate* anchor, cv::Point p0, cv::Point p1)
+LineDetector::LineDetector(ImageTemplate* anchor, spEvalPoint p0, spEvalPoint p1)
         : referenceP0(p0),
           referenceP1(p1)
 {
     anchorDetector.reset(anchor);
 }
 
-double LineDetector::classify(ClassifyEnv &env) {
-    return match(env);
-}
-
 double LineDetector::match(ClassifyEnv &env) {
     ImageTemplate* an = anchorDetector.get();
     if (!an)
         return 0;
-    double anchorVal = an->match(env);
+    double anchorMatch = an->match(env);
 
-    captureP0 = env.cvtReferenceToCaptured(referenceP0) + an->matchedCaptureOffset;
-    captureP1 = captureP0 + env.scaleToCaptured(referenceP1 - referenceP0);
+    cv::Point refP0 = referenceP0->calcReferencePoint(env);
+    cv::Point refP1 = referenceP1->calcReferencePoint(env);
+    captureP0 = env.cvtReferenceToCaptured(refP0) + an->matchedCaptureOffset;
+    captureP1 = captureP0 + env.scaleToCaptured(refP1 - refP0);
     int captureWidth = cv::norm(captureP1 - captureP0);
     cv::Rect r0 = cv::Rect(captureP0 - env.scaleToCaptured(extendLT),
                            captureP0 + env.scaleToCaptured(extendRB));
@@ -36,11 +34,11 @@ double LineDetector::match(ClassifyEnv &env) {
     lineMatchRect = r0 | r1;
     env.cropToCapture(lineMatchRect);
 
-    if (anchorVal < an->threshold_min) {
-        LOG(INFO) << "LineDetector: anchor '" << anchorDetector->filename << "' not found";
+    if (anchorMatch < 0.5 || an->lastTemplatedx < 0) {
+        LOG(DEBUG) << "LineDetector: anchor '" << anchorDetector->filename << "' not found";
         return 0;
     }
-    LOG(DEBUG) << "LineDetector '" << name << "' anchor found, offset: " << an->matchedCaptureOffset;
+    LOG(DEBUG) << "LineDetector '" << name << "' anchor found '" << an->imagesPrepared[an->lastTemplatedx].name << "', offset: " << an->matchedCaptureOffset;
 
     cv::Mat imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
     imagePrepared = ImageTemplate::scaleImage(imagePrepared, imageScaleX, imageScaleY);
@@ -49,7 +47,7 @@ double LineDetector::match(ClassifyEnv &env) {
     cv::Mat thrMat;
     cv::threshold(imagePrepared, thrMat, binaryThreshold, 255, cv::THRESH_BINARY);
 
-    cv::Point referenceDist = referenceP1 - referenceP0;
+    cv::Point referenceDist = refP1 - refP0;
     float referenceAngle = std::atan2(referenceDist.y, referenceDist.x) * 180 / M_PI;
     double minDist = 1000;
     float lastDeltaAngle = 180;
@@ -86,13 +84,15 @@ double LineDetector::match(ClassifyEnv &env) {
     captureP1.x = captureP0.x + captureWidth * std::cos(lastLineAngle * M_PI / 180);
     captureP1.y = captureP0.y + captureWidth * std::sin(lastLineAngle * M_PI / 180);
 
-    env.classified.emplace_back(ClsDetType::LineDetected, env.isWarpMode(), name,
-                                an->referenceRect + env.scaleToReference(an->matchedCaptureOffset));
-    env.classified.back().u.ldet.offset = env.scaleToReference(an->matchedCaptureOffset);
-    env.classified.back().u.ldet.angle = lastDeltaAngle;
-    env.classified.back().u.ldet.scale = 1;
+    env.classified.emplace_back(ClsDetType::LineDetected, env.isWarpMode(),
+                                name + ':' + an->imagesPrepared[an->lastTemplatedx].name,
+                                an->refRect + env.scaleToReference(an->matchedCaptureOffset));
     env.classified.back().u.ldet.referenceP0 = env.cvtCapturedToReference(captureP0);
     env.classified.back().u.ldet.referenceP1 = env.cvtCapturedToReference(captureP1);
+    env.classified.back().u.ldet.scale = 1;
+    env.classified.back().u.ldet.angle = lastDeltaAngle;
+    env.classified.back().u.ldet.match = 1;
+    env.classified.back().u.ldet.offset = env.scaleToReference(an->matchedCaptureOffset);
     return 1;
 }
 

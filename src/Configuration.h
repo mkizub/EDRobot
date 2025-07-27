@@ -54,6 +54,7 @@ public:
     CommodityCategory* category;
     std::string name;   // current localization
     std::wstring wide;  // same as 'name'
+    std::wstring wocr;  // same as 'wide' but with OCR chars
     std::array<std::string,2> translation;
     int carrierSortingOrder[2];
 
@@ -184,11 +185,19 @@ struct GameEvent {
     std::string event;
 };
 
+struct StarSystem {
+    int64_t address;
+    std::string name;
+    cv::Point3d pos;
+    std::map<std::string,std::shared_ptr<GameEvent>> fssSignalDiscovered;
+};
+
 typedef std::shared_ptr<Market> spMarket;
 typedef std::shared_ptr<ShipCargo> spShipCargo;
 typedef std::shared_ptr<ShipStatus> spShipStatus;
 typedef std::shared_ptr<ShipCargo> spShipCargo;
 typedef std::shared_ptr<GameEvent> spGameEvent;
+typedef std::shared_ptr<StarSystem> spStarSystem;
 
 union LocationPanelFilters {
     LocationPanelFilters() : mask(0) {}
@@ -207,12 +216,6 @@ union LocationPanelFilters {
     int mask;
     bool operator==(const LocationPanelFilters& other) const { return this->mask == other.mask; }
     bool operator!=(const LocationPanelFilters& other) const { return this->mask != other.mask; }
-};
-
-struct StarSystem {
-    uint32_t address;
-    std::string name;
-    cv::Point3d pos;
 };
 
 struct DockStation {
@@ -256,8 +259,8 @@ public:
     std::string getShortcutFor(Command cmd) const;
     CommodityCategory* getCommodityCategoryByName(const std::string& name);
     Commodity* getCommodityById(const std::string& name);
-    Commodity* getCommodityByName(const std::string& name, bool fuzzy);
-    Commodity* getCommodityByName(const std::wstring& name, bool fuzzy);
+    Commodity* getCommodityByName(const std::string& name, bool fuzzy_ocr);
+    Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);
 
     bool loadMarket();
     bool loadCargo();
@@ -266,6 +269,7 @@ public:
     const spMarket getCurrentMarket() const { return currentMarket; }
     const spShipCargo& getCurrentCargo() const { return currentCargo; }
     const spShipStatus& getCurrentStatus() const { return currentStatus; }
+    const spStarSystem& getCurrentStarSystem() const { return currentStarSystem; }
     std::vector<Commodity*> getMarketInSellOrder();
     std::vector<Commodity*> getMarketInBuyOrder();
     std::vector<Commodity*> getAllKnownCommodities();
@@ -340,6 +344,9 @@ private:
     void parseEvent_Docked(spGameEvent& ge);
     void parseEvent_Undocked(spGameEvent& ge);
     void parseEvent_Docking(spGameEvent& ge);
+    void parseEvent_StartJump(spGameEvent& ge);
+    void parseEvent_FSDJump(spGameEvent& ge);
+    void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
 
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;
     HANDLE hShutdownEvent {};
@@ -416,7 +423,7 @@ private:
     spMarket currentMarket;
     spShipCargo currentCargo;
     spShipStatus currentStatus;
-    StarSystem currentStarSystem;
+    spStarSystem currentStarSystem;
     DockStation currentDock;
 
     const unsigned marketCommodityFilterShowAll {0xFFFFFFFFu};

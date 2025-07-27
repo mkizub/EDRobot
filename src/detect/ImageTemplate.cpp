@@ -12,7 +12,7 @@
 namespace detect {
 
 ImageTemplate::ImageTemplate(
-        const std::string &filename, cv::Rect rect)
+        const std::string &filename, spEvalRect rect)
         : filename(filename)
         , referenceRect(std::move(rect))
         , channels(0)
@@ -21,15 +21,17 @@ ImageTemplate::ImageTemplate(
 {
     if (!filename.empty()) {
         auto paths = glob::glob(filename);
+        ResolvedEnv rEnv;
+        cv::Size refSize = referenceRect->calcReferenceRect(rEnv).size();
         for (auto &path: paths) {
             cv::Mat templImage;
             cv::Mat templMask;
             if (!loadImageAndMask(path.string(), templImage, templMask) || templImage.empty())
                 throw std::runtime_error("Cannot load image: " + path.string());
-            if (templImage.cols != referenceRect.width || templImage.rows != referenceRect.height)
+            if (templImage.cols != refSize.width || templImage.rows != refSize.height)
                 throw std::runtime_error(std::format(
                         "Image size {}x{} does not match expected size {}x{}",
-                        templImage.cols, templImage.rows, referenceRect.width, referenceRect.height));
+                        templImage.cols, templImage.rows, refSize.width, refSize.height));
             if (!channels)
                 channels = templImage.channels();
             else if (channels != templImage.channels()) {
@@ -66,7 +68,7 @@ bool ImageTemplate::extractImageMask(cv::Mat &image, cv::Mat &mask) {
             alphaMask.convertTo(mask, CV_32F);
         }
         struct ClearAlpha {
-            void operator()(cv::Vec4b &pixel, const int *position) const {
+            void operator()(cv::Vec4b &pixel, const int*) const {
                 pixel[3] = 255;
             }
         } Functor;
@@ -78,11 +80,6 @@ bool ImageTemplate::extractImageMask(cv::Mat &image, cv::Mat &mask) {
         mask.release();
     }
     return true;
-}
-
-double ImageTemplate::classify(ClassifyEnv &env) {
-    double value = match(env);
-    return toResult(value);
 }
 
 double ImageTemplate::debugMatch(ClassifyEnv &env) {
@@ -256,7 +253,9 @@ void ImageTemplate::prepareImages(ClassifyEnv& env) {
 }
 
 double ImageTemplate::match(ClassifyEnv &env) {
-    if (imagesOrig.empty() || referenceRect.empty() || !channels)
+    lastMatch = 0;
+    refRect = referenceRect->calcReferenceRect(env);
+    if (imagesOrig.empty() || refRect.empty() || !channels)
         return 0;
     cv::Mat gameImage = channels == 1 ? env.getGrayImage() : env.getColorImage();
     if (gameImage.empty())
@@ -265,7 +264,7 @@ double ImageTemplate::match(ClassifyEnv &env) {
     prepareImages(env);
 
     int ext = Master::getInstance().getSearchRegionExtent();
-    captureRect = env.cvtReferenceToCaptured(referenceRect);
+    captureRect = env.cvtReferenceToCaptured(refRect);
     matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
                          captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
     env.cropToCapture(matchRect);
@@ -305,14 +304,16 @@ double ImageTemplate::match(ClassifyEnv &env) {
         matchedCaptureOffset = bestLoc - (captureRect.tl() - matchRect.tl());
         captureRect = {captureRect.tl() + matchedCaptureOffset, captureRect.br() + matchedCaptureOffset};
     }
+    lastMatch = toResult(bestVal);
     if (!name.empty() && bestVal >= threshold_min) {
         env.classified.emplace_back(ClsDetType::Detected, env.isWarpMode(), name,
-                                    referenceRect + env.scaleToReference(matchedCaptureOffset));
-        env.classified.back().u.tdet.referenceRect = referenceRect;
+                                    refRect + env.scaleToReference(matchedCaptureOffset));
+        env.classified.back().u.tdet.referenceRect = refRect;
         env.classified.back().u.tdet.scale = bestTempl->scale;
         env.classified.back().u.tdet.angle = bestTempl->angle;
+        env.classified.back().u.tdet.match = lastMatch;
     }
-    return bestVal;
+    return lastMatch;
 }
 
 } // detect

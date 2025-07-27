@@ -18,7 +18,7 @@ struct Widget {
     virtual ~Widget();
 
     void addSubItem(Widget* sub);
-    void setRect(json5pp::value value);
+    void setRect(const char* name, const json5pp::value& value);
     cv::Rect calcReferenceRect(const ClassifyEnv& env) const;
 
     struct DetectParams {
@@ -44,8 +44,9 @@ struct Label : public Widget {
     Label(const std::string& name, Widget* parent) : Widget(WidgetType::Label, name, parent) {}
     bool detect(DetectParams& params) final;
 
-    std::optional<int> row_height;
-    std::optional<bool> invert;
+    // we'll add ocr leading above the 'ocr_top'
+    int ocr_top {0}; // top of 'H' from single-line label top
+    int ocr_bot {0}; // bottom of 'p/g' from single-line label top
 };
 
 struct BaseButton : public Widget {
@@ -83,14 +84,29 @@ struct Spinner : public BaseButton {
 struct List : public Widget {
     List(const std::string& name, Widget* parent) : Widget(WidgetType::List, name, parent) {}
     bool detect(DetectParams& params) final;
+    bool cleanBadRows(std::vector<double>& rows, double expectedDist);
+    bool alignDetectedRows(std::vector<double>& rows, double expectedDist);
 
-    int row_height {36};
-    int row_gap {2};
-    bool ocr {false};
+    float row_height {0};
+    float row_gap {0};
+    struct Tab {
+        std::string name;
+        int tab_left {0};
+        int tab_right {0};
+        // we'll add ocr leading above the 'ocr_top'
+        int ocr_top {0}; // top of 'H' from single-line label top
+        int ocr_bot {0}; // bottom of 'p/g' from single-line label top
+    };
+    std::vector<Tab> tabs;
 };
 
 struct BaseDialog : public Widget {
     BaseDialog(WidgetType tp, const std::string &name, Widget *parent) : Widget(tp, name, parent) {}
+    struct Vars {
+        std::vector<std::string> ships;
+        std::map<std::string,cv::Rect> values;
+    };
+    std::map<std::string,std::vector<Vars>> varSetMap;
 };
 
 struct Mode : public BaseDialog {

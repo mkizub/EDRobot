@@ -1,8 +1,8 @@
 {
   "default-key-hold-time": 35,
-  "default-key-after-time": 50,
+  "default-key-after-time": 65,
   "search-region-extent": 10,
-  "tesseract-data-path": "tessdata-best", // defaults to "tessdata-fast"
+  "tesseract-data-path": "tessdata-fast", // defaults to "tessdata-fast"
   "capturer-WinRT-disabled": true,
   "capturer-Win32-disabled": false,
   "capturer-DXGI-disabled": false,
@@ -13,7 +13,6 @@
     //pause: "Pause", // not used
     resume: "ScrollLock", // defaults to "scrolllock"
     "debug-templates": "Ctrl+Alt+PrintScreen", // defaults to "ctrl+alt+printscreen"
-    "debug-buttons": "Ctrl+Win+PrintScreen", // defaults to "ctrl+win+printscreen"
     //shutdown: "...", // no default, can exit from 'start trade' dialog
   }
 }

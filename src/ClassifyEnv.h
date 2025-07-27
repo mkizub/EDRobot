@@ -35,6 +35,32 @@ struct FrameRecycler {
 };
 typedef std::unique_ptr<Frame,FrameRecycler> upFrame;
 
+// Point evaluator
+class EvalPoint {
+public:
+    EvalPoint() = default;
+    virtual ~EvalPoint() = default;
+    virtual cv::Point calcReferencePoint(const ResolvedEnv& detectorState) const = 0;
+};
+
+class ConstPoint : public EvalPoint {
+public:
+    ConstPoint(cv::Point point) : mPoint(point) {}
+    cv::Point calcReferencePoint(const ResolvedEnv& detectorState) const override { return mPoint; };
+
+    cv::Point mPoint;
+};
+
+class RefPoint : public EvalPoint {
+public:
+    RefPoint(const widget::BaseDialog& dlg, std::string name, std::string scope) : mDlg(dlg), mName(name), mScope(scope) {}
+    cv::Point calcReferencePoint(const ResolvedEnv& detectorState) const override;
+
+    const widget::BaseDialog& mDlg;
+    std::string mName;
+    std::string mScope;
+};
+
 // Rect evaluator
 class EvalRect {
 public:
@@ -42,37 +68,51 @@ public:
     virtual ~EvalRect() = default;
     virtual cv::Rect calcReferenceRect(const ResolvedEnv& detectorState) const = 0;
 };
-typedef std::shared_ptr<EvalRect> spEvalRect;
 
 class ConstRect : public EvalRect {
 public:
+    ConstRect(int x, int y, int w, int h) : mRect(x,y,w,h) {}
     ConstRect(cv::Rect rect) : mRect(rect) {}
     cv::Rect calcReferenceRect(const ResolvedEnv& detectorState) const override { return mRect; };
 
     cv::Rect mRect;
 };
 
-extern spEvalRect makeEvalRect(json5pp::value jv, int width=0, int height=0);
+class RefRect : public EvalRect {
+public:
+    RefRect(const widget::BaseDialog& dlg, std::string name, std::string scope) : mDlg(dlg), mName(name), mScope(scope) {}
+    cv::Rect calcReferenceRect(const ResolvedEnv& detectorState) const override;
+
+    const widget::BaseDialog& mDlg;
+    std::string mName;
+    std::string mScope;
+};
+
+typedef std::shared_ptr<EvalPoint> spEvalPoint;
+typedef std::shared_ptr<EvalRect> spEvalRect;
+extern spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv);
+extern spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv);
 
 // Transform evaluator
 class EvalTransform {
 public:
-    EvalTransform(cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl)
+    EvalTransform(spEvalPoint tl, spEvalPoint tr, spEvalPoint br, spEvalPoint bl, cv::Size size)
         : orig {tl, tr, br, bl}
+        , origSize(size)
     {
-        float t_w = (float)cv::norm(orig[0] - orig[1]);
-        float b_w = (float)cv::norm(orig[2] - orig[3]);
-        float l_h = (float)cv::norm(orig[0] - orig[3]);
-        float r_h = (float)cv::norm(orig[1] - orig[2]);
-        float d_w = std::round(std::max(t_w, b_w));
-        float d_h = std::round(std::max(l_h, r_h));
-        const_cast<cv::Size&>(origSize) = { int(d_w), int(d_h) };
+//        float t_w = (float)cv::norm(orig[0] - orig[1]);
+//        float b_w = (float)cv::norm(orig[2] - orig[3]);
+//        float l_h = (float)cv::norm(orig[0] - orig[3]);
+//        float r_h = (float)cv::norm(orig[1] - orig[2]);
+//        float d_w = std::round(std::max(t_w, b_w));
+//        float d_h = std::round(std::max(l_h, r_h));
+//        const_cast<cv::Size&>(origSize) = { int(d_w), int(d_h) };
     }
     virtual ~EvalTransform() = default;
     virtual bool calcTransform(const ResolvedEnv& detectorState) = 0;
     virtual cv::Mat transformImage(const cv::Mat& image) const;
 
-    const std::array<cv::Point2f,4> orig;   // tl, tr, br, bl
+    const std::array<spEvalPoint,4> orig;   // tl, tr, br, bl
     const cv::Size origSize {};             // warped image always scaled to reference size
     std::array<cv::Point2f,4> transfromSrc; // in captured coordinates
     cv::Mat transfromMatrix {};
@@ -82,13 +122,13 @@ typedef std::shared_ptr<EvalTransform> spEvalTransform;
 
 class ConstTransform : public EvalTransform {
 public:
-    ConstTransform(cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl);
+    ConstTransform(spEvalPoint tl, spEvalPoint tr, spEvalPoint br, spEvalPoint bl, cv::Size size);
     bool calcTransform(const ResolvedEnv& detectorState) override;
 };
 
 class LineTransform : public EvalTransform {
 public:
-    LineTransform(std::vector<std::string> lines, cv::Point tl, cv::Point tr, cv::Point br, cv::Point bl);
+    LineTransform(std::vector<std::string> lines, spEvalPoint tl, spEvalPoint tr, spEvalPoint br, spEvalPoint bl, cv::Size size);
     bool calcTransform(const ResolvedEnv& detectorState) override;
 
     const std::vector<std::string> lineDetector;
@@ -116,13 +156,15 @@ struct ClassifiedRect {
             cv::Rect referenceRect;   // originally expected rect in reference coordinates
             double scale; // detected scale for multi-scale templates, environment (screen) scale is not counted
             int angle;  // detected rotation angle for multi-scale templates
+            double match; // detector's match value
         } tdet;
         struct {
-            cv::Point2f offset;
-            float angle; // angle difference, in degrees, -90 <= angle <= +90
-            float scale;
             cv::Point referenceP0;
             cv::Point referenceP1;
+            float scale;
+            float angle; // angle difference, in degrees, -90 <= angle <= +90
+            double match; // detector's match value
+            cv::Point2f offset;
         } ldet;
         struct {
             int row;
@@ -130,13 +172,16 @@ struct ClassifiedRect {
             int span; // column span
         } tile;
         struct {
-            mutable WState ws;        // detected state for widgets
-            mutable const widget::Widget* widget;
+            cv::Rect referenceRect;     // originally expected rect in reference coordinates
+            WState ws;                  // detected state for widgets
+            const widget::Widget* widget;
         } widg;
         struct {
-            mutable WState ws;        // detected state for commodity row
-            mutable const widget::List* list;
-            mutable const Commodity* commodity;
+            cv::Rect capturedRect;      // in captured coordinates
+            WState ws;                  // detected state for commodity row
+            const widget::List* list;
+            const Commodity* commodity;
+            int text_confidence;        // OCR confidence for OCR text
         } lrow;
     } u;
 };
@@ -149,6 +194,7 @@ struct ResolvedEnv {
     const cv::Rect monitorRect;
     const cv::Rect captureRect;
 
+    ResolvedEnv();
     ResolvedEnv& operator=(const ResolvedEnv& other);
     void init(const cv::Rect& monitorRect, const cv::Rect& captRect);
     void clear();
@@ -227,6 +273,7 @@ protected:
 };
 
 struct ClassifyEnv : public ResolvedEnv {
+    ClassifyEnv() = default;
     void init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* grayImage);
     void init(const cv::Rect& monitorRect, const cv::Rect& captRect, upFrame&& frame);
     void warpPerspective(const spEvalTransform& transform);

@@ -35,6 +35,7 @@ enum class POIType {
     Equipment, // turret, power plant, etc.
     Asteroid,
     Salvage,
+    None,
 };
 
 enum class Result {
@@ -107,8 +108,48 @@ public:
     explicit interrupted_error() = default;
 };
 
-
-
 } // namespace ai
+
+
+namespace nav {
+
+struct NavType {
+    wchar_t charOCR;
+    ai::POIType poiType;
+    std::vector<std::string> navIcons;
+    std::vector<std::string> typeAliases;
+};
+
+extern NavType STAR;
+extern NavType BEACON;
+extern NavType TOURIST_BEACON;
+extern NavType BODY;
+extern NavType LAND;
+extern NavType BELT;
+extern NavType ORBIS;
+extern NavType CORIOLIS;
+extern NavType MINER_BASE;
+extern NavType OUTPOST;
+extern NavType INSTALLATION;
+extern NavType PORT;
+extern NavType FACTORY;
+extern NavType SETTLEMENT;
+extern NavType CARRIER;
+extern NavType STATION_MEGASHIP;
+extern NavType MEGASHIP;
+extern NavType ENGINEER;
+extern NavType SIGNAL;
+extern NavType WAR_ZONE;
+extern NavType RES_SITE;
+extern NavType SYSTEM;
+extern NavType LOCATION;
+extern NavType SHIELD1;
+extern NavType SHIELD2;
+extern NavType SHIELD3;
+
+extern std::vector<NavType*> ALL_NAV_TYPES;
+
+} // namespace nav
+
 
 #endif //EDROBOT_TYPES_H

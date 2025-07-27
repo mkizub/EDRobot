@@ -18,6 +18,8 @@ class Main : public wl::dialog_main {
 public:
     Main();
 
+    bool show();
+    bool hide();
     int initialize(wl::params& params);
     int curr_task_command(wl::params& params);
 
