@@ -839,8 +839,10 @@ cv::Point RefPoint::calcReferencePoint(const ResolvedEnv& detectorState) const {
     const std::string& ship = Master::getInstance().getConfiguration()->getShipType();
     auto& varSet = mDlg.varSetMap.at(mScope);
     for (auto& vars : varSet) {
-        if (vars.ships.empty() || std::count(vars.ships.begin(),vars.ships.end(), ship)) {
-            return vars.values.at(mName).tl();
+        if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {
+            auto& vals = vars.values.at(mName);
+            cv::Point point {(int)vals[0],(int)vals[1]};
+            return point;
         }
     }
     return {};
@@ -850,8 +852,10 @@ cv::Rect RefRect::calcReferenceRect(const ResolvedEnv& detectorState) const {
     const std::string& ship = Master::getInstance().getConfiguration()->getShipType();
     auto& varSet = mDlg.varSetMap.at(mScope);
     for (auto& vars : varSet) {
-        if (vars.ships.empty() || std::count(vars.ships.begin(),vars.ships.end(), ship)) {
-            return vars.values.at(mName);
+        if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {
+            auto& vals = vars.values.at(mName);
+            cv::Rect rect {(int)vals[0],(int)vals[1],(int)vals[2],(int)vals[3]};
+            return rect;
         }
     }
     return {};

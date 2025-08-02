@@ -29,6 +29,7 @@ void ResolvedEnv::init(const cv::Rect& monRect, const cv::Rect& captRect) {
     const_cast<cv::Rect&>(captureCrop) = cv::Rect(cv::Point(), captureRect.size());
     classified.clear();
     inWarpMode_ = false;
+    isDebugMatch_ = false;
     if (captureRect.size() != ReferenceScreenSize) {
         double x_scale = double(captureRect.width) / ReferenceScreenSize.width;
         double y_scale = double(captureRect.height) / ReferenceScreenSize.height;

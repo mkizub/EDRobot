@@ -25,8 +25,6 @@ enum class Command {
     Stop,
     Calibrate,
     DebugTemplates,
-    DebugFindAllCommodities,
-    DebugCompass,
     DebugWindow,
     DevRectSelect,
     DevRectScreenshot,
@@ -48,6 +46,7 @@ struct UIState {
     const std::string& screen_name() const;
     const std::string& focused_name() const;
     bool match(const std::string& state) const;
+    std::vector<std::string> splitPath() const;
     bool valid {false};
     GuiFocus guiFocus {GuiFocus::None};
     const widget::Screen* screen {nullptr};
@@ -59,11 +58,13 @@ struct UIState {
 };
 
 struct CompassInfo {
-    CompassInfo() : hemisphere(-1) {}
+    CompassInfo() : hemisphere(-1), has_nav_target(false) {}
     short targetPitch;
     short targetYaw;
     short targetRoll;
-    short hemisphere; // 0: front, 1: back, -1: invalid
+    short hemisphere; // +1: front, -1: back, 0: invalid
+    bool has_nav_target;
+    std::string nav_target_dist;
 };
 struct DetectRequest {
     DetectLevel level;
@@ -95,7 +96,7 @@ public:
     bool detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastUIState; }
     const json5pp::value& getTaskActions(const std::string& action);
-    cv::Rect resolveWidgetReferenceRect(const std::string& name);
+    cv::Rect resolveWidgetReferenceRect(const std::string& name) const;
     Configuration* getConfiguration() const { return mConfiguration; }
     ai::AIManager* getAIManager() const { return mAIManager; }
     int getDefaultKeyHoldTime() const { return mConfiguration->defaultKeyHoldTime; }
@@ -113,6 +114,7 @@ public:
     //static int ocrNavText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
     static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr);
 
+    const widget::Widget* getCfgItem(std::string state) const;
 private:
     friend class Configuration;
     friend class UIState;
@@ -140,15 +142,12 @@ private:
     bool stopAITask();
 
     bool captureWindow(ClassifyEnv& env);
-    widget::Widget* getCfgItem(std::string state);
     widget::Widget* matchWithSubItems(widget::Widget* item);
     void processDetectRequest(pCommand& cmd);
     bool matchItem(widget::Widget* item);
     widget::Widget* debugTemplates(widget::Widget* item, ClassifyEnv* env);
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
     bool debugRectScreenshot(pCommand& cmd);
-    bool debugFindAllCommodities();
-    bool debugCompass();
     bool debugWindow();
     bool debugWindowUpdate(bool idle);
 

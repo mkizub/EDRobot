@@ -103,8 +103,8 @@ struct List : public Widget {
 struct BaseDialog : public Widget {
     BaseDialog(WidgetType tp, const std::string &name, Widget *parent) : Widget(tp, name, parent) {}
     struct Vars {
-        std::vector<std::string> ships;
-        std::map<std::string,cv::Rect> values;
+        std::vector<std::string> keys;
+        std::map<std::string,std::vector<double>> values;
     };
     std::map<std::string,std::vector<Vars>> varSetMap;
 };

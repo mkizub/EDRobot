@@ -34,6 +34,8 @@ GameEvent::GameEvent(json::value&& j) : data(std::move(j.as_object())) {
 spGameEvent Configuration::parseEvent(const std::string& line) {
     spGameEvent gameEvent;
     {
+        if (trim(line).empty())
+            return {};
         std::string error;
         auto res = json::parse5(line, &error);
         if (!res.has_value()) {

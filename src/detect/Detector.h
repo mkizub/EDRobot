@@ -19,7 +19,6 @@ public:
     // classifies evaluated matching value, i.e. classifies by returning probability of being the same class
     // returns value in range [0..1]
     virtual double match(ClassifyEnv& env) = 0;
-    virtual double debugMatch(ClassifyEnv& env) = 0;
 
     double classifierWeight {1};
 };
@@ -32,7 +31,6 @@ public:
     ~Sequence() override = default;
 
     double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
 private:
     std::vector<std::unique_ptr<Detector>> oracles;
 };
@@ -45,7 +43,6 @@ public:
     ~BestOf() override = default;
 
     double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
 private:
     std::vector<std::unique_ptr<Detector>> oracles;
 };
@@ -58,7 +55,6 @@ public:
     ~ReferDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
 private:
     string referred;
 };
@@ -111,7 +107,6 @@ public:
     ~ImageTemplate() override = default;
 
     double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
 
     static bool loadImageAndMask(const std::string& filename, cv::Mat& image, cv::Mat& mask);
     static bool extractImageMask(cv::Mat& image, cv::Mat& mask);
@@ -163,18 +158,31 @@ public:
     ~CompassDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
+
+    cv::Rect targetReferenceRect;
+    int targetReferenceRadius;
 
     std::vector<std::unique_ptr<ImageFilter>> dotsFilters;
+    std::vector<std::unique_ptr<ImageFilter>> navTargetFilters;
+    std::vector<std::unique_ptr<ImageFilter>> distOCRFilters;
     std::vector<ImageMatrix> compassDotsOrig;
     std::vector<ImageMatrix> compassDotsPrepared;
+    std::vector<ImageMatrix> navTargetOrig;
+    std::vector<ImageMatrix> navTargetPrepared;
+    cv::Mat navTargetRemap1;
+    cv::Mat navTargetRemap2;
+
     double preprocessedDotsScale = 0;
+    double preprocessedFOV = 0;
+    std::string preprocessedShip;
+    std::vector<double> baseTestScales;
+    std::vector<double> navTargetScales;
 
     const double threshold_dot;
 
     int lastScaleIdx;
     double lastScale;
-    int lastHemisphere;
+    int lastHemisphere; // -1: back, 0: not detected, +1: front
     double lastTgtPitch;
     double lastTgtYaw;
     double lastTgtRoll;
@@ -182,6 +190,11 @@ public:
     cv::Rect dotCaptureRect;
     cv::Point2d dotSpherePosition;
     double lastDotValue;
+
+    bool navTargetFound;
+    cv::Point lastNavTargetOffset;
+    std::string lastNavTargetText;
+    dist_t lastNavDist;
 
     static void tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect);
 };
@@ -193,7 +206,6 @@ public:
     ~TilesDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
 
     const std::string name;
     cv::Rect mTilesRect;
@@ -218,7 +230,6 @@ public:
     ~LineDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    double debugMatch(ClassifyEnv& env) override;
 
     void normalizeRotatedRect(cv::RotatedRect& rr);
     void tryCannyParamsGUI(ClassifyEnv &env);

@@ -63,7 +63,7 @@ void shutdown() {
 //    }
 }
 
-static int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rect) {
+int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rect) {
     text.clear();
     if (rect)
         *rect = {};
@@ -71,12 +71,8 @@ static int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text,
     if (!tesseractApi)
         return 0;
 
-    LARGE_INTEGER StartingTime, EndingTime, ElapsedMicroseconds;
-    LARGE_INTEGER Frequency;
-    QueryPerformanceFrequency(&Frequency);
-
     // 'edr'
-    QueryPerformanceCounter(&StartingTime);
+    auto startTime = std::chrono::high_resolution_clock::now();
 
     tesseractApi->SetImage(grayImage.data, grayImage.cols, grayImage.rows, 1, (int)grayImage.step);
     tesseractApi->Recognize(nullptr);
@@ -95,15 +91,13 @@ static int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text,
     }
     tesseractApi->Clear();
 
-    QueryPerformanceCounter(&EndingTime);
-    ElapsedMicroseconds.QuadPart = EndingTime.QuadPart - StartingTime.QuadPart;
-    ElapsedMicroseconds.QuadPart *= 1000000;
-    ElapsedMicroseconds.QuadPart /= Frequency.QuadPart;
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
 
-    LOG(INFO) << "OCR Output ("<<dbg<<"): '" << text << "' words conf=" << conf << "% took=" << ElapsedMicroseconds.QuadPart << "us";
+    LOG(INFO) << "OCR Output ("<<dbg<<"): '" << text << "' words conf=" << conf << "% took=" << elapsedTime.count() << "us";
 
     // 'edr-s' (1.25 times faster)
-//    QueryPerformanceCounter(&StartingTime);
+//    startTime = std::chrono::high_resolution_clock::now();
 //
 //    std::string textTmp;
 //    tesseractApiTmp->SetImage(grayImage.data, grayImage.cols, grayImage.rows, 1, (int)grayImage.step);
@@ -123,12 +117,10 @@ static int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text,
 //    }
 //    tesseractApiTmp->Clear();
 //
-//    QueryPerformanceCounter(&EndingTime);
-//    ElapsedMicroseconds.QuadPart = EndingTime.QuadPart - StartingTime.QuadPart;
-//    ElapsedMicroseconds.QuadPart *= 1000000;
-//    ElapsedMicroseconds.QuadPart /= Frequency.QuadPart;
+//    endTime = std::chrono::high_resolution_clock::now();
+//    elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
 //
-//    LOG(INFO) << "OCR Output (edr-s): '" << textTmp << "' words conf=" << confTmp << "% took=" << ElapsedMicroseconds.QuadPart << "us";
+//    LOG(INFO) << "OCR Output (edr-s): '" << textTmp << "' words conf=" << confTmp << "% took=" << elapsedTime.count() << "us";
 
     return conf;
 }

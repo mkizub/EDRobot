@@ -30,27 +30,27 @@ double Sequence::match(ClassifyEnv &env) {
     return (sum + 1) / 2;
 }
 
-double Sequence::debugMatch(ClassifyEnv &env) {
-    json5pp::value j_arr = json5pp::array({});
-    double sumWeights = 0;
-    for (auto &oracle: oracles) {
-        if (oracle->classifierWeight <= 0)
-            continue;
-        sumWeights += oracle->classifierWeight;
-    }
-    double sum = 0;
-    for (auto &oracle: oracles) {
-        if (oracle->classifierWeight <= 0)
-            continue;
-        double value = oracle->debugMatch(env);
-        j_arr.as_array().emplace_back(value);
-        double weight = oracle->classifierWeight / sumWeights;
-        sum += weight * (2 * value - 1);
-    }
-    double result = (sum + 1) / 2;
-    LOG(INFO) << "Sequence match result: " << result << " for " << j_arr;
-    return result;
-}
+//double Sequence::debugMatch(ClassifyEnv &env) {
+//    json5pp::value j_arr = json5pp::array({});
+//    double sumWeights = 0;
+//    for (auto &oracle: oracles) {
+//        if (oracle->classifierWeight <= 0)
+//            continue;
+//        sumWeights += oracle->classifierWeight;
+//    }
+//    double sum = 0;
+//    for (auto &oracle: oracles) {
+//        if (oracle->classifierWeight <= 0)
+//            continue;
+//        double value = oracle->debugMatch(env);
+//        j_arr.as_array().emplace_back(value);
+//        double weight = oracle->classifierWeight / sumWeights;
+//        sum += weight * (2 * value - 1);
+//    }
+//    double result = (sum + 1) / 2;
+//    LOG(INFO) << "Sequence match result: " << result << " for " << j_arr;
+//    return result;
+//}
 
 
 double BestOf::match(ClassifyEnv &env) {
@@ -64,21 +64,21 @@ double BestOf::match(ClassifyEnv &env) {
     return bestMatch;
 }
 
-double BestOf::debugMatch(ClassifyEnv &env) {
-    json5pp::value j_arr = json5pp::array({});
-    int bestIdx = -1;
-    double bestMatch = 0;
-    for (int i = 0; i < oracles.size(); i++) {
-        double value = oracles[i]->debugMatch(env);
-        j_arr.as_array().emplace_back(value);
-        if (value > bestMatch) {
-            bestMatch = value;
-            bestIdx = i;
-        }
-    }
-    LOG(INFO) << "BestOf match result: " << bestMatch << " index " << bestIdx << " between " << j_arr;
-    return bestMatch;
-}
+//double BestOf::debugMatch(ClassifyEnv &env) {
+//    json5pp::value j_arr = json5pp::array({});
+//    int bestIdx = -1;
+//    double bestMatch = 0;
+//    for (int i = 0; i < oracles.size(); i++) {
+//        double value = oracles[i]->debugMatch(env);
+//        j_arr.as_array().emplace_back(value);
+//        if (value > bestMatch) {
+//            bestMatch = value;
+//            bestIdx = i;
+//        }
+//    }
+//    LOG(INFO) << "BestOf match result: " << bestMatch << " index " << bestIdx << " between " << j_arr;
+//    return bestMatch;
+//}
 
 double ReferDetector::match(ClassifyEnv &env) {
     for (auto& cr : env.classified) {
@@ -88,10 +88,6 @@ double ReferDetector::match(ClassifyEnv &env) {
             return cr.u.ldet.match;
     }
     return 0;
-}
-
-double ReferDetector::debugMatch(ClassifyEnv& env) {
-    return match(env);
 }
 
 bool Histogram::calc(ClassifyEnv &env) {

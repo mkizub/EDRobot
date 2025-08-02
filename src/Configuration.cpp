@@ -80,8 +80,6 @@ bool Configuration::load() {
             {{"printscreen",0}, Command::Start},
             {{"scrolllock",0}, Command::Resume},
             {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
-            {{"c",keyboard::CTRL|keyboard::ALT}, Command::DebugCompass},
-            {{"c",keyboard::CTRL|keyboard::ALT|keyboard::SHIFT}, Command::DebugCompass},
             {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect},
             {{"[",keyboard::CTRL|keyboard::ALT}, Command::DebugWindow},
             {{"]",keyboard::CTRL|keyboard::ALT}, Command::ResetCapturer},
@@ -119,7 +117,6 @@ bool Configuration::load() {
             parseShortcutConfig(Command::Resume, "resume", obj);
             parseShortcutConfig(Command::Stop,  "stop",  obj);
             parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
-            parseShortcutConfig(Command::DebugCompass,    "debug-compass",  obj);
             parseShortcutConfig(Command::DebugWindow,     "debug-window",  obj);
             parseShortcutConfig(Command::DevRectSelect,   "dev-rect-select",  obj);
             parseShortcutConfig(Command::Shutdown,  "shutdown",  obj);
@@ -1937,16 +1934,21 @@ static void from_json(const json5pp::value& j, std::map<std::string,std::vector<
         std::string varSetName = varSet_it.first;
         for (auto& vars_it : varSet_it.second.as_array()) {
             BaseDialog::Vars& vars = varSetMap[varSetName].emplace_back();
-            if (vars_it.at("ship").is_string())
-                vars.ships.push_back(vars_it.at("ship").as_string());
-            else if (vars_it.at("ship").is_array()) {
-                for (auto& js : vars_it.at("ship").as_array())
-                    vars.ships.push_back(js.as_string());
+            if (vars_it.at("key").is_string())
+                vars.keys.push_back(vars_it.at("key").as_string());
+            else if (vars_it.at("key").is_array()) {
+                for (auto& js : vars_it.at("key").as_array())
+                    vars.keys.push_back(js.as_string());
             }
             for (auto& jv_it : vars_it.as_object()) {
-                if (jv_it.first == "ship")
+                if (jv_it.first == "key")
                     continue;
-                vars.values[jv_it.first] = rect_from_json(jv_it.second);
+                if (jv_it.second.is_array()) {
+                    for (auto jv : jv_it.second.as_array())
+                        vars.values[jv_it.first].push_back(jv.as_number());
+                }
+                else if (jv_it.second.is_number())
+                    vars.values[jv_it.first].push_back(jv_it.second.as_number());
             }
         }
     }

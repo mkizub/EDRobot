@@ -288,30 +288,98 @@ std::string encodeShortcut(const std::string& name, unsigned flags) {
     return res;
 }
 
-//bool writePNG(const cv::Mat& image, const std::string& filename) {
-//    std::filesystem::path fpath(filename);
-//    std::filesystem::path directory_path = fpath.parent_path();
-//    if (!std::filesystem::exists(directory_path))
-//        std::filesystem::create_directories(directory_path);
-//
-//    png_image pimg = {};
-//    pimg.version = PNG_IMAGE_VERSION;
-//    pimg.width = image.cols;
-//    pimg.height = image.rows;
-//
-//    if (image.channels() == 4)
-//        pimg.format = PNG_FORMAT_RGBA;
-//    else if (image.channels() == 3)
-//        pimg.format = PNG_FORMAT_RGB;
-//    else if (image.channels() == 1)
-//        pimg.format = PNG_FORMAT_GRAY;
-//    else {
-//        LOG(ERROR) << "Unknown image format, num channels: " << image.channels();
-//        return false;
-//    }
-//
-//    int ok = png_image_write_to_file(&pimg, filename.c_str(), 0, image.data, image.step, nullptr);
-//
-//    return ok;
-//}
-//
+const double MM_LS = 299.792458;
+const double LS_LY = 31536000;
+const double MM_LY = MM_LS * LS_LY;
+static double DIST_UNIT_SCALE[6][6] {
+    //   X, M,            KM,           MM,      LS,         LY
+/* X*/  {1, 1,             1,            1,       1,          1 },
+/* M*/  {1, 1,          1e-3,         1e-6,    1e-6/MM_LS, 1e-6/MM_LY},
+/*KM*/  {1, 1e+3,          1,         1e-3,    1e-3/MM_LS, 1e-3/MM_LY},
+/*MM*/  {1, 1e+6,       1e+3,            1,       1/MM_LS,    1/MM_LY},
+/*LS*/  {1, 1e+6*MM_LS, 1e+3*MM_LS,  MM_LS,       1,          1/LS_LY},
+/*LY*/  {1, 1e+6*MM_LY, 1e+3*MM_LY,  MM_LY,   LS_LY,          1 },
+};
+
+dist_t dist_t::convertTo(dist_t::Unit u) const {
+    if (u == Unit::X || unit == Unit::X) return *this;
+    return dist_t(u, dist*DIST_UNIT_SCALE[unit][u]);
+}
+
+std::string dist_t::to_string() const {
+    switch (unit) {
+    case Unit::X:
+        return std::format("{:.2f}", dist);
+    case Unit::M:
+        return std::format("{:.2f}m", dist);
+    case Unit::KM:
+        return std::format("{:.2f}km", dist);
+    case Unit::MM:
+        return std::format("{:.2f}mm", dist);
+    case Unit::LS:
+        return std::format("{:.2f}ls", dist);
+    case Unit::LY:
+        return std::format("{:.2f}ly", dist);
+    }
+}
+
+std::ostream& operator<<(std::ostream& os, const dist_t& obj) {
+    os << obj.to_string();
+    return os;
+}
+
+dist_t parseDist(std::wstring dist) {
+    dist_t::Unit unit = dist_t::X;
+    dist = trim(dist);
+    for (int garbage=0; garbage < 4; garbage++) {
+        //M, KM, MM, LS, LY
+        if (dist.ends_with(L"Mм") || dist.ends_with(L"Mm") || dist.ends_with(L"мм") || dist.ends_with(L"mm")) {
+            unit = dist_t::MM;
+            dist = trim(dist.substr(0, dist.size() - 2));
+            break;
+        } else if (dist.ends_with(L"км") || dist.ends_with(L"kм") || dist.ends_with(L"кm") || dist.ends_with(L"km")) {
+            unit = dist_t::KM;
+            dist = trim(dist.substr(0, dist.size() - 2));
+            break;
+        } else if (dist.ends_with(L"м") || dist.ends_with(L"m") || dist.ends_with(L"M")) {
+            unit = dist_t::M;
+            dist = trim(dist.substr(0, dist.size() - 1));
+            break;
+        } else if (dist.ends_with(L"c.л.")) {
+            unit = dist_t::LY;
+            dist = trim(dist.substr(0, dist.size() - 4));
+            break;
+        } else if (dist.ends_with(L"c.л")) {
+            unit = dist_t::LY;
+            dist = trim(dist.substr(0, dist.size() - 3));
+            break;
+        } else if (dist.ends_with(L"cв. c")) {
+            unit = dist_t::LS;
+            dist = trim(dist.substr(0, dist.size() - 5));
+            break;
+        } else if (dist.ends_with(L"cв.c") || dist.ends_with(L"cв c")) {
+            unit = dist_t::LS;
+            dist = trim(dist.substr(0, dist.size() - 4));
+            break;
+        }
+        dist = trim(dist.substr(0, dist.size() - 1)); // maybe some OCR garbage after distance unit
+    }
+    if (unit == dist_t::X)
+        return {};
+
+    std::string num;
+    for (auto dig : dist) {
+        if (dig >= '0' && dig <= '9')
+            num.push_back((char)dig);
+        else if (dig == ',' || dig == '.')
+            num.push_back('.');
+    }
+    if (num.empty())
+        return {};
+    try {
+        double d = std::stod(num);
+        return {unit, d};
+    } catch (...) {
+        return {};
+    }
+}

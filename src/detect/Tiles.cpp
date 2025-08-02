@@ -192,26 +192,26 @@ double TilesDetector::match(ClassifyEnv &env) {
     return 1;
 }
 
-double TilesDetector::debugMatch(ClassifyEnv &env) {
-    //CompassDetector::tryLowerUpperBoundsGUI(env, mRect->calcReferenceRect(env));
-    double value = match(env);
-    LOG(INFO) << " detected " << mDetectedTiles.size() << " tiles:";
-    for (auto &cr: env.classified) {
-        if (cr.cdt == ClsDetType::Tile && cr.text.starts_with(name + ":")) {
-            LOG(INFO) << "   tile: '" << cr.text << "' rect: " << cr.detectedRect
-                      << " col: " << cr.u.tile.col << " row: " << cr.u.tile.row;
-        }
-    }
-    cv::Scalar colorOk(96, 255, 255);
-    cv::Scalar colorNo(96, 96, 255);
-    cv::Rect captureRect = env.cvtReferenceToCaptured(mTilesRect);
-    cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), (value < 0.5 ? colorNo : colorOk), 1);
-    for (auto &cr: mDetectedTiles) {
-        cv::Rect r = env.cvtReferenceToCaptured(cr.detectedRect);
-        cv::Scalar color = cr.text.size() > name.size() + 1 ? colorOk : colorNo;
-        cv::rectangle(env.getDebugImage(), r.tl(), r.br(), color, 1);
-    }
-    return value;
-}
+//double TilesDetector::debugMatch(ClassifyEnv &env) {
+//    //CompassDetector::tryLowerUpperBoundsGUI(env, mRect->calcReferenceRect(env));
+//    double value = match(env);
+//    LOG(INFO) << " detected " << mDetectedTiles.size() << " tiles:";
+//    for (auto &cr: env.classified) {
+//        if (cr.cdt == ClsDetType::Tile && cr.text.starts_with(name + ":")) {
+//            LOG(INFO) << "   tile: '" << cr.text << "' rect: " << cr.detectedRect
+//                      << " col: " << cr.u.tile.col << " row: " << cr.u.tile.row;
+//        }
+//    }
+//    cv::Scalar colorOk(96, 255, 255);
+//    cv::Scalar colorNo(96, 96, 255);
+//    cv::Rect captureRect = env.cvtReferenceToCaptured(mTilesRect);
+//    cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), (value < 0.5 ? colorNo : colorOk), 1);
+//    for (auto &cr: mDetectedTiles) {
+//        cv::Rect r = env.cvtReferenceToCaptured(cr.detectedRect);
+//        cv::Scalar color = cr.text.size() > name.size() + 1 ? colorOk : colorNo;
+//        cv::rectangle(env.getDebugImage(), r.tl(), r.br(), color, 1);
+//    }
+//    return value;
+//}
 
 } // detect

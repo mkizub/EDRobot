@@ -96,17 +96,6 @@ double LineDetector::match(ClassifyEnv &env) {
     return 1;
 }
 
-double LineDetector::debugMatch(ClassifyEnv &env) {
-    double value = match(env);
-    if (value > 0.5) {
-        cv::Scalar color(255, 255, 96);
-        cv::line(env.getDebugImage(), captureP0, captureP1, color, 2);
-    }
-    //if (!lineMatchRect.empty())
-    //    tryCannyParamsGUI(env);
-    return value;
-}
-
 void LineDetector::normalizeRotatedRect(cv::RotatedRect &rr) {
     if (rr.angle > +90) rr.angle -= 180;
     if (rr.angle < -90) rr.angle += 180;

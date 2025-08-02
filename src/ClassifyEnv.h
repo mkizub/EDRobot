@@ -225,6 +225,11 @@ struct ResolvedEnv {
             return size;
         return {int(size.width * scaleToCaptured_), int(size.height * scaleToCaptured_)};
     }
+    cv::Rect scaleToCaptured(const cv::Rect& rect) const {
+        if (!needScaling())
+            return rect;
+        return {rect.tl() * scaleToCaptured_, rect.br() * scaleToCaptured_};
+    }
     cv::Point scaleToReference(const cv::Point& point) const {
         return needScaling() ? point / scaleToCaptured_ : point;
     }
@@ -259,12 +264,14 @@ struct ResolvedEnv {
     cv::Point unWarp(const cv::Point point) const;
     std::array<cv::Point,4> unWarp(const cv::Rect& rect) const;
 
+    bool isDebugMatch() const { return isDebugMatch_; }
 protected:
     friend class Master;
     cv::Rect captureCrop;
     // reference-to-captured scale
     bool inWarpMode_ {false};
     bool needScaling_ {false};
+    bool isDebugMatch_ {false};
     double scaleToCaptured_ {1};
     cv::Point captureCenter;
     cv::Rect warpRect;

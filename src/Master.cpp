@@ -218,6 +218,12 @@ static Widget* getItemByName(const Widget* item, const std::string& name) {
     return nullptr;
 }
 
+std::vector<std::string> UIState::splitPath() const {
+    if (!widget)
+        return {};
+    return parseState(widget->path);
+}
+
 bool UIState::match(const std::string& state) const {
     if (!widget) {
         return state.empty();
@@ -396,12 +402,6 @@ void Master::loop() {
             case Command::DebugTemplates:
                 debugTemplates(nullptr, nullptr);
                 break;
-            case Command::DebugFindAllCommodities:
-                debugFindAllCommodities();
-                break;
-            case Command::DebugCompass:
-                debugCompass();
-                break;
             case Command::DebugWindow:
                 debugWindow();
                 break;
@@ -556,7 +556,7 @@ bool Master::startCalibration() {
 
 
 const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lbl_name) {
-    Widget* widget = getInstance().getCfgItem(lbl_name);
+    const Widget* widget = getInstance().getCfgItem(lbl_name);
     if (!widget) {
         LOG(ERROR) << "Widget '" << lbl_name << "' not found";
         return nullptr;
@@ -781,14 +781,6 @@ bool Master::stopAITask() {
     return true;
 }
 
-bool Master::debugFindAllCommodities() {
-    if (!preInitTask())
-        return false;
-    LOG(INFO) << "Staring new debug task";
-    auto& templ = mAIManager->getTaskTemplate(ai::ED_TASK_DEBUG_FIND_ALL_COMMODITIES);
-    return mAIManager->new_task(templ);
-}
-
 const json5pp::value& Master::getTaskActions(const std::string& action) {
     auto it = mActions.find(action);
     if (it == mActions.end()) {
@@ -798,8 +790,8 @@ const json5pp::value& Master::getTaskActions(const std::string& action) {
     return it->second;
 }
 
-cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) {
-    Widget* item = getCfgItem(name);
+cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) const {
+    const Widget* item = getCfgItem(name);
     if (!item) {
         LOG(ERROR) << "Widget '" << name << "' not found";
         return {};
@@ -812,7 +804,7 @@ cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) {
     return r;
 }
 
-Widget* Master::getCfgItem(std::string state) {
+const Widget* Master::getCfgItem(std::string state) const {
     if (state.empty())
         return nullptr;
     auto names = parseState(state);
@@ -889,13 +881,13 @@ bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
     if (!item->oracle) {
         for (Widget* m : item->have) {
             if (m->tp == WidgetType::Mode && m->oracle) {
-                if (m->oracle->debugMatch(env) >= 0.5)
+                if (m->oracle->match(env) >= 0.5)
                     return true;
             }
         }
         return false;
     }
-    return item->oracle->debugMatch(env) >= 0.5;
+    return item->oracle->match(env) >= 0.5;
 }
 
 widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
@@ -905,6 +897,7 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             LOG(ERROR) << "Cannot capture screen for debug match";
             return nullptr;
         }
+        debugEnv.isDebugMatch_ = true;
         Widget* foundWidget = nullptr;
         GuiFocus guiFocus = mConfiguration->guiFocus;
         for (auto widget: mScreensRoot->have) {
@@ -914,6 +907,8 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             if (!screen || !screen->checkStatus(*mConfiguration))
                 continue;
             auto w = debugTemplates(screen, &debugEnv);
+            if (guiFocus == GuiFocus::None)
+                mCompassDetector->match(debugEnv);
             el::Loggers::flushAll();
             if (w && !foundWidget) {
                 foundWidget = w;
@@ -921,7 +916,6 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
                     debugEnv.warpPerspective(screen->transform);
                     if (screen->transform->valid) {
                         cv::imwrite("warped-screen-color.png", debugEnv.getWarpedColorImage());
-                        cv::imwrite("warped-screen-gray.png", debugEnv.getWarpedGrayImage());
                     }
                 }
             }
@@ -969,21 +963,6 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
     }
 }
 
-bool Master::debugCompass() {
-    ClassifyEnv debugEnv;
-    if (!captureWindow(debugEnv)) {
-        LOG(ERROR) << "Cannot capture screen to debug compass";
-        return false;
-    }
-    mCompassDetector->debugMatch(debugEnv);
-    mDuplicateToDebugWindow = UIManager::showDebugWindow();
-    if (mDuplicateToDebugWindow) {
-        if (!UIManager::postToDebugWindow(debugEnv.getColorImage(), debugEnv.getDebugImage()))
-            mDuplicateToDebugWindow = false;
-    }
-    return true;
-}
-
 bool Master::debugWindow() {
     detectEDState(DetectLevel::Screen);
     if (UIManager::showDebugWindow()) {
@@ -1010,25 +989,37 @@ bool Master::debugWindowUpdate(bool idle) {
     if (debugImage.empty())
         return UIManager::postToDebugWindow(cEnv.getColorImage(), debugImage);
 
-    if (mConfiguration->guiFocus == GuiFocus::None && mCompassDetector->lastHemisphere >= 0) {
+    if (mConfiguration->guiFocus == GuiFocus::None && mCompassDetector->lastHemisphere) {
         detect::CompassDetector& c = *mCompassDetector.get();
 
         cv::Point center = (c.captureRect.tl() + c.captureRect.br()) / 2;
         int radius = (c.captureRect.width + c.captureRect.height) / 4;
-        if ((c.lastHemisphere & 1) == 0)
+        if (c.lastHemisphere > 0)
             cv::circle(debugImage, center, radius, {0,255,0}, 2);
         else
             cv::circle(debugImage, center, radius, {255,0,0}, 2);
 
-        if ((c.lastHemisphere & 1) == 0)
+        if (c.lastHemisphere > 0)
             cv::rectangle(debugImage, c.dotCaptureRect, {0,255,0}, 2);
         else
             cv::rectangle(debugImage, c.dotCaptureRect, {255,0,0}, 2);
 
         std::string text = std::format("{}/{}/{}", int(c.lastTgtPitch), int(c.lastTgtYaw), int(c.lastTgtRoll));
         cv::Point orig = c.captureRect.tl() + cv::Point(0, -10);
-        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 3, {0, 0, 0});
-        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1, {254, 254, 254});
+        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {0, 0, 0}, 3);
+        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
+
+        if (c.navTargetFound) {
+            center = cEnv.scaleToCaptured(cEnv.ReferenceScreenCenter + c.lastNavTargetOffset);
+            radius = c.targetReferenceRadius * cEnv.getScale();
+            cv::circle(debugImage, center, radius, {255,255,0}, 2);
+            if (c.lastNavDist.unit != dist_t::X) {
+                text = c.lastNavDist.to_string();
+                orig = center + cv::Point(radius, -radius);
+                cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {0, 0, 0}, 3);
+                cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
+            }
+        }
     }
 
     for (auto& cr : cEnv.classified) {
@@ -1245,7 +1236,8 @@ bool Master::detectEDState(DetectLevel level) {
     Widget::DetectParams params {mClassifyEnv, mLastUIState, *this, *mConfiguration, level};
     mScreensRoot->detect(params);
     GuiFocus guiFocus = mConfiguration->guiFocus;
-    if (guiFocus == GuiFocus::None) {
+    bool docked = mConfiguration->getCurrentStatus()->flags.docked;
+    if (!docked && guiFocus == GuiFocus::None) {
         // detect autopilot
         for (auto& cr : mClassifyEnv.classified) {
             if (cr.cdt == ClsDetType::Detected && cr.text == "auto-pilot") {
@@ -1257,7 +1249,8 @@ bool Master::detectEDState(DetectLevel level) {
         if (!mLastUIState.autopilot && !mConfiguration->getCurrentStatus()->destinationName.empty()) {
             mCompassDetector->match(mClassifyEnv);
         } else {
-            mCompassDetector->lastHemisphere = -1;
+            mCompassDetector->lastHemisphere = 0;
+            mCompassDetector->navTargetFound = false;
         }
     }
 
@@ -1329,6 +1322,8 @@ void Master::processDetectRequest(pCommand &cmd) {
                 c->request.compass->targetPitch = (int) std::round(mCompassDetector->lastTgtPitch);
                 c->request.compass->targetYaw = (int) std::round(mCompassDetector->lastTgtYaw);
                 c->request.compass->targetRoll = (int) std::round(mCompassDetector->lastTgtRoll);
+                c->request.compass->has_nav_target = mCompassDetector->navTargetFound;
+                c->request.compass->nav_target_dist = mCompassDetector->lastNavTargetText;
             }
             if (c->request.colorImage) {
                 if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)

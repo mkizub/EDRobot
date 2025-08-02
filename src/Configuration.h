@@ -310,6 +310,8 @@ public:
     const bool isOdyssey {false};
     const LocationPanelFilters configLocationPanelFilters {};
 
+    double getConfigFOV() { return configFOV; }
+
     spGameEvent dockingEvent;
 
 private:

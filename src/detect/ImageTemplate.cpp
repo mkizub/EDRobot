@@ -82,42 +82,42 @@ bool ImageTemplate::extractImageMask(cv::Mat &image, cv::Mat &mask) {
     return true;
 }
 
-double ImageTemplate::debugMatch(ClassifyEnv &env) {
-    double value = match(env);
-    LOG(INFO) << "ImageTemplate match result: " << std::setprecision(3) << value <<
-              "[" << threshold_min << ":" << threshold_max << "] >> " << toResult(value) << " for " << filename <<
-              "; offset: " << env.scaleToReference(matchedCaptureOffset);
-    if (lastTemplatedx >= 0 && lastTemplatedx < imagesPrepared.size()) {
-        auto& im = imagesPrepared[lastTemplatedx];
-        LOG(INFO) << "ImageTemplate best match was at template: "
-                  << std::format("index {} scale {:.6f} angle {} name {}", lastTemplatedx, im.scale, im.angle, im.name);
-    }
-    if (value >= threshold_max) {
-        cv::Scalar color(96, 255, 96);
-        cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
-        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
-        return 1;
-    }
-    if (value < threshold_min) {
-        cv::Scalar color(96, 96, 255);
-        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
-        cv::Point lt = matchRect.tl();
-        cv::Point rb = matchRect.br();
-        cv::line(env.getDebugImage(), lt, rb, color, 1);
-        cv::Point lb = cv::Point(matchRect.tl().x, matchRect.br().y);
-        cv::Point rt = cv::Point(matchRect.br().x, matchRect.tl().y);
-        cv::line(env.getDebugImage(), lb, rt, color, 1);
-        return 0;
-    }
-    double result = toResult(value);
-    cv::Scalar color(96, 210, 210);
-    cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
-    cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
-    cv::Point lt = matchRect.tl();
-    cv::Point rb = matchRect.br();
-    cv::line(env.getDebugImage(), lt, rb, color, 1);
-    return result;
-}
+//double ImageTemplate::debugMatch(ClassifyEnv &env) {
+//    double value = match(env);
+//    LOG(INFO) << "ImageTemplate match result: " << std::setprecision(3) << value <<
+//              "[" << threshold_min << ":" << threshold_max << "] >> " << toResult(value) << " for " << filename <<
+//              "; offset: " << env.scaleToReference(matchedCaptureOffset);
+//    if (lastTemplatedx >= 0 && lastTemplatedx < imagesPrepared.size()) {
+//        auto& im = imagesPrepared[lastTemplatedx];
+//        LOG(INFO) << "ImageTemplate best match was at template: "
+//                  << std::format("index {} scale {:.6f} angle {} name {}", lastTemplatedx, im.scale, im.angle, im.name);
+//    }
+//    if (value >= threshold_max) {
+//        cv::Scalar color(96, 255, 96);
+//        cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
+//        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
+//        return 1;
+//    }
+//    if (value < threshold_min) {
+//        cv::Scalar color(96, 96, 255);
+//        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
+//        cv::Point lt = matchRect.tl();
+//        cv::Point rb = matchRect.br();
+//        cv::line(env.getDebugImage(), lt, rb, color, 1);
+//        cv::Point lb = cv::Point(matchRect.tl().x, matchRect.br().y);
+//        cv::Point rt = cv::Point(matchRect.br().x, matchRect.tl().y);
+//        cv::line(env.getDebugImage(), lb, rt, color, 1);
+//        return 0;
+//    }
+//    double result = toResult(value);
+//    cv::Scalar color(96, 210, 210);
+//    cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
+//    cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
+//    cv::Point lt = matchRect.tl();
+//    cv::Point rb = matchRect.br();
+//    cv::line(env.getDebugImage(), lt, rb, color, 1);
+//    return result;
+//}
 
 double ImageTemplate::toResult(double matchValue) {
     if (matchValue >= threshold_max)
@@ -292,7 +292,7 @@ double ImageTemplate::match(ClassifyEnv &env) {
         double maxVal;
         cv::Point maxLoc;
         cv::minMaxLoc(result, nullptr, &maxVal, nullptr, &maxLoc);
-        LOG(DEBUG) << "ImageTemplate match result: " << std::setprecision(3) << maxVal << " for " << im.name;
+        //LOG(DEBUG) << "ImageTemplate match result: " << std::setprecision(4) << maxVal << " for " << im.name << " scale:" << im.scale;
         if (maxVal > bestVal) {
             bestVal = maxVal;
             bestLoc = maxLoc;
@@ -300,9 +300,14 @@ double ImageTemplate::match(ClassifyEnv &env) {
         }
     }
     if (bestVal >= threshold_min) {
+        LOG(DEBUG) << "ImageTemplate match result: " << std::setprecision(4) << bestVal << " for " << bestTempl->name << " scale:" << bestTempl->scale;
         lastTemplatedx = bestTempl - &imagesPrepared.front();
         matchedCaptureOffset = bestLoc - (captureRect.tl() - matchRect.tl());
         captureRect = {captureRect.tl() + matchedCaptureOffset, captureRect.br() + matchedCaptureOffset};
+        if (bestTempl->scale != 1) {
+            captureRect.width = (int)std::round(captureRect.width * bestTempl->scale);
+            captureRect.height = (int)std::round(captureRect.height * bestTempl->scale);
+        }
     }
     lastMatch = toResult(bestVal);
     if (!name.empty() && bestVal >= threshold_min) {
