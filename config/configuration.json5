@@ -6,6 +6,7 @@
   "capturer-WinRT-disabled": true,
   "capturer-Win32-disabled": false,
   "capturer-DXGI-disabled": false,
+  "opencl-disabled": false,
   "auto-pause": false, // default is true
   shortcuts: {
     start: "PrintScreen", // defaults to "printscreen"

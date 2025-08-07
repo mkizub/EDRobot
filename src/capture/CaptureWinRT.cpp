@@ -23,25 +23,16 @@ public:
     FrameWinRT(CapturerWinRT* owner);
     ~FrameWinRT() override;
     bool valid() const override;
-    const cv::UMat& getColorTexture() const override;
-    const cv::Mat& getColorImage() const override;
-    const cv::Mat& getGrayImage() const override;
+    const XMat& getImage() const override;
 
     void cleanup();
 
     D3D11_TEXTURE2D_DESC mStagingTextureDesc;
-    mutable D3D11_MAPPED_SUBRESOURCE mStagingMappedTex {};
     winrt::com_ptr<ID3D11Texture2D> mStagingTexture;
 
-    mutable cv::UMat colorTexture;
-    mutable cv::Mat colorImage;
-    mutable cv::Mat grayImage;
+    mutable XMat colorImage;
     mutable bool stagingTextureValid {false};
-    mutable bool stagingTextureMapped {false};
-    mutable bool colorImageMapped {false};
-    mutable bool colorTextureValid {false};
     mutable bool colorImageValid {false};
-    mutable bool grayImageValid {false};
 };
 
 FrameWinRT::FrameWinRT(CapturerWinRT* owner)
@@ -60,74 +51,18 @@ bool FrameWinRT::valid() const {
 }
 
 void FrameWinRT::cleanup() {
-    if (stagingTextureMapped) {
-        ((CapturerWinRT*)owner)->m_d3dContext->Unmap(mStagingTexture.get(), 0);
-        mStagingMappedTex = {};
-        stagingTextureMapped = false;
-    }
     if (colorImageValid) {
-        colorImage = cv::Mat();
+        colorImage = XMat();
         colorImageValid = false;
-        colorImageMapped = false;
     }
-    if (colorTextureValid) {
-        colorTexture = cv::UMat();
-        colorTextureValid = false;
-    }
-    grayImageValid = false;
 }
 
-const cv::UMat& FrameWinRT::getColorTexture() const {
-    if (colorTextureValid)
-        return colorTexture;
-    if (!stagingTextureValid)
-        return colorTexture;
-    if (stagingTextureMapped) {
-        if (colorImageMapped) {
-            colorImage = cv::Mat();
-            colorImageMapped = false;
-        }
-        ((CapturerWinRT*)owner)->m_d3dContext->Unmap(mStagingTexture.get(), 0);
-        mStagingMappedTex = {};
-        stagingTextureMapped = false;
-    }
-    if (cv::ocl::OpenCLExecutionContext::getCurrentRef().empty()) {
-        auto capt = (CapturerWinRT*)owner;
-        cv::directx::ocl::initializeContextFromD3D11Device(capt->m_d3dDevice.get());
-    }
-    cv::directx::convertFromD3D11Texture2D(mStagingTexture.get(), colorTexture);
-    colorTextureValid = true;
-    if (colorImageValid) {
-        colorImage = colorTexture.getMat(cv::ACCESS_READ);
-    }
-    return colorTexture;
-}
-
-const cv::Mat& FrameWinRT::getColorImage() const {
+const XMat& FrameWinRT::getImage() const {
     if (colorImageValid)
         return colorImage;
-    if (colorTextureValid) {
-        assert (!stagingTextureMapped);
-        colorImage = colorTexture.getMat(cv::ACCESS_READ);
-        colorTextureValid = true;
-    }
-    auto capt = (CapturerWinRT *) owner;
-    if (!stagingTextureMapped) {
-        capt->m_d3dContext->Map(mStagingTexture.get(), 0, D3D11_MAP_READ, 0, &mStagingMappedTex);
-        stagingTextureMapped = true;
-    }
-    colorImage = cv::Mat(size.height, size.width, CV_8UC4, mStagingMappedTex.pData, mStagingMappedTex.RowPitch);
-    colorImageMapped = true;
+    cv::directx::convertFromD3D11Texture2D(mStagingTexture.get(), colorImage);
     colorImageValid = true;
     return colorImage;
-}
-
-const cv::Mat& FrameWinRT::getGrayImage() const {
-    if (grayImageValid)
-        return grayImage;
-    cv::cvtColor(getColorImage(), grayImage, cv::COLOR_BGRA2GRAY);
-    grayImageValid = true;
-    return grayImage;
 }
 
 
@@ -141,9 +76,9 @@ CapturerWinRT::~CapturerWinRT() {
 }
 
 void CapturerWinRT::recycle(Frame* p) const {
-    if (!p)
-        return;
     std::unique_lock<std::mutex> lock(mCaptureMutex);
+    if (!p || recycledFrames.size() >= 3)
+        return;
     auto it = std::find(recycledFrames.begin(), recycledFrames.end(), p);
     if (it != recycledFrames.end())
         return;
@@ -155,23 +90,12 @@ void CapturerWinRT::recycle(Frame* p) const {
 bool CapturerWinRT::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) {
     if (!hWnd)
         return false;
-    if (!cv::ocl::haveOpenCL() || !cv::ocl::useOpenCL()) {
-        LOG(ERROR) << "OpenCL not supported";
+    if (!getID3D11Device() || !getID3D11DeviceContext()) {
+        LOG(ERROR) << "D3dDevice not initialized";
         return false;
     }
     // Init COM
     winrt::init_apartment();
-
-    if (!m_d3dDevice) {
-        HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                                       nullptr, 0, D3D11_SDK_VERSION, m_d3dDevice.put(), nullptr, m_d3dContext.put());
-        if (FAILED(hr)) {
-            LOG(ERROR) << "Failed to create D3D11 device" << getErrorMessage(hr);
-            return false;
-        }
-        cv::directx::ocl::initializeContextFromD3D11Device(m_d3dDevice.get());
-        LOG(INFO) << "Using OpenCL device: " << cv::ocl::Context::getDefault().device(0).name();
-    }
 
     this->hWndED = hWnd;
     this->windowVirtRect = windowRect;
@@ -187,23 +111,21 @@ bool CapturerWinRT::start() {
         LOG(ERROR) << "Cannot start CapturerWinRT because ED window not found";
         return false;
     }
-    if (!m_d3dDevice) {
-        winrt::check_hresult(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-                                               D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
-                                               m_d3dDevice.put(), nullptr, nullptr));
-    }
+    winrt::com_ptr<ID3D11Device> d3dDevice;
+    d3dDevice.attach(getID3D11Device());
 
     winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice device;
-    const auto dxgiDevice = m_d3dDevice.as<IDXGIDevice>();
+    const auto dxgiDevice = d3dDevice.as<IDXGIDevice>();
     {
         winrt::com_ptr<::IInspectable> inspectable;
         winrt::check_hresult(CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.get(), inspectable.put()));
         device = inspectable.as<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>();
     }
+    d3dDevice.detach();
 
-    auto idxgiDevice2 = dxgiDevice.as<IDXGIDevice2>();
+    auto dxgiDevice2 = dxgiDevice.as<IDXGIDevice2>();
     winrt::com_ptr<IDXGIAdapter> adapter;
-    winrt::check_hresult(idxgiDevice2->GetParent(winrt::guid_of<IDXGIAdapter>(), adapter.put_void()));
+    winrt::check_hresult(dxgiDevice2->GetParent(winrt::guid_of<IDXGIAdapter>(), adapter.put_void()));
     winrt::com_ptr<IDXGIFactory2> factory;
     winrt::check_hresult(adapter->GetParent(winrt::guid_of<IDXGIFactory2>(), factory.put_void()));
 
@@ -248,9 +170,6 @@ bool CapturerWinRT::stop() {
 //    }
     m_session = nullptr;
     m_framePool = nullptr;
-
-    m_d3dContext = nullptr;
-    m_d3dDevice = nullptr;
 
     Capturer::stop();
 
@@ -454,37 +373,13 @@ void CapturerWinRT::copyTexture(FrameWinRT* frame, winrt::Windows::Graphics::Cap
         frame->mStagingTextureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
         frame->mStagingTextureDesc.MiscFlags = 0;
         frame->mStagingTexture = nullptr;
-        HRESULT hr = m_d3dDevice->CreateTexture2D(&frame->mStagingTextureDesc, nullptr, frame->mStagingTexture.put());
+        HRESULT hr = getID3D11Device()->CreateTexture2D(&frame->mStagingTextureDesc, nullptr, frame->mStagingTexture.put());
         if (FAILED(hr)) {
             LOG(ERROR) << "CapturerWinRT Failed to create staging texture";
             return;
         }
         frame->stagingTextureValid = true;
     }
-    if (frame->stagingTextureMapped) {
-        m_d3dContext->Unmap(frame->mStagingTexture.get(), 0);
-        frame->mStagingMappedTex = {};
-        frame->stagingTextureMapped = false;
-    }
 
-    m_d3dContext->CopyResource(frame->mStagingTexture.get(), texture.get());
-    frame->stagingTextureValid = true;
-    HRESULT hr = m_d3dContext->Map(frame->mStagingTexture.get(), 0, D3D11_MAP_READ, 0, &frame->mStagingMappedTex);
-    if (FAILED(hr)) {
-        LOG(ERROR) << "CapturerWinRT Failed to map staging texture";
-    } else {
-        // TODO: move mapping/unmapping to FrameRT and do it on demand, use mapped memory instead of copy
-        uchar* data = (uchar*)frame->mStagingMappedTex.pData;
-        data += borderWidth*4 + titleHeight * frame->mStagingMappedTex.RowPitch;
-        frame->stagingTextureMapped = true;
-        cv::Mat tmp(frame->size.height, frame->size.width, CV_8UC4, data, frame->mStagingMappedTex.RowPitch);
-        tmp.copyTo(frame->colorImage);
-        tmp.release();
-        m_d3dContext->Unmap(frame->mStagingTexture.get(), 0);
-        frame->mStagingMappedTex = {};
-        frame->stagingTextureMapped = false;
-        //frame->colorImage = cv::Mat(frame->size.height, frame->size.width, CV_8UC4, frame->mStagingMappedTex.pData, frame->mStagingMappedTex.RowPitch);
-        //frame->colorImageMapped = true;
-        frame->colorImageValid = true;
-    }
+    getID3D11DeviceContext()->CopyResource(frame->mStagingTexture.get(), texture.get());
 }

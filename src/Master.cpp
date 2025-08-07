@@ -329,8 +329,7 @@ void Master::initializeInternal(std::string ocr_dir) {
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
-    LOG(INFO) << "Initializing OpenCV";
-
+    LOG(INFO) << "Loading configuration";
     mConfiguration = new Configuration();
     mConfiguration->load();
 
@@ -372,6 +371,9 @@ Master::~Master() {
 
 void Master::loop() {
     TRY {
+        LOG(INFO) << "Initializing screen capturers";
+        Capturer::InitCapturers();
+
         LOG(INFO) << "Starting EDRobot task loop";
         bool shutdown = false;
         while (!shutdown) {
@@ -925,7 +927,7 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             //cv::waitKey();
         }
         //cv::destroyAllWindows();
-        mDuplicateToDebugWindow = UIManager::showDebugWindow();
+        //mDuplicateToDebugWindow = UIManager::showDebugWindow();
         if (mDuplicateToDebugWindow) {
             if (!UIManager::postToDebugWindow(debugEnv.getColorImage(), debugEnv.getDebugImage()))
                 mDuplicateToDebugWindow = false;
@@ -991,9 +993,10 @@ bool Master::debugWindowUpdate(bool idle) {
 
     if (mConfiguration->guiFocus == GuiFocus::None && mCompassDetector->lastHemisphere) {
         detect::CompassDetector& c = *mCompassDetector.get();
+        detect::ImageTemplate& ct = *c.compassDetector.get();
 
-        cv::Point center = (c.captureRect.tl() + c.captureRect.br()) / 2;
-        int radius = (c.captureRect.width + c.captureRect.height) / 4;
+        cv::Point center = (ct.captureRect.tl() + ct.captureRect.br()) / 2;
+        int radius = (ct.captureRect.width + ct.captureRect.height) / 4;
         if (c.lastHemisphere > 0)
             cv::circle(debugImage, center, radius, {0,255,0}, 2);
         else
@@ -1005,7 +1008,7 @@ bool Master::debugWindowUpdate(bool idle) {
             cv::rectangle(debugImage, c.dotCaptureRect, {255,0,0}, 2);
 
         std::string text = std::format("{}/{}/{}", int(c.lastTgtPitch), int(c.lastTgtYaw), int(c.lastTgtRoll));
-        cv::Point orig = c.captureRect.tl() + cv::Point(0, -10);
+        cv::Point orig = ct.captureRect.tl() + cv::Point(0, -10);
         cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {0, 0, 0}, 3);
         cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
 
@@ -1120,11 +1123,11 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     }
     rect -= debugEnv.captureRect.tl();
 
-    cv::Vec4b color = debugEnv.getColorImage().at<cv::Vec4b>( (rect.tl() + rect.br())/2 );
-    LOG(INFO) << "Selected rect BGRA color (center dot): " << color;
+    //cv::Vec4b color = debugEnv.getColorImage().at<cv::Vec4b>( (rect.tl() + rect.br())/2 );
+    //LOG(INFO) << "Selected rect BGRA color (center dot): " << color;
 
-    cv::imwrite("debug-rect-gray.png", cv::Mat(debugEnv.getGrayImage(), rect));
-    cv::imwrite("debug-rect-color.png", cv::Mat(debugEnv.getColorImage(), rect));
+    //cv::imwrite("debug-rect-gray.png", cv::Mat(debugEnv.getGrayImage(), rect));
+    cv::imwrite("debug-rect-color.png", debugEnv.getColorImage()(rect));
 
 //    std::string text;
 //    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 50) {
@@ -1212,6 +1215,8 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
 //}
 
 bool Master::detectEDState(DetectLevel level) {
+    auto startTime = std::chrono::high_resolution_clock::now();
+
     mLastUIState.clear();
     // make screenshot
     if (!captureWindow(mClassifyEnv)) {
@@ -1228,6 +1233,8 @@ bool Master::detectEDState(DetectLevel level) {
     mLastUIState.valid = true;
     mLastUIState.guiFocus = mConfiguration->getGuiFocus();
     if (level == DetectLevel::None) {
+        auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+        LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
         debugWindowUpdate(false);
         return true;
     }
@@ -1237,7 +1244,8 @@ bool Master::detectEDState(DetectLevel level) {
     mScreensRoot->detect(params);
     GuiFocus guiFocus = mConfiguration->guiFocus;
     bool docked = mConfiguration->getCurrentStatus()->flags.docked;
-    if (!docked && guiFocus == GuiFocus::None) {
+    bool fsd_jump = mConfiguration->getCurrentStatus()->flags.fsd_jump;
+    if (!docked && !fsd_jump && guiFocus == GuiFocus::None) {
         // detect autopilot
         for (auto& cr : mClassifyEnv.classified) {
             if (cr.cdt == ClsDetType::Detected && cr.text == "auto-pilot") {
@@ -1254,7 +1262,8 @@ bool Master::detectEDState(DetectLevel level) {
         }
     }
 
-    LOG(DEBUG) << "Detected UI state: " << mLastUIState;
+    auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+    LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
     debugWindowUpdate(false);
     return true;
 }
@@ -1323,19 +1332,19 @@ void Master::processDetectRequest(pCommand &cmd) {
                 c->request.compass->targetYaw = (int) std::round(mCompassDetector->lastTgtYaw);
                 c->request.compass->targetRoll = (int) std::round(mCompassDetector->lastTgtRoll);
                 c->request.compass->has_nav_target = mCompassDetector->navTargetFound;
-                c->request.compass->nav_target_dist = mCompassDetector->lastNavTargetText;
+                c->request.compass->nav_target_dist = mCompassDetector->lastNavDist;
             }
             if (c->request.colorImage) {
                 if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
-                    *c->request.colorImage = mClassifyEnv.getWarpedColorImage();
+                    *c->request.colorImage = toMat(mClassifyEnv.getWarpedColorImage());
                 else
-                    *c->request.colorImage = mClassifyEnv.getColorImage();
+                    *c->request.colorImage = toMat(mClassifyEnv.getColorImage());
             }
             if (c->request.grayImage) {
                 if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
-                    *c->request.grayImage = mClassifyEnv.getWarpedGrayImage();
+                    *c->request.grayImage = toMat(mClassifyEnv.getWarpedGrayImage());
                 else
-                    *c->request.grayImage = mClassifyEnv.getGrayImage();
+                    *c->request.grayImage = toMat(mClassifyEnv.getGrayImage());
             }
         }
         c->promise.set_value(ok);

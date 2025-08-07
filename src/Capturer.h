@@ -9,8 +9,14 @@
 #ifndef EDROBOT_CAPTURER_H
 #define EDROBOT_CAPTURER_H
 
+struct ID3D11Device;
+struct ID3D11DeviceContext;
+
 class Capturer {
 public:
+    static struct ID3D11Device* getID3D11Device();
+    static struct ID3D11DeviceContext* getID3D11DeviceContext();
+
     static Capturer* getEDCapturer(HWND hwnd);
 
     virtual ~Capturer() = default;
@@ -45,11 +51,14 @@ protected:
     std::atomic<bool> atomicIsStarted;
 
 private:
+    friend class Master;
+    friend class Configuration;
     static std::vector<std::unique_ptr<class CapturerWin32>> Win32Capturers;
     static std::vector<std::unique_ptr<class CapturerWinRT>> WinRTCapturers;
     static std::vector<std::unique_ptr<class CapturerDXGI>> DXGICapturers;
     static Capturer *DefaultCapturer;
 
+    static void InitD3DDevice();
     static void InitCapturers();
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData);
 };

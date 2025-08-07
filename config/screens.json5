@@ -195,6 +195,7 @@
   {
     name: 'scr-left-panel', // warped reference size: 1086x657
     status: { gui: 'Left' },
+    // TODO: depends on FOV :(  numbers for fov=56.249001
     vars: {
       lp: [
         { p0: [236,300], p1: [1302,278], rect: [240,256,37,37], key: ['cutter'] },
@@ -221,7 +222,7 @@
       {
         line: "lpline", p0: 'lp', p1: 'lp', ext: [120,100], thr: 130,
         anchor: {
-          img: "at_left_panel*.png", rect: 'lp', angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
+          img: "at_left_panel*.png", rect: 'lp', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
           filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
         },
         filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
@@ -229,7 +230,7 @@
       {
         line: "nvline", p0: 'nv', p1: 'nv', ext: [120,100], thr: 125,
         anchor: {
-          img: "left/nav_select_icon_*.png", rect: 'nv', angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
+          img: "left/nav_select_icon_*.png", rect: 'nv', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
           filter: { hsv_crop: [{ h: [0,40], s:[128,255], v:[128,255] },{ h: [85,95], s:[50,255], v:[128,255] }] },
         },
         filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
@@ -237,7 +238,7 @@
       {
         line: "fltline", p0: 'flt', p1: 'flt', ext: [120,100], thr: 110,
         anchor: {
-          img: "left/filter_icon-*.png", rect: 'flt', angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
+          img: "left/filter_icon-*.png", rect: 'flt', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
           filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
         },
         filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },

@@ -21,7 +21,8 @@ public:
     bool show();
     bool hide();
     int initialize(wl::params& params);
-    int curr_task_command(wl::params& params);
+    int on_command_stop_new(wl::params& params);
+    int on_command_pause_resume(wl::params& params);
 
     void update_curr_task();
 
@@ -29,7 +30,12 @@ public:
 
     NOTIFYICONDATA mNotifyIconData;
     wl::label lbl_curr_task;
-    wl::button btn_curr_task;
+    wl::label lbl_task_status;
+    wl::button btn_stop_new;
+    wl::button btn_pause_resume;
+    wl::button btn_watch;
+
+    UINT_PTR mUpdateTimerId {};
 };
 
 

@@ -5,8 +5,14 @@ import numpy as np
 def nothing(x):
     pass
 
+img = cv2.imread(sys.argv[1])
+#img = cv2.resize(img, dsize=None, fx=0.5, fy=0.5)
+output = img
+
 # Create a window
 cv2.namedWindow('image')
+cv2.imshow('image',output)
+cv2.waitKey(100)
 
 # create trackbars for color change
 cv2.createTrackbar('HMin','image',0,179,nothing) # Hue is from 0-179 for Opencv
@@ -25,8 +31,6 @@ cv2.setTrackbarPos('VMax', 'image', 255)
 hMin = sMin = vMin = hMax = sMax = vMax = 0
 phMin = psMin = pvMin = phMax = psMax = pvMax = 0
 
-img = cv2.imread(sys.argv[1])
-output = img
 waitTime = 33
 
 while(1):
@@ -48,6 +52,9 @@ while(1):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lower, upper)
     output = cv2.bitwise_and(img,img, mask= mask)
+    #output = cv2.cvtColor(output,cv2.COLOR_BGR2GRAY)
+    #lapl16S = cv2.Laplacian(output, cv2.CV_16S, ksize=1, scale=10)
+    #output = cv2.convertScaleAbs(lapl16S)
 
     # Print if there is a change in HSV value
     if( (phMin != hMin) | (psMin != sMin) | (pvMin != vMin) | (phMax != hMax) | (psMax != sMax) | (pvMax != vMax) ):
@@ -67,3 +74,4 @@ while(1):
         break
 
 cv2.destroyAllWindows()
+quit()

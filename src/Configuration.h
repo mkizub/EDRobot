@@ -360,6 +360,7 @@ private:
     bool capturerWin32Disabled = false;
     bool capturerWinRTDisabled = false;
     bool capturerDXGIDisabled = false;
+    bool openclDisabled = false;
     std::string mTesseractDataPath;
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;

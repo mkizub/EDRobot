@@ -8,6 +8,7 @@
 #include "Keyboard.h"
 #include "FuzzyMatch.h"
 #include "EDWidget.h"
+#include "Capturer.h"
 
 #include <dirlistener/ReadDirectoryChanges.h>
 #ifdef DEBUG
@@ -19,6 +20,10 @@
 #include <xml/xml.h>
 #include <filesystem>
 
+
+#ifdef EDROBOT_USE_OPENCL
+bool g_DisableOpenCL;
+#endif
 
 static cv::Vec3b color_from_json(const json::value& v);
 static detect::Detector* detector_from_json(const json5pp::value& j, widget::Widget& widget);
@@ -133,7 +138,16 @@ bool Configuration::load() {
             capturerWinRTDisabled = tm.as_boolean();
         if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
             capturerDXGIDisabled = tm.as_boolean();
+#ifdef EDROBOT_USE_OPENCL
+        if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
+            openclDisabled = tm.as_boolean();
+        g_DisableOpenCL = openclDisabled;
+#else
+        openclDisabled = true;
+#endif
 
+        LOG(INFO) << "Initializing D3D device";
+        Capturer::InitD3DDevice();
 
         preloadGameJournal(); // game language & version
         loadGameSettings(true);
@@ -534,6 +548,7 @@ bool Configuration::loadInputBindings() {
             parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPanel");
             parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPage");
             parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPage");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "GalaxyMapOpen");
             xml_node_free(rootNode);
             rootNode = nullptr;
         } else {
@@ -578,6 +593,9 @@ bool Configuration::loadInputBindings() {
             parseKeyBindings(rootNode, keyBindingsGeneric, "HyperSuperCombination");
             parseKeyBindings(rootNode, keyBindingsGeneric, "Supercruise");
             parseKeyBindings(rootNode, keyBindingsGeneric, "Hyperspace");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "GalaxyMapOpen");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "ToggleCargoScoop");
+            parseKeyBindings(rootNode, keyBindingsGeneric, "DeployHardpointToggle");
             xml_node_free(rootNode);
             rootNode = nullptr;
         } else {
@@ -1771,9 +1789,9 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
                 min[2] = jv["v"][0].as_integer();
                 max[2] = jv["v"][1].as_integer();
             }
-            filter->ranges.push_back(std::make_pair(min,max));
+            filter->rangesU.push_back(std::make_pair(min,max));
         }
-        if (filter->ranges.empty())
+        if (filter->rangesU.empty())
             delete filter;
         else
             f.reset(filter);

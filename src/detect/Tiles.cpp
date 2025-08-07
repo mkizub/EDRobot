@@ -62,17 +62,19 @@ bool TilesDetector::getColSpan(int &out_col, int &out_span, cv::Rect &bbox, cv::
 
 double TilesDetector::match(ClassifyEnv &env) {
     cv::Rect captureRect = env.cvtReferenceToCaptured(mTilesRect);
-    cv::Mat roiImage(env.getGrayImage(), captureRect);
+    XMat roiImage(env.getGrayImage(), captureRect);
     if (roiImage.empty())
         return 0;
 
     unsigned buttonGrayColor;
     if (hudTryHard) {
+        // TODO: optimize for OpenCL (use Histogram after optimization to OpenCL)
         int histSize = 256;
         float range[]{0, 256}; //the upper boundary is exclusive
         const float *histRange[]{range};
+        cv::Mat histImage = toMat(roiImage);
         cv::Mat hist;
-        cv::calcHist(&roiImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+        cv::calcHist(&histImage, 1, nullptr, cv::noArray(), hist, 1, &histSize, histRange);
         int maxLoc[4]{};
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
         buttonGrayColor = maxLoc[0] - 4;
@@ -80,12 +82,12 @@ double TilesDetector::match(ClassifyEnv &env) {
         buttonGrayColor = Master::getInstance().getConfiguration()->getButtonGrayColor(WState::Normal);
     }
 
-    cv::Mat thrImage;
+    XMat thrImage;
     cv::threshold(roiImage, thrImage, buttonGrayColor - 2, 255, cv::THRESH_BINARY);
 
     if (hudTryHard) {
         cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-        cv::Mat erodedImage;
+        XMat erodedImage;
         cv::erode(thrImage, erodedImage, kernel, cv::Point(-1, -1), 2, cv::BORDER_CONSTANT, cv::Scalar::all(0));
         cv::threshold(erodedImage, thrImage, 250, 255, cv::THRESH_BINARY);
     }
@@ -155,35 +157,17 @@ double TilesDetector::match(ClassifyEnv &env) {
         cv::Rect tileRect = env.cvtReferenceToCaptured(cr.detectedRect);
         tileRect &= captureRect;
         tileRect -= captureRect.tl();
-        ImageMatrix *bestIcon = nullptr;
-        double bestIconVal = 0;
-        for (auto &ic: imagesPrepared) {
-            int result_cols = tileRect.width - ic.templImage.cols + 1;
-            int result_rows = tileRect.height - ic.templImage.rows + 1;
-            if (result_cols <= 0 || result_rows <= 0)
-                continue;
-            cv::Mat result(result_rows, result_cols, CV_32FC1);
-            cv::Mat tileImage = cv::Mat(roiImage, tileRect);
-            cv::matchTemplate(tileImage, ic.templImage, result, cv::TM_CCOEFF_NORMED);
-            //LOG(ERROR) << "match result: " << result;
-            double maxVal;
-            cv::Point maxLoc;
-            cv::minMaxLoc(result, nullptr, &maxVal, nullptr, &maxLoc);
-            //LOG(DEBUG) << "match result: " << std::setprecision(3) << maxVal << " for " << ic.name;
-            if (maxVal >= threshold_min && maxVal > bestIconVal) {
-                bestIcon = &ic;
-                bestIconVal = maxVal;
-            }
-        }
-        if (!name.empty() && bestIcon && bestIconVal >= threshold_min) {
-            cr.text = name + ":" + bestIcon->name;
-            LOG(DEBUG) << "TilesDetector matched result: " << std::setprecision(3) << bestIconVal
+        MatchResult ir;
+        ImageTemplate::matchTemplates(cv::TM_CCOEFF_NORMED, roiImage(tileRect), imagesPrepared, ir);
+        if (!name.empty() && ir.im && ir.value >= threshold_min) {
+            cr.text = name + ":" + ir.im->name;
+            LOG(DEBUG) << "TilesDetector matched result: " << std::setprecision(3) << ir.value
                        << " for " << cr.text
                        << " row:" << cr.u.tile.row << " col:" << cr.u.tile.col << " span:" << cr.u.tile.span;
             env.classified.push_back(cr);
         } else {
-            LOG(DEBUG) << "TilesDetector matched failed: " << std::setprecision(3) << bestIconVal
-                       << " for " << (bestIcon ? bestIcon->name : "all")
+            LOG(DEBUG) << "TilesDetector matched failed: " << std::setprecision(3) << ir.value
+                       << " for " << (ir.im ? ir.im->name : "all")
                        << " row:" << cr.u.tile.row << " col:" << cr.u.tile.col << " span:" << cr.u.tile.span
                        << " rect " << cr.detectedRect;
             env.classified.push_back(cr);

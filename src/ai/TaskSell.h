@@ -21,7 +21,7 @@ private:
     void plan();
 
     int mChunk;
-    std::vector<upTask> sell_archive;
+    std::vector<spTask> sell_archive;
 };
 
 class TaskSell final : public Task {

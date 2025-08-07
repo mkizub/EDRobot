@@ -64,7 +64,7 @@ struct CompassInfo {
     short targetRoll;
     short hemisphere; // +1: front, -1: back, 0: invalid
     bool has_nav_target;
-    std::string nav_target_dist;
+    dist_t nav_target_dist;
 };
 struct DetectRequest {
     DetectLevel level;
@@ -111,7 +111,6 @@ public:
     void pushDetectRequest(std::promise<bool>&& p, DetectRequest&& req);
     void pushDevRectScreenshotCommand(cv::Rect rect);
 
-    //static int ocrNavText(const cv::Mat& grayImage, cv::Rect, std::string& text, std::optional<bool> invert={});
     static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr);
 
     const widget::Widget* getCfgItem(std::string state) const;

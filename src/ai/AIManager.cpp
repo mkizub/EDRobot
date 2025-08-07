@@ -66,7 +66,7 @@ void AIManager::stop() {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
         return !isWorking || isLoopWaiting;
     });
-    upTask oldTask;
+    spTask oldTask;
     activeTask.swap(oldTask);
     taskCond.notify_one();
 }
@@ -106,21 +106,18 @@ void AIManager::resume() {
 }
 
 
-const TaskTemplate &AIManager::curr_task() {
-    static TaskTemplate dummy;
-    if (!activeTask)
-        return dummy;
-    return activeTask->templ;
+spTask AIManager::curr_task() {
+    return activeTask;
 }
 
-bool AIManager::new_task(upTask&& task) {
+bool AIManager::new_task(spTask&& task) {
     if (!task)
         return false;
     LOG(INFO) << "AIManager::new_task()";
     UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->taskName));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
-    upTask oldTask;
+    spTask oldTask;
     activeTask.swap(oldTask);
     taskCond.notify_one();
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
@@ -144,7 +141,7 @@ bool AIManager::new_task(upTask&& task) {
 bool AIManager::new_task(const TaskTemplate& templ) {
     if (templ.name.empty())
         return false;
-    upTask task;
+    spTask task;
     if (templ.name == ED_TASK_CALIBRATE)
         task.reset(new TaskCalibrate(nullptr, *this, templ));
     else if (templ.name == ED_TASK_DEBUG_FIND_ALL_COMMODITIES)
@@ -161,6 +158,12 @@ bool AIManager::new_task(const TaskTemplate& templ) {
         task.reset(new TaskDepart(nullptr, *this, templ));
     else if (templ.name == ED_TASK_DOCK)
         task.reset(new TaskDock(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_TRAVEL)
+        task.reset(new TaskTravel(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_JUMP_TO_SYSTEM)
+        task.reset(new TaskJumpToSystem(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_CRUISE_TO_STATION)
+        task.reset(new TaskCruiseToDock(nullptr, *this, templ));
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
     return new_task(std::move(task));
 }

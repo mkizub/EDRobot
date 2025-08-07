@@ -11,7 +11,7 @@ namespace ai {
 
 class Task;
 class AIManager;
-typedef std::unique_ptr<Task> upTask;
+typedef std::shared_ptr<Task> spTask;
 
 enum class FlyState {
     Void, Space, Jump, Cruise, CruiseInt, CruiseJet, Docked, Landed, Depart, BootScreen, DeathScreen
@@ -48,7 +48,7 @@ enum class Result {
 };
 
 struct Param {
-    enum Type { Bool, Int, Real, String, Star, POI, Dock, Commodity };
+    enum Type { Bool, Int, Real, String, System, POI, Dock, Commodity };
 
     const Type        type;
     const std::string name;

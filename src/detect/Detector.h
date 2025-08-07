@@ -75,48 +75,93 @@ public:
 
 class ImageFilter {
 public:
+    struct Params {
+        bool convertToFloat;
+        bool cropToGray;
+    };
     virtual ~ImageFilter() = default;
-    virtual cv::Mat apply(cv::Mat image) = 0;
+    virtual XMat apply(XMat image, Params params) = 0;
 };
 class GaussFilter : public ImageFilter {
 public:
     GaussFilter(int kern_x, int kern_y) : kernX(kern_x), kernY(kern_y) {}
-    cv::Mat apply(cv::Mat image) final;
+    XMat apply(XMat image, Params params) final;
     const int kernX;
     const int kernY;
-    const bool disabled {false};
 };
 class LaplacianFilter : public ImageFilter {
 public:
     LaplacianFilter(int kern, double scale) : kern(kern), scale(scale) {}
-    cv::Mat apply(cv::Mat image) final;
+    XMat apply(XMat image, Params params) final;
     const int kern;
     const double scale;
+};
+class DilateFilter : public ImageFilter {
+public:
+    DilateFilter(int kX, int kY, int iter=1) : kernX(kX), kernY(kY), iterations(iter) {}
+    XMat apply(XMat image, Params params) final;
+    const int kernX;
+    const int kernY;
+    const int iterations;
+};
+class ErodeFilter : public ImageFilter {
+public:
+    ErodeFilter(int kX, int kY, int iter=1) : kernX(kX), kernY(kY), iterations(iter) {}
+    XMat apply(XMat image, Params params) final;
+    const int kernX;
+    const int kernY;
+    const int iterations;
 };
 class HsvColorCropFilter : public ImageFilter {
 public:
     HsvColorCropFilter() {}
-    cv::Mat apply(cv::Mat image) final;
-    std::vector<std::pair<cv::Vec3b,cv::Vec3b>> ranges;
+    XMat apply(XMat image, Params params) final;
+    std::vector<std::pair<cv::Vec3b,cv::Vec3b>> rangesU;
+    std::vector<std::pair<cv::Vec3f,cv::Vec3f>> rangesF;
 };
 
 
 class ImageTemplate : public Detector {
 public:
+    struct ImageMatrix {
+        double scale;
+        double angle;
+        std::string name;
+        XMat templImageU;
+        XMat templImageF;
+        uint16_t org_w;
+        uint16_t org_h;
+        uint16_t opt_w;
+        uint16_t opt_h;
+        uint16_t opt_l;
+        uint16_t opt_t;
+        uint16_t opt_r;
+        uint16_t opt_b;
+    };
+    struct MatchResult {
+        ImageMatrix* im {nullptr};
+        int index {-1};
+        double value {-1};
+        cv::Point loc;
+    };
+
     ImageTemplate(const std::string& filename, spEvalRect rect);
     ~ImageTemplate() override = default;
 
     double match(ClassifyEnv& env) override;
 
-    static bool loadImageAndMask(const std::string& filename, cv::Mat& image, cv::Mat& mask);
-    static bool extractImageMask(cv::Mat& image, cv::Mat& mask);
+    static bool loadImageAndMask(const std::string& filename, XMat& image);
 
     double toResult(double matchValue); // something like logistic regression, S-curve
 
-    static cv::Mat applyFilters(const std::vector<std::unique_ptr<ImageFilter>>& filters, cv::Mat image);
-    static cv::Mat scaleImage(cv::Mat image, double scaleX, double scaleY = 0);
-    static cv::Mat rotateImage(cv::Mat image, int angle, double scale);
-    static void fixNaNinResult(cv::Mat& result, const std::string& filename);
+    static ImageMatrix prepareImageMatrix(const ClassifyEnv& env, const std::vector<std::unique_ptr<ImageFilter>>& filters, XMat image, double scale, int angle, const std::string& name, ImageFilter::Params params={});
+    static XMat applyFilters(const std::vector<std::unique_ptr<ImageFilter>>& filters, XMat image, ImageFilter::Params params={});
+    static XMat scaleImage(XMat image, double scaleX, double scaleY = 0);
+    static XMat rotateImage(XMat image, int angle, double scale);
+
+    static cv::Rect makeOptimalMatchRect(ClassifyEnv& env, cv::Rect);
+    static void matchTemplates(int matchMethod, const XMat& imagePrepared, std::vector<ImageMatrix>& templPrepared, MatchResult& result);
+    //static void fixNaNinResult(cv::Mat& result, const std::string& filename);
 
 //protected:
     void prepareImages(ClassifyEnv& env);
@@ -129,14 +174,8 @@ public:
     double threshold_min;
     double threshold_max;
     std::vector<std::unique_ptr<ImageFilter>> filters;
+    int matchMethod = cv::TM_CCOEFF_NORMED;
 
-    struct ImageMatrix {
-        double scale;
-        double angle;
-        std::string name;
-        cv::Mat templImage;
-        cv::Mat templMask;
-    };
     std::vector<ImageMatrix> imagesOrig;
     std::vector<ImageMatrix> imagesPrepared;
 
@@ -152,7 +191,7 @@ public:
     double lastMatch {0};
 };
 
-class CompassDetector : public ImageTemplate {
+class CompassDetector : public Detector {
 public:
     CompassDetector();
     ~CompassDetector() override = default;
@@ -160,20 +199,24 @@ public:
     double match(ClassifyEnv& env) override;
 
     cv::Rect targetReferenceRect;
+    cv::Rect targetRemapRect;
     int targetReferenceRadius;
+
+    std::unique_ptr<ImageTemplate>  compassDetector;
 
     std::vector<std::unique_ptr<ImageFilter>> dotsFilters;
     std::vector<std::unique_ptr<ImageFilter>> navTargetFilters;
     std::vector<std::unique_ptr<ImageFilter>> distOCRFilters;
-    std::vector<ImageMatrix> compassDotsOrig;
-    std::vector<ImageMatrix> compassDotsPrepared;
-    std::vector<ImageMatrix> navTargetOrig;
-    std::vector<ImageMatrix> navTargetPrepared;
-    cv::Mat navTargetRemap1;
-    cv::Mat navTargetRemap2;
+    std::vector<ImageTemplate::ImageMatrix> compassDotsOrig;
+    std::vector<ImageTemplate::ImageMatrix> compassDotsPrepared;
+    std::vector<ImageTemplate::ImageMatrix> navTargetOrig;
+    std::vector<ImageTemplate::ImageMatrix> navTargetPrepared;
+    XMat navTargetRemap1;
+    XMat navTargetRemap2;
 
     double preprocessedDotsScale = 0;
     double preprocessedFOV = 0;
+    double shipCompassScale = 1;
     std::string preprocessedShip;
     std::vector<double> baseTestScales;
     std::vector<double> navTargetScales;

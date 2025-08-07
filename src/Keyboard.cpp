@@ -325,7 +325,7 @@ int getScanCode(const std::string& key_name) {
 }
 
 static INPUT fillInput(const GameKey& gk, bool up) {
-    INPUT input;
+    INPUT input {};
     if (gk.device == GameKey::Keyboard) {
         input.type = INPUT_KEYBOARD;
         input.ki.wScan = gk.code & 0xFFFF;
@@ -353,7 +353,7 @@ bool sendKeyDown(const GameKey& gk) {
     for (auto& gkm : gk.modifiers)
         input.push_back(fillInput(gkm, false));
     input.push_back(fillInput(gk, false));
-    unsigned sent = SendInput((int)input.size(), input.data(), input.size()*sizeof(INPUT));
+    unsigned sent = SendInput((int)input.size(), input.data(), sizeof(INPUT));
     if (sent != input.size()) {
         LOG(ERROR) << "SendInput keydown '" << gk << "' failed: " << getErrorMessage();
         return false;
@@ -367,7 +367,7 @@ bool sendKeyUp(const GameKey& gk) {
     input.push_back(fillInput(gk, true));
     for (auto& gkm : gk.modifiers | std::views::reverse)
         input.push_back(fillInput(gkm, true));
-    unsigned sent = SendInput((int)input.size(), input.data(), input.size()*sizeof(INPUT));
+    unsigned sent = SendInput((int)input.size(), input.data(), sizeof(INPUT));
     if (sent != input.size()) {
         LOG(ERROR) << "SendInput   keyup '" << gk << "' failed: " << getErrorMessage();
         return false;

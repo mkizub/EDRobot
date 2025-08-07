@@ -99,22 +99,18 @@ extern const std::string ED_UI_MODE_SYS_MAP; // viewing star system map
 
 extern const std::string ED_TASK_SEQ;               // sequence of several tasks
 extern const std::string ED_TASK_LOOP;              // repeat task a few times
-extern const std::string ED_TASK_DOCK_REFUEL;       // just press 'refuel' button at dock
-extern const std::string ED_TASK_DOCK_REPAIR;       // just press 'repair' button at dock
-extern const std::string ED_TASK_DOCK_REARM;        // just press 'rearm' button at dock
-extern const std::string ED_TASK_GOTO_HANGAR;       // just press 'hangar' button at dock, or exit services
 extern const std::string ED_TASK_GOTO_SERVICES;     // just press 'services' button at dock
 extern const std::string ED_TASK_GOTO_MARKET;       // select 'market' button at dock
 extern const std::string ED_TASK_MARKET_SELL_ALL;   // sell all commodities, maybe by a few items
 extern const std::string ED_TASK_MARKET_SELL;       // sell specified commodity, maybe by a few items
 extern const std::string ED_TASK_MARKET_BUY;        // buy a list of commodities
-extern const std::string ED_TASK_TRAVEL_TO_DOCK;    // multistep task to travel somewhere
+extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
 extern const std::string ED_TASK_GAL_MAP_SELECT;    // select destination star system on galaxy map
 extern const std::string ED_TASK_SYS_MAP_SELECT;    // select destination POI on system map
 extern const std::string ED_TASK_DEPART;            // press 'departure' button at dock and wait autopilot to complete
 extern const std::string ED_TASK_CRUISE_AVOID;      // avoid stars and planets during cruise
 extern const std::string ED_TASK_SPACE_AVOID;       // avoid station, fleet carrier, ship, etc. during normal space fly
-extern const std::string ED_TASK_JUMP_TO;           // jump to selected star in nav route
+extern const std::string ED_TASK_JUMP_TO_SYSTEM;    // jump to selected star in nav route
 extern const std::string ED_TASK_TO_CRUISE;         // from normal space to cruise (if destination in the same system or to avoid obscured jump point)
 extern const std::string ED_TASK_CRUISE_TO_STATION; // cruise to station, exit cruise
 extern const std::string ED_TASK_CRUISE_TO_POI;     // cruise to point of interest (planet, beacon, etc.)

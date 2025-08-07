@@ -5,6 +5,7 @@
 #include "../pch.h"
 
 #include "Main.h"
+#include "UIManager.h"
 #include "AddTask.h"
 #include "../../ui/resource.h"
 
@@ -46,8 +47,20 @@ Main::Main()
         hide();
         return 0;
     });
-    this->base_msg_pubm::on_command(IDC_BUTTON_CURRENT_TASK, [this](wl::params p){
-        curr_task_command(p);
+    this->base_msg_pubm::on_command(IDC_BUTTON_STOP_NEW, [this](wl::params p){
+        on_command_stop_new(p);
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDC_BUTTON_PAUSE_RESUME, [this](wl::params p){
+        on_command_pause_resume(p);
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDC_BUTTON_WATCH, [this](wl::params p){
+        UIManager::showDebugWindow();
+        return 0;
+    });
+    this->base_msg_pubm::on_message(WM_TIMER, [this](wl::params p){
+        update_curr_task();
         return 0;
     });
 }
@@ -69,7 +82,10 @@ int Main::initialize(wl::params &params) {
     LOG_IF(!ok,ERROR) << "Failed to set tray icon";
 
     lbl_curr_task.assign(hwnd(), IDC_CURRENT_TASK);
-    btn_curr_task.assign(hwnd(), IDC_BUTTON_CURRENT_TASK);
+    lbl_task_status.assign(hwnd(), IDC_TASK_STATUS);
+    btn_stop_new.assign(hwnd(), IDC_BUTTON_STOP_NEW);
+    btn_pause_resume.assign(hwnd(), IDC_BUTTON_PAUSE_RESUME);
+    btn_watch.assign(hwnd(), IDC_BUTTON_WATCH);
 
     update_curr_task();
 
@@ -79,24 +95,27 @@ int Main::initialize(wl::params &params) {
 bool Main::show() {
     ShowWindow(this->hwnd(), SW_RESTORE);
     SetForegroundWindow(this->hwnd());
+    mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
     return true;
 }
 
 bool Main::hide() {
     ShowWindow(this->hwnd(), SW_HIDE);
+    KillTimer(this->hwnd(), mUpdateTimerId);
+    mUpdateTimerId = {};
     return true;
 }
 
-int Main::curr_task_command(wl::params &params) {
+int Main::on_command_stop_new(wl::params &params) {
     try {
-        auto &curr_templ = aiManager->curr_task();
-        if (curr_templ.name.empty()) {
+        ai::spTask curr_task = aiManager->curr_task();
+        if (!curr_task) {
             hide();
             AddTask addTaskDlg;
             int res = addTaskDlg.show(this);
+            show();
             if (res == IDOK)
                 return TRUE;
-            show();
         } else {
             aiManager->stop();
         }
@@ -109,13 +128,60 @@ int Main::curr_task_command(wl::params &params) {
     return TRUE;
 }
 
-void Main::update_curr_task() {
-    auto& curr_templ = aiManager->curr_task();
-    if (curr_templ.name.empty()) {
-        lbl_curr_task.set_text(L"No active task");
-        btn_curr_task.set_text(L"New");
-    } else {
-        lbl_curr_task.set_text(toUtf16(curr_templ.name).c_str());
-        btn_curr_task.set_text(L"Stop");
+int Main::on_command_pause_resume(wl::params &params) {
+    try {
+        ai::spTask curr_task = aiManager->curr_task();
+        if (!curr_task) {
+            hide();
+            AddTask addTaskDlg;
+            int res = addTaskDlg.show(this);
+            show();
+            if (res == IDOK)
+                return TRUE;
+        } else {
+            if (aiManager->active())
+                aiManager->interrupt();
+            else
+                aiManager->resume();
+        }
+        update_curr_task();
+    } catch (const std::system_error& ex) {
+        LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << ex.what();
     }
+    return TRUE;
+}
+
+void Main::update_curr_task() {
+    ai::spTask curr_task = aiManager->curr_task();
+    if (!curr_task) {
+        lbl_curr_task.set_text(L"No active task");
+        btn_stop_new.set_text(L"New");
+        btn_pause_resume.set_text(L"Repeat");
+    } else {
+        lbl_curr_task.set_text(toUtf16(curr_task->templ.name).c_str());
+        btn_stop_new.set_text(L"Stop");
+        if (aiManager->active())
+            btn_pause_resume.set_text(L"Pause");
+        else
+            btn_pause_resume.set_text(L"Resume");
+    }
+    std::string status;
+    int indent = 0;
+    for (auto task=curr_task; task; task = task->currentSubTask) {
+        for (auto& msg : task->getMessages()) {
+            status += std::string(indent, ' ');
+            status += msg;
+            status += "\n";
+        }
+        if (task->currentSubTask) {
+            status += std::string(indent, ' ');
+            status += task->currentSubTask->templ.name;
+            status += ":\n";
+            indent += 4;
+        }
+    }
+    lbl_task_status.set_text(toUtf16(status));
+    mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
 }

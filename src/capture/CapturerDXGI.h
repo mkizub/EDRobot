@@ -26,8 +26,6 @@ private:
     CapturerDXGI(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor);
     bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) override;
 
-    CComPtr<ID3D11Device> m_d3dDevice {nullptr};
-    CComPtr<ID3D11DeviceContext> m_d3dContext {nullptr};
     CComPtr<IDXGIDevice> m_dxgiDevice {nullptr};
     CComPtr<IDXGIAdapter> m_dxgiAdapter {nullptr};
     CComPtr<IDXGIOutput1> m_dxgiOutput1 {nullptr};

@@ -17,7 +17,7 @@ public:
     virtual ~Task() = default;
     Result safe_run();
     virtual Result run() = 0;
-    virtual Result run_sub_task(upTask& task);
+    virtual Result run_sub_task(spTask& task);
 
     Task const * parent;
     AIManager& mgr;
@@ -34,8 +34,11 @@ public:
     bool executeWait(const json5pp::value& step, const json5pp::value& args);
     void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
 
-    void notifyProgress(const char* msg) const;
-    void notifyProgress(const std::string& msg) const;
+    void addMessage(const char* msg);
+    void addMessage(const std::string& msg);
+    std::vector<std::string> getMessages();
+    void notifyProgress(const char* msg);
+    void notifyProgress(const std::string& msg);
     [[noreturn]] void notifyError(const char* msg, Result result);
     [[noreturn]] void notifyError(const std::string& msg, Result result);
 
@@ -47,11 +50,19 @@ public:
     std::string fromState;
     std::string destState;
 
-    std::deque<upTask> sub_tasks;
+    std::deque<spTask> sub_tasks;
 
     short missCount { 0 };
     short maxMisses { 0 };
     Result result { Result::Created };
+
+    struct Message {
+        std::chrono::time_point<std::chrono::steady_clock> timestamp;
+        std::string message;
+    };
+    std::deque<Message> messages;
+    spTask currentSubTask;
+    std::mutex messagesMutex;
 };
 
 } //namespace ai

@@ -27,8 +27,8 @@ public:
     static bool showToast(const std::string& title, const std::string& text);
     static bool hasDebugWindow();
     static bool showDebugWindow();
-    static bool postToDebugWindow(const cv::Mat& image);
-    static bool postToDebugWindow(const cv::Mat& image, const cv::Mat& overlay);
+    static bool postToDebugWindow(const XMat& image);
+    static bool postToDebugWindow(const XMat& image, const cv::Mat& overlay);
     static bool askCalibrationDialog(const std::string& line1);
     static bool askSelectRectWindow();
 

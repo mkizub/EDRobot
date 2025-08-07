@@ -70,6 +70,8 @@ int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Re
     std::scoped_lock<std::mutex> lock(tesseractMutex);
     if (!tesseractApi)
         return 0;
+    assert (grayImage.rows == ocr::LINE_HEIGHT);
+    assert (grayImage.type() == CV_8UC1);
 
     // 'edr'
     auto startTime = std::chrono::high_resolution_clock::now();

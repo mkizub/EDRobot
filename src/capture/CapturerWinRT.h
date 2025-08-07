@@ -33,8 +33,6 @@ private:
 
     void copyTexture(FrameWinRT* myFrame, winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame& captureFrame);
 
-    winrt::com_ptr<ID3D11Device> m_d3dDevice;
-    winrt::com_ptr<ID3D11DeviceContext> m_d3dContext;
     winrt::Windows::Graphics::Capture::GraphicsCaptureItem m_captureItem {nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool {nullptr};
     winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session {nullptr};

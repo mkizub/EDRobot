@@ -308,6 +308,7 @@ dist_t dist_t::convertTo(dist_t::Unit u) const {
 
 std::string dist_t::to_string() const {
     switch (unit) {
+    default:
     case Unit::X:
         return std::format("{:.2f}", dist);
     case Unit::M:

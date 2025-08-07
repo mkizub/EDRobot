@@ -17,10 +17,8 @@ protected:
     Frame(Capturer* owner, cv::Size size) : owner(owner), size(size) {}
     virtual ~Frame() = default;
 public:
-    virtual       bool valid() const = 0;
-    virtual const cv::UMat& getColorTexture() const = 0;
-    virtual const cv::Mat& getColorImage() const = 0;
-    virtual const cv::Mat& getGrayImage() const = 0;
+    virtual bool valid() const = 0;
+    virtual const XMat& getImage() const = 0;
 
     static void recycle(Frame* p);
 
@@ -100,17 +98,10 @@ public:
         : orig {tl, tr, br, bl}
         , origSize(size)
     {
-//        float t_w = (float)cv::norm(orig[0] - orig[1]);
-//        float b_w = (float)cv::norm(orig[2] - orig[3]);
-//        float l_h = (float)cv::norm(orig[0] - orig[3]);
-//        float r_h = (float)cv::norm(orig[1] - orig[2]);
-//        float d_w = std::round(std::max(t_w, b_w));
-//        float d_h = std::round(std::max(l_h, r_h));
-//        const_cast<cv::Size&>(origSize) = { int(d_w), int(d_h) };
     }
     virtual ~EvalTransform() = default;
     virtual bool calcTransform(const ResolvedEnv& detectorState) = 0;
-    virtual cv::Mat transformImage(const cv::Mat& image) const;
+    virtual XMat transformImage(const XMat& image) const;
 
     const std::array<spEvalPoint,4> orig;   // tl, tr, br, bl
     const cv::Size origSize {};             // warped image always scaled to reference size
@@ -198,7 +189,7 @@ struct ResolvedEnv {
     ResolvedEnv& operator=(const ResolvedEnv& other);
     void init(const cv::Rect& monitorRect, const cv::Rect& captRect);
     void clear();
-    bool isWarpMode() { return inWarpMode_; }
+    bool isWarpMode() const { return inWarpMode_; }
     void setWarpMode(bool on) { inWarpMode_ = on; }
 
     // a list of classified detected rects
@@ -286,31 +277,24 @@ struct ClassifyEnv : public ResolvedEnv {
     void warpPerspective(const spEvalTransform& transform);
     void clear();
 
-    [[nodiscard]] const cv::UMat& getColorTexture() const {
-        throw std::runtime_error("getColorTexture() not implemented");
-        //return mFrame->getColorTexture();
-    };
-    [[nodiscard]] const cv::Mat&  getColorImage()   const {
-        if (inWarpMode_)
-            return mWarpedColorImage;
-        return mFrame->getColorImage();
-    };
-    [[nodiscard]] const cv::Mat&  getGrayImage()    const {
-        if (inWarpMode_)
-            return mWarpedGrayImage;
-        return mFrame->getGrayImage();
-    };
-    [[nodiscard]] cv::Mat&        getDebugImage()   const;
-    [[nodiscard]] const cv::Mat&  getWarpedColorImage() const;
-    [[nodiscard]] const cv::Mat&  getWarpedGrayImage()  const;
+    [[nodiscard]] const XMat& getColorImage() const;
 
+    [[nodiscard]] const XMat& getGrayImage() const;
+
+    [[nodiscard]] const XMat& getWarpedColorImage() const;
+    [[nodiscard]] const XMat& getWarpedGrayImage() const;
+
+    [[nodiscard]] cv::Mat&       getDebugImage()   const;
 private:
     friend class Master;
     upFrame mFrame;
-    mutable cv::Mat mDebugOverlay;
+    mutable XMat mColorImage;
+    mutable XMat mGrayImage;
     spEvalTransform mWarpTransform;
-    mutable cv::Mat mWarpedColorImage;
-    mutable cv::Mat mWarpedGrayImage;
+    mutable XMat mWarpedColorImage;
+    mutable XMat mWarpedGrayImage;
+
+    mutable cv::Mat mDebugOverlay;
 };
 
 class TileRect : public EvalRect {

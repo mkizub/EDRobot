@@ -5,6 +5,8 @@
 
 #include "Detector.h"
 
+#include <opencv2/ximgproc.hpp>
+
 #include <iomanip>
 
 namespace detect {
@@ -40,15 +42,16 @@ double LineDetector::match(ClassifyEnv &env) {
     }
     LOG(DEBUG) << "LineDetector '" << name << "' anchor found '" << an->imagesPrepared[an->lastTemplatedx].name << "', offset: " << an->matchedCaptureOffset;
 
-    cv::Mat imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
+    XMat imagePrepared = env.getColorImage()(lineMatchRect);
     imagePrepared = ImageTemplate::scaleImage(imagePrepared, imageScaleX, imageScaleY);
     imagePrepared = ImageTemplate::applyFilters(filters, imagePrepared);
 
-    cv::Mat thrMat;
+    XMat thrMat;
     cv::threshold(imagePrepared, thrMat, binaryThreshold, 255, cv::THRESH_BINARY);
 
     cv::Point referenceDist = refP1 - refP0;
     float referenceAngle = std::atan2(referenceDist.y, referenceDist.x) * 180 / M_PI;
+
     double minDist = 1000;
     float lastDeltaAngle = 180;
     std::vector<std::vector<cv::Point>> contours;
@@ -112,7 +115,7 @@ void LineDetector::normalizeRotatedRect(cv::RotatedRect &rr) {
 void LineDetector::tryCannyParamsGUI(ClassifyEnv &env) {
     int minWidth = cv::norm(captureP1 - captureP0) * 0.8;
 
-    cv::Mat imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
+    XMat imagePrepared = env.getColorImage()(lineMatchRect);
     imagePrepared = ImageTemplate::applyFilters(filters, ImageTemplate::scaleImage(imagePrepared, imageScaleX, imageScaleY));
 
     GaussFilter *gaussFilter = nullptr;
@@ -144,7 +147,7 @@ void LineDetector::tryCannyParamsGUI(ClassifyEnv &env) {
 
     // create trackbars for gauss filter
     if (gaussFilter) {
-        gaussDisable = gaussFilter->disabled ? 1 : 0;
+        gaussDisable = 0; //gaussFilter->disabled ? 1 : 0;
         gaussKernX = gaussFilter->kernX;
         gaussKernY = gaussFilter->kernY;
         cv::createTrackbar("Disbl", gaussWindow, &gaussDisable, 1);
@@ -158,19 +161,19 @@ void LineDetector::tryCannyParamsGUI(ClassifyEnv &env) {
     // create trackbars for image threshold
     cv::createTrackbar("Thr", edgesWindow, &thrMin, 255);
 
-    cv::Mat edgeMat;
-    cv::Mat linesMat;
+    XMat edgeMat;
+    XMat linesMat;
     while (1) {
         if (gaussFilter) {
             gaussKernX = (gaussKernX & ~1) + 1;
             gaussKernY = (gaussKernY & ~1) + 1;
             const_cast<int &>(gaussFilter->kernX) = gaussKernX;
             const_cast<int &>(gaussFilter->kernY) = gaussKernY;
-            const_cast<bool &>(gaussFilter->disabled) = gaussDisable > 0;
+            //const_cast<bool &>(gaussFilter->disabled) = gaussDisable > 0;
         }
-        imagePrepared = cv::Mat(env.getColorImage(), lineMatchRect);
+        imagePrepared = env.getColorImage()(lineMatchRect);
         imagePrepared = ImageTemplate::applyFilters(filters, ImageTemplate::scaleImage(imagePrepared, imageScaleX, imageScaleY));
-        linesMat = ImageTemplate::scaleImage(cv::Mat(env.getColorImage(), lineMatchRect), imageScaleX, imageScaleY).clone();
+        linesMat = ImageTemplate::scaleImage(env.getColorImage()(lineMatchRect), imageScaleX, imageScaleY).clone();
 
         cv::threshold(imagePrepared, edgeMat, thrMin, 255, cv::THRESH_BINARY);
 

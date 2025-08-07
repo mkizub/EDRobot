@@ -65,7 +65,7 @@ NavType STATION_MEGASHIP { u'\u267B', // ♻
     Place, {"nav_select_icon_station_megaship.png"}, {"StationMegaShip"}
 };
 NavType MEGASHIP { u'\u2672', // ♲
-    Place, {"nav_select_icon_megaship.png"}, {"Megaship"}
+    Place, {"nav_select_icon_megaship.png"}, {"Megaship","Trailblazer Dream"}
 };
 NavType ENGINEER { u'\u23E3', // ⏣
     Port, {"nav_select_icon_engineer.png"}, {}
@@ -150,22 +150,18 @@ const std::string ED_UI_MODE_SYS_MAP = "uim-sys";
 
 const std::string ED_TASK_SEQ = "tsk-seq";
 const std::string ED_TASK_LOOP = "tsk-loop";
-const std::string ED_TASK_DOCK_REFUEL = "tsk-dock-refuel";
-const std::string ED_TASK_DOCK_REPAIR = "tsk-dock-repair";
-const std::string ED_TASK_DOCK_REARM = "tsk-dock-rearm";
-const std::string ED_TASK_GOTO_HANGAR = "tsk-goto-hangar";
 const std::string ED_TASK_GOTO_SERVICES = "tsk-goto-services";
 const std::string ED_TASK_GOTO_MARKET = "tsk-goto-market";
 const std::string ED_TASK_MARKET_SELL_ALL = "tsk-market-sell-all";
 const std::string ED_TASK_MARKET_SELL = "tsk-market-sell";
 const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
-const std::string ED_TASK_TRAVEL_TO_DOCK = "tsk-travel";
+const std::string ED_TASK_TRAVEL = "tsk-travel";
 const std::string ED_TASK_GAL_MAP_SELECT = "tsk-star-select";
 const std::string ED_TASK_SYS_MAP_SELECT = "tsk-poi-select";
 const std::string ED_TASK_DEPART = "tsk-departure";
 const std::string ED_TASK_CRUISE_AVOID = "tsk-cruise-avoid";
 const std::string ED_TASK_SPACE_AVOID = "tsk-space-avoid";
-const std::string ED_TASK_JUMP_TO = "tsk-jump-to";
+const std::string ED_TASK_JUMP_TO_SYSTEM = "tsk-jump-to-system";
 const std::string ED_TASK_TO_CRUISE = "tsk-to_cruise";
 const std::string ED_TASK_CRUISE_TO_STATION = "tsk-cruise-to-station";
 const std::string ED_TASK_CRUISE_TO_POI = "tsk-cruise-to-poi";
@@ -214,18 +210,6 @@ TaskTemplate ED_Task_Loop {
     .name = ED_TASK_LOOP,
     .params = { {Param::Int, "count", 0} }
 };
-TaskTemplate ED_Task_Dock_Refuel {
-    .name = ED_TASK_DOCK_REFUEL
-};
-TaskTemplate ED_Task_Dock_Repair {
-    .name = ED_TASK_DOCK_REPAIR
-};
-TaskTemplate ED_Task_Dock_Rearm {
-    .name = ED_TASK_DOCK_REARM
-};
-TaskTemplate ED_Task_Goto_Hangar {
-    .name = ED_TASK_GOTO_HANGAR
-};
 TaskTemplate ED_Task_Goto_Services {
     .name = ED_TASK_GOTO_SERVICES
 };
@@ -246,13 +230,9 @@ TaskTemplate ED_Task_Market_Buy {
     .params = { {Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 } },
     .maxMisses = 3
 };
-TaskTemplate ED_Task_Travel_To_Dock {
-    .name = ED_TASK_TRAVEL_TO_DOCK,
-    .params = { {Param::Dock, "dock", ""} }
-};
 TaskTemplate ED_Task_Gal_Map_Select {
     .name = ED_TASK_GAL_MAP_SELECT,
-    .params = { {Param::Star, "star", ""} }
+    .params = { {Param::System, "system", ""} }
 };
 TaskTemplate ED_Task_Sys_Map_Select {
     .name = ED_TASK_SYS_MAP_SELECT,
@@ -267,16 +247,8 @@ TaskTemplate ED_Task_Cruise_Avoid {
 TaskTemplate ED_Task_Space_Avoid {
     .name = ED_TASK_SPACE_AVOID
 };
-TaskTemplate ED_Task_Jump_To {
-    .name = ED_TASK_JUMP_TO,
-    .params = { {Param::Star, "star", ""} }
-};
 TaskTemplate ED_Task_To_Cruise {
     .name = ED_TASK_TO_CRUISE
-};
-TaskTemplate ED_Task_Cruise_To_Station {
-    .name = ED_TASK_CRUISE_TO_STATION,
-    .params = { {Param::Dock, "dock", ""} }
 };
 TaskTemplate ED_Task_Cruise_To_PIO {
     .name = ED_TASK_CRUISE_TO_POI,
@@ -376,6 +348,16 @@ void AIManager::initTemplates() {
               .maxMisses = 3 },
             { .name = ED_TASK_DEPART, .maxMisses = 5 },
             { .name = ED_TASK_DOCK, .maxMisses = 5 },
+            { .name = ED_TASK_TRAVEL,
+              .params = {{Param::System, "system", ""}, {Param::Dock, "dock", ""}},
+              .maxMisses = 5 },
+            { .name = ED_TASK_JUMP_TO_SYSTEM,
+              .params = {{Param::System, "system", ""}},
+              .maxMisses = 5 },
+            { .name = ED_TASK_CRUISE_TO_STATION,
+              .params = {{Param::Dock, "dock", ""}},
+              .maxMisses = 5 },
+
             { ED_TASK_CALIBRATE },
             { .name = ED_TASK_DEBUG_FIND_ALL_COMMODITIES,
               .params = {{Param::Bool, "shuffle", false}, {Param::Bool, "dump_images", false}, {Param::Int, "start_index", 0 }},
@@ -383,9 +365,9 @@ void AIManager::initTemplates() {
             { .name = ED_TASK_DEBUG_FIND_ALL_NAV_POINTS,
               .params = {{Param::Bool, "dump_images", true}, {Param::Int, "ocr_confidence", 90 }, {Param::Int, "txt_confidence", 90 }, {Param::Bool, "resume", false}},
               .maxMisses = 3 },
-            { .name = ED_TASK_DEBUG_FIX_OCR,
-              .params = {{Param::Bool, "use_tess", true}, {Param::Bool, "use_lstm", true}, {Param::Bool, "use_edr", true}, {Param::Bool, "rus+eng", true}},
-              },
+            //{ .name = ED_TASK_DEBUG_FIX_OCR,
+            //  .params = {{Param::Bool, "use_tess", true}, {Param::Bool, "use_lstm", true}, {Param::Bool, "use_edr", true}, {Param::Bool, "rus+eng", true}},
+            //  },
     };
     AllImplementedTasks.swap(templates);
     AllImplementedTaskRefs.reserve(AllImplementedTasks.size());

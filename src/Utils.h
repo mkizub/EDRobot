@@ -62,6 +62,7 @@ struct dist_t {
     dist_t() : unit(X), dist(0) {}
     dist_t(Unit u, double d) : unit(u), dist(d) {}
 
+    operator bool() const { return unit != X; }
     dist_t convertTo(Unit u) const;
     std::string to_string() const;
 

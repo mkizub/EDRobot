@@ -44,6 +44,19 @@
 #include <meojson/json5.hpp>
 
 #include "opencv2/opencv.hpp"
+#define EDROBOT_USE_OPENCL
+#ifdef EDROBOT_USE_OPENCL
+typedef cv::UMat XMat;
+extern bool g_DisableOpenCL;
+inline bool useOpenCL() { return !g_DisableOpenCL; }
+#define toXMat(M) (M).getUMat(cv::ACCESS_READ)
+#define toMat(M) (M).getMat(cv::ACCESS_READ)
+#else
+typedef cv::Mat XMat;
+inline bool useOpenCL() { return false; }
+#define toXMat(M) M
+#define toMat(M) M
+#endif
 
 #include "libintl.h"
 #include <clocale>

@@ -222,9 +222,9 @@ bool BaseButton::detect(DetectParams& params) {
 
         cv::Vec3b hsvColorMin {0, 127, 30};
         cv::Vec3b hsvColorMax {30, 255, 255};
-        cv::Mat hsvImage;
-        cv::cvtColor(cv::Mat(env.getColorImage(), matchR), hsvImage, cv::COLOR_BGR2HSV);
-        cv::Mat thrImage;
+        XMat hsvImage;
+        cv::cvtColor(env.getColorImage()(matchR), hsvImage, cv::COLOR_BGR2HSV);
+        XMat thrImage;
         cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
 
         std::vector<std::vector<cv::Point>> contours;
@@ -294,9 +294,9 @@ bool List::detect(DetectParams& params) {
     //unsigned buttonGrayColor = mConfiguration->getLstRowGrayColor(WState::Normal);
     cv::Vec3b hsvColorMin {0, 127, 30};
     cv::Vec3b hsvColorMax {30, 255, 255};
-    cv::Mat hsvImage;
-    cv::cvtColor(cv::Mat(env.getColorImage(), listCapturedRect), hsvImage, cv::COLOR_BGR2HSV);
-    cv::Mat thrImage;
+    XMat hsvImage;
+    cv::cvtColor(env.getColorImage()(listCapturedRect), hsvImage, cv::COLOR_BGR2HSV);
+    XMat thrImage;
     cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
     if (true) {
         cv::Mat kernel = (cv::Mat_<float>(15, 3) <<
@@ -388,9 +388,9 @@ bool List::detect(DetectParams& params) {
         if (params.level >= DetectLevel::ListOcrAllRows || ws == WState::Focused && params.level >= DetectLevel::ListOcrFocusedRow) {
             int conf;
             if (env.isWarpMode())
-                conf = ocr::ocrRowText(env.getGrayImage(), env, clsRowRect, 0, clsRowRect.text);
+                conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 0, clsRowRect.text);
             else
-                conf = ocr::ocrRowText(env.getGrayImage(), env, clsRowRect, 1, clsRowRect.text);
+                conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 1, clsRowRect.text);
             clsRowRect.u.lrow.text_confidence = conf;
         }
     }

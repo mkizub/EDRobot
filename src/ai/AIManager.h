@@ -24,8 +24,8 @@ public:
     void stop();
     void interrupt();
     void resume();
-    const TaskTemplate& curr_task();
-    bool new_task(upTask&& task);
+    spTask curr_task();
+    bool new_task(spTask&& task);
     bool new_task(const TaskTemplate& templ);
 
     const std::vector<TaskTemplate*>& getTaskTemplates();
@@ -37,7 +37,6 @@ public:
         Replan,
     };
 
-    //CheckResult checkTaskReqMatch(upTask&);
     const bool detectEDState(DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
 
     void loop();
@@ -52,8 +51,8 @@ public:
     std::vector<TaskTemplate*> AllImplementedTaskRefs;
     std::map<std::string,TaskTemplate*> AllImplementedTaskMap;
 
-    upTask activeTask;
-    std::vector<upTask> archivedTasks;
+    spTask activeTask;
+    std::vector<spTask> archivedTasks;
     std::chrono::milliseconds nextDelay;
     DetectLevel nextDetectLevel {DetectLevel::None};
 

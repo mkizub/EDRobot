@@ -59,6 +59,8 @@ double BestOf::match(ClassifyEnv &env) {
         double value = oracles[i]->match(env);
         if (value > bestMatch) {
             bestMatch = value;
+            if (value >= 1)
+                break;
         }
     }
     return bestMatch;
@@ -96,13 +98,14 @@ bool Histogram::calc(ClassifyEnv &env) {
     env.cropToCapture(rect);
     if (rect.empty())
         return false;
+    // TODO: optimize for OpenCL (split to channels and use InputArrayOfArrays)
     int colorPlanes;
     if (mMode == Mode::Gray) {
         colorPlanes = 1;
         int histSize = 256;
         float range[]{0, 256}; //the upper boundary is exclusive
         const float *histRange[]{range};
-        cv::Mat subImage(env.getGrayImage(), rect);
+        cv::Mat subImage(toMat(env.getGrayImage()), rect);
         cv::Mat hist;
         cv::calcHist(&subImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
         int maxLoc[4]{};
@@ -111,7 +114,7 @@ bool Histogram::calc(ClassifyEnv &env) {
         mLastColor = {gray, gray, gray};
     }
     else if (mMode == Mode::Hsv) {
-        cv::Mat bgrSubImage(env.getColorImage(), rect);
+        cv::Mat bgrSubImage(toMat(env.getColorImage()), rect);
         cv::Mat hsvSubImage;
         cv::cvtColor(bgrSubImage, hsvSubImage, cv::COLOR_BGR2HSV_FULL);
         int channels[3] {0, 1, 2};
@@ -129,7 +132,7 @@ bool Histogram::calc(ClassifyEnv &env) {
         mLastColor = {h, s, v};
     }
     else if (mMode == Mode::Luv) {
-        cv::Mat bgrSubImage(env.getColorImage(), rect);
+        cv::Mat bgrSubImage(toMat(env.getColorImage()), rect);
         cv::Mat luvSubImage;
         cv::cvtColor(bgrSubImage, luvSubImage, cv::COLOR_BGR2Luv);
         int channels[3] {0, 1, 2};
@@ -146,7 +149,7 @@ bool Histogram::calc(ClassifyEnv &env) {
         mLastColor = {l, u, v};
     }
     else /*if (mMode == Mode::BGR)*/ {
-        cv::Mat subImage(env.getColorImage(), rect);
+        cv::Mat subImage(toMat(env.getColorImage()), rect);
         std::vector<cv::Mat> imagePlanes;
         cv::split(subImage, imagePlanes);
         int channels[3] {0, 1, 2};

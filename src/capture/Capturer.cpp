@@ -16,13 +16,25 @@
 #include "CapturerWinRT.h"
 #include "CapturerDXGI.h"
 
+#include <opencv2/core/directx.hpp>
 #include <shellscalingapi.h>
 
+
+static CComPtr<ID3D11Device> D3dDevice;
+static CComPtr<ID3D11DeviceContext> D3dContext;
 
 std::vector<std::unique_ptr<CapturerWin32>> Capturer::Win32Capturers;
 std::vector<std::unique_ptr<CapturerWinRT>> Capturer::WinRTCapturers;
 std::vector<std::unique_ptr<CapturerDXGI>> Capturer::DXGICapturers;
 Capturer* Capturer::DefaultCapturer;
+
+
+ID3D11Device* Capturer::getID3D11Device() {
+    return D3dDevice;
+}
+ID3D11DeviceContext* Capturer::getID3D11DeviceContext() {
+    return D3dContext;
+}
 
 void Frame::recycle(Frame* p) {
     if (!p)
@@ -49,6 +61,32 @@ BOOL CALLBACK Capturer::MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPREC
             WinRTCapturers.push_back(std::unique_ptr<CapturerWinRT>(new CapturerWinRT(hMonitor, &monitorInfoEx, hdcMonitor)));
     }
     return TRUE;
+}
+
+void Capturer::InitD3DDevice() {
+    if (!D3dDevice) {
+        static const D3D_FEATURE_LEVEL featureLevels[] = {
+                D3D_FEATURE_LEVEL_11_1,
+                D3D_FEATURE_LEVEL_11_0,
+                D3D_FEATURE_LEVEL_10_1,
+                D3D_FEATURE_LEVEL_10_0,
+                D3D_FEATURE_LEVEL_9_1
+        };
+        D3D_FEATURE_LEVEL featureLevel;
+        HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                                       featureLevels, std::size(featureLevels), D3D11_SDK_VERSION,
+                                       &D3dDevice, &featureLevel, &D3dContext);
+        if (FAILED(hr)) {
+            LOG(ERROR) << "Failed to create D3D11 device" << getErrorMessage(hr);
+        } else {
+            if (useOpenCL()) {
+                cv::directx::ocl::initializeContextFromD3D11Device(D3dDevice);
+                LOG(INFO) << "Using OpenCL device: " << cv::ocl::Context::getDefault().device(0).name();
+            } else {
+                cv::ocl::setUseOpenCL(false);
+            }
+        }
+    }
 }
 
 void Capturer::InitCapturers() {

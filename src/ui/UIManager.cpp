@@ -68,10 +68,10 @@ bool UIManager::askCalibrationDialog(const string &line1) {
 
 
 bool UIManager::showToast(const std::string &title, const std::string &text) {
-    std::shared_ptr<UIToast> wnd = UIToast::getInstance();
-    if (!wnd)
-        return false;
-    wnd->showText(toUtf16(title), toUtf16(text));
+//    std::shared_ptr<UIToast> wnd = UIToast::getInstance();
+//    if (!wnd)
+//        return false;
+//    wnd->showText(toUtf16(title), toUtf16(text));
     return true;
 }
 
@@ -96,19 +96,21 @@ bool UIManager::showDebugWindow() {
     return true;
 }
 
-bool UIManager::postToDebugWindow(const cv::Mat& image) {
+bool UIManager::postToDebugWindow(const XMat& image) {
     std::shared_ptr<UIDebug> wnd = UIDebug::getInstance(false);
     if (!wnd)
         return false;
-    wnd->setGameImage(image);
+    // TODO: sharing UMat is a bad idea
+    wnd->setGameImage(toMat(image));
     return true;
 }
 
-bool UIManager::postToDebugWindow(const cv::Mat& image, const cv::Mat& overlay) {
+bool UIManager::postToDebugWindow(const XMat& image, const cv::Mat& overlay) {
     std::shared_ptr<UIDebug> wnd = UIDebug::getInstance(false);
     if (!wnd)
         return false;
-    wnd->setGameImage(image);
+    // TODO: sharing UMat is a bad idea
+    wnd->setGameImage(toMat(image));
     wnd->setDebugOverlay(overlay);
     return true;
 }

@@ -27,13 +27,13 @@ void TaskSellAll::plan() {
     if (!shipCargo)
         task_return(Result::Trouble, "Ship cargo not loaded");
     for (Commodity* commodity: shipCargo->inventory) {
-        auto it_arch = std::find_if(sell_archive.begin(), sell_archive.end(), [commodity](const upTask& t) {
+        auto it_arch = std::find_if(sell_archive.begin(), sell_archive.end(), [commodity](const spTask& t) {
             auto ts = dynamic_cast<TaskSell*>(t.get());
             return (ts && ts->mCommodity == commodity);
         });
         if (it_arch != sell_archive.end())
             continue;
-        auto it_old = std::find_if(sub_tasks.begin(), sub_tasks.end(), [commodity](const upTask& t) {
+        auto it_old = std::find_if(sub_tasks.begin(), sub_tasks.end(), [commodity](const spTask& t) {
             auto ts = dynamic_cast<TaskSell*>(t.get());
             return (ts && ts->mCommodity == commodity);
         });
@@ -74,7 +74,7 @@ Result TaskSellAll::run() {
     }
 
     while (!sub_tasks.empty()) {
-        upTask& pTask = sub_tasks.front();
+        spTask& pTask = sub_tasks.front();
         Result res = run_sub_task(pTask);
         switch (res) {
         case Result::Created:
@@ -104,7 +104,7 @@ Result TaskSellAll::run() {
     int total = 0;
     int sold = 0;
     bool have_success = false;
-    std::for_each(sell_archive.begin(), sell_archive.end(), [&](const upTask& t){
+    std::for_each(sell_archive.begin(), sell_archive.end(), [&](const spTask& t){
         auto st = dynamic_cast<TaskSell*>(t.get());
         if (st) {
             total += st->mTotal;

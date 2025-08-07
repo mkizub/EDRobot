@@ -45,6 +45,7 @@ Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
 
 Result Task::safe_run() {
     TRY {
+        currentSubTask.reset();
         this->result = this->run();
         if (this->result == Result::Trouble)
             this->missCount += 1;
@@ -72,11 +73,14 @@ Result Task::safe_run() {
     return this->result;
 }
 
-Result Task::run_sub_task(upTask& pTask) {
+Result Task::run_sub_task(spTask& pTask) {
     Task* task  = pTask.get();
     if (!task)
         return Result::Failure;
-    return task->safe_run();
+    currentSubTask = pTask;
+    Result res = task->safe_run();
+    currentSubTask.reset();
+    return res;
 }
 
 void Task::check_interrupted() const {
@@ -433,20 +437,47 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* co
     mgr.detectEDState(level, colorImage, grayImage);
 }
 
-void Task::notifyProgress(const char* msg) const {
+void Task::addMessage(const char* msg) {
+    if (msg)
+        addMessage(std::string(msg));
+}
+void Task::addMessage(const std::string& msg) {
+    std::scoped_lock<std::mutex> lock(messagesMutex);
+    auto now = std::chrono::steady_clock::now();
+    auto expired = now - std::chrono::seconds(5);
+    while (!messages.empty() && messages.front().timestamp < expired || messages.size() > 4)
+        messages.pop_front();
+    messages.emplace_back(now, msg);
+}
+
+std::vector<std::string> Task::getMessages() {
+    std::scoped_lock<std::mutex> lock(messagesMutex);
+    auto expired = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+    std::vector<std::string> out;
+    for (auto& msg : messages)
+        if (msg.timestamp > expired)
+            out.push_back(msg.message);
+    return out;
+}
+
+void Task::notifyProgress(const char* msg) {
+    addMessage(msg);
     LOG(INFO) << msg;
     UIManager::showToast(taskName, msg);
 }
-void Task::notifyProgress(const std::string& msg) const {
+void Task::notifyProgress(const std::string& msg) {
+    addMessage(msg);
     LOG(INFO) << msg;
     UIManager::showToast(taskName, msg);
 }
 void Task::notifyError(const char* msg, Result res) {
+    addMessage(msg);
     LOG(ERROR) << msg;
     UIManager::showToast(taskName, msg);
     throw nonlocal_return(res, this, msg);
 }
 void Task::notifyError(const std::string& msg, Result res) {
+    addMessage(msg);
     LOG(ERROR) << msg;
     UIManager::showToast(taskName, msg);
     throw nonlocal_return(res, this, msg);

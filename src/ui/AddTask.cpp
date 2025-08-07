@@ -194,7 +194,7 @@ bool AddTask::validate(ParamCtrl& ctrl) {
             ok = std::isfinite(std::get<double>(ctrl.param.value));
         }
         else if (ctrl.param.type == ai::Param::String ||
-                ctrl.param.type == ai::Param::Star ||
+                ctrl.param.type == ai::Param::System ||
                 ctrl.param.type == ai::Param::POI ||
                 ctrl.param.type == ai::Param::Dock)
         {
