@@ -225,7 +225,7 @@ struct DockStation {
 };
 
 struct GameKey {
-    enum Device { Void, Keyboard, Mouse};
+    enum Device { Void, Keyboard, Mouse, vJoy };
     Device device {Void};
     std::string key;
     int code {0}; // scancode or mouse button
@@ -233,17 +233,20 @@ struct GameKey {
     friend std::ostream& operator<<(std::ostream& os, const GameKey& obj);
 };
 struct KeyBindings {
+    enum Mode { Hold, Toggle, Axis, AxisInv };
     std::string action;
+    Mode mode {Hold};
     GameKey primary;
     GameKey secondary;
 };
 
 class Configuration {
+    Configuration();
+    ~Configuration();
 public:
     enum class FullScreenMode : int { Window, FullScreen, Borderless };
 
-    Configuration();
-    ~Configuration();
+    static Configuration& getInstance();
 
     bool load();
     void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
@@ -266,6 +269,8 @@ public:
     bool loadCargo();
     const char* makeTesseractWordsFile();
 
+    const json5pp::value& getEDDBFull() const { return mEDDBFull; }
+    const json5pp::value& getEDDBShip(const std::string& type) const { return mEDDBShips.at(toLower(type)); }
     const spMarket getCurrentMarket() const { return currentMarket; }
     const spShipCargo& getCurrentCargo() const { return currentCargo; }
     const spShipStatus& getCurrentStatus() const { return currentStatus; }
@@ -311,6 +316,7 @@ public:
     const LocationPanelFilters configLocationPanelFilters {};
 
     double getConfigFOV() { return configFOV; }
+    unsigned getVJoyDeviceID() { return vJoyDeviceID; }
 
     spGameEvent dockingEvent;
 
@@ -320,7 +326,7 @@ private:
     void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
     bool loadCalibration();
     std::string filenameFromPreset(std::string base, std::string preset, const char* ext);
-    GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers);
+    GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
     bool parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag);
     bool loadGameSettings(bool initial);
     bool loadPlayerOptions();
@@ -329,6 +335,7 @@ private:
     bool preloadGameJournal();
     bool loadCommodityDatabase();
     bool dumpCommodityDatabase();
+    bool loadEDDB();
     bool loadGameStatus();
     CommodityCategory& getOrAddCommodityCategory(CommodityCategory&& cc);
     Commodity& getOrAddCommodity(Commodity&& c);
@@ -361,6 +368,7 @@ private:
     bool capturerWinRTDisabled = false;
     bool capturerDXGIDisabled = false;
     bool openclDisabled = false;
+    uint8_t vJoyDeviceID = 1;
     std::string mTesseractDataPath;
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;
@@ -375,9 +383,7 @@ private:
     int configScreenWidth = 0;    // Options\Graphics\DisplaySettings.xml: <ScreenWidth>1920</ScreenWidth>
     int configScreenHeight = 0;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
     FullScreenMode configFullScreen = FullScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
-    std::unordered_map<std::string,KeyBindings> keyBindingsEmpty;
-    std::unordered_map<std::string,KeyBindings> keyBindingsGeneric;
-    std::unordered_map<std::string,KeyBindings> keyBindingsShip;
+    std::unordered_map<std::string,KeyBindings> mKeyBindingsMap;
 
     bool mUseCalibratedColors = false;
     double calibrationDashboardGUIBrightness = -1;
@@ -415,6 +421,9 @@ private:
     std::unordered_map<std::string,CommodityCategory*> commodityCategoryMap;
     std::unordered_map<std::string,Commodity*> commodityMap;
 
+    json5pp::value mEDDBFull;
+    std::unordered_map<std::string,const json5pp::value&> mEDDBShips;
+
     std::string mCmdrName;
     std::string mShipType;
     std::string mShipTypeLocalized;
@@ -439,5 +448,6 @@ private:
 
 };
 
+extern Configuration& Cfg;
 
 #endif //EDROBOT_CONFIGURATION_H

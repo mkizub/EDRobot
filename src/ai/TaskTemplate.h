@@ -123,6 +123,7 @@ extern const std::string ED_TASK_CALIBRATE;         // calibrate colors
 extern const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES;
 extern const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS;
 extern const std::string ED_TASK_DEBUG_FIX_OCR;
+extern const std::string ED_TASK_DEBUG_ORIENT_NAV_TARGET;
 
 class UIModePage {
     const std::string name;

@@ -28,6 +28,13 @@ UIManager::UIManager(Main& main)
 {
 }
 
+UIManager::~UIManager() {
+    SendMessage(uiMain.hwnd(), WM_CLOSE, 0, 0);
+    if (uiThread.joinable()) {
+        uiThread.join();
+    }
+}
+
 bool UIManager::initialize() {
     bool ok = true;
     ok &= UIToast::initialize();

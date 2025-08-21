@@ -235,7 +235,7 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             break;
         }
     }
-    if (FAILED(hr)) {
+    if (FAILED(hr) || !desktopResource) {
         LOG(ERROR) << "CapturerDXGI Failed acquire desktop frame";
         return {};
     }

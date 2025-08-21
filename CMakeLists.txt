@@ -17,6 +17,9 @@ find_package(Tesseract CONFIG REQUIRED)
 find_library(GETTEXT_LIBRARIES intl iconv)
 find_package(CURL REQUIRED)
 find_package(curlcpp CONFIG REQUIRED)
+add_library(vJoyInterface SHARED IMPORTED)
+set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
+set_property(TARGET vJoyInterface PROPERTY IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.lib")
 
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
@@ -43,6 +46,8 @@ add_executable(EDRobot
         src/Keyboard.h
         src/Master.cpp
         src/Master.h
+        src/ShipStats.cpp
+        src/ShipStats.h
         src/Utils.cpp
         src/Utils.h
         src/OCR.cpp
@@ -60,9 +65,11 @@ add_executable(EDRobot
         src/detect/Detector.h
         src/detect/Detector.cpp
         src/detect/ImageTemplate.cpp
-        src/detect/Compass.cpp
-        src/detect/Tiles.cpp
         src/detect/Lines.cpp
+        src/detect/Compass.cpp
+        src/detect/NavPanel.cpp
+        src/detect/NavPanel.h
+        src/detect/Tiles.cpp
 
         src/ui/AddTask.cpp
         src/ui/AddTask.h
@@ -108,7 +115,10 @@ add_executable(EDRobot
         thirdparty/CLI11/CLI11.hpp
         thirdparty/glob/glob.cpp
         thirdparty/glob/glob.h
+        thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
+        src/ed_opencv.h
+        src/detect/Lines.h
 )
 #target_sources(EDRobot PUBLIC
 #        FILE_SET CXX_MODULES FILES
@@ -138,6 +148,14 @@ target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1) # win
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot PRIVATE cpptrace::cpptrace)
 endif()
+
+target_link_libraries(EDRobot PRIVATE vJoyInterface)
+add_custom_command(TARGET EDRobot POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll" # Source DLL path
+        "$<TARGET_FILE_DIR:EDRobot>"
+        COMMENT "Copying vJoyInterface.dll to executable directory"
+)
 
 install(TARGETS EDRobot RUNTIME_DEPENDENCIES
         PRE_EXCLUDE_REGEXES "api-ms-win-.*\.dll" "ext-ms-.*\.dll"

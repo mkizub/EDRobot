@@ -198,53 +198,57 @@
     // TODO: depends on FOV :(  numbers for fov=56.249001
     vars: {
       lp: [
-        { p0: [236,300], p1: [1302,278], rect: [240,256,37,37], key: ['cutter'] },
-        { p0: [236,315], p1: [1302,270], rect: [237,273,37,37], key: ['mandalay'] },
-        { p0: [236,300], p1: [1302,278], rect: [240,256,37,37] }
+        { top: [236,300, 1302,278], bot: [283,903, 1319,797], anchor: [240,256,37,37], key: ['cutter','type9'] },
+        { top: [236,315, 1302,270], bot: [283,903, 1319,797], anchor: [237,273,37,37], key: ['mandalay'] },
+        { top: [236,300, 1302,278], bot: [283,903, 1319,797], anchor: [240,256,37,37] }
       ],
       nv: [
-        { p0: [396,275], p1: [1207,261], rect: [425,279,60,60], key: ['cutter'] },
-        { p0: [390,289], p1: [1205,256], rect: [418,291,60,60], key: ['mandalay'] },
-        { p0: [396,275], p1: [1207,261], rect: [425,279,60,60] }
+        { line: [396,275, 1207,261], anchor: [425,279,60,60], key: ['cutter','type9'] },
+        { line: [390,289, 1205,256], anchor: [418,291,60,60], key: ['mandalay'] },
+        { line: [396,275, 1207,261], anchor: [425,279,60,60] }
       ],
       flt: [
-        { p0: [371,273], p1: [1207,258], rect: [374,278,76,28], key: ['cutter'] },
-        { p0: [364,287], p1: [1208,253], rect: [367,292,76,28], key: ['mandalay'] },
-        { p0: [371,273], p1: [1207,258], rect: [374,278,76,28] }
+        { line: [371,273, 1207,258], anchor: [374,278,76,28], key: ['cutter','type9'] },
+        { line: [364,287, 1208,253], anchor: [367,292,76,28], key: ['mandalay'] },
+        { line: [371,273, 1207,258], anchor: [374,278,76,28] }
       ],
       trn: [
-        { tl: [234,250], tr: [1320,235], bl: [287,905], br: [1331,798], key: ['cutter'] },
+        { tl: [234,250], tr: [1320,235], bl: [287,905], br: [1331,798], key: ['cutter','type9'] },
         { tl: [231,268], tr: [1314,228], bl: [295,905], br: [1335,794], key: ['mandalay'] },
         { tl: [234,250], tr: [1320,235], bl: [287,905], br: [1331,798] }
       ],
     },
-    detect: { best: [
+    detect: { nav_panel: [
       {
-        line: "lpline", p0: 'lp', p1: 'lp', ext: [120,100], thr: 130,
+        name: "lpline", line: 'lp:top', ext: [-3.5,6.5], prec: 0.125, votes: 800,
+        filter: [{ channel: 'red' }, { edge_box: { kern: 7, scale: 1.0, thr: 45 } }],
         anchor: {
-          img: "at_left_panel*.png", rect: 'lp', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
-          filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+          img: "at_left_panel*.png", rect: 'lp:anchor', angle: [0, /*-1.5, +1.5, -3, +3, +5*/], scale:[1.0, 0.95], t: [0.3, 0.8], ext: [120,120,230,120],
+          filter: [{ hsv_gray: { h: [0,40], s:[128,255], v:[128,255] } }, { edge_box: { kern: 7, scale: 2.0 } }]
         },
-        filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
       },
       {
-        line: "nvline", p0: 'nv', p1: 'nv', ext: [120,100], thr: 125,
-        anchor: {
-          img: "left/nav_select_icon_*.png", rect: 'nv', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
-          filter: { hsv_crop: [{ h: [0,40], s:[128,255], v:[128,255] },{ h: [85,95], s:[50,255], v:[128,255] }] },
-        },
-        filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+        name: "btline", line: 'lp:bot', ext: [-3.5,6.5], prec: 0.125, votes: 600,
+        filter: [{ hsv_crop: { h: [0,180], s:[20,253], v:[128,255] } }, { channel: 'red' }, { threshold: 128 } ],
       },
       {
-        line: "fltline", p0: 'flt', p1: 'flt', ext: [120,100], thr: 110,
+        name: "nvline", line: 'nv:line', ext: [-5.0,5.0], prec: 0.5, votes: 500,
+        filter: [{ hsv_crop: { h: [15,30], s:[200,253], v:[128,255] }}, { channel: 'red' }, { threshold: 128 } ],
         anchor: {
-          img: "left/filter_icon-*.png", rect: 'flt', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
-          filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+          img: "left/nav_select_icon_*.png", rect: 'nv:anchor', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
+          filter: { hsv_gray: [{ h: [0,40], s:[128,255], v:[128,255] },{ h: [85,95], s:[50,255], v:[128,255] }] },
         },
-        filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+      },
+      {
+        name: "fltline", line: 'flt:line', ext: [-5.0,5.0], prec: 0.5, votes: 500,
+        filter: [{ hsv_crop: { h: [15,30], s:[200,253], v:[128,255] }}, { channel: 'red' }, { threshold: 128 } ],
+        anchor: {
+          img: "left/filter_icon-*.png", rect: 'flt:anchor', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
+          filter: { hsv_gray: { h: [0,40], s:[128,255], v:[128,255] } },
+        },
       }
     ]},
-    transform: { line: ["lpline","nvline","fltline"], tl: 'trn', tr: 'trn', bl: 'trn', br: 'trn', size: [1171,659] }, // [1086,657]
+    transform: { tl: 'trn:tl', tr: 'trn:tr', bl: 'trn:bl', br: 'trn:br', size: [1171,659] },
     have: [
       {
         name: "mod-sysinfo",
@@ -252,7 +256,7 @@
       },
       {
         name: "mod-navigation",
-        detect: { img: "at_left_navigation-*.png", t: 0.7, rect:[110, 12, 130, 28] },
+        detect: ["lpline",{ img: "at_left_navigation-*.png", t: 0.7, rect:[110, 12, 130, 28] }],
         have: [
           { name: 'btn-filter', action: 'dlg-filter', rect: [11,219,104,60], ext: [5,25,5,15] },
           { name: 'btn-galaxy', action: 'galaxy-map', rect: [11,476,104,60] },
@@ -314,7 +318,7 @@
       { name: 'dlg-filters',
         detect: ["fltline", {
           img: "left/filter_icon-*.png", rect: [374,278,76,28], angle: [0, -5, +5], t: [0.4, 0.8], ext: [120,100],
-          filter: { hsv_crop: { h: [0,40], s:[128,255], v:[128,255] } },
+          filter: { hsv_gray: { h: [0,40], s:[128,255], v:[128,255] } },
         }],
         have: [
 //          { name: 'til-lock-dest',    icon: "dest:ti-dest-lock" },

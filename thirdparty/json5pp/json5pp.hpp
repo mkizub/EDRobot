@@ -1465,14 +1465,22 @@ private:
     std::string buffer;
     int ch = skip_spaces();
     if (has_flag(flags::unquoted_key)) {
+      bool space = false;
       if ((ch != '"') && (ch != '\'')) {
         for (;; ch = istream.get()) {
           if ((ch == '_') || (ch == '$') || (is_alpha(ch))) {
             // [IdentifierStart]
+            if (space)
+              throw syntax_error(ch, context);
           } else if (is_digit(ch) && (!buffer.empty())) {
             // [UnicodeDigit]
+            if (space)
+              throw syntax_error(ch, context);
           } else if (ch == ':') {
             break;
+          } else if (ch == ' ') {
+              space = true;
+              continue;
           } else {
             throw syntax_error(ch, context);
           }

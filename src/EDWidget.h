@@ -25,7 +25,6 @@ struct Widget {
         ClassifyEnv& env;
         UIState& uiState;
         Master& master;
-        Configuration& cfg;
         DetectLevel level;
     };
     virtual bool detect(DetectParams& params) = 0;
@@ -126,7 +125,7 @@ struct Screen : public BaseDialog {
     {}
     bool detect(DetectParams& params) final;
 
-    bool checkStatus(Configuration& cfg) const;
+    bool checkStatus() const;
     const json::value status;
 
     spEvalTransform transform;

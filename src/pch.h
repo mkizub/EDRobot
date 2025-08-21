@@ -44,6 +44,7 @@
 #include <meojson/json5.hpp>
 
 #include "opencv2/opencv.hpp"
+#include "ed_opencv.h"
 #define EDROBOT_USE_OPENCL
 #ifdef EDROBOT_USE_OPENCL
 typedef cv::UMat XMat;
@@ -77,6 +78,7 @@ namespace detect {
     class Detector;
     class CompassDetector;
     class Histogram;
+    class LineDetector;
 }
 
 namespace ai {

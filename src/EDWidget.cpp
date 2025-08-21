@@ -62,7 +62,7 @@ Widget::Widget(WidgetType tp, const std::string &name, Widget *parent)
 }
 
 void Widget::setRect(const char* name, const json5pp::value& value) {
-    rect = makeEvalRect(*this, name, value);
+    rect = makeEvalRect(*this, name, value[name]);
 }
 
 cv::Rect Widget::calcReferenceRect(const ClassifyEnv& env) const {
@@ -99,7 +99,7 @@ bool Root::detect(DetectParams& params) {
 }
 
 bool Screen::detect(DetectParams& params) {
-    if (!this->checkStatus(params.cfg))
+    if (!this->checkStatus())
         return false;
 
     if (oracle) {
@@ -385,14 +385,14 @@ bool List::detect(DetectParams& params) {
             if (!params.uiState.focused)
                 params.uiState.focused = this;
         }
-        if (params.level >= DetectLevel::ListOcrAllRows || ws == WState::Focused && params.level >= DetectLevel::ListOcrFocusedRow) {
-            int conf;
-            if (env.isWarpMode())
-                conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 0, clsRowRect.text);
-            else
-                conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 1, clsRowRect.text);
-            clsRowRect.u.lrow.text_confidence = conf;
-        }
+        //if (params.level >= DetectLevel::ListOcrAllRows || ws == WState::Focused && params.level >= DetectLevel::ListOcrFocusedRow) {
+        //    int conf;
+        //    if (env.isWarpMode())
+        //        conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 0, clsRowRect.text);
+        //    else
+        //        conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 1, clsRowRect.text);
+        //    clsRowRect.u.lrow.text_confidence = conf;
+        //}
     }
     return true;
 }
@@ -480,7 +480,7 @@ bool List::alignDetectedRows(std::vector<double>& detectedRows, double expectedD
 }
 
 
-bool Screen::checkStatus(Configuration& cfg) const {
+bool Screen::checkStatus() const {
     if (!status.is_object())
         return false;
     for (auto& kv : status.as_object()) {
@@ -489,12 +489,12 @@ bool Screen::checkStatus(Configuration& cfg) const {
         if (key == "gui" || key == "focus") {
             auto gf = enum_cast<GuiFocus>(val.as_string());
             LOG_IF(!gf.has_value(),ERROR) << "Bad gui focus name: " << val;
-            if (gf.value() != cfg.getGuiFocus())
+            if (gf.value() != Cfg.getGuiFocus())
                 return false;
             continue;
         }
         if (key == "ship") {
-            std::string ship = toLower(cfg.getShipType());
+            std::string ship = toLower(Cfg.getShipType());
             bool ok = false;
             if (val.is_string()) {
                 ok = (val.as_string() == ship);
@@ -512,7 +512,7 @@ bool Screen::checkStatus(Configuration& cfg) const {
             continue;
         }
         if (key == "docked") {
-            if (val.as_boolean() != cfg.getCurrentStatus()->flags.docked)
+            if (val.as_boolean() != Cfg.getCurrentStatus()->flags.docked)
                 return false;
             continue;
         }
@@ -548,6 +548,20 @@ private:
 
     const json5pp::value source;
     std::array<std::variant<int,spAst>,4> astRect;
+};
+
+class ExprLine : public EvalLine {
+public:
+    ExprLine(const json5pp::value& source);
+    cv::Line calcReferenceLine(const ResolvedEnv& env) const override;
+
+private:
+    int eval(const spAst& ast, const ResolvedEnv& env) const;
+
+    static peg::parser& initParser();
+
+    const json5pp::value source;
+    std::array<std::variant<int,spAst>,4> astLine;
 };
 
 
@@ -609,6 +623,35 @@ ExprRect::ExprRect(const json5pp::value& src)
     }
 }
 
+ExprLine::ExprLine(const json5pp::value& src)
+        : source(src)
+{
+    if (!src.is_array() || src.as_array().size() != 4) {
+        LOG(ERROR) << "Bad line: " << src;
+        return;
+    }
+    peg::parser& parser = initParser();
+    if (!parser)
+        return;
+
+    for (int i=0; i < 4; i++) {
+        auto& v = source.at(i);
+        if (v.is_integer()) {
+            astLine[i] = v.as_integer();
+            continue;
+        }
+        else if (v.is_string()) {
+            spAst ast;
+            bool ok = parser.parse(v.as_string(), ast);
+            if (ok) {
+                astLine[i] = parser.optimize_ast(ast);
+                continue;
+            }
+        }
+        LOG(ERROR) << "Bad value: " << v << " in rect " << source;
+    }
+}
+
 cv::Point ExprPoint::calcReferencePoint(const ResolvedEnv& env) const {
     cv::Point point;
     for (int i=0; i < 2; i++) {
@@ -631,6 +674,18 @@ cv::Rect ExprRect::calcReferenceRect(const ResolvedEnv& env) const {
             ptr[i] = eval(std::get<spAst>(astRect[i]), env);
     }
     return rect;
+}
+
+cv::Line ExprLine::calcReferenceLine(const ResolvedEnv& env) const {
+    cv::Line line;
+    for (int i=0; i < 4; i++) {
+        int* ptr = &line.x0;
+        if (holds_alternative<int>(astLine[i]))
+            ptr[i] = std::get<int>(astLine[i]);
+        else
+            ptr[i] = eval(std::get<spAst>(astLine[i]), env);
+    }
+    return line;
 }
 
 static peg::parser& init_parser() {
@@ -661,6 +716,10 @@ peg::parser& ExprPoint::initParser() {
 }
 
 peg::parser& ExprRect::initParser() {
+    return init_parser();
+}
+
+peg::parser& ExprLine::initParser() {
     return init_parser();
 }
 
@@ -757,17 +816,25 @@ int ExprRect::eval(const spAst& ast, const ResolvedEnv& env) const {
     return eval_ast(ast, env);
 }
 
+int ExprLine::eval(const spAst& ast, const ResolvedEnv& env) const {
+    return eval_ast(ast, env);
 }
 
-spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& j) {
-    auto& jv = j.at(name);
+}
+
+spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv) {
     if (jv.is_string()) {
-        std::string scope = jv.as_string();
+        std::vector<std::string> scope_name = split(jv.as_string(), ':');
+        if (scope_name.size() != 2) {
+            LOG(ERROR) << "Reference must be at form 'scope:name', but is " << jv;
+            return {};
+        }
+        const std::string& scope = scope_name[0];
         for (const widget::Widget* p=&widget; p; p = p->parent) {
             if (p->tp == widget::WidgetType::Screen || p->tp == widget::WidgetType::Mode || p->tp == widget::WidgetType::Dialog) {
                 auto dlg = (const widget::BaseDialog*) p;
                 if (dlg->varSetMap.contains(scope)) {
-                    return std::make_shared<RefPoint>(*dlg, name, jv.as_string());
+                    return std::make_shared<RefPoint>(*dlg, scope_name[1], scope);
                 }
             }
         }
@@ -796,15 +863,19 @@ spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const 
     return std::make_shared<widget::ExprPoint>(jv);
 }
 
-spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& j) {
-    auto& jv = j.at(name);
+spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv) {
     if (jv.is_string()) {
-        std::string scope = jv.as_string();
+        std::vector<std::string> scope_name = split(jv.as_string(), ':');
+        if (scope_name.size() != 2) {
+            LOG(ERROR) << "Reference must be at form 'scope:name', but is " << jv;
+            return {};
+        }
+        const std::string& scope = scope_name[0];
         for (const widget::Widget* p=&widget; p; p = p->parent) {
             if (p->tp == widget::WidgetType::Screen || p->tp == widget::WidgetType::Mode || p->tp == widget::WidgetType::Dialog) {
                 auto dlg = (const widget::BaseDialog*) p;
                 if (dlg->varSetMap.contains(scope)) {
-                    return std::make_shared<RefRect>(*dlg, name, jv.as_string());
+                    return std::make_shared<RefRect>(*dlg, scope_name[1], scope);
                 }
             }
         }
@@ -835,8 +906,51 @@ spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js
     return std::make_shared<widget::ExprRect>(jv);
 }
 
+spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const json5pp::value& jv) {
+    if (jv.is_string()) {
+        std::vector<std::string> scope_name = split(jv.as_string(), ':');
+        if (scope_name.size() != 2) {
+            LOG(ERROR) << "Reference must be at form 'scope:name', but is " << jv;
+            return {};
+        }
+        const std::string& scope = scope_name[0];
+        for (const widget::Widget* p=&widget; p; p = p->parent) {
+            if (p->tp == widget::WidgetType::Screen || p->tp == widget::WidgetType::Mode || p->tp == widget::WidgetType::Dialog) {
+                auto dlg = (const widget::BaseDialog*) p;
+                if (dlg->varSetMap.contains(scope)) {
+                    return std::make_shared<RefLine>(*dlg, scope_name[1], scope);
+                }
+            }
+        }
+        LOG(ERROR) << "Cannot resolve var scope " << scope << " in parents of widget " << widget.path;
+        return {};
+    }
+    if (!jv.is_array() || jv.as_array().size() != 4) {
+        LOG(ERROR) << "For rect '" << name << "' expecting array of 4 ints, but got: " << jv;
+        return {};
+    }
+    auto& j_arr = jv.as_array();
+    bool simple = true;
+    for (int i=0; i < 4; i++) {
+        if (!j_arr[i].is_integer()) {
+            simple = false;
+            if (!j_arr[i].is_string())
+                return {};
+        }
+    }
+    if (simple) {
+        cv::Line ln;
+        ln.x0 = j_arr[0].as_integer();
+        ln.y0 = j_arr[1].as_integer();
+        ln.x1 = j_arr[2].as_integer();
+        ln.y1 = j_arr[3].as_integer();
+        return std::make_shared<ConstLine>(ln);
+    }
+    return std::make_shared<widget::ExprLine>(jv);
+}
+
 cv::Point RefPoint::calcReferencePoint(const ResolvedEnv& detectorState) const {
-    const std::string& ship = Master::getInstance().getConfiguration()->getShipType();
+    const std::string& ship = Cfg.getShipType();
     auto& varSet = mDlg.varSetMap.at(mScope);
     for (auto& vars : varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {
@@ -849,7 +963,7 @@ cv::Point RefPoint::calcReferencePoint(const ResolvedEnv& detectorState) const {
 }
 
 cv::Rect RefRect::calcReferenceRect(const ResolvedEnv& detectorState) const {
-    const std::string& ship = Master::getInstance().getConfiguration()->getShipType();
+    const std::string& ship = Cfg.getShipType();
     auto& varSet = mDlg.varSetMap.at(mScope);
     for (auto& vars : varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {
@@ -861,3 +975,15 @@ cv::Rect RefRect::calcReferenceRect(const ResolvedEnv& detectorState) const {
     return {};
 }
 
+cv::Line RefLine::calcReferenceLine(const ResolvedEnv& detectorState) const {
+    const std::string& ship = Cfg.getShipType();
+    auto& varSet = mDlg.varSetMap.at(mScope);
+    for (auto& vars : varSet) {
+        if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {
+            auto& vals = vars.values.at(mName);
+            cv::Line line {(int)vals[0],(int)vals[1],(int)vals[2],(int)vals[3]};
+            return line;
+        }
+    }
+    return {};
+}

@@ -9,6 +9,9 @@
 #include "FuzzyMatch.h"
 #include "EDWidget.h"
 #include "Capturer.h"
+#include "detect/Detector.h"
+#include "detect/Lines.h"
+#include "detect/NavPanel.h"
 
 #include <dirlistener/ReadDirectoryChanges.h>
 #ifdef DEBUG
@@ -25,6 +28,13 @@
 bool g_DisableOpenCL;
 #endif
 
+Configuration& Cfg = Configuration::getInstance();
+
+Configuration& Configuration::getInstance() {
+    static Configuration cfg;
+    return cfg;
+}
+
 static cv::Vec3b color_from_json(const json::value& v);
 static detect::Detector* detector_from_json(const json5pp::value& j, widget::Widget& widget);
 static widget::Widget* widget_from_json(const json5pp::value& j, widget::Widget* parent);
@@ -40,16 +50,6 @@ Configuration::Configuration()
     mOrigLstRowBGR[int(WState::Focused)] = { 0,111,255};
     mOrigLstRowBGR[int(WState::Active)]  = { 6, 28, 57};
     mOrigLstRowBGR[int(WState::Disabled)]= {25, 25, 25};
-
-    cv::Vec3b RED = {0, 0, 255};
-    cv::Vec3f lBgr = sBgr2lBgr(RED);
-    unsigned gray = sBgr2sGray(RED);
-    cv::Vec3b sBgrFromGray = sGray2sBgr(gray);
-    cv::Vec3b luv = sBgr2Luv(RED);
-    cv::Vec3b hsv = sBgr2Hsv(RED);
-    cv::Vec3b sBgrFromLuv = luv2sBgr(luv);
-    cv::Vec3b sBgrFromHsv = hsv2sBgr(hsv);
-
 
     mUseCalibratedColors = false;
     for (int i=0; i < 4; i++) {
@@ -87,6 +87,7 @@ bool Configuration::load() {
             {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
             {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect},
             {{"[",keyboard::CTRL|keyboard::ALT}, Command::DebugWindow},
+            {{"\\",keyboard::CTRL|keyboard::ALT}, Command::DebugStream},
             {{"]",keyboard::CTRL|keyboard::ALT}, Command::ResetCapturer},
     };
 
@@ -138,10 +139,16 @@ bool Configuration::load() {
             capturerWinRTDisabled = tm.as_boolean();
         if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
             capturerDXGIDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
+            vJoyDeviceID = (uint8_t)tm.as_integer();
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
             openclDisabled = tm.as_boolean();
         g_DisableOpenCL = openclDisabled;
+        if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
+            std::string dir = tm.as_string();
+            _putenv_s("OPENCV_OPENCL_CACHE_DIR", dir.c_str());
+        }
 #else
         openclDisabled = true;
 #endif
@@ -157,6 +164,7 @@ bool Configuration::load() {
         loadCommodityDatabase(); // initialization depends on game language
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
+        loadEDDB();
 
         loadMarket();
         if (!loadCargo())
@@ -236,44 +244,16 @@ std::string Configuration::filenameFromPreset(std::string base, std::string pres
 
 const KeyBindings& Configuration::getGameKeyBindings(const std::string& name) const {
     static KeyBindings undefined;
-    const std::unordered_map<std::string,KeyBindings>* map = nullptr;
-    switch (guiFocus) {
-    case None:
-        if (currentStatus->flags.docked)
-            map = &keyBindingsGeneric;
-        else
-            map = &keyBindingsGeneric;
-        break;
-    case Right:
-    case Left:
-    case Chat:
-    case Role:
-        map = &keyBindingsGeneric;
-        break;
-    case FSS:
-    case SAA:
-        map = &keyBindingsEmpty;
-        break;
-    case Services:
-    case GalaxyMap:
-    case SystemMap:
-    case Orrery:
-    case Codex:
-        map = &keyBindingsGeneric;
-        break;
-    }
-    if (map) {
-        auto it = map->find(name);
-        if (it != map->end())
-            return it->second;
-    }
+    auto it = mKeyBindingsMap.find(name);
+    if (it != mKeyBindingsMap.end())
+        return it->second;
     return undefined;
 }
 
-GameKey Configuration::parseGameKey(XMLNode *keyNode, bool has_modifiers) {
+GameKey Configuration::parseGameKey(XMLNode *keyNode, bool has_modifiers, bool axis) {
     auto device = xml_node_attr(keyNode, "Device");
     auto key = xml_node_attr(keyNode, "Key");
-    if (!device || !key || !(strcmp(device,"Keyboard") == 0 || strcmp(device,"Mouse") == 0))
+    if (!device || !key)
         return {};
     GameKey gk;
     if (strcmp(device,"Keyboard") == 0) {
@@ -292,13 +272,25 @@ GameKey Configuration::parseGameKey(XMLNode *keyNode, bool has_modifiers) {
         if (!gk.code)
             gk.device = GameKey::Void;
     }
+    else if (strcmp(device,"vJoy") == 0) {
+        gk.device = GameKey::vJoy;
+        gk.key = key;
+        if (!axis) {
+            if (gk.key.starts_with("Joy_"))
+                gk.code = atoi(key + 6);
+            if (!gk.code)
+                gk.device = GameKey::Void;
+        }
+    }
+    else
+        return {};
 
     if (gk.device != GameKey::Void && gk.code && has_modifiers) {
         auto mod = xml_node_find_tag(keyNode, "Modifier", true);
         if (keyNode->children) {
             for (size_t i = 0; i < keyNode->children->len; i++) {
                 auto child = xml_node_child_at(keyNode, i);
-                gk.modifiers.push_back(parseGameKey(child, false));
+                gk.modifiers.push_back(parseGameKey(child, false, false));
                 if (gk.modifiers.back().device == GameKey::Void)
                     gk.device = GameKey::Void;
             }
@@ -315,27 +307,6 @@ std::ostream& operator<<(std::ostream& os, const GameKey& obj) {
     return os;
 }
 
-
-bool Configuration::parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag) {
-    auto node = xml_node_find_tag(rootNode, tag, true);
-    if (!node) {
-        LOG(ERROR) << "Key binding for <" << tag << "> not found";
-        return false;
-    }
-    KeyBindings kb;
-    kb.action = tag;
-    if (auto primary = xml_node_find_tag(node, "Primary", true))
-        kb.primary = parseGameKey(primary, true);
-    if (auto secondary = xml_node_find_tag(node, "Secondary", true))
-        kb.secondary = parseGameKey(secondary, true);
-    if (kb.primary.key.empty() && kb.secondary.key.empty()) {
-        LOG(ERROR) << "Key binding for <" << tag << "> not found";
-        return false;
-    }
-    map[tag] = kb;
-    return true;
-}
-
 static bool getBoolNodeValue(XMLNode* root, const char* tag) {
     if (auto node = xml_node_find_tag(root, tag, true)) {
         if (auto val = xml_node_attr(node, "Value"))
@@ -350,6 +321,35 @@ static int64_t getIntNodeValue(XMLNode* root, const char* tag) {
             return std::stoll(val);
     }
     return 0;
+}
+
+bool Configuration::parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag) {
+    auto node = xml_node_find_tag(rootNode, tag, true);
+    if (!node) {
+        LOG(ERROR) << "Key binding for <" << tag << "> not found";
+        return false;
+    }
+    KeyBindings kb;
+    kb.action = tag;
+    if (getBoolNodeValue(node, "ToggleOn"))
+        kb.mode = KeyBindings::Toggle;
+    if (auto primary = xml_node_find_tag(node, "Primary", true))
+        kb.primary = parseGameKey(primary, true, false);
+    if (auto secondary = xml_node_find_tag(node, "Secondary", true))
+        kb.secondary = parseGameKey(secondary, true, false);
+    if (auto binding = xml_node_find_tag(node, "Binding", true)) {
+        kb.primary = parseGameKey(binding, false, true);
+        if (getBoolNodeValue(node, "Inverted"))
+            kb.mode = KeyBindings::AxisInv;
+        else
+            kb.mode = KeyBindings::Axis;
+    }
+    if (kb.primary.key.empty() && kb.secondary.key.empty()) {
+        LOG(ERROR) << "Key binding for <" << tag << "> not found";
+        return false;
+    }
+    map[tag] = kb;
+    return true;
 }
 
 bool Configuration::loadGameSettings(bool initial) {
@@ -519,8 +519,7 @@ bool Configuration::loadPlayerOptions() {
 bool Configuration::loadInputBindings() {
     LOG(INFO) << "Loading input bindings";
     bool ok = true;
-    keyBindingsGeneric.clear();
-    keyBindingsShip.clear();
+    mKeyBindingsMap.clear();
     std::string filename = toUtf8(mEDSettingsPath) + R"(\Options\Bindings\StartPreset.4.start)";
     std::ifstream ifs(filename, std::ifstream::in);
     if (ifs.is_open()) {
@@ -535,20 +534,20 @@ bool Configuration::loadInputBindings() {
             filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
         rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
-            parseKeyBindings(rootNode, keyBindingsGeneric, "Pause");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "FocusLeftPanel");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Up");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Down");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Left");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Right");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Select");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Back");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "UI_Toggle");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPanel");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPanel");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "CycleNextPage");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "CyclePreviousPage");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "GalaxyMapOpen");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Up");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Down");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Left");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Right");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Select");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Back");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Toggle");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "CycleNextPanel");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPanel");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "CycleNextPage");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPage");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");
             xml_node_free(rootNode);
             rootNode = nullptr;
         } else {
@@ -565,37 +564,41 @@ bool Configuration::loadInputBindings() {
             filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
         rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
-            parseKeyBindings(rootNode, keyBindingsGeneric, "Pause");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "FocusLeftPanel");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "RollLeftButton");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "RollRightButton");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "PitchUpButton");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "PitchDownButton");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "YawLeftButton");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "YawRightButton");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "LeftThrustButton");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "RightThrustButton");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "UpThrustButton");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "DownThrustButton");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardThrustButton");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardThrustButton");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "ForwardKey");
-            //parseKeyBindings(rootNode, keyBindingsGeneric, "BackwardKey");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus100");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus75");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus50");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedMinus25");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeedZero");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed25");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed50");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed75");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "SetSpeed100");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "HyperSuperCombination");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "Supercruise");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "Hyperspace");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "GalaxyMapOpen");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "ToggleCargoScoop");
-            parseKeyBindings(rootNode, keyBindingsGeneric, "DeployHardpointToggle");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "RollLeftButton");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "RollRightButton");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "PitchUpButton");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "PitchDownButton");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "YawLeftButton");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "YawRightButton");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "LeftThrustButton");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "RightThrustButton");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "UpThrustButton");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "DownThrustButton");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardThrustButton");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardThrustButton");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardKey");
+            //parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardKey");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus100");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus75");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus50");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus25");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedZero");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed25");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed50");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed75");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed100");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "HyperSuperCombination");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "Supercruise");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "Hyperspace");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "ToggleCargoScoop");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "DeployHardpointToggle");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "MouseReset");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "YawAxisRaw");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "PitchAxisRaw");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "RollAxisRaw");
             xml_node_free(rootNode);
             rootNode = nullptr;
         } else {
@@ -1468,6 +1471,27 @@ bool Configuration::dumpCommodityDatabase() {
     return true;
 }
 
+bool Configuration::loadEDDB() {
+    LOG(INFO) << "Loading EDDB";
+    std::ifstream dbf("eddb.json5");
+    if (!dbf)
+        return false;
+    try {
+        mEDDBFull = json5pp::parse5(dbf);
+    } catch (const json5pp::syntax_error& ex) {
+        LOG(ERROR) << ex.what();
+    }
+    if (!mEDDBFull) {
+        LOG(ERROR) << "Error loading eddb.json5";
+        return false;
+    }
+    for (auto& ship : mEDDBFull["ship"].as_array()) {
+        std::string type = toLower(ship["fdname"].as_string());
+        mEDDBShips.emplace(type, ship);
+    }
+    return true;
+}
+
 const char* Configuration::makeTesseractWordsFile() {
     FuzzyMatch fuzzyMatch;
     std::set<std::wstring> allWords;
@@ -1535,17 +1559,15 @@ void Configuration::changeDirThreadLoop() {
         bool needReloadMarket = false;
         bool needReloadCargo = false;
         bool needReloadStatus = false;
-        bool needOpenNewLog = false;
-        std::wstring newLogFilenameW;
+        std::wstring journalFilenameW;
 
         DWORD action;
         std::wstring filenameW;
         Sleep(100); // let ED finish writes
         while (changeDirListener->Pop(action, filenameW)) {
             LOG(DEBUG) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
-            if (action == FILE_ACTION_ADDED && filenameW.starts_with(L"Journal.") && filenameW.ends_with(L".log")) {
-                needOpenNewLog = true;
-                newLogFilenameW = filenameW;
+            if (filenameW.ends_with(L".log") && filenameW.contains(L"\\Journal.")) {
+                journalFilenameW = filenameW;
             } else if (filenameW.ends_with(L"\\Status.json"))
                 needReloadStatus = true;
             else if (filenameW.ends_with(L"\\Cargo.json"))
@@ -1578,8 +1600,8 @@ void Configuration::changeDirThreadLoop() {
         // real all events from journal
         readJournalChanges(journalStream, journalLine);
 
-        if (needOpenNewLog) {
-            mEDCurrentJournalFile = newLogFilenameW;
+        if (!journalFilenameW.empty() && journalFilenameW != mEDCurrentJournalFile) {
+            mEDCurrentJournalFile = journalFilenameW;
             if (journalStream.is_open())
                 journalStream.close();
             journalStream.open(mEDCurrentJournalFile, std::ifstream::in);
@@ -1731,16 +1753,30 @@ static void ext_from_json(const json5pp::value& v, cv::Point& extendLT, cv::Poin
             extR = jext[2].as_integer();
         if (jext.size() > 3)
             extB = jext[3].as_integer();
-
-        extendLT = {extL, extT};
-        extendRB = {extR, extB};
     }
+    extendLT = {extL, extT};
+    extendRB = {extR, extB};
 }
 
 static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFilter>& f) {
     if (!jf.is_object())
         return;
-    if (jf["gauss"].is_object()) {
+    auto& jo = jf.as_object();
+    if (jo.contains("threshold") && jf["threshold"].is_number()) {
+        double thr = jf["threshold"].as_number();
+        double max = thr < 1 ? 0.5 : 255.0;
+        if (jf["max"].is_number())
+            max = jf["max"].as_number();
+        f.reset(new ThresholdFilter(thr, max));
+        return;
+    }
+    if (jo.contains("channel") && jf["channel"].is_string()) {
+        std::string chn = toLower(jf["channel"].as_string());
+        ChannelFilter::Channel channel = enum_cast<ChannelFilter::Channel>(chn).value();
+        f.reset(new ChannelFilter(channel));
+        return;
+    }
+    if (jo.contains("gauss") && jf["gauss"].is_object()) {
         int kernX = 3;
         int kernY = 3;
         if (jf["gauss"]["kern"].is_array()) {
@@ -1755,7 +1791,7 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
         f.reset(new GaussFilter(kernX, kernY));
         return;
     }
-    if (jf["laplacian"].is_object()) {
+    if (jo.contains("laplacian") && jf["laplacian"].is_object()) {
         int kern = 3;
         if (jf["laplacian"]["kern"].is_integer())
             kern = jf["laplacian"]["kern"].as_integer();
@@ -1765,13 +1801,87 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
         f.reset(new LaplacianFilter(kern, scale));
         return;
     }
-    if (!jf["hsv_crop"].is_null()) {
-        HsvColorCropFilter* filter = new HsvColorCropFilter();
+    if (jo.contains("scharr") && jf["scharr"].is_object()) {
+        double scale = 1;
+        if (jf["scharr"]["scale"].is_number())
+            scale = jf["scharr"]["scale"].as_number();
+        f.reset(new ScharrFilter(scale));
+        return;
+    }
+    if (jo.contains("edge_box") && jf["edge_box"].is_object()) {
+        int kern = 5;
+        double scale = 2.0;
+        double thr = 0;
+        if (jf["edge_box"]["kern"].is_integer())
+            kern = jf["edge_box"]["kern"].as_integer();
+        if (jf["edge_box"]["scale"].is_number())
+            scale = jf["edge_box"]["scale"].as_number();
+        if (jf["edge_box"]["thr"].is_number())
+            thr = jf["edge_box"]["thr"].as_number();
+        f.reset(new EdgeByBoxFilter(kern, scale, thr));
+        return;
+    }
+    if (jo.contains("gain") && jf["gain"].is_number()) {
+        double gain = jf["gain"].as_number();
+        double bias = 0;
+        if (jf["bias"].is_number())
+            bias = jf["bias"].as_number();
+        f.reset(new GainBiasFilter(gain, bias));
+        return;
+    }
+    if (jo.contains("dilate")) {
+        int kernX = 3;
+        int kernY = 3;
+        int iter = 1;
+        if (jf["dilate"].is_integer())
+            kernX = kernY = jf["dilate"].as_integer();
+        else if (jf["dilate"].is_array()) {
+            kernX = jf["dilate"][0].as_integer();
+            kernY = jf["dilate"][1].as_integer();
+        }
+        if (jf["iter"].is_integer())
+            iter = jf["iter"].as_integer();
+        f.reset(new DilateFilter(kernX, kernY, iter));
+        return;
+    }
+    if (jo.contains("erode")) {
+        int kernX = 3;
+        int kernY = 3;
+        int iter = 1;
+        if (jf["erode"].is_integer())
+            kernX = kernY = jf["erode"].as_integer();
+        else if (jf["erode"].is_array()) {
+            kernX = jf["erode"][0].as_integer();
+            kernY = jf["erode"][1].as_integer();
+        }
+        if (jf["iter"].is_integer())
+            iter = jf["iter"].as_integer();
+        f.reset(new ErodeFilter(kernX, kernY, iter));
+        return;
+    }
+    bool has_hsv_crop = jo.contains("hsv_crop");
+    bool has_hsv_gray = jo.contains("hsv_gray");
+    bool has_hsv_mask = jo.contains("hsv_mask");
+    if (has_hsv_crop || has_hsv_gray || has_hsv_mask) {
+        json5pp::value jhsv;
+        HsvMaskFilter* filter;
+        if (has_hsv_crop) {
+            jhsv = jf["hsv_crop"];
+            filter = new HsvColorCropFilter();
+        }
+        else if (has_hsv_gray) {
+            jhsv = jf["hsv_gray"];
+            filter = new HsvGrayCropFilter();
+        }
+        else {
+            jhsv = jf["hsv_mask"];
+            filter = new HsvMaskFilter();
+        }
         std::vector<json5pp::value> jarr;
-        if (jf["hsv_crop"].is_array())
-            jarr = jf["hsv_crop"].as_array();
-        else if (jf["hsv_crop"].is_object())
-            jarr.push_back(jf["hsv_crop"]);
+        if (jhsv.is_array())
+            jarr = jhsv.as_array();
+        else if (jhsv.is_object())
+            jarr.push_back(jhsv);
 
         for (auto& jv_ : jarr) {
             cv::Vec3b min = {0,0,0};
@@ -1809,7 +1919,7 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
     if (j.is_object()) {
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
-            spEvalRect rect = makeEvalRect(widget, "rect", j);
+            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"]);
 
             ImageTemplate* templ = new ImageTemplate(filename, rect);
 
@@ -1855,32 +1965,25 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
         if (j.as_object().contains("line")) {
             Detector* anchor = nullptr;
 
-            if (!j["anchor"].is_object() || !j["anchor"]["img"].is_string())
-                throw std::runtime_error("Anchor image template required for line detector");
-            anchor = detector_from_json(j["anchor"], widget);
+            if (j["anchor"].is_object())
+                anchor = detector_from_json(j["anchor"], widget);
 
-            spEvalPoint p0 = makeEvalPoint(widget, "p0", j);
-            spEvalPoint p1 = makeEvalPoint(widget, "p1", j);
+            spEvalLine line = makeEvalLine(widget, "line", j["line"]);
 
-            LineDetector* ldet = new LineDetector(dynamic_cast<ImageTemplate*>(anchor), p0, p1);
-            ldet->name = j["line"].as_string();
+            detect::LineDetector* ldet;
+            if (anchor)
+                ldet = new AnchoredLineDetector(dynamic_cast<ImageTemplate*>(anchor), line);
+            else
+                ldet = new SimpleLineDetector(line);
 
-            if (j.at("scale")) {
-                double scaleX = 1;
-                double scaleY = 1;
-                if (j["scale"].is_number())
-                    scaleX = scaleY = j["scale"].as_number();
-                else if (j["scale"].is_array()) {
-                    scaleX = j["scale"][0].as_number();
-                    scaleY = j["scale"][1].as_number();
-                }
-                ldet->imageScaleX = scaleX;
-                ldet->imageScaleY = scaleY;
-            }
-            ext_from_json(j["ext"], ldet->extendLT, ldet->extendRB);
+            if (j["name"].is_string())
+                ldet->name = j["name"].as_string();
 
-            if (j.at("thr"))
-                ldet->binaryThreshold = j["thr"].as_number();
+            minmax_from_json(j["ext"], ldet->extendAngleMin, ldet->extendAngleMax);
+            if (j.at("votes"))
+                ldet->houghThreshold = j["votes"].as_integer();
+            if (j.at("prec"))
+                ldet->angleStep = j["prec"].as_number();
 
             if (j.at("filter")) {
                 if (j.at("filter").is_object()) {
@@ -1932,6 +2035,15 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
                     oracles.emplace_back(oracle);
             }
             return new BestOf(std::move(oracles));
+        }
+        else if (j.as_object().contains("nav_panel")) {
+            std::vector<std::unique_ptr<Detector>> oracles;
+            for (auto& jo : j["nav_panel"].as_array()) {
+                Detector *oracle = detector_from_json(jo, widget);
+                if (oracle)
+                    oracles.emplace_back(oracle);
+            }
+            return new NavPanelDetector(std::move(oracles));
         }
         return nullptr;
     }
@@ -1993,10 +2105,10 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
             // transform: { tl: [212,256], tr: [1276,242], br: [1296,800], bl: [270,912] }
             // transform: { line: "lpline", tl: [0,-50], tr: [0,-50], ratio: 1.77777777 }
             auto& jt = jo.at("transform");
-            spEvalPoint tl = makeEvalPoint(*scr, "tl", jt);
-            spEvalPoint tr = makeEvalPoint(*scr, "tr", jt);
-            spEvalPoint br = makeEvalPoint(*scr, "br", jt);
-            spEvalPoint bl = makeEvalPoint(*scr, "bl", jt);
+            spEvalPoint tl = makeEvalPoint(*scr, "tl", jt["tl"]);
+            spEvalPoint tr = makeEvalPoint(*scr, "tr", jt["tr"]);
+            spEvalPoint br = makeEvalPoint(*scr, "br", jt["br"]);
+            spEvalPoint bl = makeEvalPoint(*scr, "bl", jt["bl"]);
             cv::Size sz = point_from_json(jt["size"]);
             if (jt["line"]) {
                 std::vector<std::string> lines;

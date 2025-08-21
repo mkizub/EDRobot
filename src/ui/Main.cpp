@@ -34,8 +34,20 @@ Main::Main()
         case WM_LBUTTONDOWN:
             show();
             break;
-        case WM_RBUTTONDOWN:
-            // Handle right-click (e.g., display context menu)
+        case WM_RBUTTONDOWN: {
+            const int IDM_EXIT = 100;
+            POINT pt;
+            GetCursorPos(&pt);
+            HMENU hmenu = CreatePopupMenu();
+            InsertMenu(hmenu, 0, MF_BYPOSITION | MF_STRING, IDM_EXIT, L"Exit");
+            SetForegroundWindow(this->hwnd());
+            int cmd = TrackPopupMenu(hmenu,
+                                     TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_BOTTOMALIGN | TPM_NONOTIFY | TPM_RETURNCMD,
+                                     pt.x, pt.y, 0, this->hwnd(), NULL);
+            PostMessage(this->hwnd(), WM_NULL, 0, 0);
+            if (cmd == IDM_EXIT)
+                Master::getInstance().pushCommand(Command::Shutdown);
+        }
             break;
         case WM_LBUTTONDBLCLK:
             // Handle double-click
@@ -113,9 +125,9 @@ int Main::on_command_stop_new(wl::params &params) {
             hide();
             AddTask addTaskDlg;
             int res = addTaskDlg.show(this);
-            show();
             if (res == IDOK)
                 return TRUE;
+            show();
         } else {
             aiManager->stop();
         }

@@ -9,6 +9,7 @@
 #include "TaskSell.h"
 #include "TaskDebug.h"
 #include "../ui/UIManager.h"
+#include "../Keyboard.h"
 
 #ifndef NDEBUG
 #include <cpptrace/cpptrace.hpp>
@@ -37,7 +38,7 @@ namespace ai {
 
 AIManager::AIManager()
     : master(Master::getInstance())
-    , cfg(*master.getConfiguration())
+    , cfg(Cfg)
 {
     initTemplates();
     isWorking = true;
@@ -164,6 +165,8 @@ bool AIManager::new_task(const TaskTemplate& templ) {
         task.reset(new TaskJumpToSystem(nullptr, *this, templ));
     else if (templ.name == ED_TASK_CRUISE_TO_STATION)
         task.reset(new TaskCruiseToDock(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_DEBUG_ORIENT_NAV_TARGET)
+        task.reset(new TaskDebugAutopilot(nullptr, *this, templ));
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
     return new_task(std::move(task));
 }
@@ -192,6 +195,7 @@ void AIManager::loop() {
         TRY {
             step();
         } CATCH(const std::exception& ex) {
+            keyboard::reset_vJoy();
             if (auto ir = dynamic_cast<const interrupted_error*>(&ex)) {
                 //mark_interrupted();
             } else {

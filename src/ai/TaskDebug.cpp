@@ -206,7 +206,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
     for (;;) {
         sleep(500);
         cv::Mat grayImage;
-        mgr.detectEDState(DetectLevel::ListOcrFocusedRow, nullptr, &grayImage);
+        mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (!mgr.uiState.match("scr-market:"+marketMode)) {
             if (mgr.uiState.match("scr-market:"+marketMode+":dlg-trade:*")) {
                 sendKey("UI_Back", 50, 1000);
@@ -508,7 +508,8 @@ Result TaskDebugFindAllNavPoints::run() {
         int focused_row = -1;
         std::vector<int> rows_with_error;
         ClassifiedRect* focused = nullptr;
-        mgr.detectEDState(DetectLevel::ListOcrAllRows);
+        cv::Mat grayImage;
+        mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         for (auto& cr : mgr.rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
                 continue;
@@ -516,7 +517,9 @@ Result TaskDebugFindAllNavPoints::run() {
                 focused = &cr;
                 focused_row = row;
             }
-            if (cr.u.lrow.text_confidence <= ocr_confidence && checkOcrError(cr))
+            int conf = ocr::ocrRowText(grayImage, mgr.rEnv, cr, 0, cr.text);
+            cr.u.lrow.text_confidence = conf;
+            if (conf <= ocr_confidence && checkOcrError(cr))
                 rows_with_error.push_back(row);
             row += 1;
         }

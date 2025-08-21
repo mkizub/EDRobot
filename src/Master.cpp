@@ -8,6 +8,7 @@
 #include "ai/AIManager.h"
 #include "ai/TaskTemplate.h"
 #include "detect/Detector.h"
+#include "detect/Lines.h"
 #include "Keyboard.h"
 #include "Capturer.h"
 #include "FuzzyMatch.h"
@@ -42,6 +43,8 @@
 # endif
 #endif
 
+
+Master& Mgr = Master::getInstance();
 
 const wchar_t Master::ED_WINDOW_NAME[] = L"Elite - Dangerous (CLIENT)";
 const wchar_t Master::ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
@@ -330,23 +333,23 @@ void Master::initializeInternal(std::string ocr_dir) {
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
     LOG(INFO) << "Loading configuration";
-    mConfiguration = new Configuration();
-    mConfiguration->load();
+    Cfg.load();
 
     mAIManager = new ai::AIManager();
 
     if (ocr_dir.empty())
-        ocr_dir = mConfiguration->mTesseractDataPath;
+        ocr_dir = Cfg.mTesseractDataPath;
     if (ocr_dir.empty())
         ocr_dir = "tessdata-fast";
-    ocr::init(ocr_dir, mConfiguration->lng);
+    ocr::init(ocr_dir, Cfg.lng);
 
     LOG(INFO) << "Initializing compass detector";
     mCompassDetector = std::make_unique<detect::CompassDetector>();
 
     LOG(INFO) << "Setup keyboard hooks";
+    keyboard::acquire_vJoy();
     std::vector<std::string> keys;
-    for (auto& m : mConfiguration->keyMapping)
+    for (auto& m : Cfg.keyMapping)
         keys.push_back(m.first.first);
     keyboard::intercept(keys);
     keyboard::start(tradingKbHook);
@@ -359,8 +362,8 @@ Master::Master() {
 
 Master::~Master() {
     keyboard::stop();
+    keyboard::release_vJoy();
     delete mAIManager;
-    delete mConfiguration;
     if (mCapturer) {
         mCapturer->stop();
         mCapturer = nullptr;
@@ -381,7 +384,10 @@ void Master::loop() {
             popCommand(cmd);
             switch (cmd->command) {
             case Command::NoOp:
-                debugWindowUpdate(true);
+                if (mDetectLevelStream != DetectLevel::None)
+                    detectEDState(mDetectLevelStream);
+                else
+                    debugWindowUpdate();
                 break;
             case Command::TaskFinished:
                 //clearCurrentTask();
@@ -406,6 +412,12 @@ void Master::loop() {
                 break;
             case Command::DebugWindow:
                 debugWindow();
+                break;
+            case Command::DebugStream:
+                if (mDetectLevelStream == DetectLevel::None)
+                    setDetectStream(DetectLevel::Buttons);
+                else
+                    setDetectStream(DetectLevel::None);
                 break;
             case Command::DevRectScreenshot:
                 debugRectScreenshot(cmd);
@@ -448,19 +460,36 @@ bool Master::setGameForeground() {
     return isGameForeground();
 }
 
+bool Master::setGameMouseCapture() {
+    if (!hWndED)
+        Master::getCapturer();
+    if (!hWndED)
+        return false;
+    if (hWndED != GetForegroundWindow()) {
+        SetForegroundWindow(hWndED);
+        Sleep(500); // wait for switching to foreground
+    }
+    HWND hWndCapt = GetCapture();
+    if (hWndCapt != hWndED) {
+        SetCapture(hWndED);
+        Sleep(100); // wait for switching to foreground
+    }
+    return GetCapture() == hWndED;
+}
+
 
 void Master::tradingKbHook(int code, int scancode, int flags, const std::string& name) {
     (void)code;
     (void)scancode;
     LOG(DEBUG) << "Key '"+encodeShortcut(name,flags)+"' pressed";
     Master& self = getInstance();
-    auto keyMapping = self.mConfiguration->keyMapping;
+    auto keyMapping = Cfg.keyMapping;
     auto cmd = keyMapping.find(std::make_pair(toLower(name),flags));
     if (cmd != keyMapping.end()) {
         LOG(INFO) << "Command " << enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
         self.pushCommand(cmd->second);
     } else {
-        if (self.mConfiguration->autoPause && self.mAIManager->active()) {
+        if (Cfg.autoPause && self.mAIManager->active()) {
             LOG(INFO) << "Auto-pausing AI task because '"+encodeShortcut(name,flags)+"' pressed";
             self.pushCommand(Command::Pause);
         }
@@ -524,13 +553,13 @@ bool Master::preInitTask() {
     if (!capturer)
         return false;
     std::string error;
-    bool ok = mConfiguration->checkResolutionSupported(capturer->getCaptureRect().size(), error);
+    bool ok = Cfg.checkResolutionSupported(capturer->getCaptureRect().size(), error);
     if (!ok) {
         UIManager::showToast(_("Unsupported aspect ratio"), error);
         return false;
     }
     // Calibration is not needed anymore
-    //if (checkCalibration && mConfiguration->checkNeedColorCalibration()) {
+    //if (checkCalibration && Cfg.checkNeedColorCalibration()) {
     //    bool agree = UIManager::askCalibrationDialog(_("Color calibration required"));
     //    if (agree) {
     //        pushCommand(Command::Calibrate);
@@ -587,7 +616,7 @@ const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& gra
     const Commodity* commodity = nullptr;
     if (ocr_conf > 30) {
         LOG(DEBUG) << "Label text OCR: '" << text << "' conf=" << ocr_conf << "%";
-        commodity = getInstance().getConfiguration()->getCommodityByName(text, true);
+        commodity = Cfg.getCommodityByName(text, true);
     }
     LOG_IF(!commodity,ERROR) << "Commodity '" << text << "' not found";
     return commodity;
@@ -598,7 +627,7 @@ int Master::canSell(Commodity* commodity) const {
         return 0;
     if (commodity->ship.count <= commodity->ship.stolen)
         return 0;
-    spMarket market = mConfiguration->currentMarket;
+    spMarket market = Cfg.currentMarket;
     if (market->stationType == "FleetCarrier") {
         return std::min(commodity->ship.count, commodity->market.demand);
     }
@@ -610,17 +639,16 @@ const Commodity* Master::ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat&
         return nullptr;
     if (cr->u.lrow.commodity)
         return cr->u.lrow.commodity;
-    Configuration* cfg = Master::getInstance().mConfiguration;
     if (cr->text.empty()) {
         int conf = ocr::ocrRowText(grayImage, rEnv, *cr, 1, cr->text);
         cr->u.lrow.text_confidence = conf;
         if (conf > 50) {
-            cr->u.lrow.commodity = cfg->getCommodityByName(cr->text, true);
+            cr->u.lrow.commodity = Cfg.getCommodityByName(cr->text, true);
         } else {
             cr->text.clear();
         }
     } else {
-        cr->u.lrow.commodity = cfg->getCommodityByName(cr->text, true);
+        cr->u.lrow.commodity = Cfg.getCommodityByName(cr->text, true);
     }
     return cr->u.lrow.commodity;
 }
@@ -629,7 +657,6 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
                                           const std::string& lst_name, const std::vector<Commodity*>& table,
                                           std::vector<CommodityMatch>* verify)
 {
-    Configuration* cfg = Master::getInstance().mConfiguration;
     std::vector<ClassifiedRect*> rows;
     for (auto& cr : rEnv.classified) {
         if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != lst_name)
@@ -642,7 +669,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
     ClassifiedRect* last = nullptr;
     for (auto lr : rows) {
         if (lr->u.lrow.commodity == nullptr && !lr->text.empty())
-            lr->u.lrow.commodity = cfg->getCommodityByName(lr->text, true);
+            lr->u.lrow.commodity = Cfg.getCommodityByName(lr->text, true);
         if (lr->u.lrow.commodity && !first)
             first = lr;
         if (lr->u.lrow.commodity)
@@ -650,7 +677,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
     }
     for (auto lr : rows) {
         if (lr->u.lrow.commodity == nullptr && !lr->text.empty())
-            lr->u.lrow.commodity = cfg->getCommodityByName(lr->text, true);
+            lr->u.lrow.commodity = Cfg.getCommodityByName(lr->text, true);
     }
     if (!first) {
         for (auto lr: rows) {
@@ -901,12 +928,12 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
         }
         debugEnv.isDebugMatch_ = true;
         Widget* foundWidget = nullptr;
-        GuiFocus guiFocus = mConfiguration->guiFocus;
+        GuiFocus guiFocus = Cfg.guiFocus;
         for (auto widget: mScreensRoot->have) {
             if (widget->tp != WidgetType::Screen)
                 continue;
             widget::Screen* screen = static_cast<widget::Screen*>(widget);
-            if (!screen || !screen->checkStatus(*mConfiguration))
+            if (!screen || !screen->checkStatus())
                 continue;
             auto w = debugTemplates(screen, &debugEnv);
             if (guiFocus == GuiFocus::None)
@@ -976,22 +1003,44 @@ bool Master::debugWindow() {
     }
 }
 
-bool Master::debugWindowUpdate(bool idle) {
-    if (!hWndED)
-        return false;
-    mDuplicateToDebugWindow = UIManager::hasDebugWindow();
-    if (!mDuplicateToDebugWindow)
-        return false;
-    if (idle && !mAIManager->active()) {
-        if (!detectEDState(mDetectLevelIdle))
-            return false;
+bool Master::debugWindowUpdate() {
+    double streamFPS = -1;
+    if (mStreamFramePoints.size() > 2) {
+        auto startTime = mStreamFramePoints.front();
+        auto endTime = mStreamFramePoints.back();
+        auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(endTime - startTime);
+        streamFPS = mStreamFramePoints.size() / elapsed.count();
+        static int fps_counter;
+        fps_counter = (fps_counter + 1) % 60;
+        if (fps_counter == 0) {
+            std::string text;
+            //if (streamFPS > 5)
+            //    text = std::format("Stream FPS: {}", int(std::round(streamFPS)));
+            //else
+                text = std::format("Stream FPS: {:.1f}", streamFPS);
+            LOG(INFO) << text;
+        }
     }
+
+    mDuplicateToDebugWindow = UIManager::hasDebugWindow();
+    if (!mDuplicateToDebugWindow || !mLastUIState.valid)
+        return false;
+
     ClassifyEnv& cEnv = mClassifyEnv;
     cv::Mat& debugImage = cEnv.getDebugImage();
     if (debugImage.empty())
         return UIManager::postToDebugWindow(cEnv.getColorImage(), debugImage);
 
-    if (mConfiguration->guiFocus == GuiFocus::None && mCompassDetector->lastHemisphere) {
+    if (streamFPS > 0) {
+        std::string text;
+        if (streamFPS > 5)
+            text = std::format("FPS: {}", int(std::round(streamFPS)));
+        else
+            text = std::format("FPS: {:.1f}", streamFPS);
+        cv::putText(debugImage, text, {10,40}, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
+    }
+
+    if (Cfg.guiFocus == GuiFocus::None && mCompassDetector->lastHemisphere) {
         detect::CompassDetector& c = *mCompassDetector.get();
         detect::ImageTemplate& ct = *c.compassDetector.get();
 
@@ -1013,7 +1062,7 @@ bool Master::debugWindowUpdate(bool idle) {
         cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
 
         if (c.navTargetFound) {
-            center = cEnv.scaleToCaptured(cEnv.ReferenceScreenCenter + c.lastNavTargetOffset);
+            center = cEnv.cvtReferenceToCaptured(cEnv.ReferenceScreenCenter + c.lastNavTargetOffset);
             radius = c.targetReferenceRadius * cEnv.getScale();
             cv::circle(debugImage, center, radius, {255,255,0}, 2);
             if (c.lastNavDist.unit != dist_t::X) {
@@ -1025,23 +1074,36 @@ bool Master::debugWindowUpdate(bool idle) {
         }
     }
 
-    for (auto& cr : cEnv.classified) {
-        if (cr.cdt == ClsDetType::Detected) {
-            if (cr.warped) {
-                auto points = cEnv.unWarp(cr.detectedRect);
-                for (int j = 0; j < 4; j++)
-                    cv::line(debugImage, points[j], points[(j+1) % 4], {255, 255, 96}, 2, cv::LINE_AA);
-            } else {
-                cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-                cv::rectangle(debugImage, r, {255, 255, 96}, 2);
-            }
+    if (mLastUIState.screen && mLastUIState.screen->transform && mLastUIState.screen->transform->valid) {
+        for (int p=0; p < 4; p++) {
+            auto& p0 = mLastUIState.screen->transform->transformSrc[p];
+            auto& p1 = mLastUIState.screen->transform->transformSrc[(p+1)%4];
+            cv::line(debugImage, p0, p1, {200,200,200}, 1, cv::LINE_AA);
         }
+    }
+
+    for (auto& cr : cEnv.classified) {
+//        if (cr.cdt == ClsDetType::Detected) {
+//            if (cr.warped) {
+//                auto points = cEnv.unWarp(cr.detectedRect);
+//                for (int j = 0; j < 4; j++)
+//                    cv::line(debugImage, points[j], points[(j+1) % 4], {96, 255, 96}, 1, cv::LINE_AA);
+//            } else {
+//                cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
+//                cv::rectangle(debugImage, r, {96, 255, 96}, 1);
+//            }
+//        }
         if (cr.cdt == ClsDetType::LineDetected) {
             cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-            cv::rectangle(debugImage, r, {255, 255, 96}, 2);
-            cv::Point p0 = cEnv.cvtReferenceToCaptured(cr.u.ldet.referenceP0);
-            cv::Point p1 = cEnv.cvtReferenceToCaptured(cr.u.ldet.referenceP1);
-            cv::line(debugImage, p0, p1, {255, 255, 96}, 2, cv::LINE_AA);
+            cv::rectangle(debugImage, r, {96, 255, 96}, 2);
+            //std::string text = std::format("s:{:.4f} a:{:.4f} m:{:.4f}", cr.u.ldet.scale, cr.u.ldet.angle, cr.u.ldet.match);
+            //cv::putText(debugImage, text, r.br(), cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
+            if (detect::AnchoredLineDetector* detector = dynamic_cast<detect::AnchoredLineDetector*>(cr.u.ldet.detector)) {
+                r = detector->anchorDetector->matchRect;
+                cv::rectangle(debugImage, r, {96, 96, 255}, 1);
+            }
+            cv::Line line = cEnv.cvtReferenceToCaptured(cr.u.ldet.referenceLine);
+            cv::line(debugImage, line.p0(), line.p1(), {96, 255, 96}, 3, cv::LINE_AA);
         }
         if (cr.cdt == ClsDetType::Widget) {
             cv::Scalar color = {255, 96, 96};
@@ -1077,17 +1139,7 @@ bool Master::debugWindowUpdate(bool idle) {
         }
     }
 
-    if (!mLastUIState.screen)
-        return UIManager::postToDebugWindow(cEnv.getColorImage(), debugImage);
-    if (mLastUIState.screen->transform && mLastUIState.screen->transform->valid) {
-        for (int p=0; p < 4; p++) {
-            auto& p0 = mLastUIState.screen->transform->transfromSrc[p];
-            auto& p1 = mLastUIState.screen->transform->transfromSrc[(p+1)%4];
-            cv::line(debugImage, p0, p1, {200,200,200}, 2, cv::LINE_AA);
-        }
-    }
-
-    return UIManager::postToDebugWindow(mClassifyEnv.getColorImage(), debugImage);
+    return UIManager::postToDebugWindow(cEnv.getColorImage(), debugImage);
 }
 
 bool Master::debugRectScreenshot(pCommand& cmd) {
@@ -1131,14 +1183,14 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
 
 //    std::string text;
 //    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 50) {
-//        Commodity *commodity = mConfiguration->getCommodityByName(text, true);
+//        Commodity *commodity = Cfg.getCommodityByName(text, true);
 //        if (commodity) {
-//            if (mConfiguration->lng != EN)  // they capitalize text
+//            if (Cfg.lng != EN)  // they capitalize text
 //                text = commodity->name;
 //            std::string lng;
-//            if (mConfiguration->lng == RU)
+//            if (Cfg.lng == RU)
 //                lng = "-rus";
-//            else if (mConfiguration->lng == EN)
+//            else if (Cfg.lng == EN)
 //                lng = "-eng";
 //            else
 //                lng = "-xxx";
@@ -1214,6 +1266,19 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
 //    }
 //}
 
+bool Master::setDetectStream(DetectLevel level) {
+    mDetectLevelStream = level;
+    mStreamFramePoints.clear();
+    if (level != DetectLevel::None) {
+        LOG(INFO) << "Detect stream started";
+        mLoopWakeup = std::chrono::milliseconds(5);
+        pushCommand(Command::NoOp);
+    } else {
+        LOG(INFO) << "Detect stream stopped";
+        mLoopWakeup = std::chrono::milliseconds(500);
+    }
+    return true;
+}
 bool Master::detectEDState(DetectLevel level) {
     auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -1224,27 +1289,21 @@ bool Master::detectEDState(DetectLevel level) {
         mLastUIState.valid = false;
         return false;
     }
-    if (mDuplicateToDebugWindow) {
-        if (mDetectLevelIdle != level)
-            mDetectLevelIdle = level;
-    } else {
-        mDetectLevelIdle = DetectLevel::Screen;
-    }
     mLastUIState.valid = true;
-    mLastUIState.guiFocus = mConfiguration->getGuiFocus();
+    mLastUIState.guiFocus = Cfg.getGuiFocus();
     if (level == DetectLevel::None) {
         auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
-        debugWindowUpdate(false);
+        debugWindowUpdate();
         return true;
     }
 
     // detect screen and widget
-    Widget::DetectParams params {mClassifyEnv, mLastUIState, *this, *mConfiguration, level};
+    Widget::DetectParams params {mClassifyEnv, mLastUIState, *this, level};
     mScreensRoot->detect(params);
-    GuiFocus guiFocus = mConfiguration->guiFocus;
-    bool docked = mConfiguration->getCurrentStatus()->flags.docked;
-    bool fsd_jump = mConfiguration->getCurrentStatus()->flags.fsd_jump;
+    GuiFocus guiFocus = Cfg.guiFocus;
+    bool docked = Cfg.getCurrentStatus()->flags.docked;
+    bool fsd_jump = Cfg.getCurrentStatus()->flags.fsd_jump;
     if (!docked && !fsd_jump && guiFocus == GuiFocus::None) {
         // detect autopilot
         for (auto& cr : mClassifyEnv.classified) {
@@ -1254,7 +1313,7 @@ bool Master::detectEDState(DetectLevel level) {
             }
         }
         // detect compass
-        if (!mLastUIState.autopilot && !mConfiguration->getCurrentStatus()->destinationName.empty()) {
+        if (!mLastUIState.autopilot && !Cfg.getCurrentStatus()->destinationName.empty()) {
             mCompassDetector->match(mClassifyEnv);
         } else {
             mCompassDetector->lastHemisphere = 0;
@@ -1264,7 +1323,7 @@ bool Master::detectEDState(DetectLevel level) {
 
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
     LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
-    debugWindowUpdate(false);
+    debugWindowUpdate();
     return true;
 }
 
@@ -1312,6 +1371,14 @@ bool Master::captureWindow(ClassifyEnv& env) {
     cv::Rect captureRect = capturer->getCaptureRect();
     cv::Rect monitorRect = capturer->getMonitorVirtualRect();
     env.init(monitorRect, captureRect, std::move(recycle));
+
+    int fps_millis = mStreamFramePoints.size() < 10 ? 3000 : 1000;
+    auto now = std::chrono::steady_clock::now();
+    auto expired = now - std::chrono::milliseconds(fps_millis);
+    while (!mStreamFramePoints.empty() && mStreamFramePoints.front() < expired)
+        mStreamFramePoints.pop_front();
+    mStreamFramePoints.push_back(now);
+
     return env.mFrame && env.mFrame->valid();
 }
 
@@ -1328,9 +1395,9 @@ void Master::processDetectRequest(pCommand &cmd) {
                 *c->request.rEnv = mClassifyEnv;
             if (c->request.compass) {
                 c->request.compass->hemisphere = mCompassDetector->lastHemisphere;
-                c->request.compass->targetPitch = (int) std::round(mCompassDetector->lastTgtPitch);
-                c->request.compass->targetYaw = (int) std::round(mCompassDetector->lastTgtYaw);
-                c->request.compass->targetRoll = (int) std::round(mCompassDetector->lastTgtRoll);
+                c->request.compass->targetPitch = (float) mCompassDetector->lastTgtPitch;
+                c->request.compass->targetYaw = (float) mCompassDetector->lastTgtYaw;
+                c->request.compass->targetRoll = (float) mCompassDetector->lastTgtRoll;
                 c->request.compass->has_nav_target = mCompassDetector->navTargetFound;
                 c->request.compass->nav_target_dist = mCompassDetector->lastNavDist;
             }

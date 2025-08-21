@@ -23,8 +23,11 @@ public:
     AIManager& mgr;
     TaskTemplate templ;
 
-    void sleep(int milliseconds) const;
-    bool sendKey(const std::string& name, int delay_ms = 35, int pause_ms = 50) const;
+    void sleep(int milliseconds, bool precise=false) const;
+    bool sendKey(const std::string& name, int delay_ms = 35, int pause_ms = 50, bool precise=false) const;
+    bool hasAxis(const std::string& name) const;
+    bool sendAxis(const std::string& name, double value) const;
+    bool sendAxis(const KeyBindings& bindings, double value) const;
     bool sendMouseMove(const cv::Point& point, int pause_ms = 50, bool absolute = true) const;
     bool sendMouseClick(const cv::Point& point, int delay_ms = 35, int pause_ms = 50) const;
     bool decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const;

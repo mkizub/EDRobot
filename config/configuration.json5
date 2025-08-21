@@ -7,6 +7,8 @@
   "capturer-Win32-disabled": false,
   "capturer-DXGI-disabled": false,
   "opencl-disabled": false,
+  "opencl-cache-dir": "cache", // use "disabled" to disable opencl cache
+  "vjoy-device-id": 1,
   "auto-pause": false, // default is true
   shortcuts: {
     start: "PrintScreen", // defaults to "printscreen"

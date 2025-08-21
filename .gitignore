@@ -22,3 +22,4 @@ calibration.json5
 /config/tesseract-words.txt
 /config/testset-*/
 /config/*.png
+/config/cache/

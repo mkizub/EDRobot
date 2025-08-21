@@ -9,6 +9,7 @@
 #include "AutopilotTasks.h"
 #include "../OCR.h"
 #include "../FuzzyMatch.h"
+#include "../ShipStats.h"
 
 using namespace std::chrono_literals;
 
@@ -291,13 +292,77 @@ bool BaseAutopilotTask::getFocusedNavRow(StationRowInfo& rowInfo) {
     return false;
 }
 
-bool BaseAutopilotTask::orientTowardTargetStep(int precision) {
+bool BaseAutopilotTask::setSpeed(int percents) {
+    percents = std::clamp(percents, -100, +100);
+    switch (percents / 25) {
+    case 4:
+        sendKey("SetSpeed100", 50);
+        speed_set_to = 100;
+        break;
+    case 3:
+        sendKey("SetSpeed75", 50);
+        speed_set_to = 75;
+        break;
+    case 2:
+        sendKey("SetSpeed50", 50);
+        speed_set_to = 50;
+        break;
+    case 1:
+        sendKey("SetSpeed25", 50);
+        speed_set_to = 25;
+        break;
+    case 0:
+        sendKey("SetSpeedZero", 50);
+        speed_set_to = 0;
+        break;
+    case -1:
+        sendKey("SetSpeedMinus25", 50);
+        speed_set_to = -25;
+        break;
+    case -2:
+        sendKey("SetSpeedMinus50", 50);
+        speed_set_to = -50;
+        break;
+    case -3:
+        sendKey("SetSpeedMinus75", 50);
+        speed_set_to = -75;
+        break;
+    case -4:
+        sendKey("SetSpeedMinus100", 50);
+        speed_set_to = -100;
+        break;
+    }
+    return true;
+}
+
+// angle1 = duration1/1000*speed+3
+// 1000*(angle1-3)/speed = duration1
+// duration1 = 1000*(angle1-3)/speed
+//
+// angle2 = (duration2-150)/1000*(2*speed+3)
+// (1000*angle2)/(2*speed+3) = (duration2-150)
+// duration2 = 150 + (1000*angle2)/(2*speed+3)
+
+
+static int getDuration(double angle, double speed) {
+    angle = std::abs(angle);
+    if (angle < 0.7)
+        return 100;
+    int duration1 = 1000*(angle-3)/speed;
+    int duration2 = 150 + 1000*angle/(2*speed+3);
+    int duration = std::max(duration1, duration2);
+    return duration;
+}
+
+bool BaseAutopilotTask::orientTowardTargetStep(double precision) {
+    if (!mgr.compassInfo.has_nav_target)
+        precision = std::max(2.0, precision);
     bool front = mgr.compassInfo.hemisphere > 0;
     // TODO: calculate from database for each ship
-    // test: roll 69, pitch: 24, yaw: 12  degree per second
-    double rollSpd = 68.88;
-    double pitchSpd = 24.49;
-    double yawSpd = 12.24;
+    ShipStats shipStats(Cfg.getShipType());
+    double rollSpd = shipStats.getRoll(speed_set_to);
+    double pitchSpd = shipStats.getPitch(speed_set_to);
+    double yawSpd = shipStats.getYaw(speed_set_to);
     int hemiYaw = mgr.compassInfo.targetYaw;
     if (!front) {
         if (hemiYaw > 0)
@@ -306,42 +371,98 @@ bool BaseAutopilotTask::orientTowardTargetStep(int precision) {
             hemiYaw = -180 - hemiYaw;
     }
     if (std::abs(hemiYaw) > 20) {
-        int roll = mgr.compassInfo.targetRoll;
-        int duration = std::abs(roll * 1000 / rollSpd) * 0.75;
-        int pause = duration < 1000 ? duration : 1000;
-        notifyProgress(std::format("Orientation: fix roll {}", roll));
-        if (roll > 0)
-            sendKey("RollRightButton", duration, pause);
-        else
-            sendKey("RollLeftButton", duration, pause);
+        float roll = mgr.compassInfo.targetRoll;
+        auto& bindings = Cfg.getGameKeyBindings("RollAxisRaw");
+        if (bindings.primary.device == GameKey::vJoy) {
+            double value = roll / rollSpd;
+            int duration, pause;
+            if (std::abs(value) >= 1) {
+                duration = 1000 * std::abs(value);
+                pause = 1000;
+                value = value > 0 ? +1.0 : -1.0;
+            } else {
+                duration = 1000;
+                pause = 1000 / (25+std::abs(value));
+            }
+            notifyProgress(std::format("Orientation: fix roll {} (joystick)", roll));
+            sendAxis(bindings, value);
+            sleep(duration);
+            sendAxis(bindings, 0);
+            sleep(pause);
+        } else {
+            int duration = getDuration(roll, rollSpd);
+            int pause = duration < 1000 ? duration : 1000;
+            notifyProgress(std::format("Orientation: fix roll {} (button)", roll));
+            if (roll > 0)
+                sendKey("RollRightButton", duration, pause);
+            else
+                sendKey("RollLeftButton", duration, pause);
+        }
         return false;
     }
-    int pitch = mgr.compassInfo.targetPitch;
-    if (std::abs(pitch) > precision) {
-        int duration = std::abs(pitch * 1000 / pitchSpd) * 0.75;
-        int pause = duration < 1000 ? duration : 1000;
-        notifyProgress(std::format("Orientation: fix pitch {}", pitch));
-        if (pitch > 0)
-            sendKey("PitchUpButton", duration, pause);
-        else
-            sendKey("PitchDownButton", duration, pause);
+    float pitch = mgr.compassInfo.targetPitch;
+    int p_duration = std::min(5000, getDuration(pitch, pitchSpd));
+    float yaw = mgr.compassInfo.targetYaw;
+    int y_duration = std::min(5000, getDuration(yaw, yawSpd));
+
+    if (std::abs(pitch) > precision && (p_duration >= y_duration || std::abs(yaw) < precision)) {
+        if (hasAxis("Joy_YAxis")) {
+            double value = pitch / pitchSpd;
+            int duration, pause;
+            if (std::abs(value) >= 1) {
+                duration = 1000 * std::abs(value);
+                pause = 1000;
+                value = value > 0 ? +1.0 : -1.0;
+            } else {
+                duration = 1000;
+                pause = 1000 / (25+std::abs(value));
+            }
+            notifyProgress(std::format("Orientation: fix pitch {} (joystick) hold {}ms", pitch, duration));
+            sendAxis("Joy_YAxis", value);
+            sleep(duration);
+            sendAxis("Joy_YAxis", 0);
+            sleep(pause);
+        } else {
+            notifyProgress(std::format("Orientation: fix pitch {} (button) hold {}ms", pitch, p_duration));
+            int pause = p_duration < 1000 ? p_duration : 1000;
+            if (pitch > 0)
+                sendKey("PitchUpButton", p_duration, pause);
+            else
+                sendKey("PitchDownButton", p_duration, pause);
+        }
         return false;
     }
-    int yaw = mgr.compassInfo.targetYaw;
     if (std::abs(yaw) > precision) {
-        int duration = std::abs(yaw * 1000 / yawSpd) * 0.75;
-        int pause = duration < 1000 ? duration : 1000;
-        notifyProgress(std::format("Orientation: fix yaw {}", yaw));
-        if (yaw > 0)
-            sendKey("YawRightButton", duration, pause);
-        else
-            sendKey("YawLeftButton", duration, pause);
+        if (hasAxis("Joy_XAxis")) {
+            double value = yaw / yawSpd;
+            int duration, pause;
+            if (std::abs(value) >= 1) {
+                duration = 1000 * std::abs(value);
+                pause = 1000;
+                value = value > 0 ? +1.0 : -1.0;
+            } else {
+                duration = 1000;
+                pause = 1000 / (25+std::abs(value));
+            }
+            notifyProgress(std::format("Orientation: fix yaw {} (joystick)", yaw, duration));
+            sendAxis("Joy_XAxis", value);
+            sleep(duration);
+            sendAxis("Joy_XAxis", 0);
+            sleep(pause);
+        } else {
+            notifyProgress(std::format("Orientation: fix yaw {} (button) hold {}ms", yaw, y_duration));
+            int pause = y_duration < 1000 ? y_duration : 1000;
+            if (yaw > 0)
+                sendKey("YawRightButton", y_duration, pause);
+            else
+                sendKey("YawLeftButton", y_duration, pause);
+        }
         return false;
     }
     return true;
 }
 
-bool BaseAutopilotTask::orientTowardTarget(int precision, const char* dropSpeedButton) {
+bool BaseAutopilotTask::orientTowardTarget(double precision, const char* dropSpeedButton) {
     if (mgr.uiState.guiFocus != GuiFocus::None) {
         notifyProgress("Orientation: goto compass");
         sendKey("UI_Back", 0, 1500);
@@ -386,6 +507,26 @@ bool BaseAutopilotTask::orientTowardTarget(int precision, const char* dropSpeedB
     LOG(ERROR) << "Compass not detected";
     return false;
 }
+
+TaskDebugAutopilot::TaskDebugAutopilot(ai::Task *parent, ai::AIManager &mgr, const ai::TaskTemplate &templ)
+        : BaseAutopilotTask(parent, mgr, templ)
+{
+    assert (templ.name == ED_TASK_DEBUG_ORIENT_NAV_TARGET);
+    for (auto& p : templ.params) {
+        if (p.name == "precision")
+            orient_precision = std::get<double>(p.value);
+    }
+}
+
+
+Result TaskDebugAutopilot::run() {
+    setSpeed(50);
+    if (!orientTowardTarget(orient_precision))
+        return Result::Failure;
+    setSpeed(0);
+    return Result::Success;
+}
+
 
 TaskDepart::TaskDepart(ai::Task *parent, ai::AIManager &mgr, const ai::TaskTemplate &templ)
     : BaseAutopilotTask(parent, mgr, templ)
@@ -465,13 +606,13 @@ Result TaskDepart::run() {
         }
     }
 
-    sendKey("SetSpeed100", 100, 500);
+    setSpeed(100);
     while (mgr.cfg.getCurrentStatus()->flags.fsd_masslocked) {
         LOG(INFO) << "Mass-locked, flying away";
     }
     LOG(INFO) << "Ready to jump, flying away";
     sleep(3000);
-    sendKey("SetSpeed75", 100, 500);
+    setSpeed(75);
     return Result::Success;
 }
 
@@ -499,7 +640,7 @@ Result TaskDock::run() {
     //if (ss->bodyName.empty()) // not at any body at all
     //    return Result::Trouble;
 
-    sendKey("SetSpeedZero");
+    setSpeed(0);
 
     // leave all UI panels
     for (int cnt=0; cnt < 3; cnt++) {
@@ -589,7 +730,7 @@ Result TaskDock::run() {
         return Result::Trouble;
     }
 
-    sendKey("SetSpeedZero", 50, 100); // set speed to 0 to start autopilot
+    setSpeed(0); // set speed to 0 to start autopilot
     sendKey("UI_Back", 0, 1500);
 
     // 8 minutes for docking
@@ -636,7 +777,7 @@ Result TaskDock::run() {
 
 spGameEvent TaskDock::requestDockingPermit() {
     for (int retry=0; retry < 3; retry++) {
-        sendKey("SetSpeedZero");
+        setSpeed(0);
         gotoNavPage("mod-contacts");
 
     // TODO: detect focused button
@@ -716,7 +857,7 @@ spGameEvent TaskDock::requestDockingPermit() {
 }
 
 bool TaskDock::selectDockingFilters() {
-    sendKey("SetSpeedZero");
+    setSpeed(0);
     // we may dock at: settlement, station, fleetCarrier, pointOfInterest (trailblazer dream)
     LocationPanelFilters requiredFilters;
     requiredFilters.bits.settlement = true;
@@ -727,7 +868,7 @@ bool TaskDock::selectDockingFilters() {
 }
 
 bool TaskDock::lockDockingStation() {
-    sendKey("SetSpeedZero");
+    setSpeed(0);
     gotoNavPage("mod-navigation");
 
     StationRowInfo rowInfo;
@@ -775,7 +916,7 @@ bool TaskDock::lockDockingStation() {
 }
 
 bool TaskDock::flyTowardsTarget() {
-    sendKey("SetSpeedZero");
+    setSpeed(0);
     int compassTry = 2;
     for (int fails=0; fails < 10; fails++) {
         if (compassTry <= 0) {
@@ -783,7 +924,7 @@ bool TaskDock::flyTowardsTarget() {
             StationRowInfo rowInfo;
             if (!getFocusedNavRow(rowInfo) || rowInfo.dist.unit == dist_t::X) {
                 LOG(DEBUG) << "Failed to get distance from nav panel: " << rowInfo.dist;
-                sendKey("SetSpeedZero");
+                setSpeed(0);
                 continue;
             }
             distanceToDock = rowInfo.dist.convertTo(dist_t::KM);
@@ -796,7 +937,7 @@ bool TaskDock::flyTowardsTarget() {
             }
             if (mgr.compassInfo.nav_target_dist.unit == dist_t::X) {
                 LOG(DEBUG) << "Failed to get distance from compass: " << mgr.compassInfo.nav_target_dist;
-                sendKey("SetSpeedZero");
+                setSpeed(0);
                 if (!mgr.compassInfo.hemisphere) {
                     sendKey("RollRightButton", 800, 1000);
                 } else {
@@ -815,32 +956,35 @@ bool TaskDock::flyTowardsTarget() {
 
         if (distanceToDock.dist <= 7.4) {
             LOG(INFO) << "Distance is " << distanceToDock << ", we are close enough";
-            sendKey("SetSpeedZero");
+            setSpeed(0);
             return true;
         }
 
         LOG(INFO) << "Distance is " << distanceToDock << ", orient towards the dock";
         if (!orientTowardTarget(7, "SetSpeedZero")) {
-            sendKey("SetSpeedZero");
+            setSpeed(0);
             compassTry = -2;
             continue;
         }
 
         if (distanceToDock.dist < 8.5) {
             LOG(INFO) << "Distance is " << distanceToDock << ", fly slowly";
-            sendKey("SetSpeed25", 100, 1000);
+            setSpeed(25);
+            sleep(1000);
         }
         else if (distanceToDock.dist > 10.5) {
             LOG(INFO) << "Distance is " << distanceToDock << ", fly fast";
-            sendKey("SetSpeed100", 100, 1000);
+            setSpeed(100);
+            sleep(1000);
         }
         else {
             LOG(INFO) << "Distance is " << distanceToDock << ", fly normal";
-            sendKey("SetSpeed50", 100, 1000);
+            setSpeed(50);
+            sleep(1000);
         }
         fails = 0;
     }
-    sendKey("SetSpeedZero");
+    setSpeed(0);
     return false;
 }
 
@@ -878,7 +1022,8 @@ TaskCruiseToDock::TaskCruiseToDock(Task* parent, AIManager& mgr, const TaskTempl
 }
 
 Result TaskCruiseToDock::run() {
-    sendKey("SetSpeedZero", 100, 500);
+    setSpeed(0);
+    sleep(500);
 
     if (!selectDestDock())
         return Result::Trouble;
@@ -890,7 +1035,8 @@ Result TaskCruiseToDock::run() {
 
     const auto& ss = mgr.cfg.getCurrentStatus();
     if (!ss->flags.cruise) {
-        sendKey("SetSpeed100", 100, 500);
+        setSpeed(100);
+        sleep(500);
         while (ss->flags.fsd_masslocked) {
             notifyProgress("Mass-locked, flying away");
             sleep(1000);
@@ -922,7 +1068,7 @@ Result TaskCruiseToDock::run() {
         }
     }
     notifyProgress("Сruising speed (75%)");
-    sendKey("SetSpeed75", 100, 500);
+    setSpeed(75);
 
     // wait until we get to 1mm
     int compassTry = 2;
@@ -933,7 +1079,7 @@ Result TaskCruiseToDock::run() {
             if (!getFocusedNavRow(rowInfo) || rowInfo.dist.unit == dist_t::X) {
                 notifyProgress(std::format("Failed to get distance from nav panel: {}, speed 25%", rowInfo.dist.to_string()));
                 LOG(DEBUG) << "Failed to get distance from nav panel: " << rowInfo.dist;
-                sendKey("SetSpeed25");
+                setSpeed(25);
                 continue;
             }
             distanceToDock = rowInfo.dist.convertTo(dist_t::KM);
@@ -942,10 +1088,10 @@ Result TaskCruiseToDock::run() {
             if (distanceToDock.dist < 3000) {
                 if (distanceToDock.dist < 1000) {
                     notifyProgress(std::format("Distance: {}, speed zero", distanceToDock.to_string()));
-                    sendKey("SetSpeedZero");
+                    setSpeed(0);
                 } else {
                     notifyProgress(std::format("Distance: {}, speed slow (25%)", distanceToDock.to_string()));
-                    sendKey("SetSpeed25");
+                    setSpeed(25);
                 }
             }
             sendKey("UI_Back", 100, 1000);
@@ -959,7 +1105,7 @@ Result TaskCruiseToDock::run() {
             if (mgr.compassInfo.nav_target_dist.unit == dist_t::X) {
                 notifyProgress(std::format("Failed to get distance from compass: {}, speed 25%", mgr.compassInfo.nav_target_dist.to_string()));
                 LOG(DEBUG) << "Failed to get distance from compass: " << mgr.compassInfo.nav_target_dist;
-                sendKey("SetSpeed25");
+                setSpeed(25);
                 if (!mgr.compassInfo.hemisphere) {
                     sendKey("RollRightButton", 800, 1000);
                 } else {
@@ -984,26 +1130,29 @@ Result TaskCruiseToDock::run() {
             continue;
         } else {
             if (mgr.compassInfo.hemisphere < 0 || std::abs(mgr.compassInfo.targetYaw) > 2 || std::abs(mgr.compassInfo.targetPitch) > 2) {
-                orientTowardTargetStep(2);
+                orientTowardTargetStep(0.5);
                 continue;
             }
         }
 
         if (distanceToDock.dist < 1000) {
             notifyProgress(std::format("Distance: {}, speed zero", distanceToDock.to_string()));
-            sendKey("SetSpeedZero", 100, 500);
+            setSpeed(0);
+            sleep(500);
             if (mgr.compassInfo.hemisphere && std::abs(mgr.compassInfo.targetYaw) <= 20 && std::abs(mgr.compassInfo.targetPitch) <= 20)
                 break;
         }
 
-        orientTowardTargetStep(2);
+        orientTowardTargetStep(0.5);
 
         if (distanceToDock.dist < 3000) {
             notifyProgress(std::format("Distance: {}, speed slow (25%)", distanceToDock.to_string()));
-            sendKey("SetSpeed25", 100, 500);
+            setSpeed(25);
+            sleep(500);
         } else {
             notifyProgress(std::format("Distance: {}, speed cruise (75%)", distanceToDock.to_string()));
-            sendKey("SetSpeed75", 100, 500);
+            setSpeed(75);
+            sleep(500);
         }
     }
 
@@ -1016,7 +1165,8 @@ Result TaskCruiseToDock::run() {
     }
 
     notifyProgress("Arrived, speed zero");
-    sendKey("SetSpeedZero", 100, 500);
+    setSpeed(0);
+    sleep(500);
 
     return Result::Success;
 }

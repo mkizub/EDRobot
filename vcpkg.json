@@ -7,7 +7,7 @@
     "version>=" : "1.0.0"
   }, {
     "name" : "opencv4",
-    "features" : [ "win32ui", "highgui", "dnn", "contrib", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "world" ],
+    "features" : [ "win32ui", "highgui", "dnn", "contrib", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "fs", "world" ],
     "default-features" : false
   }, {
     "name" : "gettext",

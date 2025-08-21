@@ -52,12 +52,11 @@ BOOL CALLBACK Capturer::MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPREC
     MONITORINFOEX monitorInfoEx;
     monitorInfoEx.cbSize = sizeof(MONITORINFOEX);
     if (GetMonitorInfo(hMonitor, &monitorInfoEx)) {
-        Configuration* cfg = Master::getInstance().getConfiguration();
-        if (!cfg->isCapturerDXGIDisabled())
+        if (!Cfg.isCapturerDXGIDisabled())
             DXGICapturers.push_back(std::unique_ptr<CapturerDXGI>(new CapturerDXGI(hMonitor, &monitorInfoEx, hdcMonitor)));
-        if (!cfg->isCapturerWin32Disabled())
+        if (!Cfg.isCapturerWin32Disabled())
             Win32Capturers.push_back(std::unique_ptr<CapturerWin32>(new CapturerWin32(hMonitor, &monitorInfoEx, hdcMonitor)));
-        if (!cfg->isCapturerWinRTDisabled())
+        if (!Cfg.isCapturerWinRTDisabled())
             WinRTCapturers.push_back(std::unique_ptr<CapturerWinRT>(new CapturerWinRT(hMonitor, &monitorInfoEx, hdcMonitor)));
     }
     return TRUE;
@@ -143,20 +142,19 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
             captureRect = monitorInfo.rcMonitor;
         }
     }
-    Configuration* cfg = Master::getInstance().getConfiguration();
-    if (!cfg->isCapturerDXGIDisabled()) {
+    if (!Cfg.isCapturerDXGIDisabled()) {
         for (auto& c : DXGICapturers) {
             if (c->hMonitor == hMonitor && c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect)))
                 return c.get();
         }
     }
-    if (!cfg->isCapturerWin32Disabled()) {
+    if (!Cfg.isCapturerWin32Disabled()) {
         for (auto& c : Win32Capturers) {
             if (c->hMonitor == hMonitor && c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect)))
                 return c.get();
         }
     }
-    if (!cfg->isCapturerWinRTDisabled()) {
+    if (!Cfg.isCapturerWinRTDisabled()) {
         for (auto& c : WinRTCapturers) {
             if (c->hMonitor == hMonitor && c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect)))
                 return c.get();

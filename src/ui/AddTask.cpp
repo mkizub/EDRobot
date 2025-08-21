@@ -161,7 +161,7 @@ void AddTask::add_ctrl(ai::Param &p, int &id, int &left, int &top, int width) {
         else if (p.type == ai::Param::Commodity) {
             int w = width / 2 - 4;
             tb.create(hwnd(), id, wl::textbox::type::NORMAL, {cx-w-2, y}, w, 21);
-            auto commodity = Master::getInstance().getConfiguration()->getCommodityByName(std::get<std::string>(p.value), false);
+            auto commodity = Cfg.getCommodityByName(std::get<std::string>(p.value), false);
             if (commodity) {
                 ctrl.text = toUtf16(commodity->name);
             }
@@ -202,7 +202,7 @@ bool AddTask::validate(ParamCtrl& ctrl) {
             ok = !ctrl.tb.get_text().empty();
         }
         else if (ctrl.param.type == ai::Param::Commodity) {
-            auto commodity = Master::getInstance().getConfiguration()->getCommodityByName(ctrl.text, false);
+            auto commodity = Cfg.getCommodityByName(ctrl.text, false);
             if (commodity) {
                 curr_templ->set(ctrl.param.name, commodity->nameId);
             } else {

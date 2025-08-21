@@ -79,7 +79,7 @@ double TilesDetector::match(ClassifyEnv &env) {
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
         buttonGrayColor = maxLoc[0] - 4;
     } else {
-        buttonGrayColor = Master::getInstance().getConfiguration()->getButtonGrayColor(WState::Normal);
+        buttonGrayColor = Cfg.getButtonGrayColor(WState::Normal);
     }
 
     XMat thrImage;
@@ -158,7 +158,7 @@ double TilesDetector::match(ClassifyEnv &env) {
         tileRect &= captureRect;
         tileRect -= captureRect.tl();
         MatchResult ir;
-        ImageTemplate::matchTemplates(cv::TM_CCOEFF_NORMED, roiImage(tileRect), imagesPrepared, ir);
+        ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, roiImage(tileRect), imagesPrepared, ir);
         if (!name.empty() && ir.im && ir.value >= threshold_min) {
             cr.text = name + ":" + ir.im->name;
             LOG(DEBUG) << "TilesDetector matched result: " << std::setprecision(3) << ir.value

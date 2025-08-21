@@ -166,7 +166,7 @@ Result TaskSell::run() {
     auto actionArgs = json5pp::object({{"$items", mItems}});
     while (sellItems > 0) {
         cv::Mat grayImage;
-        mgr.detectEDState(DetectLevel::ListOcrFocusedRow, nullptr, &grayImage);
+        mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (mgr.uiState.match("scr-services")) {
             // go to sell mode
             hardcodedStep("{click:'til-market', after: 2000}", DetectLevel::None);

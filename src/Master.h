@@ -14,7 +14,7 @@ namespace ai {
     class AIManager;
 }
 enum class DetectLevel {
-    None, Screen, Buttons, ListRows, ListOcrFocusedRow, ListOcrAllRows
+    None, Screen, Buttons, ListRows
 };
 enum class Command {
     NoOp,
@@ -26,6 +26,7 @@ enum class Command {
     Calibrate,
     DebugTemplates,
     DebugWindow,
+    DebugStream,
     DevRectSelect,
     DevRectScreenshot,
     ResetCapturer,
@@ -59,9 +60,9 @@ struct UIState {
 
 struct CompassInfo {
     CompassInfo() : hemisphere(-1), has_nav_target(false) {}
-    short targetPitch;
-    short targetYaw;
-    short targetRoll;
+    float targetPitch;
+    float targetYaw;
+    float targetRoll;
     short hemisphere; // +1: front, -1: back, 0: invalid
     bool has_nav_target;
     dist_t nav_target_dist;
@@ -93,15 +94,16 @@ public:
     void loop();
     bool isGameForeground();
     bool setGameForeground();
+    bool setGameMouseCapture();
+    bool setDetectStream(DetectLevel);
     bool detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastUIState; }
     const json5pp::value& getTaskActions(const std::string& action);
     cv::Rect resolveWidgetReferenceRect(const std::string& name) const;
-    Configuration* getConfiguration() const { return mConfiguration; }
     ai::AIManager* getAIManager() const { return mAIManager; }
-    int getDefaultKeyHoldTime() const { return mConfiguration->defaultKeyHoldTime; }
-    int getDefaultKeyAfterTime() const { return mConfiguration->defaultKeyAfterTime; }
-    int getSearchRegionExtent() const { return mConfiguration->searchRegionExtent; }
+    int getDefaultKeyHoldTime() const { return Cfg.defaultKeyHoldTime; }
+    int getDefaultKeyAfterTime() const { return Cfg.defaultKeyAfterTime; }
+    int getSearchRegionExtent() const { return Cfg.searchRegionExtent; }
 
     int canSell(Commodity* commodity) const;
     static const Commodity* getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lbl_name);
@@ -148,7 +150,7 @@ private:
     bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
     bool debugRectScreenshot(pCommand& cmd);
     bool debugWindow();
-    bool debugWindowUpdate(bool idle);
+    bool debugWindowUpdate();
 
     std::unique_ptr<widget::Root> mScreensRoot;
     std::map<std::string,json5pp::value> mActions;
@@ -161,10 +163,10 @@ private:
     UIState mLastUIState;
     ClassifyEnv mClassifyEnv;
     bool mDuplicateToDebugWindow {false};
-    DetectLevel mDetectLevelIdle {DetectLevel::Screen};
+    DetectLevel mDetectLevelStream {DetectLevel::None};
+    std::deque<std::chrono::time_point<std::chrono::steady_clock>> mStreamFramePoints;
     std::chrono::milliseconds mLoopWakeup;
     std::unique_ptr<detect::CompassDetector> mCompassDetector;
-    Configuration* mConfiguration {nullptr};
     ai::AIManager* mAIManager {nullptr};
 
     std::queue<pCommand> mCommandQueue;
@@ -174,5 +176,6 @@ private:
     int mSellChunk {1};
 };
 
+extern Master& Mgr;
 
 #endif //EDROBOT_MASTER_H

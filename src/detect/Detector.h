@@ -77,10 +77,30 @@ class ImageFilter {
 public:
     struct Params {
         bool convertToFloat;
-        bool cropToGray;
     };
     virtual ~ImageFilter() = default;
     virtual XMat apply(XMat image, Params params) = 0;
+};
+class ThresholdFilter : public ImageFilter {
+public:
+    ThresholdFilter(double thr=127, double max=255) : thr(thr), max(max) {}
+    XMat apply(XMat image, Params params) final;
+    const double thr;
+    const double max;
+};
+class ChannelFilter : public ImageFilter {
+public:
+    enum Channel {red, green, blue, gray, hue, sat, value};
+    ChannelFilter(Channel channel) : channel(channel) {}
+    XMat apply(XMat image, Params params) final;
+    const Channel channel;
+};
+class GainBiasFilter : public ImageFilter {
+public:
+    GainBiasFilter(double gain, double bias) : gain(gain), bias(bias) {}
+    XMat apply(XMat image, Params params) final;
+    const double gain;
+    const double bias;
 };
 class GaussFilter : public ImageFilter {
 public:
@@ -91,10 +111,33 @@ public:
 };
 class LaplacianFilter : public ImageFilter {
 public:
-    LaplacianFilter(int kern, double scale) : kern(kern), scale(scale) {}
+    LaplacianFilter(int kern=3, double scale=1, double delta=0) : kern(kern), scale(scale), delta(delta) {}
     XMat apply(XMat image, Params params) final;
     const int kern;
     const double scale;
+    const double delta;
+};
+class SobelFilter : public ImageFilter {
+public:
+    SobelFilter(int kern=3, double scale=1, double delta=0) : kern(kern), scale(scale), delta(delta) {}
+    XMat apply(XMat image, Params params) final;
+    const int kern;
+    const double scale;
+    const double delta;
+};
+class ScharrFilter : public ImageFilter {
+public:
+    ScharrFilter(double scale) : scale(scale) {}
+    XMat apply(XMat image, Params params) final;
+    const double scale;
+};
+class EdgeByBoxFilter : public ImageFilter {
+public:
+    EdgeByBoxFilter(int kern=5, double scale=2.0, double thr=0) : kern(kern), scale(scale), threshold(thr)  {}
+    XMat apply(XMat image, Params params) final;
+    const int kern;
+    const double scale;
+    const double threshold;
 };
 class DilateFilter : public ImageFilter {
 public:
@@ -112,12 +155,22 @@ public:
     const int kernY;
     const int iterations;
 };
-class HsvColorCropFilter : public ImageFilter {
+class HsvMaskFilter : public ImageFilter {
+public:
+    HsvMaskFilter() {}
+    std::vector<std::pair<cv::Vec3b,cv::Vec3b>> rangesU;
+    std::vector<std::pair<cv::Vec3f,cv::Vec3f>> rangesF;
+    XMat apply(XMat image, Params params) override;
+};
+class HsvColorCropFilter : public HsvMaskFilter {
 public:
     HsvColorCropFilter() {}
     XMat apply(XMat image, Params params) final;
-    std::vector<std::pair<cv::Vec3b,cv::Vec3b>> rangesU;
-    std::vector<std::pair<cv::Vec3f,cv::Vec3f>> rangesF;
+};
+class HsvGrayCropFilter : public HsvMaskFilter {
+public:
+    HsvGrayCropFilter() {}
+    XMat apply(XMat image, Params params) final;
 };
 
 
@@ -137,6 +190,8 @@ public:
         uint16_t opt_t;
         uint16_t opt_r;
         uint16_t opt_b;
+        double u_norm;
+        double f_norm;
     };
     struct MatchResult {
         ImageMatrix* im {nullptr};
@@ -159,7 +214,7 @@ public:
     static XMat scaleImage(XMat image, double scaleX, double scaleY = 0);
     static XMat rotateImage(XMat image, int angle, double scale);
 
-    static cv::Rect makeOptimalMatchRect(ClassifyEnv& env, cv::Rect);
+    static cv::Rect makeOptimalMatchRect(cv::Rect);
     static void matchTemplates(int matchMethod, const XMat& imagePrepared, std::vector<ImageMatrix>& templPrepared, MatchResult& result);
     //static void fixNaNinResult(cv::Mat& result, const std::string& filename);
 
@@ -174,7 +229,7 @@ public:
     double threshold_min;
     double threshold_max;
     std::vector<std::unique_ptr<ImageFilter>> filters;
-    int matchMethod = cv::TM_CCOEFF_NORMED;
+    int matchMethod = cv::TM_CCORR_NORMED;
 
     std::vector<ImageMatrix> imagesOrig;
     std::vector<ImageMatrix> imagesPrepared;
@@ -211,20 +266,21 @@ public:
     std::vector<ImageTemplate::ImageMatrix> compassDotsPrepared;
     std::vector<ImageTemplate::ImageMatrix> navTargetOrig;
     std::vector<ImageTemplate::ImageMatrix> navTargetPrepared;
+    cv::Mat navTargetRemapXY;
     XMat navTargetRemap1;
     XMat navTargetRemap2;
 
     double preprocessedDotsScale = 0;
-    double preprocessedFOV = 0;
+    double preprocessedFOV = 0; // config fov
     double shipCompassScale = 1;
+    double captureFovX = 0;
+    double captureFovY = 0;
     std::string preprocessedShip;
     std::vector<double> baseTestScales;
     std::vector<double> navTargetScales;
 
     const double threshold_dot;
 
-    int lastScaleIdx;
-    double lastScale;
     int lastHemisphere; // -1: back, 0: not detected, +1: front
     double lastTgtPitch;
     double lastTgtYaw;
@@ -265,37 +321,6 @@ private:
     int mMinCols;
     int mMaxCols;
     int mGap;
-};
-
-class LineDetector : public Detector {
-public:
-    LineDetector(ImageTemplate* anchor, spEvalPoint p0, spEvalPoint p1);
-    ~LineDetector() override = default;
-
-    double match(ClassifyEnv& env) override;
-
-    void normalizeRotatedRect(cv::RotatedRect& rr);
-    void tryCannyParamsGUI(ClassifyEnv &env);
-
-    std::unique_ptr<ImageTemplate> anchorDetector;
-    std::vector<std::unique_ptr<ImageFilter>> filters;
-
-    std::string name;
-    cv::Point extendLT;
-    cv::Point extendRB;
-    const spEvalPoint referenceP0;
-    const spEvalPoint referenceP1;
-    // maybe scale (speedup and a kind of blur
-    double imageScaleX {1};
-    double imageScaleY {1};
-    // cv::threshold
-    int binaryThreshold {127};
-
-    cv::Point captureP0;
-    cv::Point captureP1;
-    cv::Rect lineMatchRect;
-    float lastLineAngle;  // in degrees, -90 <= angle <= +90
-
 };
 
 } // namespace detect

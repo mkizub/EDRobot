@@ -86,10 +86,39 @@ public:
     std::string mScope;
 };
 
+// Line evaluator
+class EvalLine {
+public:
+    EvalLine() = default;
+    virtual ~EvalLine() = default;
+    virtual cv::Line calcReferenceLine(const ResolvedEnv& detectorState) const = 0;
+};
+
+class ConstLine : public EvalLine {
+public:
+    ConstLine(int x1, int y1, int x2, int y2) : mLine(x1,y1,x2,y2) {}
+    ConstLine(cv::Line line) : mLine(line) {}
+    cv::Line calcReferenceLine(const ResolvedEnv& detectorState) const override { return mLine; };
+
+    cv::Line mLine;
+};
+
+class RefLine : public EvalLine {
+public:
+    RefLine(const widget::BaseDialog& dlg, std::string name, std::string scope) : mDlg(dlg), mName(name), mScope(scope) {}
+    cv::Line calcReferenceLine(const ResolvedEnv& detectorState) const override;
+
+    const widget::BaseDialog& mDlg;
+    std::string mName;
+    std::string mScope;
+};
+
 typedef std::shared_ptr<EvalPoint> spEvalPoint;
 typedef std::shared_ptr<EvalRect> spEvalRect;
+typedef std::shared_ptr<EvalLine> spEvalLine;
 extern spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv);
 extern spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv);
+extern spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const json5pp::value& jv);
 
 // Transform evaluator
 class EvalTransform {
@@ -105,8 +134,8 @@ public:
 
     const std::array<spEvalPoint,4> orig;   // tl, tr, br, bl
     const cv::Size origSize {};             // warped image always scaled to reference size
-    std::array<cv::Point2f,4> transfromSrc; // in captured coordinates
-    cv::Mat transfromMatrix {};
+    std::array<cv::Point2f,4> transformSrc; // in captured coordinates
+    cv::Mat transformMatrix {};
     bool valid {false};
 };
 typedef std::shared_ptr<EvalTransform> spEvalTransform;
@@ -115,6 +144,7 @@ class ConstTransform : public EvalTransform {
 public:
     ConstTransform(spEvalPoint tl, spEvalPoint tr, spEvalPoint br, spEvalPoint bl, cv::Size size);
     bool calcTransform(const ResolvedEnv& detectorState) override;
+    bool useCaptured;
 };
 
 class LineTransform : public EvalTransform {
@@ -150,12 +180,12 @@ struct ClassifiedRect {
             double match; // detector's match value
         } tdet;
         struct {
-            cv::Point referenceP0;
-            cv::Point referenceP1;
+            cv::Line2f referenceLine;
             float scale;
             float angle; // angle difference, in degrees, -90 <= angle <= +90
             double match; // detector's match value
             cv::Point2f offset;
+            detect::LineDetector* detector;
         } ldet;
         struct {
             int row;
@@ -232,13 +262,39 @@ struct ResolvedEnv {
 
     cv::Point cvtReferenceToDesktop(const cv::Point& point) const;
 
-    cv::Point2f cvtReferenceToCaptured(const cv::Point2f& point) const;
-    cv::Point cvtReferenceToCaptured(const cv::Point& point) const;
-    cv::Rect  cvtReferenceToCaptured(const cv::Rect& rect) const;
+    template<typename _Tp>
+    cv::Point_<_Tp> cvtReferenceToCaptured(const cv::Point_<_Tp>& point) const {
+        if (!needScaling_ || inWarpMode_)
+            return point;
+        cv::Point_<_Tp> relative = point - cv::Point_<_Tp>(ReferenceScreenCenter);
+        relative *= scaleToCaptured_;
+        return relative + cv::Point_<_Tp>(captureCenter);
+    }
+    template<typename _Tp>
+    cv::Rect_<_Tp>  cvtReferenceToCaptured(const cv::Rect_<_Tp>& rect) const {
+        return cv::Rect_<_Tp>(cvtReferenceToCaptured(rect.tl()), cvtReferenceToCaptured(rect.br()));
+    }
+    template<typename _Tp>
+    cv::Line_<_Tp>  cvtReferenceToCaptured(const cv::Line_<_Tp>& line) const {
+        return cv::Line_<_Tp>(cvtReferenceToCaptured(line.p0()), cvtReferenceToCaptured(line.p1()));
+    }
 
-    cv::Point2f cvtCapturedToReference(const cv::Point2f& point) const;
-    cv::Point cvtCapturedToReference(const cv::Point& point) const;
-    cv::Rect  cvtCapturedToReference(const cv::Rect& rect) const;
+    template<typename _Tp>
+    cv::Point_<_Tp> cvtCapturedToReference(const cv::Point_<_Tp>& point) const{
+        if (!needScaling_ || inWarpMode_)
+            return point;
+        cv::Point_<_Tp> relative = point - cv::Point_<_Tp>(captureCenter);
+        relative /= scaleToCaptured_;
+        return relative + cv::Point_<_Tp>(ReferenceScreenCenter);
+    }
+    template<typename _Tp>
+    cv::Rect_<_Tp>  cvtCapturedToReference(const cv::Rect_<_Tp>& rect) const {
+        return cv::Rect_<_Tp>(cvtCapturedToReference(rect.tl()), cvtCapturedToReference(rect.br()));
+    }
+    template<typename _Tp>
+    cv::Line_<_Tp>  cvtCapturedToReference(const cv::Line_<_Tp>& line) const {
+        return cv::Line_<_Tp>(cvtCapturedToReference(line.p0()), cvtCapturedToReference(line.p1()));
+    }
 
     cv::Rect calcReferenceRect(const spEvalRect& er) const {
         if (!er)
@@ -251,9 +307,10 @@ struct ResolvedEnv {
         return cvtReferenceToCaptured(calcReferenceRect(er));
     }
 
-    cv::Point2f unWarp(const cv::Point2f point) const;
-    cv::Point unWarp(const cv::Point point) const;
-    std::array<cv::Point,4> unWarp(const cv::Rect& rect) const;
+    template<typename _Tp>
+    cv::Point_<_Tp> unWarp(const cv::Point_<_Tp> point) const;
+    template<typename _Tp>
+    std::array<cv::Point_<_Tp>,4> unWarp(const cv::Rect_<_Tp>& rect) const;
 
     bool isDebugMatch() const { return isDebugMatch_; }
 protected:

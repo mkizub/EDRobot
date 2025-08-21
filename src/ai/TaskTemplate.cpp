@@ -174,6 +174,7 @@ const std::string ED_TASK_CALIBRATE = "tsk-calibrate";
 const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES = "tsk-debug-find-all-commodities";
 const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS = "tsk-debug-find-all-nav-points";
 const std::string ED_TASK_DEBUG_FIX_OCR = "tsk-debug-fix-ocr";
+const std::string ED_TASK_DEBUG_ORIENT_NAV_TARGET = "tsk-debug-orient-to-nav-target";
 
 const std::string PATH_SEP = ":";
 
@@ -365,6 +366,10 @@ void AIManager::initTemplates() {
             { .name = ED_TASK_DEBUG_FIND_ALL_NAV_POINTS,
               .params = {{Param::Bool, "dump_images", true}, {Param::Int, "ocr_confidence", 90 }, {Param::Int, "txt_confidence", 90 }, {Param::Bool, "resume", false}},
               .maxMisses = 3 },
+            { .name = ED_TASK_DEBUG_ORIENT_NAV_TARGET,
+              .params = {{Param::Real, "precision", 1.5 }},
+              .maxMisses = 3 },
+
             //{ .name = ED_TASK_DEBUG_FIX_OCR,
             //  .params = {{Param::Bool, "use_tess", true}, {Param::Bool, "use_lstm", true}, {Param::Bool, "use_edr", true}, {Param::Bool, "rus+eng", true}},
             //  },

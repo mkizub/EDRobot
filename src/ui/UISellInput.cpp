@@ -37,7 +37,7 @@ bool UISellInput::onInitDialog(HWND hDlg) {
         mLabelSellCargoAll = L"Everything";
     std::wstring initialSelect = mLabelSellCargoAll;
     int err = SendMessage(hItems, CB_ADDSTRING, 0L, (LPARAM)mLabelSellCargoAll.c_str());
-    auto shipCargo = Master::getInstance().getConfiguration()->getCurrentCargo();
+    auto shipCargo = Cfg.getCurrentCargo();
     if (shipCargo) {
         mSellTotal = shipCargo->count;
         for (auto& c : shipCargo->inventory) {
@@ -65,7 +65,7 @@ bool UISellInput::onCommand(HWND hDlg, WORD cmd) {
         mSellTotal = GetDlgItemInt(hDlg, IDC_EDIT_TOTAL, &translated, FALSE);
         mSellChunk = GetDlgItemInt(hDlg, IDC_EDIT_ITEMS, &translated, FALSE);
         int index = SendDlgItemMessage(hDlg, IDC_COMBO_ITEMS, CB_GETCURSEL, 0L, 0L);
-        auto shipCargo = Master::getInstance().getConfiguration()->getCurrentCargo();
+        auto shipCargo = Cfg.getCurrentCargo();
         if (index <= 0 || !shipCargo || index > shipCargo->inventory.size()) {
             mSellCommodity = nullptr;
         } else {

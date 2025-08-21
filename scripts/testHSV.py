@@ -15,6 +15,16 @@ cv2.imshow('image',output)
 cv2.waitKey(100)
 
 # create trackbars for color change
+cv2.createTrackbar('Gain','image',0,200,nothing)
+cv2.setTrackbarMax('Gain','image',100)
+cv2.setTrackbarMin('Gain','image',-100)
+cv2.setTrackbarPos('Gain','image',0)
+
+cv2.createTrackbar('Bias','image',0,200,nothing)
+cv2.setTrackbarMax('Bias','image',100)
+cv2.setTrackbarMin('Bias','image',-100)
+cv2.setTrackbarPos('Bias','image',0)
+
 cv2.createTrackbar('HMin','image',0,179,nothing) # Hue is from 0-179 for Opencv
 cv2.createTrackbar('SMin','image',0,255,nothing)
 cv2.createTrackbar('VMin','image',0,255,nothing)
@@ -36,6 +46,9 @@ waitTime = 33
 while(1):
 
     # get current positions of all trackbars
+    gain = cv2.getTrackbarPos('Gain','image')
+    bias = cv2.getTrackbarPos('Bias','image')
+
     hMin = cv2.getTrackbarPos('HMin','image')
     sMin = cv2.getTrackbarPos('SMin','image')
     vMin = cv2.getTrackbarPos('VMin','image')
@@ -49,9 +62,10 @@ while(1):
     upper = np.array([hMax, sMax, vMax])
 
     # Create HSV Image and threshold into a range.
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    adj = cv2.convertScaleAbs(img, alpha=(1.0+gain*0.01), beta=bias)
+    hsv = cv2.cvtColor(adj, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, lower, upper)
-    output = cv2.bitwise_and(img,img, mask= mask)
+    output = cv2.bitwise_and(adj, adj, mask=mask)
     #output = cv2.cvtColor(output,cv2.COLOR_BGR2GRAY)
     #lapl16S = cv2.Laplacian(output, cv2.CV_16S, ksize=1, scale=10)
     #output = cv2.convertScaleAbs(lapl16S)

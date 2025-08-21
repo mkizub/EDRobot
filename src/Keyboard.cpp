@@ -6,15 +6,22 @@
 #include <ranges>
 
 #include "Keyboard.h"
+#include "vjoy/vjoyinterface.h"
 
 namespace keyboard
 {
+static bool keyboardShutdown;
 static std::thread interceptor_thread;
 static HHOOK keyboardHook;
 static DWORD nativeThreadId;
+static HANDLE hKeyboardEvent;
+static std::mutex keyboardMutex;
 static KeyboardCollbackFn keyboardCallback;
+static std::atomic<unsigned> keyboardInputCounter;
 
 void loop();
+
+static std::map<std::string,vJoyAxisInfo> vJoyAxisMap;
 
 
 //----- Offsets for values in KEYBOARD_MAPPING ---------------------------------
@@ -31,7 +38,10 @@ struct Key {
     DWORD scanCode;
     std::vector<std::string> names;
     Key(char ch, DWORD sc) {
-        vkCode = ch & 0xFFU;
+        if ((sc & EXT_KEY) == 0)
+            vkCode = ch & 0xFFU;
+        else
+            vkCode = 0;
         scanCode = sc;
         char buf[]{ch,0};
         names.emplace_back(buf);
@@ -252,7 +262,8 @@ static std::string makeKeyboardMapping() {
     //unsigned right_scancode = MapVirtualKey(VK_RIGHT, MAPVK_VK_TO_VSC_EX);
     for (const Key& key :  US_QWERTY_KEYBOARD_TABLE) {
         US_QWERTY_MAPPING_SC_TO_KEY.try_emplace(key.scanCode, key);
-        US_QWERTY_MAPPING_VK_TO_NAME.try_emplace(key.vkCode, key);
+        if (key.vkCode)
+            US_QWERTY_MAPPING_VK_TO_NAME.try_emplace(key.vkCode, key);
         for (std::string alias : key.names) {
             if (alias.size() == 1) {
                 US_QWERTY_MAPPING_NAME_TO_KEY.try_emplace(alias, key);
@@ -267,6 +278,8 @@ static std::string makeKeyboardMapping() {
 static std::string unknownKeyName = makeKeyboardMapping();
 
 static std::unordered_map<unsigned int, const Key&> INTERCEPT_VK_KEY_SET;
+
+static JOYSTICK_POSITION vJoyPosition;
 
 static void addInterceptKey(const std::string name) {
     auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(name);
@@ -299,18 +312,125 @@ void intercept(const std::vector<std::string>& keys) {
     }
 }
 
+static bool addAxis(UINT devID, UINT axisID, const char* name, bool full) {
+    if (!GetVJDAxisExist(devID, axisID))
+        return false;
+    LONG min, max;
+    if (!GetVJDAxisMin(devID, axisID, &min))
+        return false;
+    if (!GetVJDAxisMax(devID, axisID, &max))
+        return false;
+    vJoyAxisMap[name] = {name, devID, axisID, min, max, full};
+    return true;
+}
+
+bool acquire_vJoy() {
+    unsigned rID = Cfg.getVJoyDeviceID();
+    LOG(INFO) << "Initializing vJoy (device " << rID << ")";
+    if (!vJoyEnabled()) {
+        LOG(ERROR) << "Function vJoyEnabled Failed - make sure that vJoy is installed and enabled";
+        return false;
+    } else {
+        std::wstring vendor = static_cast<TCHAR*> (GetvJoyManufacturerString());
+        std::wstring product = static_cast<TCHAR*> (GetvJoyProductString());
+        std::wstring version = static_cast<TCHAR*> (GetvJoySerialNumberString());
+        LOG(INFO) << "vJoy Vendor : " << vendor;
+        LOG(INFO) << "vJoy Product: " << product;
+        LOG(INFO) << "vJoy Version: " << version;
+    };
+    WORD VerDll, VerDrv;
+    if (!DriverMatch(&VerDll, &VerDrv))
+        LOG(WARNING) << std::format("vJoy Driver (version {:04x}) does not match vJoyInterface DLL (version {:04x})", VerDrv,VerDll);
+    else
+        LOG(INFO) << std::format("vJoy Driver and vJoyInterface DLL match vJoyInterface DLL (version {:04x})", VerDrv);
+
+    if (!isVJDExists(rID)) {
+        LOG(ERROR) << "vJoy device " << rID << " not exists";
+        return false;
+    }
+    VjdStat status = GetVJDStatus(rID);
+    switch (status) {
+    case VJD_STAT_OWN:
+        LOG(INFO) << "vJoy device " << rID << " is already owned by EDRobot";
+        break;
+    case VJD_STAT_FREE:
+        LOG(INFO) << "vJoy device " << rID << " is free";
+        break;
+    case VJD_STAT_BUSY:
+        LOG(ERROR) << "vJoy device " << rID << " is already owned by another program";
+        return false;
+    case VJD_STAT_MISS:
+        LOG(ERROR) << "vJoy device " << rID << " is not installed or disabled";
+        return false;
+    default:
+        LOG(ERROR) << "vJoy device " << rID << " general error";
+        return false;
+    }
+    // Acquire the vJoy device
+    if (!AcquireVJD(rID)) {
+        LOG(ERROR) << "Failed to acquire vJoy device " << rID;
+        return false;
+    } else {
+        LOG(INFO) << "vJoy device " << rID << " acquired";
+    }
+
+    ResetVJD(rID);
+    vJoyAxisMap.clear();
+    addAxis(rID, HID_USAGE_X, "Joy_XAxis", true);
+    addAxis(rID, HID_USAGE_Y, "Joy_YAxis", true);
+    addAxis(rID, HID_USAGE_Z, "Joy_ZAxis", true);
+
+    reset_vJoy();
+
+    return true;
+}
+
+bool reset_vJoy() {
+    unsigned rID = Cfg.getVJoyDeviceID();
+    LOG(INFO) << "Reset vJoy (device " << rID << ")";
+    ResetVJD(rID);
+    for (auto it : vJoyAxisMap) {
+        auto& ax = it.second;
+        LONG reset = ax.min;
+        if (ax.full)
+            reset = std::round(double(ax.min+ax.max)*0.5);
+        SetAxis(reset, ax.devID, ax.axisID);
+    }
+    return true;
+}
+
+bool release_vJoy() {
+    reset_vJoy();
+    unsigned rID = Cfg.getVJoyDeviceID();
+    LOG(INFO) << "Release vJoy (device " << rID << ")";
+    RelinquishVJD(rID);
+    return true;
+}
+
 void start(KeyboardCollbackFn callback) {
+    keyboardShutdown = false;
+    hKeyboardEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
     keyboardCallback = callback;
     interceptor_thread = std::thread(&loop);
 }
 
 void stop() {
+    keyboardShutdown = true;
+    SetEvent(hKeyboardEvent);
     if (interceptor_thread.joinable()) {
         if (nativeThreadId) {
             PostThreadMessage(nativeThreadId, WM_QUIT, 0, 0);
             nativeThreadId = 0;
+            if (hKeyboardEvent) {
+                CloseHandle(hKeyboardEvent);
+                hKeyboardEvent = nullptr;
+            }
         }
         interceptor_thread.join();
+    }
+    if (hKeyboardEvent) {
+        CloseHandle(hKeyboardEvent);
+        hKeyboardEvent = nullptr;
     }
 }
 
@@ -328,7 +448,7 @@ static INPUT fillInput(const GameKey& gk, bool up) {
     INPUT input {};
     if (gk.device == GameKey::Keyboard) {
         input.type = INPUT_KEYBOARD;
-        input.ki.wScan = gk.code & 0xFFFF;
+        input.ki.wScan = gk.code & 0xFF;
         input.ki.dwFlags = KEYEVENTF_SCANCODE;
         if (up)
             input.ki.dwFlags |= KEYEVENTF_KEYUP;
@@ -382,7 +502,7 @@ bool sendKeyDown(const std::string& nm) {
         return false;
     }
     const Key& key = it->second;
-    unsigned code = key.scanCode & 0xFFFF;
+    unsigned code = key.scanCode & 0xFF;
     bool extended = (code & EXT_KEY) != 0;
     LOG(DEBUG) << "SendInput   key down '" << nm << "' " << (code & 0xFF);
     INPUT input[1]{};
@@ -406,7 +526,7 @@ bool sendKeyUp(const std::string& nm) {
         return false;
     }
     const Key& key = it->second;
-    unsigned code = key.scanCode & 0xFFFF;
+    unsigned code = key.scanCode & 0xFF;
     bool extended = (code & EXT_KEY) >= EXT_KEY;
     LOG(DEBUG) << "SendInput   key up   '" << nm << "' " << (code & 0xFF);
     INPUT input[1]{};
@@ -502,6 +622,49 @@ bool sendMouseWheel(int count) {
     return true;
 }
 
+const vJoyAxisInfo* getJoyAxis(const std::string& axis_name) {
+    if (!vJoyAxisMap.contains(axis_name))
+        return nullptr;
+    return &vJoyAxisMap.at(axis_name);
+}
+
+// value -1..1 for full-range axes, or 0..1 for others
+bool sendJoyAxis(const KeyBindings& bindings, double value) {
+    if (!(bindings.mode == KeyBindings::Axis || bindings.mode == KeyBindings::AxisInv))
+        return false;
+    const GameKey& gk = bindings.primary;
+    if (gk.device != GameKey::vJoy)
+        return false;
+    if (!vJoyAxisMap.contains(gk.key))
+        return false;
+    const vJoyAxisInfo& ax = vJoyAxisMap.at(gk.key);
+    LONG val;
+    if (ax.full) {
+        value = std::clamp(value, -1.0, +1.0);
+        if (bindings.mode == KeyBindings::AxisInv)
+            value = -value;
+        val = std::round(std::lerp(double(ax.min), double(ax.max), (value+1.0)*0.5));
+    } else {
+        value = std::clamp(value, 0.0, +1.0);
+        val = std::round(std::lerp(double(ax.min), double(ax.max), value));
+    }
+    return SetAxis(val, ax.devID, ax.axisID);
+}
+
+bool sendJoyAxis(const std::string& axis_name, double value) {
+    if (!vJoyAxisMap.contains(axis_name))
+        return false;
+    const vJoyAxisInfo& ax = vJoyAxisMap.at(axis_name);
+    LONG val;
+    if (ax.full) {
+        value = std::clamp(value, -1.0, +1.0);
+        val = std::round(std::lerp(double(ax.min), double(ax.max), (value+1.0)*0.5));
+    } else {
+        value = std::clamp(value, 0.0, +1.0);
+        val = std::round(std::lerp(double(ax.min), double(ax.max), value));
+    }
+    return SetAxis(val, ax.devID, ax.axisID);
+}
 
 
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
@@ -525,11 +688,179 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     keyName = it->second.names[0];
                 else
                     keyName = unknownKeyName;
+                if (flags == (ALT|CTRL) && keyName=="Enter") {
+                    reset_vJoy();
+                }
                 keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags, keyName);
             }
         }
     }
     return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
+}
+
+
+struct InputKey {
+    GameKey::Device device;
+    int code; // keyboards scancode, mouse or joystick button
+    int counter;
+    std::string_view name;
+};
+struct InputWait {
+    unsigned inputId;
+    uint8_t keys[8]; // first is a primary key index, others are modifiers
+    std::chrono::time_point<std::chrono::high_resolution_clock> end;
+    int pause;
+    HANDLE event;
+};
+
+static std::vector<InputKey> inputKeys(127);
+static std::vector<InputWait> inputWait;
+
+uint8_t addInputKey(const GameKey& gk) {
+    if (gk.device == GameKey::Void)
+        return 0;
+    for (auto& ik : inputKeys) {
+        if (gk.device == ik.device) {
+            ik.counter += 1;
+            return 1 + &ik - inputKeys.data();
+        }
+    }
+    inputKeys.emplace_back(gk.device, gk.code, 1, gk.key);
+    return inputKeys.size();
+}
+
+unsigned addInputWait(const GameKey& gk, int hold, int pause, HANDLE event) {
+    InputWait& wait = inputWait.emplace_back();
+    wait.inputId = keyboardInputCounter.fetch_add(1);
+    if (!wait.inputId)
+        wait.inputId = keyboardInputCounter.fetch_add(1);
+    wait.end = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(hold);
+    wait.pause = pause;
+    wait.event = event;
+    int i = -1;
+    wait.keys[i++] = addInputKey(gk);
+    for (auto& km : gk.modifiers)
+        wait.keys[i++] = addInputKey(km);
+    return wait.inputId;
+}
+
+int64_t getNextWakeupTime() {
+    std::unique_lock<std::mutex> lock(keyboardMutex);
+    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+    std::chrono::time_point<std::chrono::high_resolution_clock> next = now + std::chrono::milliseconds(5000);
+    for (auto& iw : inputWait) {
+        if (iw.end < next)
+            next = iw.end;
+    }
+    auto dur= next - now;
+    return std::chrono::duration_cast<std::chrono::duration<int64_t,std::milli>>(dur).count();
+}
+
+
+void releaseKeys() {
+    std::vector<INPUT> inputs;
+    for (auto ik : inputKeys) {
+        if (ik.counter > 0)
+            continue;
+        if (ik.device == GameKey::Keyboard) {
+            INPUT input {};
+            input.type = INPUT_KEYBOARD;
+            input.ki.wScan = ik.code & 0xFF;
+            input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+            if (ik.code & EXT_KEY)
+                input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+            inputs.push_back(input);
+        }
+        else if (ik.device == GameKey::Mouse && ik.code >= 1 && ik.code <= 3) {
+            INPUT input {};
+            input.type = INPUT_MOUSE;
+            switch (ik.code) {
+            case 1: input.ki.dwFlags |= MOUSEEVENTF_LEFTUP; break;
+            case 2: input.ki.dwFlags |= MOUSEEVENTF_RIGHTUP; break;
+            case 3: input.ki.dwFlags |= MOUSEEVENTF_MIDDLEUP; break;
+            }
+            inputs.push_back(input);
+        }
+        else if (ik.device == GameKey::vJoy && ik.code > 0) {
+            SetBtn(FALSE, Cfg.getVJoyDeviceID(), ik.code);
+        }
+        ik.device = GameKey::Void;
+    }
+    std::erase_if(inputKeys, [](const InputKey& ik) { return ik.device == GameKey::Void; });
+    if (inputs.empty())
+        return;
+    unsigned sent = SendInput((int)inputs.size(), inputs.data(), sizeof(INPUT));
+    if (sent != inputs.size())
+        LOG(ERROR) << "SendInput failed: " << getErrorMessage();
+}
+
+void processKeyRelease() {
+    std::unique_lock<std::mutex> lock(keyboardMutex);
+    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+    std::chrono::time_point<std::chrono::high_resolution_clock> exp = now + std::chrono::milliseconds(5);
+    for (auto it=inputWait.begin(); it < inputWait.end(); ) {
+        auto& iw = *it;
+        if (iw.end > exp) {
+            it++;
+            continue;
+        }
+        for (auto& ik : iw.keys) {
+            if (ik > 0) {
+                inputKeys[ik - 1].counter -= 1;
+                ik = 0;
+            }
+        }
+        if (iw.pause > 0) {
+            iw.end = now + std::chrono::milliseconds(iw.pause);
+            iw.pause = 0;
+            it++;
+            continue;
+        }
+        if (iw.event)
+            SetEvent(iw.event);
+        it = inputWait.erase(it);
+    }
+    releaseKeys();
+}
+
+unsigned sendKeyDown(const GameKey& gk, int hold, int pause, HANDLE event) {
+    std::unique_lock<std::mutex> lock(keyboardMutex);
+    unsigned inputId = addInputWait(gk, hold, pause, event);
+    std::vector<INPUT> inputs;
+    inputs.reserve(1 + gk.modifiers.size());
+    for (auto& gkm : gk.modifiers) {
+        if (gkm.device == GameKey::Void)
+            continue;
+        else if (gkm.device == GameKey::vJoy && gkm.code > 0)
+            SetBtn(TRUE, Cfg.getVJoyDeviceID(), gkm.code);
+        else if (gkm.device == GameKey::Keyboard || gkm.device == GameKey::Mouse)
+            inputs.push_back(fillInput(gkm, false));
+    }
+    if (gk.device == GameKey::Keyboard || gk.device == GameKey::Mouse)
+        inputs.push_back(fillInput(gk, false));
+    if (!inputs.empty()) {
+        unsigned sent = SendInput((int) inputs.size(), inputs.data(), sizeof(INPUT));
+        if (sent != inputs.size())
+            LOG(ERROR) << "SendInput keydown '" << gk << "' failed: " << getErrorMessage();
+    }
+    if (gk.device == GameKey::vJoy && gk.code > 0)
+        SetBtn(TRUE, Cfg.getVJoyDeviceID(), gk.code);
+    return inputId;
+}
+
+bool clearInput(unsigned inputId) {
+    std::unique_lock<std::mutex> lock(keyboardMutex);
+    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+    bool ok = false;
+    for (auto& iw : inputWait) {
+        if (iw.inputId == inputId) {
+            iw.end = now;
+            iw.pause = 0;
+            ok = true;
+        }
+    }
+    processKeyRelease();
+    return ok;
 }
 
 void loop() {
@@ -543,13 +874,41 @@ void loop() {
     }
     SetThreadDescription(GetCurrentThread(), L"Keyboard interceptor");
 
-    MSG msg;
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+    const int NumHandles = 1;
+    HANDLE handles[NumHandles] = {hKeyboardEvent};
+    for (;;) {
+        if (keyboardShutdown)
+            break;
+        int64_t waitMillis = getNextWakeupTime();
+        if (waitMillis <= 0) {
+            processKeyRelease();
+            continue;
+        }
+        ResetEvent(hKeyboardEvent);
+        DWORD dwResult = MsgWaitForMultipleObjects(NumHandles, handles, FALSE, waitMillis, QS_ALLINPUT);
+        if (keyboardShutdown)
+            break;
+        if (dwResult == WAIT_OBJECT_0+NumHandles) {
+            // A message is available, retrieve it with GetMessage or PeekMessage
+            MSG msg;
+            while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+        }
     }
-
     UnhookWindowsHookEx(keyboardHook);
+    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+    for (auto& iw : inputWait) {
+        iw.end = now;
+        iw.pause = 0;
+    }
+    processKeyRelease();
+    inputWait.clear();
+    for (auto& ik : inputKeys)
+        ik.counter = 0;
+    releaseKeys();
+
     nativeThreadId = 0;
 }
 

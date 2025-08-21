@@ -115,7 +115,7 @@ ImageTemplate::ImageMatrix ImageTemplate::prepareImageMatrix(
         prep = scaleImage(prep, scale * env.getScale(), scale * env.getScale());
     else
         prep = rotateImage(prep, angle, scale * env.getScale());
-    prep = applyFilters(filters, prep, {.convertToFloat=false, .cropToGray = params.cropToGray});
+    prep = applyFilters(filters, prep, {.convertToFloat=false});
     uint16_t org_w = prep.cols;
     uint16_t org_h = prep.rows;
     uint16_t opt_w = cv::getOptimalDFTSize(org_w);
@@ -181,6 +181,46 @@ XMat ImageTemplate::rotateImage(XMat image, int angle, double scale) {
 }
 
 
+XMat ThresholdFilter::apply(XMat image, Params params) {
+    XMat out;
+    cv::threshold(image, out, thr, max, cv::THRESH_BINARY);
+    return out;
+}
+
+XMat ChannelFilter::apply(XMat image, Params params) {
+    if (image.channels() == 1)
+        return image;
+    if (channel == red || channel == green || channel == blue) {
+        std::vector<XMat> channels;
+        cv::split(image, channels);
+        if (channel == blue)
+            return channels[0];
+        if (channel == green)
+            return channels[1];
+        return channels[2];
+    }
+    if (channel == hue || channel == sat || channel == value) {
+        XMat hsv;
+        cv::cvtColor(image, hsv, cv::COLOR_BGR2HSV);
+        std::vector<XMat> channels;
+        cv::split(image, channels);
+        if (channel == hue)
+            return channels[0];
+        if (channel == sat)
+            return channels[1];
+        return channels[2];
+    }
+    XMat gray;
+    cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+    return gray;
+}
+
+XMat GainBiasFilter::apply(XMat image, Params params) {
+    XMat out;
+    cv::convertScaleAbs(image, out, gain, bias);
+    return out;
+}
+
 XMat GaussFilter::apply(XMat image, Params params) {
     XMat out;
     cv::GaussianBlur(image, out, cv::Size(kernX, kernY), 0, 0);
@@ -190,18 +230,78 @@ XMat GaussFilter::apply(XMat image, Params params) {
 XMat LaplacianFilter::apply(XMat image, Params params) {
     assert(image.depth() == CV_8U || image.depth() == CV_32F);
     if (image.depth() == CV_8U) {
-        XMat lapl16S;
-        XMat lapl8U;
-        cv::Laplacian(image, lapl16S, CV_16S, kern, scale);
-        cv::convertScaleAbs(lapl16S, lapl8U);
-        return lapl8U;
+        XMat out16S;
+        XMat out8U;
+        cv::Laplacian(image, out16S, CV_16S, kern, scale, delta);
+        cv::convertScaleAbs(out16S, out8U);
+        return out8U;
     }
     else if (image.depth() == CV_32F) {
-        XMat lapl32F;
-        cv::Laplacian(image, lapl32F, CV_32F, kern, scale);
-        cv::max(lapl32F, 0.0f, lapl32F);
-        cv::min(lapl32F, 1.0f, lapl32F);
-        return lapl32F;
+        XMat out32F;
+        cv::Laplacian(image, out32F, CV_32F, kern, scale, delta);
+        cv::max(out32F, 0.0f, out32F);
+        cv::min(out32F, 1.0f, out32F);
+        return out32F;
+    }
+    return image;
+}
+
+XMat SobelFilter::apply(XMat image, Params params) {
+    XMat grad_x, grad_y, grad;
+    cv::Sobel(image, grad_x, CV_32F, 1, 0, kern, scale, delta);
+    cv::Sobel(image, grad_y, CV_32F, 0, 1, kern, scale, delta);
+    addWeighted(grad_x, 0.5, grad_y, 0.5, 0, grad);
+    if (image.depth() == CV_8U && !params.convertToFloat) {
+        XMat out8U;
+        convertScaleAbs(grad, out8U);
+        return out8U;
+    }
+    cv::max(grad, 0.0f, grad);
+    cv::min(grad, 1.0f, grad);
+    return grad;
+}
+
+XMat ScharrFilter::apply(XMat image, Params params) {
+    assert(image.depth() == CV_8U || image.depth() == CV_32F);
+    if (image.depth() == CV_8U) {
+        XMat out16S;
+        XMat out8U;
+        cv::Scharr(image, out16S, CV_16S, 1, 1, scale);
+        cv::convertScaleAbs(out16S, out8U);
+        return out8U;
+    }
+    else if (image.depth() == CV_32F) {
+        XMat out32F;
+        cv::Scharr(image, out32F, CV_32F, 1, 1, scale);
+        cv::max(out32F, 0.0f, out32F);
+        cv::min(out32F, 1.0f, out32F);
+        return out32F;
+    }
+    return image;
+}
+
+XMat EdgeByBoxFilter::apply(XMat image, Params params) {
+    assert(image.depth() == CV_8U || image.depth() == CV_32F);
+    if (image.depth() == CV_8U) {
+        XMat smooth;
+        cv::boxFilter(image, smooth, -1, {kern,kern});
+        XMat out;
+        cv::addWeighted(image, scale, smooth, -scale, 0, out, CV_8UC1);
+        if (threshold > 0)
+            cv::threshold(out, out, threshold, 255, cv::THRESH_BINARY);
+        return out;
+    }
+    else if (image.depth() == CV_32F) {
+        XMat smooth;
+        cv::boxFilter(image, smooth, -1, {kern,kern});
+        XMat out;
+        cv::addWeighted(image, scale, smooth, -scale, 0, out, CV_32F);
+        cv::max(out, 0.0f, out);
+        if (threshold > 0)
+            cv::threshold(out, out, threshold, 1, cv::THRESH_BINARY);
+        else
+            cv::min(out, 1.0f, out);
+        return out;
     }
     return image;
 }
@@ -220,9 +320,9 @@ XMat ErodeFilter::apply(XMat image, Params params) {
     return out;
 }
 
-XMat HsvColorCropFilter::apply(XMat image, Params params) {
+XMat HsvMaskFilter::apply(XMat image, Params params) {
     if (rangesU.empty())
-        return image;
+        return {};
     if (rangesF.empty()) {
         for (auto& r : rangesU) {
             cv::Vec3b min = r.first;
@@ -256,15 +356,27 @@ XMat HsvColorCropFilter::apply(XMat image, Params params) {
             cv::bitwise_or(accum, toMat(m), accum);
         }
     }
+    return mask;
+}
+
+XMat HsvColorCropFilter::apply(XMat image, Params params) {
+    XMat mask = HsvMaskFilter::apply(image, params);
+    if (mask.empty())
+        return {};
     XMat masked;
     image.copyTo(masked, mask);
-    if (!params.cropToGray)
-        return masked;
-    //cv::Mat tmp_masked = masked.getMat(cv::ACCESS_READ).clone();
+    return masked;
+}
+
+XMat HsvGrayCropFilter::apply(XMat image, Params params) {
+    XMat mask = HsvMaskFilter::apply(image, params);
+    if (mask.empty())
+        return {};
     XMat gray;
-    cv::cvtColor(masked, gray, cv::COLOR_BGR2GRAY);
-    //cv::Mat tmp_gray = gray.getMat(cv::ACCESS_READ).clone();
-    return gray;
+    cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+    XMat masked;
+    gray.copyTo(masked, mask);
+    return masked;
 }
 
 //void ImageTemplate::fixNaNinResult(cv::Mat &result, const std::string& filename) {
@@ -324,6 +436,20 @@ void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<Im
     }
     assert (use_float && preparedImage.type() == templates[0].templImageF.type() || !use_float && preparedImage.type() == templates[0].templImageU.type());
 
+    bool not_normed = (method == cv::TM_CCORR || method == cv::TM_CCOEFF || method == cv::TM_SQDIFF);
+    if (not_normed && templates[0].u_norm == 0) {
+        for (auto& im : templates) {
+            im.f_norm = DBL_EPSILON;
+            auto sum = cv::sum(im.templImageF);
+            for (int i = 0; i < image.channels(); i++)
+                im.f_norm += sum[i];
+            im.u_norm = DBL_EPSILON;
+            sum = cv::sum(im.templImageU);
+            for (int i = 0; i < image.channels(); i++)
+                im.u_norm += sum[i];
+        }
+    }
+
 //    {
 //        cv::Mat img = image.getMat(cv::ACCESS_READ);
 //        cv::Mat templ = templates[0].templImage.getMat(cv::ACCESS_READ);
@@ -343,6 +469,10 @@ void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<Im
         double minVal, maxVal;
         cv::Point minLoc, maxLoc;
         cv::minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc);
+        if (not_normed) {
+            minVal /= use_float ? im.f_norm : im.u_norm;
+            maxVal /= use_float ? im.f_norm : im.u_norm;
+        }
         //LOG(DEBUG) << "ImageTemplate match result: " << std::setprecision(4) << maxVal << " for " << im.name << " scale:" << im.scale;
         if (method == cv::TM_SQDIFF || method == cv::TM_SQDIFF_NORMED) {
             if ((1-minVal) > out.value) {
@@ -363,8 +493,7 @@ void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<Im
 }
 
 
-cv::Rect ImageTemplate::makeOptimalMatchRect(ClassifyEnv& env, cv::Rect r) {
-    env.cropToCapture(r);
+cv::Rect ImageTemplate::makeOptimalMatchRect(cv::Rect r) {
     int optimalH = cv::getOptimalDFTSize(r.height);
     int optimalW = cv::getOptimalDFTSize(r.width);
     int addTop = std::min(r.y, (optimalH - r.height) / 2);
@@ -372,7 +501,6 @@ cv::Rect ImageTemplate::makeOptimalMatchRect(ClassifyEnv& env, cv::Rect r) {
     int addLeft = std::min(r.x, (optimalW - r.width) / 2);
     int addRight = optimalW - r.width - addLeft;
     cv::Rect out {r.x - addLeft, r.y - addTop, r.width + addLeft + addRight, r.height + addTop + addBottom};
-    env.cropToCapture(out);
     return out;
 }
 
@@ -393,7 +521,8 @@ double ImageTemplate::match(ClassifyEnv &env) {
     captureRect = env.cvtReferenceToCaptured(refRect);
     matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
                          captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
-    matchRect = makeOptimalMatchRect(env, matchRect);
+    matchRect = makeOptimalMatchRect(matchRect);
+    env.cropToCapture(matchRect);
 
     XMat gameImagePrepared = applyFilters(filters, gameImage(matchRect), {.convertToFloat=useOpenCL()});
     if (gameImagePrepared.empty())
@@ -415,7 +544,7 @@ double ImageTemplate::match(ClassifyEnv &env) {
     } else {
         LOG(DEBUG) << "ImageTemplate not found: " << std::setprecision(4) << mr.value << " for " << filename << ", took: " << elapsedTime.count() << "us";
     }
-    lastMatch = toResult(mr.value);
+    lastMatch = mr.value;
     if (!name.empty() && mr.value >= threshold_min) {
         env.classified.emplace_back(ClsDetType::Detected, env.isWarpMode(), name,
                                     refRect + env.scaleToReference(matchedCaptureOffset));
@@ -424,7 +553,7 @@ double ImageTemplate::match(ClassifyEnv &env) {
         env.classified.back().u.tdet.angle = mr.im->angle;
         env.classified.back().u.tdet.match = lastMatch;
     }
-    return lastMatch;
+    return toResult(mr.value);
 }
 
 } // detect

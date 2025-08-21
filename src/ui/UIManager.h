@@ -15,6 +15,7 @@ class Main;
 
 class UIManager {
     UIManager(Main&);
+    ~UIManager();
 
 public:
     static UIManager& getInstance();
