@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include "ui/UIManager.h"
 #include "Configuration.h"
+#include "Galaxy.h"
 
 INITIALIZE_EASYLOGGINGPP
 

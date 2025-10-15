@@ -63,14 +63,14 @@ void shutdown() {
 //    }
 }
 
-int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rect) {
+int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut) {
     text.clear();
-    if (rect)
-        *rect = {};
+    if (rectOut)
+        *rectOut = {};
     std::scoped_lock<std::mutex> lock(tesseractMutex);
     if (!tesseractApi)
         return 0;
-    assert (grayImage.rows == ocr::LINE_HEIGHT);
+    //assert (grayImage.rows == ocr::LINE_HEIGHT);
     assert (grayImage.type() == CV_8UC1);
 
     // 'edr'
@@ -80,16 +80,49 @@ int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Re
     tesseractApi->Recognize(nullptr);
     int conf = tesseractApi->MeanTextConf();
     if (conf != 0) {
-        const char *outText = tesseractApi->GetUTF8Text();
-        text = trim(outText);
-        delete[] outText;
-        if (rect) {
+        bool valid = true;
+        tesseract::ResultIterator* ri = tesseractApi->GetIterator();
+        cv::Rect lr;
+        conf = 0;
+        int count = 0;
+        do {
+            char *word = ri->GetUTF8Text(tesseract::PageIteratorLevel::RIL_WORD);
             int left, top, right, bottom;
-            tesseract::ResultIterator* ri = tesseractApi->GetIterator();
-            if (ri->BoundingBox(tesseract::PageIteratorLevel::RIL_TEXTLINE, 1, &left, &top, &right, &bottom))
-                *rect = {left, top, right - left, bottom - top};
-            delete ri;
-        }
+            ri->BoundingBox(tesseract::PageIteratorLevel::RIL_WORD, 1, &left, &top, &right, &bottom);
+            cv::Rect wr = {left, top, right - left, bottom - top};
+            if (lr.empty()) {
+                lr = wr;
+            } else {
+                if (wr.x - (lr.x + lr.width) > 40 && lr.width > 100)
+                    valid = false;
+                else
+                    lr |= wr;
+            }
+            if (valid) {
+                if (!text.empty())
+                    text.push_back(' ');
+                text += word;
+                count += 1;
+                conf += ri->Confidence(tesseract::PageIteratorLevel::RIL_WORD);
+            }
+            delete[] word;
+        } while (valid && ri->Next(tesseract::PageIteratorLevel::RIL_WORD));
+        delete ri;
+        if (rectOut)
+            *rectOut = lr;
+        conf /= count;
+//        if (conf < 60)
+//            LOG(WARNING) << "Low conf " << conf;
+        //const char *outText = tesseractApi->GetUTF8Text();
+        //text = trim(outText);
+        //delete[] outText;
+        //if (rectOut) {
+        //    int left, top, right, bottom;
+        //    tesseract::ResultIterator* ri = tesseractApi->GetIterator();
+        //    if (ri->BoundingBox(tesseract::PageIteratorLevel::RIL_TEXTLINE, 1, &left, &top, &right, &bottom))
+        //        *rectOut = {left, top, right - left, bottom - top};
+        //    delete ri;
+        //}
     }
     tesseractApi->Clear();
 
@@ -150,9 +183,7 @@ static cv::Mat scaleImage(cv::Mat& image, double scale, bool force) {
 //    return scaledImage;
 }
 
-const int ADD_TOP = 0;
-const int ADD_BOTTOM = 0;
-int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text) {
+int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Rect* rectOut) {
     assert (cr.cdt == ClsDetType::ListRow);
     const widget::List* lst = cr.u.lrow.list;
     if (lst->tabs.size() <= tab)
@@ -169,10 +200,53 @@ int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const Classifi
     if (cr.u.lrow.ws != WState::Focused)
         cv::bitwise_not(scaledImage, scaledImage);
     int ocr_top = t.ocr_top * scale - ocr::LEADING;
-    cv::Rect ocrRect {0, ocr_top-ADD_TOP, scaledImage.cols, ocr::LINE_HEIGHT+ADD_TOP+ADD_BOTTOM};
+    cv::Rect ocrRect {0, ocr_top-4, scaledImage.cols, ocr::LINE_HEIGHT+8};
     ocrRect &= cv::Rect(0, 0, scaledImage.cols, scaledImage.rows);
     cv::Mat ocrImage(scaledImage, ocrRect);
-    int conf = ocr::ocrLine("(list row)", ocrImage, text, nullptr);
+    {
+        int histSize = 256;
+        float range[]{0, 256}; //the upper boundary is exclusive
+        const float *histRange[]{range};
+        cv::Mat hist;
+        cv::calcHist(&ocrImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+        cv::GaussianBlur(hist, hist, cv::Size(9,9), 0); // TODO: maybe not needed
+
+//        // Create histogram image
+//        int hist_w = 256;
+//        int hist_h = 200;
+//        int bin_w = cvRound((double)hist_w / 256.0);
+//        cv::Mat histImage(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
+//        // Normalize histogram to fit image height
+//        cv::normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
+//        // Draw lines for each bin
+//        for (int i = 1; i < histSize; i++) {
+//            cv::line(histImage,
+//                     cv::Point(bin_w * (i - 1), hist_h - cvRound(hist.at<float>(i - 1))),
+//                     cv::Point(bin_w * (i), hist_h - cvRound(hist.at<float>(i))),
+//                     cv::Scalar(255, 255, 255), 2, 8, 0); // White lines for grayscale
+//        }
+
+        int blackIdx=-1, whiteIdx=-1;
+        float blackVal=0, whiteVal=0;
+        // first, locate maximum, the background - white value
+        for (int i=0; i < 255; i++) {
+            float val = hist.at<float>(i);
+            if (blackIdx < 0 && val > 0) {
+                blackIdx = i;
+            }
+            if (val > whiteVal) {
+                whiteVal = val;
+                whiteIdx = i;
+            }
+        }
+        // scale image range (between black and white) to full range
+        whiteIdx -= 4;
+        blackIdx += 10;
+        double mul = 255.0 / (whiteIdx - blackIdx);
+        double add = - blackIdx * mul;
+        cv::convertScaleAbs(ocrImage, ocrImage, mul, add);
+    }
+    int conf = ocr::ocrLine("(list row)", ocrImage, text, rectOut);
     return conf;
 }
 
@@ -222,7 +296,7 @@ int ocrMarketLblText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const Cl
     int lines = (int)std::round(double(scaledImage.rows) / double(ocr::LINE_HEIGHT));
     int ocr_conf_sum = 0;
     for (int l=0; l < lines; l++) {
-        cv::Rect ocrLineRect (0, l*ocr::LINE_HEIGHT-ADD_TOP, scaledImage.cols, ocr::LINE_HEIGHT+ADD_TOP+ADD_BOTTOM);
+        cv::Rect ocrLineRect (0, l*ocr::LINE_HEIGHT, scaledImage.cols, ocr::LINE_HEIGHT);
         cv::Mat ocrImage(scaledImage, ocrLineRect);
         std::string line;
         int conf = ocr::ocrLine("(market lbl)", ocrImage, line, nullptr);
@@ -274,8 +348,6 @@ int ocrNavigationLblText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, cons
     double scale = (ocr::ASCENT+ocr::DESCENT) / double(lbl->ocr_bot-lbl->ocr_top) / rEnv.getScale();
 
     cv::Rect lblCapturedRect = rEnv.cvtReferenceToCaptured(cr.detectedRect);
-    lblCapturedRect.y -= ADD_TOP;
-    lblCapturedRect.height += ADD_TOP+ADD_BOTTOM;
     cv::Mat lblImage(grayImage, lblCapturedRect);
 
     cv::Mat scaledImage = scaleImage(lblImage, scale, true);

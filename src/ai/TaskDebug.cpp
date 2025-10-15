@@ -9,6 +9,7 @@
 #include "../EDWidget.h"
 #include "../FuzzyMatch.h"
 #include "../OCR.h"
+#include "../Galaxy.h"
 
 #include <tesseract/baseapi.h>
 #include <curlcpp/curl_easy.h>
@@ -455,6 +456,8 @@ TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Task *parent, AIManager &mg
             dump_images = std::get<bool>(p.value);
         if (p.name == "resume")
             resume = std::get<bool>(p.value);
+        if (p.name == "unfocused")
+            unfocused = std::get<bool>(p.value);
         if (p.name == "ocr_confidence")
             ocr_confidence = (int)std::get<int64_t >(p.value);
         if (p.name == "txt_confidence")
@@ -495,7 +498,7 @@ Result TaskDebugFindAllNavPoints::run() {
     if (!getSpanishInfo())
         LOG(ERROR) << "Cannot get system info from spansh.co.uk";
 
-    if (!resume) {
+    if (!(resume || unfocused)) {
         sendKey("UI_Right");
         sendKey("UI_Down");
         sendKey("UI_Up", 2000, 100);
@@ -503,64 +506,80 @@ Result TaskDebugFindAllNavPoints::run() {
 
     int offset = 0;
     int failCount=0;
-    for (;;) {
-        int row = 0;
-        int focused_row = -1;
-        std::vector<int> rows_with_error;
-        ClassifiedRect* focused = nullptr;
+    if (unfocused) {
         cv::Mat grayImage;
         mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-        for (auto& cr : mgr.rEnv.classified) {
+        for (auto &cr: mgr.rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
                 continue;
-            if (!focused && cr.u.lrow.ws == WState::Focused) {
-                focused = &cr;
-                focused_row = row;
-            }
             int conf = ocr::ocrRowText(grayImage, mgr.rEnv, cr, 0, cr.text);
             cr.u.lrow.text_confidence = conf;
-            if (conf <= ocr_confidence && checkOcrError(cr))
-                rows_with_error.push_back(row);
-            row += 1;
-        }
-        if (!focused) {
-            LOG(ERROR) << "Focused row not found";
-            failCount += 1;
-            if (failCount >= 3)
-                return Result::Failure;
-            sendKey("UI_Down", 0, 500);
-            sendKey("UI_Up", 0, 500);
-            continue;
-        }
-        failCount = 0;
-        if (focused_row == 0 && offset > 0) {
-            LOG(INFO) << "Nav list wrapped at offset " << offset << "; finishing task";
-            break;
-        }
-        if (focused->u.lrow.text_confidence <= ocr_confidence && checkOcrError(*focused)) {
-            LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
-            checkNavPoint(offset);
-            offset += 1;
-            sendKey("UI_Down", 0, 100);
-            continue;
-        }
-        LOG(INFO) << "Skip nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
-        int skip_rows = -1;
-        for (int bad_row : rows_with_error) {
-            if (bad_row > focused_row) {
-                skip_rows = bad_row - focused_row;
-                break;
+            if (conf <= ocr_confidence || checkOcrError(cr)) {
+                LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << conf << "%";
+                saveOcrNavigationRow(grayImage, cr, offset, "", nullptr);
+                offset += 1;
             }
         }
-        if (skip_rows > 0) {
-            for (int dn = 0; dn < skip_rows; dn++)
+    } else {
+        for (;;) {
+            int row = 0;
+            int focused_row = -1;
+            std::vector<int> rows_with_error;
+            ClassifiedRect *focused = nullptr;
+            cv::Mat grayImage;
+            mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+            for (auto &cr: mgr.rEnv.classified) {
+                if (cr.cdt != ClsDetType::ListRow)
+                    continue;
+                if (!focused && cr.u.lrow.ws == WState::Focused) {
+                    focused = &cr;
+                    focused_row = row;
+                }
+                int conf = ocr::ocrRowText(grayImage, mgr.rEnv, cr, 0, cr.text);
+                cr.u.lrow.text_confidence = conf;
+                if (conf <= ocr_confidence && checkOcrError(cr))
+                    rows_with_error.push_back(row);
+                row += 1;
+            }
+            if (!focused) {
+                LOG(ERROR) << "Focused row not found";
+                failCount += 1;
+                if (failCount >= 3)
+                    return Result::Failure;
+                sendKey("UI_Down", 0, 500);
+                sendKey("UI_Up", 0, 500);
+                continue;
+            }
+            failCount = 0;
+            if (focused_row == 0 && offset > 0) {
+                LOG(INFO) << "Nav list wrapped at offset " << offset << "; finishing task";
+                break;
+            }
+            if (focused->u.lrow.text_confidence <= ocr_confidence && checkOcrError(*focused)) {
+                LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
+                checkNavPoint(offset);
+                offset += 1;
                 sendKey("UI_Down", 0, 100);
-            continue;
+                continue;
+            }
+            LOG(INFO) << "Skip nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
+            int skip_rows = -1;
+            for (int bad_row: rows_with_error) {
+                if (bad_row > focused_row) {
+                    skip_rows = bad_row - focused_row;
+                    break;
+                }
+            }
+            if (skip_rows > 0) {
+                for (int dn = 0; dn < skip_rows; dn++)
+                    sendKey("UI_Down", 0, 100);
+                continue;
+            }
+            for (int dn = 0; dn < (10 - focused_row) + 8; dn++)
+                sendKey("UI_Down", 0, 100);
+            for (int up = 0; up < 8; up++)
+                sendKey("UI_Up", 0, 100);
         }
-        for (int dn = 0; dn < (10-focused_row) + 8; dn++)
-            sendKey("UI_Down", 0, 100);
-        for (int up = 0; up < 8; up++)
-            sendKey("UI_Up", 0, 100);
     }
     return Result::Success;
 }
@@ -591,7 +610,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 }
 
 json::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
-    const spStarSystem& ss = mgr.cfg.getCurrentStarSystem();
+    const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     if (!ss || ss->name.empty() || !ss->address)
         return nullptr;
     std::ostringstream resp;
@@ -716,7 +735,7 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
     spanishSystemInfo = std::move(j);
     LOG(DEBUG) << "Got system info: " << spanishSystemInfo;
 
-    const spStarSystem& ss = mgr.cfg.getCurrentStarSystem();
+    const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     std::string systemName = ss->name;
 
     json::value payload;
@@ -782,11 +801,6 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
     return true;
 }
 
-static std::string prependChar(wchar_t ch, std::string str) {
-    wchar_t prefix[2] {ch, L' '};
-    return toUtf8(prefix, 2) + str;
-}
-
 const nav::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& lbl_name, const std::string& lbl_anchor) const {
     for (auto nt : nav::ALL_NAV_TYPES) {
         if (contains(nt->navIcons, lbl_anchor)) {
@@ -795,72 +809,70 @@ const nav::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& l
         }
     }
 
-    auto ss = mgr.cfg.getCurrentStarSystem();
-    if (!ss || ss->fssSignalDiscovered.empty())
-        return nullptr;
-    FuzzyMatch fm;
-    json::value signal;
-    std::wstring text_ocr = fm.toOCR(toUtf16(lbl_name));
-    for (auto it : ss->fssSignalDiscovered) {
-        std::string name;
-        if (it.second->data.contains("SignalName_Localised"))
-            name = it.second->data.at("SignalName_Localised").as_string();
-        else
-            name = it.second->data.at("SignalName").as_string();
-        std::wstring name_ocr = fm.toOCR(toUtf16(name));
-        if (name_ocr == text_ocr) {
-            signal = it.second->data;
-            break;
-        }
-    }
-
-    if (signal.is_null() || !signal.contains("SignalType")) {
-        LOG(INFO) << "No signal found for name '" << lbl_anchor;
-        return nullptr;
-    }
-
-    std::string signalType = signal.at("SignalType").as_string();
-    for (auto nt : nav::ALL_NAV_TYPES) {
-        if (contains(nt->typeAliases, signalType)) {
-            LOG(INFO) << "Guessed type from signal type '" << signalType << "'";
-            return nt;
-        }
-    }
-    LOG(ERROR) << "Unknown starport for type: '" << signalType << "'";
+//    const gal::spStarSystem& ss = gal::getCurrentStarSystem();
+//    FuzzyMatch fm;
+//    json::value signal;
+//    std::wstring text_ocr = fm.toOCR(toUtf16(lbl_name));
+//    for (auto st : ss->stations) {
+//        std::string name;
+//        if (!st->nloc.empty())
+//            name = st->nloc;
+//        else
+//            name = st->name;
+//        std::wstring name_ocr = fm.toOCR(toUtf16(name));
+//        if (name_ocr == text_ocr) {
+//            signal = it.second->data;
+//            break;
+//        }
+//    }
+//
+//    if (signal.is_null() || !signal.contains("SignalType")) {
+//        LOG(INFO) << "No signal found for name '" << lbl_anchor;
+//        return nullptr;
+//    }
+//
+//    std::string signalType = signal.at("SignalType").as_string();
+//    for (auto nt : nav::ALL_NAV_TYPES) {
+//        if (contains(nt->typeAliases, signalType)) {
+//            LOG(INFO) << "Guessed type from signal type '" << signalType << "'";
+//            return nt;
+//        }
+//    }
+//    LOG(ERROR) << "Unknown starport for type: '" << signalType << "'";
     return nullptr;
 }
 
 int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const nav::NavType* nav_type) const {
-    auto ss = mgr.cfg.getCurrentStarSystem();
+    const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     // find best station name
     std::string best_name;
     double best_rate = 0;
     FuzzyMatch fm;
     std::wstring text_ocr = fm.toOCR(toUtf16(text));
     POIType poiType = nav_type ? nav_type->poiType : POIType::None;
-    if (poiType == POIType::Station || poiType == POIType::FleetCarrier || poiType == POIType::Place || poiType == POIType::Signal) {
-        if (ss && !ss->fssSignalDiscovered.empty()) {
-            for (auto &it: ss->fssSignalDiscovered) {
-                std::string name = it.first;
-                if (it.second->data.contains("SignalName_Localised"))
-                    name = it.second->data.at("SignalName_Localised").as_string();
-                if (it.second->data.contains("SignalType") &&
-                    !contains(nav_type->typeAliases, it.second->data.at("SignalType").as_string()))
-                    continue;
-                std::wstring name_ocr = fm.toOCR(toUtf16(name));
-                double rate = fm.ratio(text_ocr, name_ocr);
-                if (rate > best_rate) {
-                    best_rate = rate;
-                    best_name = name;
-                    if (best_rate >= 100) {
-                        text = best_name;
-                        LOG(INFO) << "Guessed station name: '" << text << "' with conf rate: " << best_rate;
-                        return best_rate;
-                    }
-                }
-            }
-        }
-    }
+//    if (poiType == POIType::Station || poiType == POIType::FleetCarrier || poiType == POIType::Place || poiType == POIType::Signal) {
+//        if (ss && !ss->fssSignalDiscovered.empty()) {
+//            for (auto &it: ss->fssSignalDiscovered) {
+//                std::string name = it.first;
+//                if (it.second->data.contains("SignalName_Localised"))
+//                    name = it.second->data.at("SignalName_Localised").as_string();
+//                if (it.second->data.contains("SignalType") &&
+//                    !contains(nav_type->typeAliases, it.second->data.at("SignalType").as_string()))
+//                    continue;
+//                std::wstring name_ocr = fm.toOCR(toUtf16(name));
+//                double rate = fm.ratio(text_ocr, name_ocr);
+//                if (rate > best_rate) {
+//                    best_rate = rate;
+//                    best_name = name;
+//                    if (best_rate >= 100) {
+//                        text = best_name;
+//                        LOG(INFO) << "Guessed station name: '" << text << "' with conf rate: " << best_rate;
+//                        return best_rate;
+//                    }
+//                }
+//            }
+//        }
+//    }
     if ((poiType == POIType::Star || poiType == POIType::Planet) && spanishSystemInfo.contains("bodies")) {
         for (auto &js: spanishSystemInfo.at("bodies").as_array()) {
             if (!js.contains("type"))
@@ -1113,435 +1125,5 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, c
 //    gt_txt.close();
 }
 
-
-TaskDebugFixOCR::TaskDebugFixOCR(Task *parent, AIManager &mgr, const TaskTemplate &templ)
-    : TaskDebugFindAllBase(parent, mgr, templ, true)
-{
-    assert (templ.name == ED_TASK_DEBUG_FIX_OCR);
-    for (auto& p : templ.params) {
-        if (p.name == "use_tess")
-            use_tess = (int)std::get<bool>(p.value);
-        if (p.name == "use_lstm")
-            use_lstm = (int)std::get<bool>(p.value);
-        if (p.name == "use_edr")
-            use_edr = (int)std::get<bool>(p.value);
-        if (p.name == "rus+eng")
-            rus_eng = std::get<bool>(p.value);
-    }
-}
-
-struct BoxLine;
-struct BoxEntry {
-    wchar_t ch;
-    int left;
-    int top;
-    int right;
-    int bottom;
-    int page;
-    BoxLine* line {nullptr};
-    bool bad {false};
-};
-
-struct BoxLine {
-    std::vector<BoxEntry> boxes;
-    int position {0};
-    void consume(BoxEntry* box);
-};
-
-void BoxLine::consume(BoxEntry *box) {
-    assert (box && box->line == this);
-    for (int i=0; i < boxes.size(); i++) {
-        if (box == &boxes[i]) {
-            position = i+1;
-            return;
-        }
-    }
-}
-
-std::istream& operator>>(std::istream& is, BoxEntry& box) {
-    std::string chStr;
-    is >> chStr >> box.left >> box.bottom >> box.right >> box.top >> box.page;
-    box.ch = toUtf16(chStr)[0];
-    return is;
-}
-std::ostream& operator<<(std::ostream& os, const BoxEntry& box) {
-    std::string chStr = toUtf8(&box.ch, 1);
-    os << chStr << " " << box.left << " " << box.bottom << " " << box.right << " " << box.top << " " << box.page << "\n";
-    return os;
-}
-
-static ai::BoxEntry* findBox(BoxLine& line, wchar_t ch, int right=0) {
-    for (int pos = line.position; pos < line.boxes.size(); pos++) {
-        BoxEntry& box = line.boxes[pos];
-        if (right && box.left-5 > right)
-            return nullptr;
-        if (box.ch != ch)
-            continue;
-        assert (box.line == &line);
-        return &box;
-    }
-    return nullptr;
-}
-
-static double stdDevBoxes(std::vector<BoxEntry*>& guessBoxes) {
-    std::vector<cv::Scalar> values;
-    for (BoxEntry* box: guessBoxes) {
-        values.emplace_back(box->left, box->top, box->right, box->bottom);
-    }
-    cv::Scalar meanS;
-    cv::Scalar stddevS;
-    cv::meanStdDev(values, meanS, stddevS);
-    return stddevS[0] + stddevS[1] + stddevS[2] + stddevS[3];
-}
-
-static void filterBoxes(std::vector<BoxEntry*>& guessBoxes, double minDev, double expected, std::function<double(BoxEntry&)> func) {
-    while (guessBoxes.size() > 2) {
-        std::vector<double> values;
-        for (BoxEntry* box: guessBoxes) {
-            values.push_back(func(*box));
-        }
-        cv::Scalar meanS;
-        cv::Scalar stddevS;
-        cv::meanStdDev(values, meanS, stddevS);
-        if (stddevS[0] < minDev)
-            return;
-        std::vector<double> delta;
-        for (auto &v: values) {
-            if (expected > 0)
-                delta.push_back(std::abs(v - 0.5*(meanS[0] - expected)));
-            else
-                delta.push_back(std::abs(v - meanS[0]));
-        }
-        int maxIdx[4]{};
-        cv::minMaxIdx(delta, 0, 0, 0, maxIdx);
-        guessBoxes.erase(guessBoxes.begin() + maxIdx[1]);
-    }
-}
-
-Result TaskDebugFixOCR::run() {
-    checkAndFixOCRText();
-
-    std::string dirname = "testset-edr";
-
-    tesseract::OcrEngineMode ocrEngineMode = tesseract::OEM_DEFAULT;
-    if (use_tess && use_lstm)
-        ocrEngineMode = tesseract::OEM_TESSERACT_LSTM_COMBINED;
-    else if (use_tess && !use_lstm)
-        ocrEngineMode = tesseract::OEM_TESSERACT_ONLY;
-    else if (!use_tess && use_lstm)
-        ocrEngineMode = tesseract::OEM_LSTM_ONLY;
-
-    std::vector<tesseract::TessBaseAPI*> engines;
-    {
-        tesseract::TessBaseAPI *tesseractApi;
-        if (rus_eng && use_tess) {
-            tesseractApi = new tesseract::TessBaseAPI();
-            tesseractApi->Init("tessdata-box", "eng", tesseract::OEM_TESSERACT_ONLY, nullptr, 0, 0, 0, false);
-            engines.push_back(tesseractApi);
-        }
-        if (rus_eng && use_lstm) {
-            tesseractApi = new tesseract::TessBaseAPI();
-            tesseractApi->Init("tessdata-box", "eng", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
-            engines.push_back(tesseractApi);
-        }
-
-        if (rus_eng && use_tess) {
-            tesseractApi = new tesseract::TessBaseAPI();
-            tesseractApi->Init("tessdata-box", "rus", tesseract::OEM_TESSERACT_ONLY, nullptr, 0, 0, 0, false);
-            engines.push_back(tesseractApi);
-        }
-        if (rus_eng && use_lstm) {
-            tesseractApi = new tesseract::TessBaseAPI();
-            tesseractApi->Init("tessdata-box", "rus", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
-            engines.push_back(tesseractApi);
-        }
-
-//        tesseractApi = new tesseract::TessBaseAPI();
-//        tesseractApi->Init("tessdata-box", "eng+rus", tesseract::OEM_TESSERACT_ONLY, nullptr, 0, 0, 0, false);
-//        engines.push_back(tesseractApi);
-//        tesseractApi = new tesseract::TessBaseAPI();
-//        tesseractApi->Init("tessdata-box", "eng+rus", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
-//        engines.push_back(tesseractApi);
-
-        if (use_edr) {
-            tesseractApi = new tesseract::TessBaseAPI();
-            tesseractApi->Init("tessdata-box", "edr", tesseract::OEM_LSTM_ONLY, nullptr, 0, 0, 0, false);
-            engines.push_back(tesseractApi);
-        }
-
-        if (engines.empty()) {
-            tesseractApi = new tesseract::TessBaseAPI();
-            tesseractApi->Init("tessdata-box", "edr+rus+eng", tesseract::OEM_DEFAULT, nullptr, 0, 0, 0, false);
-            engines.push_back(tesseractApi);
-        }
-    }
-
-    LOG(INFO) << "FixOCR in dir: " << dirname;
-    int errorCount = 0;
-    for (const auto &entry: std::filesystem::directory_iterator(dirname)) {
-        if (!entry.is_regular_file())
-            continue;
-        auto &pngPath = entry.path();
-        if (!pngPath.has_extension() || pngPath.extension() != ".png")
-            continue;
-
-        auto boxPath = entry.path();
-        boxPath.replace_extension(".box");
-        if (std::filesystem::exists(boxPath)) {
-            LOG(INFO) << "Box file '" << boxPath << "' already exists";
-            continue;
-        }
-
-        auto gtPath = entry.path();
-        gtPath.replace_extension(".gt.txt");
-
-        if (!std::filesystem::exists(gtPath)) {
-            errorCount += 1;
-            LOG(ERROR) << "GroundTruth file '" << gtPath << "' not found";
-            continue;
-        }
-
-        std::wstring gtLine;
-        {
-            std::ifstream ifs(gtPath, std::ifstream::in);
-            if (!ifs.is_open()) {
-                errorCount += 1;
-                LOG(ERROR) << "Cannot open text file: " << gtPath << " for reading";
-                continue;
-            }
-            bool manyLines = false;
-            std::string line;
-            while ( getline(ifs, line) ) {
-                if (!gtLine.empty()) {
-                    manyLines = true;
-                    errorCount += 1;
-                    LOG(ERROR) << "Only single line in GroundTruth allowed: " << gtPath;
-                    break;
-                }
-                gtLine = toUtf16(line);
-            }
-            ifs.close();
-            if (manyLines)
-                continue;
-        }
-
-        cv::Mat image = cv::imread(pngPath.string(), cv::IMREAD_GRAYSCALE); // assume grayscale
-        if (image.channels() != 1) {
-            errorCount += 1;
-            LOG(ERROR) << "Expecting grayscale image: " << pngPath;
-            continue;
-        }
-        cv::Rect imageRect {0, 0, image.cols, image.rows};
-
-        std::vector<BoxLine> boxLines;
-        boxLines.reserve(engines.size());
-        for (tesseract::TessBaseAPI *tesseractApi: engines) {
-            tesseractApi->SetPageSegMode(tesseract::PageSegMode::PSM_RAW_LINE);
-            tesseractApi->SetVariable("chop_enable", "0");
-            tesseractApi->SetVariable("wordrec_enable_assoc", "0");
-            //tesseractApi->SetVariable("wordrec_display_splits", "0");
-            //tesseractApi->SetVariable("wordrec_display_all_blobs", "1");
-            //tesseractApi->SetVariable("wordrec_display_segmentations", "2");
-            //tesseractApi->SetVariable("classify_debug_level", "1");
-            //tesseractApi->SetVariable("stopper_debug_level", "1");
-
-            tesseractApi->SetImage(image.data, image.cols, image.rows, 1, image.step);
-            //tesseractApi->Recognize(nullptr);
-            //{
-            //    const char *outText = tesseractApi->GetUTF8Text();
-            //    int outConf = tesseractApi->MeanTextConf();
-            //    LOG(INFO) << "OCR Output: '" << outText << "' words conf=" << outConf << "%";
-            //    delete outText;
-            //}
-
-            boxLines.emplace_back();
-            BoxLine& engineLine = boxLines.back();
-            FuzzyMatch fm;
-            {
-                int charPos = 0;
-                const char *boxText = tesseractApi->GetBoxText(0);
-                std::wstring boxTextWide = toUtf16(boxText, strlen(boxText));
-                std::istringstream boxss(boxText);
-                std::string boxLine;
-                while (!boxss.eof()) {
-                    char buff[1024];
-                    boxss.getline(buff, sizeof(buff));
-                    if (!buff[0])
-                        continue;
-                    BoxEntry box;
-                    std::istringstream liness(buff);
-                    liness >> box;
-                    box.ch = fm.toOCR(box.ch);
-                    box.line = &engineLine;
-                    engineLine.boxes.push_back(box);
-                }
-                delete boxText;
-            }
-        }
-
-        int left = 0;
-        int lookup = 0;
-        BoxLine resultLine;
-        resultLine.boxes.reserve(gtLine.size());
-        // process confident boxes
-        for (int idx = 0; idx < gtLine.size(); idx++) {
-            wchar_t ch = gtLine[idx];
-            if (ch == L' ') {
-                BoxEntry space{L' ', 0, 0, 0, 0, 0, &resultLine};
-                resultLine.boxes.push_back(space);
-                continue;
-            }
-            if (left > imageRect.width - 5)
-                left = imageRect.width - 5;
-            std::vector<BoxEntry*> guessBoxes;
-            for (auto& line : boxLines) {
-                BoxEntry* box = findBox(line, ch);
-                if (box)
-                    guessBoxes.push_back(box);
-            }
-            if (guessBoxes.empty()) {
-                BoxEntry box{ch, left, imageRect.height-1, left+5, 0, 0, &resultLine, true};
-                resultLine.boxes.push_back(box);
-                continue;
-            }
-            if (guessBoxes.size() == 1) {
-                BoxEntry* box = guessBoxes[0];
-                resultLine.boxes.push_back(*box);
-                resultLine.boxes.back().line = &resultLine;
-                box->line->consume(box);
-                left = box->right;
-                lookup = box->left + 5;
-                continue;
-            }
-            filterBoxes(guessBoxes, 2, 0, [](BoxEntry& box) {
-                return box.left;
-            });
-            double stdDev = stdDevBoxes(guessBoxes);
-            if (stdDev > 100) {
-                BoxEntry box{ch, left, imageRect.height-1, left+5, 0, 0, &resultLine, true};
-                resultLine.boxes.push_back(box);
-                left = box.right;
-                lookup = box.left + 5;
-                continue;
-            }
-            filterBoxes(guessBoxes, 2, 0, [](BoxEntry& box) {
-                int w = std::abs(box.right - box.left);
-                int h = std::abs(box.bottom - box.top);
-                return std::sqrt(w * h);
-            });
-            filterBoxes(guessBoxes, 2, lookup, [](BoxEntry& box) {
-                return box.left;
-            });
-            filterBoxes(guessBoxes, 1, 0, [](BoxEntry& box) {
-                return (box.bottom + box.top) * 0.5;
-            });
-            std::vector<cv::Scalar> rects;
-            for (auto box: guessBoxes) {
-                box->line->consume(box);
-                rects.emplace_back(box->left, box->top, box->right, box->bottom);
-            }
-            cv::Scalar mean = cv::mean(rects);
-            int l = std::clamp((int)std::round(mean[0]), 0, imageRect.width-3);
-            int r = std::clamp((int)std::round(mean[2]), l+1, imageRect.width-1);
-            int b = std::clamp((int)std::round(mean[3]-1), 0, imageRect.height-3);
-            int t = std::clamp((int)std::round(mean[1]+2), b+2, imageRect.height-1);
-            BoxEntry box{ch, l, t, r, b, 0, &resultLine, false};
-            resultLine.boxes.push_back(box);
-            left = box.right;
-            lookup = box.left + 5;
-        }
-        // process unsure boxes
-        for (auto& line : boxLines)
-            line.position = 0;
-        for (int idx = 0; idx < resultLine.boxes.size(); idx++) {
-            BoxEntry& badBox = resultLine.boxes[idx];
-            assert (badBox.line == &resultLine);
-            if (!badBox.bad || badBox.ch == L' ') {
-                resultLine.consume(&badBox);
-                continue;
-            }
-            lookup = resultLine.boxes[idx-1].right - 3;
-            int right = imageRect.width-1;
-            for (int nxt=idx+1; nxt < resultLine.boxes.size(); nxt++) {
-                if (!resultLine.boxes[nxt].bad && resultLine.boxes[nxt].ch != L' ') {
-                    right = resultLine.boxes[nxt].left + 3;
-                    break;
-                }
-            }
-            std::vector<BoxEntry*> guessBoxes;
-            for (auto& line : boxLines) {
-                BoxEntry* box = findBox(line, badBox.ch, right);
-                if (box)
-                    guessBoxes.push_back(box);
-            }
-            if (guessBoxes.empty()) {
-                continue;
-            }
-            if (guessBoxes.size() == 1) {
-                BoxEntry* box = guessBoxes[0];
-                badBox.left = box->left;
-                badBox.top = box->top;
-                badBox.right = box->right;
-                badBox.bottom = box->bottom;
-                badBox.bad = false;
-                resultLine.consume(&badBox);
-                continue;
-            }
-            //filterBoxes(guessBoxes, 2, 0, [](BoxEntry& box) {
-            //    int w = std::abs(box.right - box.left);
-            //    int h = std::abs(box.bottom - box.top);
-            //    return std::sqrt(w * h);
-            //});
-            //filterBoxes(guessBoxes, 2, lookup, [](BoxEntry& box) {
-            //    return box.left;
-            //});
-            std::vector<cv::Scalar> rects;
-            for (auto &box: guessBoxes) {
-                rects.emplace_back(box->left, box->top, box->right, box->bottom);
-            }
-            cv::Scalar mean = cv::mean(rects);
-            badBox.left = std::clamp((int)std::round(mean[0]), 0, imageRect.width-3);
-            badBox.right = std::clamp((int)std::round(mean[2]), badBox.left+1, imageRect.width-1);
-            badBox.bottom = std::clamp((int)std::round(mean[3]-1), 0, imageRect.height-3);
-            badBox.top = std::clamp((int)std::round(mean[1]+2), badBox.bottom+2, imageRect.height-1);
-            badBox.bad = false;
-        }
-        for (int idx = 0; idx < resultLine.boxes.size(); idx++) {
-            BoxEntry& box = resultLine.boxes[idx];
-            if (box.ch != L' ')
-                continue;
-            BoxEntry& prev = resultLine.boxes[idx-1];
-            BoxEntry& next = resultLine.boxes[idx+1];
-            box.left = prev.right;
-            box.right = next.left;
-            box.top = std::max(prev.top, next.top);
-            box.bottom = std::min(prev.bottom, next.bottom);
-            box.bad = false;
-        }
-
-        LOG(INFO) << "Creating box file '" << boxPath << "'";
-        std::ofstream boxfs(boxPath, std::ifstream::out | std::ifstream::binary);
-        if (!boxfs.is_open()) {
-            errorCount += 1;
-            LOG(ERROR) << "Cannot open box file: " << boxPath << " for writing";
-            continue;
-        }
-        for (auto& box : resultLine.boxes)
-            boxfs << box;
-        boxfs.close();
-    }
-
-    for (tesseract::TessBaseAPI *tesseractApi: engines) {
-        tesseractApi->End();
-        delete tesseractApi;
-    }
-    engines.clear();
-
-    if (!errorCount)
-        LOG(INFO) << "No OCR text error found";
-    else
-        LOG(INFO) << "Has " << errorCount << " OCR errors";
-    return Result::Success;
-}
 
 } // ai

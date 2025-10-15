@@ -98,7 +98,7 @@ int AddTask::on_template_selected(wl::params &params) {
 }
 
 int AddTask::on_ctrl_change(wl::params& p) {
-    if (HIWORD(p.wParam) != EN_CHANGE && HIWORD(p.wParam) != BN_CLICKED)
+    if (HIWORD(p.wParam) != EN_CHANGE && HIWORD(p.wParam) != BN_CLICKED && HIWORD(p.wParam) != CBN_SELCHANGE)
         return TRUE;
     if (!curr_templ)
         return TRUE;
@@ -128,7 +128,11 @@ void AddTask::on_ctrl_edit(ParamCtrl& ctrl) {
     try {
         if (ctrl.param.type == ai::Param::Bool) {
             curr_templ->set(ctrl.param.name, ctrl.cb.is_checked());
-        } else {
+        }
+        else if (ctrl.param.type == ai::Param::Enum) {
+            ctrl.text = ctrl.dl.get_selected_text();
+        }
+        else {
             ctrl.text = ctrl.tb.get_text();
         }
     } catch (const std::exception& ex) {
@@ -138,13 +142,45 @@ void AddTask::on_ctrl_edit(ParamCtrl& ctrl) {
 
 void AddTask::add_ctrl(ai::Param &p, int &id, int &left, int &top, int width) {
     if (p.type == ai::Param::Bool) {
-        templ_controls.emplace_back(p, (int) id);
-        wl::checkbox& cb = templ_controls.back().cb;
+        ParamCtrl& ctrl = templ_controls.emplace_back(p, (int) id);
+        wl::checkbox& cb = ctrl.cb;
         cb.create(hwnd(), id, toUtf16(p.name).c_str(), {left,top}, {width, 21});
         cb.set_check(std::get<bool>(p.value));
-    } else {
-        templ_controls.emplace_back(p, (int) id);
-        ParamCtrl& ctrl = templ_controls.back();
+    }
+    else if (p.type == ai::Param::Enum) {
+        ParamCtrl& ctrl = templ_controls.emplace_back(p, (int) id);
+        wl::combobox& dl = ctrl.dl;
+        auto values = split(p.meta,'|');
+        int y = top;
+        int cx = left + width / 2;
+        int w = width / 2 - 4;
+        int h = std::max(75, 25 * std::min(11,(int)values.size()));
+        //dl.create(hwnd(), id, {cx-w-2, y}, w, wl::combobox::sort::UNSORTED);
+        dl.assign(CreateWindowExW(0, WC_COMBOBOX, nullptr,
+                                  WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
+                                  cx-w-2, y, w, h, hwnd(),
+                                  reinterpret_cast<HMENU>(static_cast<UINT_PTR>(id)),
+                                  reinterpret_cast<HINSTANCE>(GetWindowLongPtrW(hwnd(), GWLP_HINSTANCE)),
+                                  nullptr));
+        int select_idx = -1;
+        for (int idx=0; idx < values.size(); idx++) {
+            auto& val  = values[idx];
+            dl.add({toUtf16(val).c_str()});
+            if (val == std::get<std::string>(p.value)) {
+                ctrl.text = toUtf16(val);
+                select_idx = idx;
+            }
+        }
+        if (select_idx >= 0)
+            dl.select(select_idx);
+
+        id += 1;
+        wl::label& lbl = templ_controls.back().label;
+        w = width / 2 - 4;
+        lbl.create(hwnd(), id, toUtf16(p.name).c_str(), {cx+2, y}, {w, 21});
+    }
+    else {
+        ParamCtrl& ctrl = templ_controls.emplace_back(p, (int) id);
         wl::textbox& tb = ctrl.tb;
         int y = top;
         int cx = left + width / 2;
@@ -185,13 +221,20 @@ void AddTask::add_ctrl(ai::Param &p, int &id, int &left, int &top, int width) {
 bool AddTask::validate(ParamCtrl& ctrl) {
     bool ok = true;
     try {
-        if (ctrl.param.type == ai::Param::Int) {
+        if (ctrl.param.type == ai::Param::Bool)
+            ok = true;
+        else if (ctrl.param.type == ai::Param::Enum) {
+            std::string text = toUtf8(ctrl.text);
+            curr_templ->set(ctrl.param.name, text);
+            ok = std::ranges::contains(split(ctrl.param.meta, '|'), text) || ctrl.param.optional;
+        }
+        else if (ctrl.param.type == ai::Param::Int) {
             curr_templ->set(ctrl.param.name, std::stoll(ctrl.text));
-            ok = std::get<int64_t>(ctrl.param.value) >= 0;
+            ok = std::get<int64_t>(ctrl.param.value) >= 0 || ctrl.param.optional;
         }
         else if (ctrl.param.type == ai::Param::Real) {
             curr_templ->set(ctrl.param.name, std::stod(ctrl.text));
-            ok = std::isfinite(std::get<double>(ctrl.param.value));
+            ok = std::isfinite(std::get<double>(ctrl.param.value)) || ctrl.param.optional;
         }
         else if (ctrl.param.type == ai::Param::String ||
                 ctrl.param.type == ai::Param::System ||
@@ -199,7 +242,7 @@ bool AddTask::validate(ParamCtrl& ctrl) {
                 ctrl.param.type == ai::Param::Dock)
         {
             curr_templ->set(ctrl.param.name, toUtf8(ctrl.text));
-            ok = !ctrl.tb.get_text().empty();
+            ok = !ctrl.tb.get_text().empty() || ctrl.param.optional;
         }
         else if (ctrl.param.type == ai::Param::Commodity) {
             auto commodity = Cfg.getCommodityByName(ctrl.text, false);
@@ -207,7 +250,7 @@ bool AddTask::validate(ParamCtrl& ctrl) {
                 curr_templ->set(ctrl.param.name, commodity->nameId);
             } else {
                 curr_templ->set(ctrl.param.name, "");
-                ok = false;
+                ok = ctrl.param.optional;
             }
         }
     } catch (const std::exception& ex) {
@@ -227,6 +270,10 @@ AddTask::ParamCtrl::~ParamCtrl() {
     if (cb.hwnd()) {
         ok = DestroyWindow(cb.hwnd());
         LOG_IF(!ok,ERROR) << "Checkbox not destroyed: " << getErrorMessage();
+    }
+    if (dl.hwnd()) {
+        ok = DestroyWindow(dl.hwnd());
+        LOG_IF(!ok,ERROR) << "Combobox not destroyed: " << getErrorMessage();
     }
     if (tb.hwnd()) {
         ok = DestroyWindow(tb.hwnd());

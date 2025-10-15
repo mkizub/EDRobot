@@ -26,9 +26,9 @@ const int BASELINE_Y   = 30;
 extern void init(const std::string& tessdata, Lang lng);
 extern void shutdown();
 // returns confidence 0..100, fill text, rect
-extern int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rect);
+extern int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut);
 
-extern int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text);
+extern int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Rect* rectOut=nullptr);
 extern int ocrRowTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Mat& dumpImage);
 
 extern int ocrMarketLblText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string& text);

@@ -185,44 +185,19 @@ struct GameEvent {
     std::string event;
 };
 
-struct StarSystem {
-    int64_t address;
-    std::string name;
-    cv::Point3d pos;
-    std::map<std::string,std::shared_ptr<GameEvent>> fssSignalDiscovered;
-};
+//struct StarSystem {
+//    int64_t address;
+//    std::string name;
+//    cv::Point3d pos;
+//    std::map<std::string,std::shared_ptr<GameEvent>> fssSignalDiscovered;
+//};
 
 typedef std::shared_ptr<Market> spMarket;
 typedef std::shared_ptr<ShipCargo> spShipCargo;
 typedef std::shared_ptr<ShipStatus> spShipStatus;
 typedef std::shared_ptr<ShipCargo> spShipCargo;
 typedef std::shared_ptr<GameEvent> spGameEvent;
-typedef std::shared_ptr<StarSystem> spStarSystem;
-
-union LocationPanelFilters {
-    LocationPanelFilters() : mask(0) {}
-    struct {
-        bool pointOfInterest: 1;
-        bool star: 1;
-        bool settlement: 1;
-        bool station: 1;
-        bool signalSource: 1;
-        bool asteroidCluster: 1;
-        bool landablePlanetOrMoon: 1;
-        bool system: 1;
-        bool fleetCarrier: 1;
-        bool planetOrMoon: 1;
-    } bits;
-    int mask;
-    bool operator==(const LocationPanelFilters& other) const { return this->mask == other.mask; }
-    bool operator!=(const LocationPanelFilters& other) const { return this->mask != other.mask; }
-};
-
-struct DockStation {
-    uint32_t marketId;
-    std::string name;
-    std::string stationType;
-};
+//typedef std::shared_ptr<StarSystem> spStarSystem;
 
 struct GameKey {
     enum Device { Void, Keyboard, Mouse, vJoy };
@@ -274,7 +249,7 @@ public:
     const spMarket getCurrentMarket() const { return currentMarket; }
     const spShipCargo& getCurrentCargo() const { return currentCargo; }
     const spShipStatus& getCurrentStatus() const { return currentStatus; }
-    const spStarSystem& getCurrentStarSystem() const { return currentStarSystem; }
+    //const spStarSystem& getCurrentStarSystem() const { return currentStarSystem; }
     std::vector<Commodity*> getMarketInSellOrder();
     std::vector<Commodity*> getMarketInBuyOrder();
     std::vector<Commodity*> getAllKnownCommodities();
@@ -313,7 +288,6 @@ public:
 
     const Lang lng {XX};
     const bool isOdyssey {false};
-    const LocationPanelFilters configLocationPanelFilters {};
 
     double getConfigFOV() { return configFOV; }
     unsigned getVJoyDeviceID() { return vJoyDeviceID; }
@@ -355,6 +329,7 @@ private:
     void parseEvent_Docking(spGameEvent& ge);
     void parseEvent_StartJump(spGameEvent& ge);
     void parseEvent_FSDJump(spGameEvent& ge);
+    void parseEvent_SupercruiseExit(spGameEvent& ge);
     void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
 
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;
@@ -435,8 +410,6 @@ private:
     spMarket currentMarket;
     spShipCargo currentCargo;
     spShipStatus currentStatus;
-    spStarSystem currentStarSystem;
-    DockStation currentDock;
 
     const unsigned marketCommodityFilterShowAll {0xFFFFFFFFu};
     const unsigned marketCommodityFilterShowNone {0xFFFE0001u};

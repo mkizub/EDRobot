@@ -4,7 +4,13 @@
 
 #include "pch.h"
 #include "Configuration.h"
+#include "Galaxy.h"
 
+namespace st {
+DockedAt dockedAt;
+Space space;
+NavPanelFilters navFilters;
+}
 
 static inline bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
     std::istringstream iss(str);
@@ -74,6 +80,8 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
         parseEvent_StartJump(gameEvent);
     else if (event == "FSDJump")
         parseEvent_FSDJump(gameEvent);
+    else if (event == "SupercruiseExit")
+        parseEvent_SupercruiseExit(gameEvent);
     else if (event == "FSSSignalDiscovered")
         parseEvent_FSSSignalDiscovered(gameEvent);
 
@@ -125,21 +133,32 @@ void Configuration::parseEvent_CarrierLocation(spGameEvent& ge) {
 void Configuration::parseEvent_Location(spGameEvent& ge) {
     auto& je = ge->data;
 
-    if (je.contains("Docked") && je["Docked"].as_boolean()) {
-        currentDock.marketId = je["MarketID"].as_unsigned_long_long();
-        currentDock.stationType = je["StationType"].as_string();
-        currentDock.name = je["StationName"].as_string();
-    }
     if (je.contains("StarSystem")) {
         int64_t address = je["SystemAddress"].as_long_long();
-        if (!currentStarSystem || currentStarSystem->address != address) {
-            StarSystem* ss = new StarSystem();
-            ss->address = je["SystemAddress"].as_long_long();
-            ss->name = je["StarSystem"].as_string();
-            currentStarSystem.reset(ss);
+        std::string name = je["StarSystem"].as_string();
+        gal::spStarSystem ss = gal::getStarSystem(name, address);
+        if (cv::norm(ss->pos) == 0) {
+            auto& jp = je["StarPos"].as_array();
+            ss->pos = {jp[0].as_double(), jp[1].as_double(), jp[2].as_double()};
         }
-        auto& jp = je["StarPos"].as_array();
-        currentStarSystem->pos = {jp[0].as_double(), jp[1].as_double(), jp[2].as_double()};
+        gal::setCurrentStarSystem(ss);
+    }
+    if (ge->event == "Docked" || (je.contains("Docked") && je["Docked"].as_boolean())) {
+        st::space = {};
+        st::dockedAt.marketId = je["MarketID"].as_long_long();
+        st::dockedAt.stationName = je["StationName"].as_string();
+        st::dockedAt.stationType = je["StationType"].as_string();
+    }
+    else {
+        st::dockedAt = {};
+        if (je.contains("Body")) {
+            st::space.starsystem = je["StarSystem"].as_string();
+            st::space.body = je["Body"].as_string();
+            st::space.bodyId = je["BodyID"].as_integer();
+            st::space.bodyType = je["BodyType"].as_string();
+        } else {
+            st::space = {};
+        }
     }
 }
 
@@ -179,10 +198,12 @@ void Configuration::parseEvent_ShipyardSwap(spGameEvent& ge) {
 
 void Configuration::parseEvent_Docked(spGameEvent& ge) {
     dockingEvent = ge;
+    parseEvent_Location(ge);
 }
 
 void Configuration::parseEvent_Undocked(spGameEvent& ge) {
     dockingEvent.reset();
+    st::dockedAt = {};
 }
 
 void Configuration::parseEvent_Docking(spGameEvent& ge) {
@@ -201,39 +222,52 @@ void Configuration::parseEvent_Docking(spGameEvent& ge) {
 void Configuration::parseEvent_StartJump(spGameEvent& ge) {
     auto& je = ge->data;
 
+    st::dockedAt = {};
+    st::space = {};
     if (!je.contains("JumpType")) // "Hyperspace" or "Supercruise"
         return;
     if (je["JumpType"] == "Hyperspace") {
-        StarSystem* ss = new StarSystem();
-        ss->address = je["SystemAddress"].as_long_long();
-        ss->name = je["StarSystem"].as_string();
-        currentStarSystem.reset(ss);
+        int64_t address = je["SystemAddress"].as_long_long();
+        std::string name = je["StarSystem"].as_string();
+        gal::spStarSystem ss = gal::getStarSystem(name, address);
+        gal::setCurrentStarSystem(ss);
     }
 }
 
 void Configuration::parseEvent_FSDJump(spGameEvent& ge) {
     auto& je = ge->data;
 
+    st::dockedAt = {};
+    st::space = {};
     if (!je.contains("SystemAddress"))
         return;
     int64_t address = je["SystemAddress"].as_long_long();
-    if (!currentStarSystem || currentStarSystem->address != address) {
-        StarSystem* ss = new StarSystem();
-        ss->address = je["SystemAddress"].as_long_long();
-        ss->name = je["StarSystem"].as_string();
-        currentStarSystem.reset(ss);
-    }
-    if (je.contains("StarPos")) {
+    std::string name = je["StarSystem"].as_string();
+    gal::spStarSystem ss = gal::getStarSystem(name, address);
+    if (cv::norm(ss->pos) == 0 && je.contains("StarPos")) {
         auto& jp = je["StarPos"].as_array();
-        currentStarSystem->pos = {jp[0].as_double(), jp[1].as_double(), jp[2].as_double()};
+        ss->pos = {jp[0].as_double(), jp[1].as_double(), jp[2].as_double()};
     }
+    gal::setCurrentStarSystem(ss);
+}
+
+void Configuration::parseEvent_SupercruiseExit(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    if (st::dockedAt.marketId)
+        st::dockedAt = {};
+    st::space.starsystem = je["StarSystem"].as_string();
+    st::space.body = je["Body"].as_string();
+    st::space.bodyId = je["BodyID"].as_integer();
+    st::space.bodyType = je["BodyType"].as_string();
 }
 
 void Configuration::parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
     auto& je = ge->data;
 
     int64_t address = je["SystemAddress"].as_long_long();
-    if (!currentStarSystem || currentStarSystem->address != address)
+    gal::spStarSystem ss = gal::getCurrentStarSystem();
+    if (!ss || ss->address != address)
         return;
-    currentStarSystem->fssSignalDiscovered[je["SignalName"].as_string()] = ge;
+    ss->addFSSSignalDiscovered(ge);
 }

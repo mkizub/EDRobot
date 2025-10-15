@@ -33,11 +33,11 @@ void TaskSellAll::plan() {
         });
         if (it_arch != sell_archive.end())
             continue;
-        auto it_old = std::find_if(sub_tasks.begin(), sub_tasks.end(), [commodity](const spTask& t) {
+        auto it_old = std::find_if(sell_queue.begin(), sell_queue.end(), [commodity](const spTask& t) {
             auto ts = dynamic_cast<TaskSell*>(t.get());
             return (ts && ts->mCommodity == commodity);
         });
-        TaskSell* old = it_old == sub_tasks.end() ? nullptr : dynamic_cast<TaskSell*>(it_old->get());
+        TaskSell* old = it_old == sell_queue.end() ? nullptr : dynamic_cast<TaskSell*>(it_old->get());
         int toSell = mgr.master.canSell(commodity);
         if (toSell > 0) {
             if (old) {
@@ -48,11 +48,11 @@ void TaskSellAll::plan() {
                 impl.set("commodity", commodity->nameId);
                 impl.set("amount", toSell);
                 impl.set("chunk", mChunk);
-                sub_tasks.push_back(std::make_unique<TaskSell>(this, mgr, impl));
+                sell_queue.push_back(std::make_unique<TaskSell>(this, mgr, impl));
             }
         }
         else if (old) {
-            sub_tasks.erase(it_old);
+            sell_queue.erase(it_old);
         }
     }
     if (result == Result::Created)
@@ -73,9 +73,11 @@ Result TaskSellAll::run() {
         return result;
     }
 
-    while (!sub_tasks.empty()) {
-        spTask& pTask = sub_tasks.front();
-        Result res = run_sub_task(pTask);
+    while (!sell_queue.empty()) {
+        spTask& pTask = sell_queue.front();
+        currentSubStep = pTask;
+        Result res = pTask->safe_run();
+        currentSubStep.reset();
         switch (res) {
         case Result::Created:
         case Result::Started:
@@ -95,7 +97,7 @@ Result TaskSellAll::run() {
         case Result::Success:
             if ( dynamic_cast<TaskSell*>(pTask.get()) )
                 sell_archive.emplace_back(std::move(pTask));
-            sub_tasks.pop_front();
+            sell_queue.pop_front();
             break;
         }
     }

@@ -24,6 +24,7 @@ public:
     void stop();
     void interrupt();
     void resume();
+    bool autopilot();
     spTask curr_task();
     bool new_task(spTask&& task);
     bool new_task(const TaskTemplate& templ);
@@ -56,12 +57,6 @@ public:
     std::chrono::milliseconds nextDelay;
     DetectLevel nextDetectLevel {DetectLevel::None};
 
-    std::thread taskThread;
-    std::mutex taskMutex;
-    std::condition_variable taskCond;
-    std::atomic_bool isWorking;
-    std::atomic_bool isInterrupted;
-    std::atomic_bool isLoopWaiting;
     ResolvedEnv rEnv;
     UIState uiState;
     CompassInfo compassInfo;

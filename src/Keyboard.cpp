@@ -17,7 +17,7 @@ static DWORD nativeThreadId;
 static HANDLE hKeyboardEvent;
 static std::mutex keyboardMutex;
 static KeyboardCollbackFn keyboardCallback;
-static std::atomic<unsigned> keyboardInputCounter;
+static std::atomic<unsigned> keyboardInputCounter(1);
 
 void loop();
 
@@ -74,7 +74,7 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { VK_SNAPSHOT,       0x54,           {"PrintScreen", "PrntScrn", "PrtScr", "PrtSc", "Snapshot"} },
         { VK_SCROLL,         0x46,           {"ScrollLock", "Scroll"} },
         { VK_F1,             0x46 | EXT_KEY, "CtrlBreak" },
-        //{ VK_PAUSE,          0    | EXT_KEY, "Pause"     }, //ScancodeSequence([0xE11D, 0x45, 0xE19D, 0xC5])
+        { VK_PAUSE,          0x45,           "Pause"     },
         { VK_OEM_3,          0x29,           {"`", "Grave"} },
         { '1',               0x02 },
         { '2',               0x03 },
@@ -504,7 +504,7 @@ bool sendKeyDown(const std::string& nm) {
     const Key& key = it->second;
     unsigned code = key.scanCode & 0xFF;
     bool extended = (code & EXT_KEY) != 0;
-    LOG(DEBUG) << "SendInput   key down '" << nm << "' " << (code & 0xFF);
+    //LOG(INFO) << "SendInput   key down '" << nm << "' " << (code & 0xFF);
     INPUT input[1]{};
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wScan = code;
@@ -528,7 +528,7 @@ bool sendKeyUp(const std::string& nm) {
     const Key& key = it->second;
     unsigned code = key.scanCode & 0xFF;
     bool extended = (code & EXT_KEY) >= EXT_KEY;
-    LOG(DEBUG) << "SendInput   key up   '" << nm << "' " << (code & 0xFF);
+    //LOG(INFO) << "SendInput   key up   '" << nm << "' " << (code & 0xFF);
     INPUT input[1]{};
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wScan = code;
@@ -670,28 +670,37 @@ bool sendJoyAxis(const std::string& axis_name, double value) {
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         auto* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
-        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-            //LOG(DEBUG) << "intercepted key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
-        } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+        if (wParam == WM_KEYUP || wParam == WM_SYSKEYDOWN) {
+            auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
+            //if (!isInjected)
+            //    LOG(INFO) << "keyboard hook key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
+            //else
+            //    LOG(INFO) << "keyboard hook ejected key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
+        } else if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYUP) {
             auto vkCode = pKeyBoard->vkCode;
             auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
-            if (!isInjected /*&& INTERCEPT_VK_KEY_SET.contains(vkCode)*/) {
-                //LOG(DEBUG) << "intercepted key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
+            if (!isInjected && INTERCEPT_VK_KEY_SET.contains(vkCode)) {
+                //LOG(INFO) << "keyboard hook key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
                 int flags = 0;
-                if (GetKeyState(VK_SHIFT) & 0x8000) flags |= SHIFT;
-                if (GetKeyState(VK_CONTROL) & 0x8000) flags |= CTRL;
-                if (GetKeyState(VK_MENU) & 0x8000) flags |= ALT;
-                if ((GetKeyState(VK_LWIN)| GetKeyState(VK_RWIN)) & 0x8000) flags |= WIN;
+                if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) flags |= LSHIFT;
+                if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) flags |= RSHIFT;
+                if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) flags |= LCTRL;
+                if (GetAsyncKeyState(VK_RCONTROL) & 0x8000) flags |= RCTRL;
+                if (GetAsyncKeyState(VK_LMENU) & 0x8000) flags |= LALT;
+                if (GetAsyncKeyState(VK_RMENU) & 0x8000) flags |= RALT;
+                if (GetAsyncKeyState(VK_LWIN) & 0x8000) flags |= LWIN;
+                if (GetAsyncKeyState(VK_RWIN) & 0x8000) flags |= RWIN;
                 std::string keyName;
                 const auto& it = US_QWERTY_MAPPING_VK_TO_NAME.find(vkCode);
                 if (it != US_QWERTY_MAPPING_VK_TO_NAME.end())
                     keyName = it->second.names[0];
                 else
                     keyName = unknownKeyName;
-                if (flags == (ALT|CTRL) && keyName=="Enter") {
+                if (vkCode==VK_ESCAPE)
                     reset_vJoy();
-                }
                 keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags, keyName);
+            } else {
+                //LOG(INFO) << "keyboard hook ejected key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
             }
         }
     }
@@ -707,40 +716,119 @@ struct InputKey {
 };
 struct InputWait {
     unsigned inputId;
-    uint8_t keys[8]; // first is a primary key index, others are modifiers
     std::chrono::time_point<std::chrono::high_resolution_clock> end;
-    int pause;
-    HANDLE event;
+    std::string name;
+    InputKey* keys[8]; // first is a primary key index, others are modifiers
 };
 
-static std::vector<InputKey> inputKeys(127);
+unsigned inputKeysSize = 0;
+static InputKey inputKeys[64];
 static std::vector<InputWait> inputWait;
 
-uint8_t addInputKey(const GameKey& gk) {
+//static void logInputKeys() {
+//    {
+//        std::string msg;
+//        for (auto &iw: inputWait) {
+//            if (!msg.empty())
+//                msg += ", ";
+//            msg += iw.name;
+//            msg += std::format("({})", iw.inputId);
+//        }
+//        LOG(INFO) << "inputWait: " << msg;
+//    }
+//    {
+//        std::string msg;
+//        for (auto &ik: inputKeys) {
+//            if (!msg.empty())
+//                msg += ", ";
+//            msg += ik.name;
+//            msg += std::format("({})", ik.counter);
+//        }
+//        LOG(INFO) << "inputKeys: " << msg;
+//    }
+//}
+
+//static void logKeyboardState() {
+//    std::string msg;
+//
+//    if (GetAsyncKeyState(VK_LSHIFT) & 0x8000)
+//        msg += "LShift ";
+//    if (GetAsyncKeyState(VK_RSHIFT) & 0x8000)
+//        msg += "RShift ";
+//    if (GetAsyncKeyState(VK_LCONTROL) & 0x8000)
+//        msg += "LCtrl ";
+//    if (GetAsyncKeyState(VK_RCONTROL) & 0x8000)
+//        msg += "RCtrl ";
+//    if (GetAsyncKeyState(VK_LMENU) & 0x8000)
+//        msg += "LAlt ";
+//    if (GetAsyncKeyState(VK_RMENU) & 0x8000)
+//        msg += "RAlt ";
+//
+//    for (auto& ik : inputKeys) {
+//        if (ik.device == GameKey::Device::Void || ik.counter <= 0)
+//            continue;
+//        if (ik.device == GameKey::Device::Mouse) {
+//            msg += std::format("btn {} ", ik.code);
+//            continue;
+//        }
+//        if (ik.device == GameKey::Device::vJoy) {
+//            msg += std::format("joy {} ", ik.code);
+//            continue;
+//        }
+//        if (ik.device == GameKey::Device::Keyboard) {
+//            msg += std::format("{}/{} ", ik.name, ik.counter);
+//            continue;
+//        }
+//    }
+//
+//    if (!msg.empty())
+//        LOG(INFO) << "keyboard: " << msg;
+//}
+
+InputKey* addInputKey(const GameKey& gk) {
     if (gk.device == GameKey::Void)
         return 0;
-    for (auto& ik : inputKeys) {
-        if (gk.device == ik.device) {
+    for (unsigned i=0; i < inputKeysSize; i++) {
+        auto& ik = inputKeys[i];
+        if (gk.device == ik.device && gk.code == ik.code) {
             ik.counter += 1;
-            return 1 + &ik - inputKeys.data();
+            return &ik;
         }
     }
-    inputKeys.emplace_back(gk.device, gk.code, 1, gk.key);
-    return inputKeys.size();
+    for (unsigned i=0; i < inputKeysSize; i++) {
+        auto& ik = inputKeys[i];
+        if (ik.device == GameKey::Device::Void && ik.counter == 0) {
+            ik.device = gk.device;
+            ik.code = gk.code;
+            ik.counter = 1;
+            ik.name = gk.key;
+            return &ik;
+        }
+    }
+    auto& ik = inputKeys[inputKeysSize];
+    ik.device = gk.device;
+    ik.code = gk.code;
+    ik.counter = 1;
+    ik.name = gk.key;
+    inputKeysSize += 1;
+    return &ik;
 }
 
-unsigned addInputWait(const GameKey& gk, int hold, int pause, HANDLE event) {
+unsigned addInputWait(const GameKey& gk, int hold) {
     InputWait& wait = inputWait.emplace_back();
+    wait.name = gk.key;
     wait.inputId = keyboardInputCounter.fetch_add(1);
     if (!wait.inputId)
         wait.inputId = keyboardInputCounter.fetch_add(1);
     wait.end = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(hold);
-    wait.pause = pause;
-    wait.event = event;
-    int i = -1;
+    int i = 0;
     wait.keys[i++] = addInputKey(gk);
-    for (auto& km : gk.modifiers)
+    for (auto& km : gk.modifiers) {
+        wait.name = km.key + '+' + wait.name;
         wait.keys[i++] = addInputKey(km);
+    }
+    LOG(INFO) << "addInputWait ("<<wait.inputId<<") " << wait.name << " hold " << hold;
+    //logInputKeys();
     return wait.inputId;
 }
 
@@ -748,20 +836,27 @@ int64_t getNextWakeupTime() {
     std::unique_lock<std::mutex> lock(keyboardMutex);
     std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
     std::chrono::time_point<std::chrono::high_resolution_clock> next = now + std::chrono::milliseconds(5000);
+    InputWait* nw = nullptr;
     for (auto& iw : inputWait) {
-        if (iw.end < next)
+        if (iw.end < next) {
             next = iw.end;
+            nw = &iw;
+        }
     }
     auto dur= next - now;
-    return std::chrono::duration_cast<std::chrono::duration<int64_t,std::milli>>(dur).count();
+    int milli = std::chrono::duration_cast<std::chrono::duration<int64_t,std::milli>>(dur).count();
+    //LOG(INFO) << "getNextWakeupTime ("<<(nw?nw->inputId:0)<<") wait " << milli << " ms";
+    return milli;
 }
 
 
 void releaseKeys() {
     std::vector<INPUT> inputs;
-    for (auto ik : inputKeys) {
-        if (ik.counter > 0)
+    for (unsigned i=0; i < inputKeysSize; i++) {
+        auto& ik = inputKeys[i];
+        if (ik.counter > 0 || ik.device == GameKey::Void)
             continue;
+        //LOG(INFO) << "releaseKey " << ik.name;
         if (ik.device == GameKey::Keyboard) {
             INPUT input {};
             input.type = INPUT_KEYBOARD;
@@ -786,7 +881,13 @@ void releaseKeys() {
         }
         ik.device = GameKey::Void;
     }
-    std::erase_if(inputKeys, [](const InputKey& ik) { return ik.device == GameKey::Void; });
+    for (int i=inputKeysSize-1; i >= 0; i--) {
+        auto& ik = inputKeys[i];
+        if (ik.device != GameKey::Void || ik.counter > 0)
+            break;
+        inputKeysSize = i;
+    }
+    //logInputKeys();
     if (inputs.empty())
         return;
     unsigned sent = SendInput((int)inputs.size(), inputs.data(), sizeof(INPUT));
@@ -797,35 +898,28 @@ void releaseKeys() {
 void processKeyRelease() {
     std::unique_lock<std::mutex> lock(keyboardMutex);
     std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-    std::chrono::time_point<std::chrono::high_resolution_clock> exp = now + std::chrono::milliseconds(5);
+    std::chrono::time_point<std::chrono::high_resolution_clock> exp = now - std::chrono::milliseconds(3);
     for (auto it=inputWait.begin(); it < inputWait.end(); ) {
         auto& iw = *it;
         if (iw.end > exp) {
             it++;
             continue;
         }
-        for (auto& ik : iw.keys) {
-            if (ik > 0) {
-                inputKeys[ik - 1].counter -= 1;
+        for (auto ik : iw.keys) {
+            if (ik) {
+                ik->counter -= 1;
                 ik = 0;
             }
         }
-        if (iw.pause > 0) {
-            iw.end = now + std::chrono::milliseconds(iw.pause);
-            iw.pause = 0;
-            it++;
-            continue;
-        }
-        if (iw.event)
-            SetEvent(iw.event);
+        //LOG(INFO) << "processKeyRelease id:" << iw.inputId << " erase " << iw.name;
         it = inputWait.erase(it);
     }
     releaseKeys();
 }
 
-unsigned sendKeyDown(const GameKey& gk, int hold, int pause, HANDLE event) {
+unsigned sendKeyDown(const GameKey& gk, int hold) {
     std::unique_lock<std::mutex> lock(keyboardMutex);
-    unsigned inputId = addInputWait(gk, hold, pause, event);
+    unsigned inputId = addInputWait(gk, hold);
     std::vector<INPUT> inputs;
     inputs.reserve(1 + gk.modifiers.size());
     for (auto& gkm : gk.modifiers) {
@@ -849,14 +943,16 @@ unsigned sendKeyDown(const GameKey& gk, int hold, int pause, HANDLE event) {
 }
 
 bool clearInput(unsigned inputId) {
-    std::unique_lock<std::mutex> lock(keyboardMutex);
-    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
     bool ok = false;
-    for (auto& iw : inputWait) {
-        if (iw.inputId == inputId) {
-            iw.end = now;
-            iw.pause = 0;
-            ok = true;
+    {
+        std::unique_lock<std::mutex> lock(keyboardMutex);
+        std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+        for (auto &iw: inputWait) {
+            if (iw.inputId == inputId) {
+                iw.end = now;
+                ok = true;
+                LOG(INFO) << "clearInput " << inputId;
+            }
         }
     }
     processKeyRelease();
@@ -884,6 +980,7 @@ void loop() {
             processKeyRelease();
             continue;
         }
+        //logKeyboardState();
         ResetEvent(hKeyboardEvent);
         DWORD dwResult = MsgWaitForMultipleObjects(NumHandles, handles, FALSE, waitMillis, QS_ALLINPUT);
         if (keyboardShutdown)
@@ -901,13 +998,13 @@ void loop() {
     std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
     for (auto& iw : inputWait) {
         iw.end = now;
-        iw.pause = 0;
     }
     processKeyRelease();
     inputWait.clear();
     for (auto& ik : inputKeys)
         ik.counter = 0;
     releaseKeys();
+    //logInputKeys();
 
     nativeThreadId = 0;
 }

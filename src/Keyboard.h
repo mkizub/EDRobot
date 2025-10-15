@@ -14,10 +14,14 @@ namespace keyboard {
 
 typedef std::function<void(int code, int scancode, int flags, const std::string& name)> KeyboardCollbackFn;
 
-const int SHIFT = 0x01;
-const int CTRL  = 0x02;
-const int ALT   = 0x04;
-const int WIN   = 0x08;
+const int LSHIFT = 0x01;
+const int RSHIFT = 0x02;
+const int LCTRL  = 0x04;
+const int RCTRL  = 0x08;
+const int LALT   = 0x10;
+const int RALT   = 0x20;
+const int LWIN   = 0x40;
+const int RWIN   = 0x80;
 
 const int MOUSE_L_BUTTON = 0x1;
 const int MOUSE_R_BUTTON = 0x2;
@@ -50,7 +54,7 @@ bool sendMouseMoveTo(int x, int y, bool absolute, bool virtualDesk);
 //bool sendMouseUp(int buttons);
 bool sendMouseWheel(int count); // positive - forward, away from the user; negative - backward, toward the user
 // return inputId that can be used to clearInput()
-unsigned sendKeyDown(const GameKey& gk, int hold, int pause, HANDLE event);
+unsigned sendKeyDown(const GameKey& gk, int hold);
 bool clearInput(unsigned inputId);
 const vJoyAxisInfo* getJoyAxis(const std::string& axis_name);
 bool sendJoyAxis(const KeyBindings& gk, double value); // value -1..1 for full-range axes, or 0..1 for others

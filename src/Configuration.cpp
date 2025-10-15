@@ -84,11 +84,13 @@ bool Configuration::load() {
             {{"esc",0}, Command::Stop},
             {{"printscreen",0}, Command::Start},
             {{"scrolllock",0}, Command::Resume},
-            {{"printscreen",keyboard::CTRL|keyboard::ALT}, Command::DebugTemplates},
-            {{"r",keyboard::CTRL|keyboard::ALT}, Command::DevRectSelect},
-            {{"[",keyboard::CTRL|keyboard::ALT}, Command::DebugWindow},
-            {{"\\",keyboard::CTRL|keyboard::ALT}, Command::DebugStream},
-            {{"]",keyboard::CTRL|keyboard::ALT}, Command::ResetCapturer},
+            {{"pause",0}, Command::Pause},
+            {{"printscreen",keyboard::LCTRL|keyboard::LALT}, Command::DebugTemplates},
+            {{"a",keyboard::LALT}, Command::Autopilot},
+            {{"r",keyboard::LCTRL|keyboard::LALT}, Command::DevRectSelect},
+            {{"[",keyboard::LCTRL|keyboard::LALT}, Command::DebugWindow},
+            {{"\\",keyboard::LCTRL|keyboard::LALT}, Command::DebugStream},
+            {{"]",keyboard::LCTRL|keyboard::LALT}, Command::ResetCapturer},
     };
 
     {
@@ -148,10 +150,13 @@ bool Configuration::load() {
         if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
             std::string dir = tm.as_string();
             _putenv_s("OPENCV_OPENCL_CACHE_DIR", dir.c_str());
+        } else {
+            _putenv_s("OPENCV_OPENCL_CACHE_DIR", "cache");
         }
 #else
         openclDisabled = true;
 #endif
+        std::filesystem::create_directories("cache/systems");
 
         LOG(INFO) << "Initializing D3D device";
         Capturer::InitD3DDevice();
@@ -453,19 +458,19 @@ bool Configuration::loadPlayerOptions() {
             if (auto val = xml_node_attr(node, "Value"))
                 configDashboardGUIBrightness = atof(val);
         }
-        LocationPanelFilters& lpf = const_cast<LocationPanelFilters&>(configLocationPanelFilters);
         if (auto filters = xml_node_find_tag(rootNode, "LocationPanelFilters", true)) {
-            lpf.mask = 0;
-            lpf.bits.star = getBoolNodeValue(filters, "Star");
-            lpf.bits.asteroidCluster = getBoolNodeValue(filters, "AsteroidCluster");
-            lpf.bits.planetOrMoon = getBoolNodeValue(filters, "PlanetOrMoon");
-            lpf.bits.landablePlanetOrMoon = getBoolNodeValue(filters, "LandablePlanetOrMoon");
-            lpf.bits.settlement = getBoolNodeValue(filters, "Settlement");
-            lpf.bits.station = getBoolNodeValue(filters, "station");
-            lpf.bits.fleetCarrier = getBoolNodeValue(filters, "fleetCarrier");
-            lpf.bits.pointOfInterest = getBoolNodeValue(filters, "PointOfInterest");
-            lpf.bits.signalSource = getBoolNodeValue(filters, "SignalSource");
-            lpf.bits.system = getBoolNodeValue(filters, "System");
+            st::NavPanelFilters npf;
+            npf.star = getBoolNodeValue(filters, "Star");
+            npf.asteroidCluster = getBoolNodeValue(filters, "AsteroidCluster");
+            npf.planetOrMoon = getBoolNodeValue(filters, "PlanetOrMoon");
+            npf.landablePlanetOrMoon = getBoolNodeValue(filters, "LandablePlanetOrMoon");
+            npf.settlement = getBoolNodeValue(filters, "Settlement");
+            npf.station = getBoolNodeValue(filters, "station");
+            npf.fleetCarrier = getBoolNodeValue(filters, "fleetCarrier");
+            npf.pointOfInterest = getBoolNodeValue(filters, "PointOfInterest");
+            npf.signalSource = getBoolNodeValue(filters, "SignalSource");
+            npf.system = getBoolNodeValue(filters, "System");
+            st::navFilters = npf;
         }
         //	<RouteStartSystem Value="2381282543995" />
         //	<RouteDestinationSystem Value="0" />
@@ -507,7 +512,6 @@ bool Configuration::loadPlayerOptions() {
         return true;
     } else {
         configDashboardGUIBrightness = 0.5;
-        const_cast<LocationPanelFilters&>(configLocationPanelFilters) = {};
         LOG(ERROR) << "Cannot parse " << filename;
         return false;
     }
@@ -574,8 +578,8 @@ bool Configuration::loadInputBindings() {
             parseKeyBindings(rootNode, mKeyBindingsMap, "YawRightButton");
             //parseKeyBindings(rootNode, mKeyBindingsMap, "LeftThrustButton");
             //parseKeyBindings(rootNode, mKeyBindingsMap, "RightThrustButton");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "UpThrustButton");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "DownThrustButton");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "UpThrustButton");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "DownThrustButton");
             //parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardThrustButton");
             //parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardThrustButton");
             //parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardKey");
@@ -736,7 +740,7 @@ bool Configuration::loadGameStatus() {
         status->legalState = j.at("LegalState").as_string();
 
     if (j.contains("BodyName"))
-        status->bodyName = j["LegalState"].as_string();
+        status->bodyName = j["BodyName"].as_string();
 
     if (j.contains("Destination")) {
         auto& jd = j["Destination"].as_object();
@@ -1537,8 +1541,10 @@ void Configuration::changeDirThreadLoop() {
 
     std::string journalLine;
     std::ifstream journalStream(mEDCurrentJournalFile, std::ifstream::in);
-    // real all events from journal
+    // read all events from journal
     readJournalChanges(journalStream, journalLine);
+    // read last ship status after all events
+    loadGameStatus();
 
     for(;;) {
         DWORD rc = ::MsgWaitForMultipleObjectsEx(

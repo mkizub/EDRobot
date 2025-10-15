@@ -2,7 +2,7 @@
   "default-key-hold-time": 35,
   "default-key-after-time": 65,
   "search-region-extent": 10,
-  "tesseract-data-path": "tessdata-fast", // defaults to "tessdata-fast"
+  "tesseract-data-path": "tessdata-best", // defaults to "tessdata-fast"
   "capturer-WinRT-disabled": true,
   "capturer-Win32-disabled": false,
   "capturer-DXGI-disabled": false,

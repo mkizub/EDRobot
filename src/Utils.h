@@ -53,21 +53,6 @@ extern int distanceHsv(const cv::Vec3b& hsv1, const cv::Vec3b& hsv2);
 extern std::pair<std::string,unsigned> decodeShortcut(std::string key);
 extern std::string encodeShortcut(const std::string& name, unsigned flags);
 
-struct dist_t {
-    enum Unit {
-        X, M, KM, MM, LS, LY
-    } unit;
-    double dist;
-
-    dist_t() : unit(X), dist(0) {}
-    dist_t(Unit u, double d) : unit(u), dist(d) {}
-
-    operator bool() const { return unit != X; }
-    dist_t convertTo(Unit u) const;
-    std::string to_string() const;
-
-    friend std::ostream& operator<<(std::ostream& os, const dist_t& obj);
-};
 extern dist_t parseDist(std::wstring dist);
 
 

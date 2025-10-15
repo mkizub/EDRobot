@@ -25,12 +25,8 @@
 #else
 # define TRY try
 # define CATCH(param) catch(param)
-# ifdef _GLIBCXX_HAVE_STACKTRACE
-#  include <stacktrace>
-#  define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
-# else
-#  define GET_EXCEPTION_STACK_TRACE "(stack trace unavailable)"
-# endif
+# include <stacktrace>
+# define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
 #endif
 
 
@@ -220,7 +216,7 @@ bool BaseButton::detect(DetectParams& params) {
         cv::Rect extendR = {expectedR.tl() - extendLT, expectedR.br() + extendRB};
         cv::Rect matchR = env.cvtReferenceToCaptured(extendR);
 
-        cv::Vec3b hsvColorMin {0, 127, 30};
+        cv::Vec3b hsvColorMin {5, 127, 30};
         cv::Vec3b hsvColorMax {30, 255, 255};
         XMat hsvImage;
         cv::cvtColor(env.getColorImage()(matchR), hsvImage, cv::COLOR_BGR2HSV);
@@ -291,84 +287,100 @@ bool List::detect(DetectParams& params) {
     clsListRect.u.widg.ws = WState::Unknown;
     clsListRect.u.widg.widget = this;
 
-    //unsigned buttonGrayColor = mConfiguration->getLstRowGrayColor(WState::Normal);
-    cv::Vec3b hsvColorMin {0, 127, 30};
-    cv::Vec3b hsvColorMax {30, 255, 255};
-    XMat hsvImage;
-    cv::cvtColor(env.getColorImage()(listCapturedRect), hsvImage, cv::COLOR_BGR2HSV);
-    XMat thrImage;
-    cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
-    if (true) {
-        cv::Mat kernel = (cv::Mat_<float>(15, 3) <<
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2,
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
-        kernel = kernel.t();
-        kernel /= cv::sum(kernel)[0];
-        cv::Mat erodedImage;
-        cv::filter2D(thrImage, erodedImage, -1, kernel, {-1,-1}, 0, cv::BORDER_DEFAULT);
-        cv::threshold(erodedImage, thrImage, 253, 255, cv::THRESH_BINARY);
-        //cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 3));
-        //cv::erode(thrImage, erodedImage, kernel, cv::Point(-1, -1), 1, cv::BORDER_CONSTANT, cv::Scalar::all(0));
-        //cv::threshold(erodedImage, thrImage, 250, 255, cv::THRESH_BINARY);
+    XMat reducedImage;
+    cv::reduce(env.getGrayImage()(listCapturedRect), reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
+    cv::Mat reducedMat = toMat(reducedImage);
+    uchar* reduced = reducedMat.data;
+    int rows = listCapturedRect.height;
+    //cv::Mat histImage(256, rows, CV_8UC1, cv::Scalar(0));
+    bool in_gap = true;
+    uchar gap_value = 0;
+    struct Gap {
+        int bgn, min, end, val;
+    };
+    std::vector<Gap> detectedGaps;
+    detectedGaps.emplace_back(0,0,0, gap_value);
+    for (int i = 0; i < rows; i++) {
+        if (reduced[i] < 35) {
+            if (!in_gap) {
+                in_gap = true;
+                gap_value = reduced[i];
+                detectedGaps.emplace_back(i,i,i, gap_value);
+            }
+            else if (gap_value < reduced[i]) {
+                gap_value = reduced[i];
+                detectedGaps.back().min = i;
+                detectedGaps.back().val = gap_value;
+                detectedGaps.back().end = i;
+            } else {
+                detectedGaps.back().end = i;
+            }
+        }
+        else if (in_gap) {
+            in_gap = false;
+        }
+//        if (i > 0) {
+//            cv::line(histImage,
+//                     cv::Point(i - 1, reduced[i - 1]),
+//                     cv::Point(i, reduced[i]),
+//                     cv::Scalar(255));
+//        }
     }
+    if (!in_gap)
+        detectedGaps.emplace_back(rows-1,rows-1,rows-1, 0);
+    if (detectedGaps.size() == 1)
+        return false;
 
-    auto expected_row_width = env.getScale() * listReferenceRect.width;
-    auto expected_row_height = env.getScale() * this->row_height;
-    auto expected_row_gap = env.getScale() * this->row_gap;
-    double minArea =  expected_row_width * expected_row_height * 0.75;
+    auto row_width = env.getScale() * listReferenceRect.width;
+    auto row_height = env.getScale() * this->row_height;
+    auto row_gap = env.getScale() * this->row_gap;
+    auto full_height = row_height + row_gap;
 
-    std::vector<double> detectedRows;
-    std::vector<std::vector<cv::Point>> contours;
-    cv::findContoursLinkRuns(thrImage, contours);
-    for (const auto &contour: contours) {
-        std::vector<cv::Point> convex;
-        cv::convexHull(contour, convex);
-        if (convex.size() >= 4) {
-            std::vector<cv::Point> approx;
-            cv::approxPolyN(convex, approx, 4, 5, true);
-            if (cv::contourArea(approx) > minArea) {
-                cv::Rect bbox = cv::boundingRect(approx);
-                bbox &= cv::Rect(cv::Point(),listCapturedRect.size());
-                if (bbox.height < expected_row_height * 0.9)
-                    continue;
-                if (bbox.height < expected_row_height * 1.5) {
-                    detectedRows.push_back(bbox.y);
-                } else {
-                    int count = (int)std::round(double(bbox.height) / double(expected_row_height+expected_row_gap));
-                    double split_height = double(bbox.height) / double(count);
-                    for (int i=0; i < count; i++)
-                        detectedRows.push_back(bbox.y + i*split_height);
-                }
+    struct Row {
+        int bgn, end, val;
+    };
+    std::vector<Row> detectedRows;
+    for (int r=1; r < detectedGaps.size(); r++) {
+        int count = std::round((detectedGaps[r].bgn - detectedGaps[r-1].end) / full_height);
+        if (count == 0)
+            continue;
+        if (count == 1) {
+            int b = detectedGaps[r-1].end;
+            int e = detectedGaps[r].bgn;
+            int v = 0;
+            for (int y=b; y < e; y++)
+                v += reduced[y];
+            v /= e - b;
+            detectedRows.emplace_back(b, e, v);
+//            cv::line(histImage, cv::Point(b, 0), cv::Point(b, v), cv::Scalar(255));
+//            cv::line(histImage, cv::Point(e, 0), cv::Point(e, v), cv::Scalar(255));
+        } else {
+            double begin = detectedGaps[r-1].end;
+            for (int i=0; i < count; i++) {
+                int b = begin + full_height*i;
+                int e = b + row_height;
+                int v = 0;
+                for (int y=b; y < e; y++)
+                    v += reduced[y];
+                v /= e - b;
+                detectedRows.emplace_back(b, e, v);
+//                cv::line(histImage, cv::Point(b, 0), cv::Point(b, v), cv::Scalar(255));
+//                cv::line(histImage, cv::Point(e, 0), cv::Point(e, v), cv::Scalar(255));
             }
         }
     }
 
-    if (detectedRows.size() > 3) {
-        double expectedDist = this->row_height + this->row_gap;
-        while (cleanBadRows(detectedRows, expectedDist) && detectedRows.size() > 3)
-            ;
-        alignDetectedRows(detectedRows, expectedDist);
-    }
-
-    for (auto& row_top : detectedRows) {
-        cv::Rect rowCapturedRect {0, (int)std::round(row_top), (int)std::round(expected_row_width), (int)std::round(expected_row_height)};
+    for (auto& row : detectedRows) {
+        cv::Rect rowCapturedRect {0, row.bgn, (int)std::round(row_width), row.end-row.bgn};
         rowCapturedRect += listCapturedRect.tl();
         cv::Rect rowReferenceRect = env.cvtCapturedToReference(rowCapturedRect);
 
-        detect::Histogram histDet(detect::Histogram::Mode::Hsv, rowReferenceRect);
-        if (!histDet.calc(env))
-            return false;
         WState ws = WState::Unknown;
-        if (histDet.mLastColor[2] > 10) { // not black
-            if (histDet.mLastColor[1] < 80) // desaturated = disabled
-                ws = WState::Disabled;
-            else if (histDet.mLastColor[0] <= 40) {// hue is near red = known color
-                if (histDet.mLastColor[2] > 180) // bright = focused
-                    ws = WState::Focused;
-                else
-                    ws = WState::Normal;
-            }
+        if (row.val > 30) { // not black
+            if (row.val > 130) // bright = focused
+                ws = WState::Focused;
+            else
+                ws = WState::Normal;
         }
 
         env.classified.emplace_back(ClsDetType::ListRow, env.isWarpMode(), "", rowReferenceRect);

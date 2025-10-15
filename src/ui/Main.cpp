@@ -122,12 +122,12 @@ int Main::on_command_stop_new(wl::params &params) {
     try {
         ai::spTask curr_task = aiManager->curr_task();
         if (!curr_task) {
-            hide();
+            //hide();
             AddTask addTaskDlg;
             int res = addTaskDlg.show(this);
             if (res == IDOK)
                 return TRUE;
-            show();
+            //show();
         } else {
             aiManager->stop();
         }
@@ -181,15 +181,20 @@ void Main::update_curr_task() {
     }
     std::string status;
     int indent = 0;
-    for (auto task=curr_task; task; task = task->currentSubTask) {
-        for (auto& msg : task->getMessages()) {
+    for (ai::spStep step=curr_task; step; step = step->currentSubStep) {
+        for (auto& msg : step->getMessages()) {
             status += std::string(indent, ' ');
             status += msg;
             status += "\n";
         }
-        if (task->currentSubTask) {
+        for (auto& msg : split(step->getStatus(), '\n')) {
             status += std::string(indent, ' ');
-            status += task->currentSubTask->templ.name;
+            status += msg;
+            status += "\n";
+        }
+        if (step->currentSubStep) {
+            status += std::string(indent, ' ');
+            status += step->currentSubStep->getName();
             status += ":\n";
             indent += 4;
         }

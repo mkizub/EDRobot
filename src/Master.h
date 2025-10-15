@@ -23,6 +23,7 @@ enum class Command {
     Pause,
     Resume,
     Stop,
+    Autopilot,
     Calibrate,
     DebugTemplates,
     DebugWindow,
@@ -141,6 +142,7 @@ private:
     bool pauseAITask();
     bool resumeAITask();
     bool stopAITask();
+    bool autopilotAITask();
 
     bool captureWindow(ClassifyEnv& env);
     widget::Widget* matchWithSubItems(widget::Widget* item);

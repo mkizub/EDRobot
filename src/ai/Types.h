@@ -4,13 +4,15 @@
 
 #pragma once
 
-#ifndef EDROBOT_TYPES_H
-#define EDROBOT_TYPES_H
+#ifndef EDROBOT_AI_TYPES_H
+#define EDROBOT_AI_TYPES_H
 
 namespace ai {
 
+class Step;
 class Task;
 class AIManager;
+typedef std::shared_ptr<Step> spStep;
 typedef std::shared_ptr<Task> spTask;
 
 enum class FlyState {
@@ -48,11 +50,13 @@ enum class Result {
 };
 
 struct Param {
-    enum Type { Bool, Int, Real, String, System, POI, Dock, Commodity };
+    enum Type { Bool, Enum, Int, Real, String, System, POI, Dock, Commodity };
 
     const Type        type;
     const std::string name;
-    std::variant<bool, int64_t,double,std::string> value;
+    std::variant<bool,int64_t,double,std::string> value;
+    const std::string meta {};
+    const bool        optional {false};
 };
 
 struct ReqState {
@@ -129,19 +133,21 @@ extern NavType BELT;
 extern NavType ORBIS;
 extern NavType CORIOLIS;
 extern NavType MINER_BASE;
-extern NavType OUTPOST;
-extern NavType INSTALLATION;
-extern NavType PORT;
-extern NavType FACTORY;
-extern NavType SETTLEMENT;
-extern NavType CARRIER;
+extern NavType SPACE_OUTPOST;
+extern NavType SPACE_INSTALLATION;
+extern NavType PLANETARY_PORT;
+extern NavType PLANETARY_INSTALLATION;
+extern NavType ODYSSEY_SETTLEMENT;
+extern NavType FLEET_CARRIER;
+extern NavType SQUADRON_CARRIER;
 extern NavType STATION_MEGASHIP;
 extern NavType MEGASHIP;
 extern NavType ENGINEER;
 extern NavType SIGNAL;
 extern NavType WAR_ZONE;
 extern NavType RES_SITE;
-extern NavType SYSTEM;
+extern NavType STAR_SYSTEM;
+extern NavType ERROR;
 extern NavType LOCATION;
 extern NavType SHIELD1;
 extern NavType SHIELD2;
@@ -152,4 +158,4 @@ extern std::vector<NavType*> ALL_NAV_TYPES;
 } // namespace nav
 
 
-#endif //EDROBOT_TYPES_H
+#endif //EDROBOT_AI_TYPES_H

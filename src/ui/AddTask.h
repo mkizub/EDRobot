@@ -34,6 +34,7 @@ public:
         const int id;
         std::wstring text;
         wl::checkbox cb;
+        wl::combobox dl;
         wl::textbox tb;
         wl::label label;
     };

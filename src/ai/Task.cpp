@@ -24,28 +24,81 @@
 #else
 # define TRY try
 # define CATCH(param) catch(param)
-# ifdef _GLIBCXX_HAVE_STACKTRACE
-#  include <stacktrace>
-#  define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
-# else
-#  define GET_EXCEPTION_STACK_TRACE "(stack trace unavailable)"
-# endif
+# include <stacktrace>
+# define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
 #endif
 
 namespace ai {
 
-Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+Step::Step(Step* parent, AIManager& mgr)
     : parent(parent)
     , mgr(mgr)
+{
+}
+
+Task* Step::getTask() {
+    for (Step* s = this; s; s = (Step*)s->parent) {
+        auto t = dynamic_cast<Task*>(s);
+        if (t)
+            return t;
+    }
+    LOG(ERROR) << "Step needs parent Task";
+    throw std::runtime_error("Step needs parent Task");
+}
+
+
+bool Step::run_sub_step(spStep step) {
+    currentSubStep = step;
+    bool ok = false;
+    TRY {
+        check_interrupted();
+        ok = step->step();
+    } CATCH (const std::exception& ex) {
+        keyboard::reset_vJoy();
+        if (dynamic_cast<const nonlocal_return*>(&ex)) {
+            throw;
+        }
+        else if (dynamic_cast<const interrupted_error*>(&ex)) {
+            throw;
+        }
+        else {
+            LOG(ERROR) << "Exception during task step execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+            return false;
+        }
+    }
+    currentSubStep.reset();
+    return ok;
+}
+
+Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+    : Step(parent, mgr)
     , templ(templ_)
     , taskName(templ.name)
     , maxMisses(templ.maxMisses)
 {
 }
 
+const char* Task::getName() {
+    return taskName.c_str();
+}
+
+bool Task::step() {
+    if (this->result == Result::Created)
+        this->result = Result::Started;
+    for (int i=missCount; i <= maxMisses; i++) {
+        this->result = safe_run();
+        if (this->result == Result::Trouble) {
+            this->missCount += 1;
+            continue;
+        }
+    }
+    return (result >= Result::Partly);
+}
+
 Result Task::safe_run() {
     TRY {
-        currentSubTask.reset();
+        currentSubStep.reset();
+        check_interrupted();
         this->result = this->run();
         if (this->result == Result::Trouble)
             this->missCount += 1;
@@ -74,22 +127,7 @@ Result Task::safe_run() {
     return this->result;
 }
 
-Result Task::run_sub_task(spTask& pTask) {
-    Task* task  = pTask.get();
-    if (!task)
-        return Result::Failure;
-    currentSubTask = pTask;
-    Result res = task->safe_run();
-    currentSubTask.reset();
-    return res;
-}
-
-void Task::check_interrupted() const {
-    if (mgr.isInterrupted)
-        throw interrupted_error();
-}
-
-void Task::sleep(int milliseconds, bool precise) const {
+void Step::sleep(int milliseconds, bool precise) const {
     check_interrupted();
     if (milliseconds <= 0)
         return;
@@ -122,7 +160,7 @@ void Task::sleep(int milliseconds, bool precise) const {
     }
 }
 
-bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms, bool precise) const {
+bool Step::sendKey(const std::string& name, int delay_ms, int pause_ms, bool precise) const {
     if (!mgr.master.setGameForeground())
         return false;
     if (delay_ms <= 0)
@@ -132,13 +170,13 @@ bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms, bool pre
     LOG(INFO) << "sendKey('" << name << "'," << delay_ms << "," << pause_ms << ")";
     const KeyBindings& keyBindings = mgr.cfg.getGameKeyBindings(name);
     if (keyBindings.primary.device != GameKey::Void) {
-        if (!keyboard::sendKeyDown(keyBindings.primary, delay_ms, pause_ms, nullptr))
+        if (!keyboard::sendKeyDown(keyBindings.primary, delay_ms))
             return false;
         sleep(delay_ms + pause_ms, precise);
         return true;
     }
     else if (keyBindings.secondary.device != GameKey::Void) {
-        if (!keyboard::sendKeyDown(keyBindings.secondary, delay_ms, pause_ms, nullptr))
+        if (!keyboard::sendKeyDown(keyBindings.secondary, delay_ms))
             return false;
         sleep(delay_ms + pause_ms, precise);
         return true;
@@ -147,29 +185,48 @@ bool Task::sendKey(const std::string& name, int delay_ms, int pause_ms, bool pre
     if (!code)
         return false;
     GameKey tmp {GameKey::Keyboard, name, code};
-    if (!keyboard::sendKeyDown(tmp, delay_ms, pause_ms, nullptr))
+    if (!keyboard::sendKeyDown(tmp, delay_ms))
         return false;
     sleep(delay_ms + pause_ms, precise);
     return true;
 }
 
-bool Task::hasAxis(const std::string& name) const {
-    return keyboard::getJoyAxis(name);
+unsigned Step::holdKeyDown(const std::string& name, int delay_ms) const {
+    if (!mgr.master.setGameForeground())
+        return 0;
+    LOG(INFO) << "holdKeyDown('" << name << ")";
+    const KeyBindings& keyBindings = mgr.cfg.getGameKeyBindings(name);
+    if (keyBindings.primary.device != GameKey::Void) {
+        return keyboard::sendKeyDown(keyBindings.primary, delay_ms);
+    }
+    else if (keyBindings.secondary.device != GameKey::Void) {
+        return keyboard::sendKeyDown(keyBindings.secondary, delay_ms);
+    }
+    int code = keyboard::getScanCode(name);
+    if (!code)
+        return false;
+    GameKey tmp {GameKey::Keyboard, name, code};
+    return keyboard::sendKeyDown(tmp, delay_ms);
 }
 
-bool Task::sendAxis(const std::string& name, double value) const {
+void Step::releaseKey(unsigned handler) const {
+    keyboard::clearInput(handler);
+}
+
+
+bool Step::sendAxis(const std::string& name, double value) const {
     if (!mgr.master.setGameForeground())
         return false;
     return keyboard::sendJoyAxis(name, value);
 }
 
-bool Task::sendAxis(const KeyBindings& bindings, double value) const {
+bool Step::sendAxis(const KeyBindings& bindings, double value) const {
     if (!mgr.master.setGameForeground())
         return false;
     return keyboard::sendJoyAxis(bindings, value);
 }
 
-bool Task::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) const {
+bool Step::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) const {
     if (!mgr.master.setGameMouseCapture())
         return false;
     bool virtualDesktop = false;
@@ -189,7 +246,7 @@ bool Task::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) co
     return true;
 }
 
-bool Task::sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) const {
+bool Step::sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) const {
     if (!mgr.master.setGameMouseCapture())
         return false;
     cv::Point screen = mgr.rEnv.cvtReferenceToDesktop(point);
@@ -198,7 +255,7 @@ bool Task::sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) co
     if (!keyboard::sendMouseMoveTo(screen.x, screen.y, true, virtualDesktop))
         return false;
     GameKey tmp {GameKey::Mouse, "", keyboard::MOUSE_L_BUTTON};
-    if (!keyboard::sendKeyDown(tmp, delay_ms, pause_ms, nullptr))
+    if (!keyboard::sendKeyDown(tmp, delay_ms))
         return false;
     sleep(delay_ms + pause_ms);
     return true;
@@ -374,7 +431,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
                     LOG(DEBUG) << "key '" << key.as_string() << "' not bound, action failed";
                     return false;
                 }
-                unsigned inputId = keyboard::sendKeyDown(*gk, 60000, 0, nullptr);
+                unsigned inputId = keyboard::sendKeyDown(*gk, 60000);
                 ok = executeStep(step.at("hold"), args);
                 keyboard::clearInput(inputId);
                 if (ok) {
@@ -444,11 +501,11 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* co
     mgr.detectEDState(level, colorImage, grayImage);
 }
 
-void Task::addMessage(const char* msg) {
+void Step::addMessage(const char* msg) {
     if (msg)
         addMessage(std::string(msg));
 }
-void Task::addMessage(const std::string& msg) {
+void Step::addMessage(const std::string& msg) {
     std::scoped_lock<std::mutex> lock(messagesMutex);
     auto now = std::chrono::steady_clock::now();
     auto expired = now - std::chrono::seconds(5);
@@ -457,7 +514,7 @@ void Task::addMessage(const std::string& msg) {
     messages.emplace_back(now, msg);
 }
 
-std::vector<std::string> Task::getMessages() {
+std::vector<std::string> Step::getMessages() {
     std::scoped_lock<std::mutex> lock(messagesMutex);
     auto expired = std::chrono::steady_clock::now() - std::chrono::seconds(60);
     std::vector<std::string> out;
@@ -467,35 +524,39 @@ std::vector<std::string> Task::getMessages() {
     return out;
 }
 
-void Task::notifyProgress(const char* msg) {
-    addMessage(msg);
-    LOG(INFO) << msg;
-    UIManager::showToast(taskName, msg);
-}
-void Task::notifyProgress(const std::string& msg) {
-    addMessage(msg);
-    LOG(INFO) << msg;
-    UIManager::showToast(taskName, msg);
-}
-void Task::notifyError(const char* msg, Result res) {
-    addMessage(msg);
-    LOG(ERROR) << msg;
-    UIManager::showToast(taskName, msg);
-    throw nonlocal_return(res, this, msg);
-}
-void Task::notifyError(const std::string& msg, Result res) {
-    addMessage(msg);
-    LOG(ERROR) << msg;
-    UIManager::showToast(taskName, msg);
-    throw nonlocal_return(res, this, msg);
+std::string Step::getStatus() {
+    return "----";
 }
 
-void Task::task_return(Result res) {
-    throw nonlocal_return(res, this);
+void Step::notifyProgress(const char* msg) {
+    addMessage(msg);
+    LOG(INFO) << msg;
+    UIManager::showToast(getName(), msg);
+}
+void Step::notifyProgress(const std::string& msg) {
+    addMessage(msg);
+    LOG(INFO) << msg;
+    UIManager::showToast(getName(), msg);
+}
+void Step::notifyError(const char* msg, Result res) {
+    addMessage(msg);
+    LOG(ERROR) << msg;
+    UIManager::showToast(getName(), msg);
+    throw nonlocal_return(res, getTask(), msg);
+}
+void Step::notifyError(const std::string& msg, Result res) {
+    addMessage(msg);
+    LOG(ERROR) << msg;
+    UIManager::showToast(getName(), msg);
+    throw nonlocal_return(res, getTask(), msg);
 }
 
-void Task::task_return(Result res, const char* msg) {
-    throw nonlocal_return(res, this, msg);
+void Step::task_return(Result res) {
+    throw nonlocal_return(res, getTask());
+}
+
+void Step::task_return(Result res, const char* msg) {
+    throw nonlocal_return(res, getTask(), msg);
 }
 
 } // namespace ai

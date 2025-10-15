@@ -93,7 +93,9 @@ namespace widget {
     class Screen;
 }
 
+#include "Types.h"
 #include "Utils.h"
+#include "State.h"
 #include "Configuration.h"
 #include "ClassifyEnv.h"
 #include "Master.h"

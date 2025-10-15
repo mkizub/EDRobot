@@ -239,6 +239,7 @@
 			topspd:130, bstspd:200, mnv:0, shields:240, armour:480, mass:850, fwdacc:20.03, revacc:10.11, latacc:10.03,
 			minthrust:30.769, boostcost:19, boostint:6, pitch:20, yaw:8, roll:20, pitchacc:100, yawacc:50, rollacc:80, minpitch:15,
 			heatcap:289, heatdismin:3.10, heatdismax:48.35, fuelcost:50, fuelreserve:0.77, hardness:65, masslock:16, crew:3,
+			yaw_cruise: [3,6,3.5], pitch_cruise: [6,12,7.2], roll_cruise: [14.5,18,14.5]
 		},
 		{
 			fdid:128049345, fdname:'BelugaLiner', eddbid:30,
@@ -291,6 +292,7 @@
 			topspd:200, bstspd:340, mnv:1, shields:228, armour:440, mass:400, fwdacc:NaN, revacc:NaN, latacc:NaN, // TODO: *acc
 			minthrust:45, boostcost:10, boostint:6, pitch:28, yaw:18, roll:60, pitchacc:NaN, yawacc:NaN, rollacc:NaN, minpitch:17, minyaw:16, // TODO: *acc
 			heatcap:236, heatdismin:NaN, heatdismax:36.50, fuelcost:50, fuelreserve:0.52, hardness:58, masslock:18, crew:1, // TODO: heatdismin
+			yaw_cruise: [9,18,11], pitch_cruise: [9,18,11], roll_cruise: [48,60,48]
 		},
 		{
 			fdid:129030680, fdname:'Mandalay',

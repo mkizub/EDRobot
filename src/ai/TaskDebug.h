@@ -62,6 +62,7 @@ private:
 
     bool dump_images;
     bool resume;
+    bool unfocused;
     int ocr_confidence;
     int txt_confidence;
     int offset_append;
@@ -80,18 +81,6 @@ private:
         std::wstring name;
     };
     bool parseRowInfo(std::wstring text, StationRowInfo& rowInfo);
-};
-
-class TaskDebugFixOCR final : public TaskDebugFindAllBase {
-public:
-    TaskDebugFixOCR(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
-
-private:
-    bool use_tess {true};
-    bool use_lstm {true};
-    bool rus_eng {true};
-    bool use_edr {true};
 };
 
 } // ai

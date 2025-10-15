@@ -22,6 +22,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
     SimpleLineDetector* btline = dynamic_cast<SimpleLineDetector*>(detectors.at(1).get());
     assert (lpline && lpline->name == "lpline");
     assert (btline && btline->name == "btline");
+    lpline->anchorDetector->matchMethod = cv::TM_CCORR_NORMED;
 
     const widget::Screen* screen = (const widget::Screen*)Master::getInstance().getCfgItem("scr-left-panel");
     ConstTransform* transform = dynamic_cast<ConstTransform*>(screen->transform.get());

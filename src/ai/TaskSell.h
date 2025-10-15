@@ -21,7 +21,8 @@ private:
     void plan();
 
     int mChunk;
-    std::vector<spTask> sell_archive;
+    std::deque<spTask> sell_queue;
+    std::deque<spTask> sell_archive;
 };
 
 class TaskSell final : public Task {

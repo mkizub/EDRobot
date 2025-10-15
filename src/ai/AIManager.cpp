@@ -24,17 +24,41 @@
 #else
 # define TRY try
 # define CATCH(param) catch(param)
-# ifdef _GLIBCXX_HAVE_STACKTRACE
-#  include <stacktrace>
-#  define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
-# else
-#  define GET_EXCEPTION_STACK_TRACE "(stack trace unavailable)"
-# endif
+# include <stacktrace>
+# define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
 #endif
 
 using namespace std::chrono_literals;
 
 namespace ai {
+
+static std::thread taskThread;
+static std::mutex taskMutex;
+static std::condition_variable taskCond;
+
+static std::atomic_bool isWorking;
+static std::atomic_bool isLoopWaiting;
+static std::atomic_bool isDebugPaused;
+static std::atomic_bool isInterrupted;
+
+void check_interrupted() {
+    assert (taskThread.get_id() == std::this_thread::get_id());
+    while (isDebugPaused) {
+        if (isInterrupted) {
+            isDebugPaused = false;
+            throw interrupted_error();
+        }
+        Sleep(250);
+        continue;
+    }
+    if (isInterrupted)
+        throw interrupted_error();
+}
+
+void toggleDebugPause() {
+    isDebugPaused = !isDebugPaused;
+}
+
 
 AIManager::AIManager()
     : master(Master::getInstance())
@@ -106,6 +130,14 @@ void AIManager::resume() {
     master.setGameForeground();
 }
 
+bool AIManager::autopilot() {
+    if (activeTask) {
+        if (dynamic_cast<Autopilot*>(activeTask.get()))
+            return true;
+        return false;
+    }
+    return new_task(getTaskTemplate(ED_TASK_AUTOPILOT));
+}
 
 spTask AIManager::curr_task() {
     return activeTask;
@@ -149,23 +181,15 @@ bool AIManager::new_task(const TaskTemplate& templ) {
         task.reset(new TaskDebugFindAllCommodities(nullptr, *this, templ));
     else if (templ.name == ED_TASK_DEBUG_FIND_ALL_NAV_POINTS)
         task.reset(new TaskDebugFindAllNavPoints(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_DEBUG_FIX_OCR)
-        task.reset(new TaskDebugFixOCR(nullptr, *this, templ));
     else if (templ.name == ED_TASK_MARKET_SELL_ALL)
         task.reset(new TaskSellAll(nullptr, *this, templ));
     else if (templ.name == ED_TASK_MARKET_SELL)
         task.reset(new TaskSell(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_DEPART)
-        task.reset(new TaskDepart(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_DOCK)
-        task.reset(new TaskDock(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_AUTOPILOT)
+        task.reset(new Autopilot(nullptr, *this, templ));
     else if (templ.name == ED_TASK_TRAVEL)
         task.reset(new TaskTravel(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_JUMP_TO_SYSTEM)
-        task.reset(new TaskJumpToSystem(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_CRUISE_TO_STATION)
-        task.reset(new TaskCruiseToDock(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_DEBUG_ORIENT_NAV_TARGET)
+    else if (templ.name == ED_TASK_DEBUG_AUTOPILOT)
         task.reset(new TaskDebugAutopilot(nullptr, *this, templ));
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
     return new_task(std::move(task));
@@ -278,8 +302,7 @@ void AIManager::step() {
 //}
 
 const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
-    if (isInterrupted)
-        throw interrupted_error();
+    check_interrupted();
 #ifdef NDEBUG
     std::chrono::milliseconds timeout = 2000ms;
 #else
@@ -293,8 +316,7 @@ const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::
     std::future<bool> future = promise.get_future();
     master.pushDetectRequest(std::move(promise), std::move(request));
     while (now < until) {
-        if (isInterrupted)
-            throw interrupted_error();
+        check_interrupted();
         auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
         if (left.count() < 5)
             break;

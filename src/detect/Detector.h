@@ -229,7 +229,7 @@ public:
     double threshold_min;
     double threshold_max;
     std::vector<std::unique_ptr<ImageFilter>> filters;
-    int matchMethod = cv::TM_CCORR_NORMED;
+    int matchMethod = cv::TM_CCOEFF_NORMED; //cv::TM_CCORR_NORMED;
 
     std::vector<ImageMatrix> imagesOrig;
     std::vector<ImageMatrix> imagesPrepared;

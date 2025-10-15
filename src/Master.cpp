@@ -35,12 +35,8 @@
 #else
 # define TRY try
 # define CATCH(param) catch(param)
-# ifdef _GLIBCXX_HAVE_STACKTRACE
-#  include <stacktrace>
-#  define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
-# else
-#  define GET_EXCEPTION_STACK_TRACE "(stack trace unavailable)"
-# endif
+# include <stacktrace>
+# define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
 #endif
 
 
@@ -404,6 +400,9 @@ void Master::loop() {
             case Command::Stop:
                 stopAITask();
                 break;
+            case Command::Autopilot:
+                autopilotAITask();
+                break;
             case Command::Calibrate:
                 startCalibration();
                 break;
@@ -487,7 +486,10 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
     auto cmd = keyMapping.find(std::make_pair(toLower(name),flags));
     if (cmd != keyMapping.end()) {
         LOG(INFO) << "Command " << enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
-        self.pushCommand(cmd->second);
+        if (cmd->second == Command::Pause)
+            ai::toggleDebugPause();
+        else
+            self.pushCommand(cmd->second);
     } else {
         if (Cfg.autoPause && self.mAIManager->active()) {
             LOG(INFO) << "Auto-pausing AI task because '"+encodeShortcut(name,flags)+"' pressed";
@@ -808,6 +810,10 @@ bool Master::resumeAITask() {
 bool Master::stopAITask() {
     mAIManager->interrupt();
     return true;
+}
+
+bool Master::autopilotAITask() {
+    return mAIManager->autopilot();
 }
 
 const json5pp::value& Master::getTaskActions(const std::string& action) {
@@ -1293,7 +1299,7 @@ bool Master::detectEDState(DetectLevel level) {
     mLastUIState.guiFocus = Cfg.getGuiFocus();
     if (level == DetectLevel::None) {
         auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-        LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
+        LOG(INFO) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
         debugWindowUpdate();
         return true;
     }
@@ -1318,11 +1324,12 @@ bool Master::detectEDState(DetectLevel level) {
         } else {
             mCompassDetector->lastHemisphere = 0;
             mCompassDetector->navTargetFound = false;
+            mCompassDetector->lastNavDist = {};
         }
     }
 
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-    LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
+    LOG(INFO) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
     debugWindowUpdate();
     return true;
 }
@@ -1399,19 +1406,22 @@ void Master::processDetectRequest(pCommand &cmd) {
                 c->request.compass->targetYaw = (float) mCompassDetector->lastTgtYaw;
                 c->request.compass->targetRoll = (float) mCompassDetector->lastTgtRoll;
                 c->request.compass->has_nav_target = mCompassDetector->navTargetFound;
-                c->request.compass->nav_target_dist = mCompassDetector->lastNavDist;
+                if (mCompassDetector->navTargetFound)
+                    c->request.compass->nav_target_dist = mCompassDetector->lastNavDist;
+                else
+                    c->request.compass->nav_target_dist = {};
             }
             if (c->request.colorImage) {
                 if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
-                    *c->request.colorImage = toMat(mClassifyEnv.getWarpedColorImage());
+                    *c->request.colorImage = toMat(mClassifyEnv.getWarpedColorImage()).clone();
                 else
-                    *c->request.colorImage = toMat(mClassifyEnv.getColorImage());
+                    *c->request.colorImage = toMat(mClassifyEnv.getColorImage()).clone();
             }
             if (c->request.grayImage) {
                 if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
-                    *c->request.grayImage = toMat(mClassifyEnv.getWarpedGrayImage());
+                    *c->request.grayImage = toMat(mClassifyEnv.getWarpedGrayImage()).clone();
                 else
-                    *c->request.grayImage = toMat(mClassifyEnv.getGrayImage());
+                    *c->request.grayImage = toMat(mClassifyEnv.getGrayImage()).clone();
             }
         }
         c->promise.set_value(ok);

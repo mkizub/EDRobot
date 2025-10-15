@@ -32,6 +32,8 @@ find_package(cpptrace CONFIG REQUIRED)
 add_executable(EDRobot
         src/pch.cpp
         src/pch.h
+        src/ed_opencv.h
+        src/Types.h
         src/main.cpp
         src/ClassifyEnv.cpp
         src/ClassifyEnv.h
@@ -42,16 +44,19 @@ add_executable(EDRobot
         src/EDWidget.h
         src/FuzzyMatch.cpp
         src/FuzzyMatch.h
+        src/Galaxy.cpp
+        src/Galaxy.h
         src/Keyboard.cpp
         src/Keyboard.h
         src/Master.cpp
         src/Master.h
-        src/ShipStats.cpp
-        src/ShipStats.h
-        src/Utils.cpp
-        src/Utils.h
         src/OCR.cpp
         src/OCR.h
+        src/ShipStats.cpp
+        src/ShipStats.h
+        src/State.h
+        src/Utils.cpp
+        src/Utils.h
 
         src/ai/AutopilotTasks.cpp
         src/ai/AutopilotTasks.h
@@ -66,6 +71,7 @@ add_executable(EDRobot
         src/detect/Detector.cpp
         src/detect/ImageTemplate.cpp
         src/detect/Lines.cpp
+        src/detect/Lines.h
         src/detect/Compass.cpp
         src/detect/NavPanel.cpp
         src/detect/NavPanel.h
@@ -117,8 +123,6 @@ add_executable(EDRobot
         thirdparty/glob/glob.h
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
-        src/ed_opencv.h
-        src/detect/Lines.h
 )
 #target_sources(EDRobot PUBLIC
 #        FILE_SET CXX_MODULES FILES

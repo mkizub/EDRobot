@@ -263,14 +263,22 @@ std::pair<std::string,unsigned> decodeShortcut(std::string key) {
         if (pos == std::string::npos)
             break;
         std::string mod = toLower(key.substr(0, pos));
-        if (mod == "ctrl")
-            flags |= keyboard::CTRL;
-        else if (mod == "alt")
-            flags |= keyboard::ALT;
-        else if (mod == "shift")
-            flags |= keyboard::SHIFT;
-        else if (mod == "win" || mod == "meta")
-            flags |= keyboard::WIN;
+        if (mod == "ctrl" || mod == "lctrl")
+            flags |= keyboard::LCTRL;
+        else if (mod == "rctrl")
+            flags |= keyboard::RCTRL;
+        else if (mod == "alt" || mod == "lalt" || mod == "menu" || mod == "lmenu")
+            flags |= keyboard::LALT;
+        else if (mod == "ralt" || mod == "rmenu")
+            flags |= keyboard::RALT;
+        else if (mod == "shift" || mod == "lshift")
+            flags |= keyboard::LSHIFT;
+        else if (mod == "rshift")
+            flags |= keyboard::RSHIFT;
+        else if (mod == "win" || mod == "meta" || mod == "lwin" || mod == "lmeta")
+            flags |= keyboard::LWIN;
+        else if (mod == "rwin" || mod == "rmeta")
+            flags |= keyboard::RWIN;
         else
             LOG(ERROR) << "Unknown key modifier " << mod;
         key = key.substr(pos+1);
@@ -280,10 +288,14 @@ std::pair<std::string,unsigned> decodeShortcut(std::string key) {
 
 std::string encodeShortcut(const std::string& name, unsigned flags) {
     std::string res;
-    if (flags & keyboard::CTRL) res += "Ctrl+";
-    if (flags & keyboard::ALT) res += "Alt+";
-    if (flags & keyboard::SHIFT) res += "Shift+";
-    if (flags & keyboard::WIN) res += "Win+";
+    if (flags & keyboard::LCTRL) res += "LCtrl+";
+    if (flags & keyboard::RCTRL) res += "RCtrl+";
+    if (flags & keyboard::LALT) res += "LAlt+";
+    if (flags & keyboard::RALT) res += "RAlt+";
+    if (flags & keyboard::LSHIFT) res += "LShift+";
+    if (flags & keyboard::RSHIFT) res += "RShift+";
+    if (flags & keyboard::LWIN) res += "LWin+";
+    if (flags & keyboard::RWIN) res += "RWin+";
     res += keyboard::getNamesForKey(name)[0];
     return res;
 }
@@ -304,6 +316,11 @@ static double DIST_UNIT_SCALE[6][6] {
 dist_t dist_t::convertTo(dist_t::Unit u) const {
     if (u == Unit::X || unit == Unit::X) return *this;
     return dist_t(u, dist*DIST_UNIT_SCALE[unit][u]);
+}
+
+double dist_t::get(Unit u) {
+    if (u == Unit::X || unit == Unit::X) return -1;
+    return dist*DIST_UNIT_SCALE[unit][u];
 }
 
 std::string dist_t::to_string() const {
@@ -330,11 +347,12 @@ std::ostream& operator<<(std::ostream& os, const dist_t& obj) {
 }
 
 dist_t parseDist(std::wstring dist) {
+    bool cruise = Cfg.getCurrentStatus()->flags.cruise;
     dist_t::Unit unit = dist_t::X;
     dist = trim(dist);
     for (int garbage=0; garbage < 4; garbage++) {
         //M, KM, MM, LS, LY
-        if (dist.ends_with(L"Mм") || dist.ends_with(L"Mm") || dist.ends_with(L"мм") || dist.ends_with(L"mm")) {
+        if (dist.ends_with(L"Mм") || dist.ends_with(L"Mm")) {
             unit = dist_t::MM;
             dist = trim(dist.substr(0, dist.size() - 2));
             break;
@@ -342,8 +360,12 @@ dist_t parseDist(std::wstring dist) {
             unit = dist_t::KM;
             dist = trim(dist.substr(0, dist.size() - 2));
             break;
-        } else if (dist.ends_with(L"м") || dist.ends_with(L"m") || dist.ends_with(L"M")) {
+        } else if (!cruise && garbage == 0 && dist.ends_with(L"м") || dist.ends_with(L"m")) {
             unit = dist_t::M;
+            dist = trim(dist.substr(0, dist.size() - 1));
+            break;
+        } else if (cruise && garbage > 0 && dist.ends_with(L"M")) {
+            unit = dist_t::MM;
             dist = trim(dist.substr(0, dist.size() - 1));
             break;
         } else if (dist.ends_with(L"c.л.")) {
@@ -362,6 +384,14 @@ dist_t parseDist(std::wstring dist) {
             unit = dist_t::LS;
             dist = trim(dist.substr(0, dist.size() - 4));
             break;
+        } else if (dist.ends_with(L"cв.") || dist.ends_with(L"cв ")) {
+            unit = dist_t::LS;
+            dist = trim(dist.substr(0, dist.size() - 3));
+            break;
+        } else if (dist.ends_with(L"cв")) {
+            unit = dist_t::LS;
+            dist = trim(dist.substr(0, dist.size() - 2));
+            break;
         }
         dist = trim(dist.substr(0, dist.size() - 1)); // maybe some OCR garbage after distance unit
     }
@@ -374,6 +404,10 @@ dist_t parseDist(std::wstring dist) {
             num.push_back((char)dig);
         else if (dig == ',' || dig == '.')
             num.push_back('.');
+        else if (dig == ' ')
+            continue;
+        else
+            return {};
     }
     if (num.empty())
         return {};
@@ -383,4 +417,37 @@ dist_t parseDist(std::wstring dist) {
     } catch (...) {
         return {};
     }
+}
+
+bool utc_timer::expired() {
+    auto now = std::chrono::utc_clock::now();
+    return now >= time_limit;
+}
+int utc_timer::sec_passed() {
+    auto now = std::chrono::utc_clock::now();
+    return std::chrono::duration_cast<std::chrono::seconds>(now - time_start).count();
+}
+int utc_timer::sec_left() {
+    auto now = std::chrono::utc_clock::now();
+    return std::chrono::duration_cast<std::chrono::seconds>(time_limit - now).count();
+}
+std::string utc_timer::passed() {
+    auto now = std::chrono::utc_clock::now();
+    auto dur = std::chrono::duration_cast<std::chrono::seconds>(now - time_start);
+    int sec = dur.count();
+    if (sec < 60)
+        return std::format("{}s", sec);
+    if (sec < 60*60)
+        return std::format("{0:%M:%S}s", dur);
+    return std::format("{0:%T}", dur);
+}
+std::string utc_timer::left() {
+    auto now = std::chrono::utc_clock::now();
+    auto dur = std::chrono::duration_cast<std::chrono::seconds>(time_limit - now);
+    int sec = dur.count();
+    if (sec < 60)
+        return std::format("{}s", sec);
+    if (sec < 60*60)
+        return std::format("{0:%M:%S}s", dur);
+    return std::format("{0:%T}", dur);
 }

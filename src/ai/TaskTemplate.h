@@ -104,39 +104,16 @@ extern const std::string ED_TASK_GOTO_MARKET;       // select 'market' button at
 extern const std::string ED_TASK_MARKET_SELL_ALL;   // sell all commodities, maybe by a few items
 extern const std::string ED_TASK_MARKET_SELL;       // sell specified commodity, maybe by a few items
 extern const std::string ED_TASK_MARKET_BUY;        // buy a list of commodities
+extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination
 extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
 extern const std::string ED_TASK_GAL_MAP_SELECT;    // select destination star system on galaxy map
 extern const std::string ED_TASK_SYS_MAP_SELECT;    // select destination POI on system map
-extern const std::string ED_TASK_DEPART;            // press 'departure' button at dock and wait autopilot to complete
-extern const std::string ED_TASK_CRUISE_AVOID;      // avoid stars and planets during cruise
-extern const std::string ED_TASK_SPACE_AVOID;       // avoid station, fleet carrier, ship, etc. during normal space fly
-extern const std::string ED_TASK_JUMP_TO_SYSTEM;    // jump to selected star in nav route
-extern const std::string ED_TASK_TO_CRUISE;         // from normal space to cruise (if destination in the same system or to avoid obscured jump point)
-extern const std::string ED_TASK_CRUISE_TO_STATION; // cruise to station, exit cruise
-extern const std::string ED_TASK_CRUISE_TO_POI;     // cruise to point of interest (planet, beacon, etc.)
-extern const std::string ED_TASK_CRUISE_TO_PORT;    // cruise to planet to see the port at right angle, then fly toward until cruise mode end
 extern const std::string ED_TASK_NIGH;              // fly toward port/station after cruise exit
-extern const std::string ED_TASK_DOCK;              // ask permission to land, then autopilot, and wait docking
-extern const std::string ED_TASK_STEP;              // some trivial step, like button press or wait for UI update
 
 extern const std::string ED_TASK_CALIBRATE;         // calibrate colors
 extern const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES;
 extern const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS;
-extern const std::string ED_TASK_DEBUG_FIX_OCR;
-extern const std::string ED_TASK_DEBUG_ORIENT_NAV_TARGET;
-
-class UIModePage {
-    const std::string name;
-};
-class UIModeTab {
-    const std::string name;
-    std::vector<UIModePage> pages;
-};
-struct UIMode {
-    const std::string name;
-    std::vector<UIModeTab> tabs;
-};
-
+extern const std::string ED_TASK_DEBUG_AUTOPILOT;
 
 } // namespace ai
 

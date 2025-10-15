@@ -233,7 +233,7 @@
       },
       {
         name: "nvline", line: 'nv:line', ext: [-5.0,5.0], prec: 0.5, votes: 500,
-        filter: [{ hsv_crop: { h: [15,30], s:[200,253], v:[128,255] }}, { channel: 'red' }, { threshold: 128 } ],
+        filter: [{ hsv_crop: { h: [15,30], s:[200,255], v:[200,255] }}, { channel: 'red' }, { threshold: 128 } ],
         anchor: {
           img: "left/nav_select_icon_*.png", rect: 'nv:anchor', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
           filter: { hsv_gray: [{ h: [0,40], s:[128,255], v:[128,255] },{ h: [85,95], s:[50,255], v:[128,255] }] },
@@ -241,7 +241,7 @@
       },
       {
         name: "fltline", line: 'flt:line', ext: [-5.0,5.0], prec: 0.5, votes: 500,
-        filter: [{ hsv_crop: { h: [15,30], s:[200,253], v:[128,255] }}, { channel: 'red' }, { threshold: 128 } ],
+        filter: [{ hsv_crop: { h: [15,30], s:[200,253], v:[180,255] }}, { channel: 'red' }, { threshold: 128 } ],
         anchor: {
           img: "left/filter_icon-*.png", rect: 'flt:anchor', angle: [0, -5, +5], t: [0.3, 0.8], ext: [120,100],
           filter: { hsv_gray: { h: [0,40], s:[128,255], v:[128,255] } },
@@ -252,11 +252,11 @@
     have: [
       {
         name: "mod-sysinfo",
-        detect: ["lpline",{ img: "at_left_sysinfo.png", t: 0.7, rect:[4,7,33,33] }]
+        detect: ["lpline",{ img: "at_left_sysinfo.png", t: 0.7, rect:[4,7,33,33], filter: {channel: 'red'} }]
       },
       {
         name: "mod-navigation",
-        detect: ["lpline",{ img: "at_left_navigation-*.png", t: 0.7, rect:[110, 12, 130, 28] }],
+        detect: ["lpline",{ img: "at_left_navigation-*.png", t: 0.7, rect:[110, 12, 130, 28], filter: {channel: 'red'} }],
         have: [
           { name: 'btn-filter', action: 'dlg-filter', rect: [11,219,104,60], ext: [5,25,5,15] },
           { name: 'btn-galaxy', action: 'galaxy-map', rect: [11,476,104,60] },
@@ -272,7 +272,7 @@
       },
       {
         name: "mod-transact",
-        detect: ["lpline",{ img: "at_left_transact-*.png", t: 0.7, rect:[384,12,130,28] }],
+        detect: ["lpline",{ img: "at_left_transact-*.png", t: 0.7, rect:[384,12,130,28], filter: {channel: 'red'} }],
         have: [
           { name: 'btn-missions',   rect: [2,61,108,84] },
           { name: 'btn-passengers', rect: [2,156,108,84] },
@@ -284,7 +284,7 @@
       },
       {
         name: "mod-contacts",
-        detect: ["lpline",{ img: "at_left_contacts-*.png", t: 0.7, rect:[654, 12, 130, 28] }],
+        detect: ["lpline",{ img: "at_left_contacts-*.png", t: 0.7, rect:[654, 12, 130, 28], filter: {channel: 'red'} }],
         have: [
           { name: 'btn-landing', rect: [657,335,500,58], ext: [5,40] },
           { name: 'lst-contacts', rect: [2,68,636,582] }, // rect: [2,64,584,590]
@@ -292,7 +292,7 @@
       },
       {
         name: "mod-target",
-        detect: ["lpline",{ img: "at_left_target-*.png", t: 0.7, rect:[952,12,130,28] }],
+        detect: ["lpline",{ img: "at_left_target-*.png", t: 0.7, rect:[952,12,130,28], filter: {channel: 'red'} }],
         have: [
           { name: 'btn-targets', rect: [2,131,108,82] },
           { name: 'btn-cargo', rect: [2,218,108,82] },
@@ -305,7 +305,7 @@
           hud: true // try hard
         }],
         have: [
-          { name: 'lbl-title',        rect: [262,49,750,38], ocr_top: 6, ocr_bot: 37 },
+          { name: 'lbl-title',        rect: [260,49,750,38], ocr_top: 6, ocr_bot: 37 },
           { name: 'til-lock-dest',    icon: "dest:ti-dest-lock" },
           { name: 'til-unlock-dest',  icon: "dest:ti-dest-unlock" },
           { name: 'til-see-starmap',  icon: "dest:ti-dest-see-starmap" },
