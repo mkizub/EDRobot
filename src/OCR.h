@@ -23,13 +23,19 @@ const int ASCENT       = 24;
 const int DESCENT      = 8;
 const int BASELINE_Y   = 30;
 
-extern void init(const std::string& tessdata, Lang lng);
+enum TextType {
+    GENERIC,
+    DISTANCE,
+    NUMERIC,
+};
+
+extern void init(const std::string& tessdata);
 extern void shutdown();
 // returns confidence 0..100, fill text, rect
-extern int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut);
+extern int ocrLine(TextType tt, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut);
 
-extern int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Rect* rectOut=nullptr);
-extern int ocrRowTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Mat& dumpImage);
+extern int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Rect* rectOut=nullptr);
+extern int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Mat& dumpImage);
 
 extern int ocrMarketLblText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string& text);
 extern int ocrMarketLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::vector<std::string>& texts, std::vector<cv::Mat>& dumpImages);

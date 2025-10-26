@@ -9,6 +9,7 @@
 
 #include "../detect/Detector.h"
 #include "../EDWidget.h"
+#include "../Keyboard.h"
 
 namespace ai {
 
@@ -263,7 +264,7 @@ Result TaskCalibrate::run() {
             if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                 continue;
             cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
-            sendMouseMove(mouse, 300);
+            kbd::sendMouseMove(mouse, 300);
             mgr.detectEDState(DetectLevel::ListRows, &colorImage, nullptr);
             recordLstRow("lst-goods", mouse, WState::Normal);
             if (mLstRowBGR[int(WState::Normal)].size() > 35)
@@ -327,7 +328,7 @@ Result TaskCalibrate::run() {
             if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                 continue;
             cv::Point mouse = (cr.detectedRect.tl() + cr.detectedRect.br()) / 2;
-            sendMouseMove(mouse, 300);
+            kbd::sendMouseMove(mouse, 300);
             mgr.detectEDState(DetectLevel::ListRows, &colorImage, nullptr);
             recordLstRow("lst-goods", mouse, WState::Active);
             if (mLstRowBGR[int(WState::Active)].size() > 35)

@@ -106,6 +106,7 @@ extern const std::string ED_TASK_MARKET_SELL;       // sell specified commodity,
 extern const std::string ED_TASK_MARKET_BUY;        // buy a list of commodities
 extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination
 extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
+extern const std::string ED_TASK_NAV_SCAN;          // san navigation map
 extern const std::string ED_TASK_GAL_MAP_SELECT;    // select destination star system on galaxy map
 extern const std::string ED_TASK_SYS_MAP_SELECT;    // select destination POI on system map
 extern const std::string ED_TASK_NIGH;              // fly toward port/station after cruise exit

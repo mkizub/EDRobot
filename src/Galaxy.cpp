@@ -1,4 +1,4 @@
-//
+ //
 // Created by mkizub on 22.08.2025.
 //
 
@@ -188,9 +188,9 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
         if (jb.at("bodyId").is_integer())
             site->bodyId = jb.at("bodyId").as_integer();
         site->name = name;
-        if (typeSite == TypeSite::StrongholdCarrier && Cfg.lng == Lang::RU)
+        if (typeSite == TypeSite::StrongholdCarrier && st::lng == Lang::RU)
             site->nloc = "Носитель-база";
-        if (typeSite == TypeSite::NavBeacon && Cfg.lng == Lang::RU)
+        if (typeSite == TypeSite::NavBeacon && st::lng == Lang::RU)
             site->nloc = "Нав. маяк";
         site->parentBodyId = -1;
         if (jb["marketId"].is_integer())
@@ -221,7 +221,9 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
     return spStarSystem(ss);
 }
 
-void saveStarSystem(spStarSystem ss) {
+void saveStarSystem(StarSystem* ss) {
+    if (!ss)
+        return;
     json5pp::value jbodies = json5pp::array({});
     json5pp::value jstations = json5pp::array({});
     for (auto& body : ss->bodies) {
@@ -338,7 +340,7 @@ spStarSystem getStarSystem(const std::string& name) {
     if (ss && !ss->saved) {
         assert (ss->name == name);
         gSystemsByNameCache[ss->name] = ss;
-        saveStarSystem(ss);
+        saveStarSystem(ss.get());
     }
     return ss;
 }
@@ -410,6 +412,54 @@ spSite StarSystem::getDock(int64_t marketId) {
 }
 
 
+void StarSystem::addDestination() {
+    if (this->address != st::destination.system)
+        return;
+    auto& dname = st::destination.name;
+    for (auto& b : this->bodies) {
+        if (b->name == dname)
+            return;
+    }
+    for (auto& s : this->stations) {
+        if (s->name == dname || s->nloc == dname)
+            return;
+    }
+    if (dname.size() > this->name.size() && dname.starts_with(this->name)) {
+        if (dname.size() == this->name.size()+2) {
+            if (dname[dname.size()-2] != ' ')
+                return;
+            // a star
+            char c = dname[dname.size()-1];
+            if (c >= 'A' && c <= 'Z') {
+                spBody star = std::make_shared<Star>();
+                star->name = dname;
+                star->bodyId = st::destination.bodyId;
+                bodies.push_back(star);
+                this->saved = false;
+            }
+        } else {
+            // a body
+            spBody body = std::make_shared<Body>();
+            body->name = dname;
+            body->bodyId = st::destination.bodyId;
+            bodies.push_back(body);
+            this->saved = false;
+        }
+        return;
+    }
+    else if (dname.starts_with("Orbital Construction Site:")) {
+        spSite site = std::make_shared<Site>();
+        site->typeNav = gal::TypeNav::SpaceConstr;
+        site->typeSite = gal::TypeSite::SpaceConstr;
+        site->name = dname;
+        site->parentBodyId = st::destination.bodyId;
+        stations.push_back(site);
+        this->saved = false;
+    }
+    if (!this->saved)
+        saveStarSystem(this);
+}
+
 spSite StarSystem::addStation(int64_t marketId, const std::string& sname, const std::string& type) {
     for (auto& s : stations) {
         if (s->marketId == marketId)
@@ -463,15 +513,15 @@ spSite StarSystem::addStation(int64_t marketId, const std::string& sname, const 
 spItem StarSystem::addFSSSignalDiscovered(std::shared_ptr<GameEvent> event) {
     if (event->event != "FSSSignalDiscovered")
         return {};
-    json::object& data = event->data;
-    if (!data["SystemAddress"].is_number() || this->address != data["SystemAddress"].as_long_long())
+    json5pp::value& data = event->data;
+    if (auto& ja=data["SystemAddress"]; !ja.is_integer() || this->address != ja.as_int64())
         return {};
     std::string stype = data["SignalType"].as_string();
     std::string sname = data["SignalName"].as_string();
     std::string snloc;
     if (data["SignalName_Localised"].is_string())
         snloc = data["SignalName_Localised"].as_string();
-    bool isStation = data["IsStation"].is_boolean() && data["IsStation"].as_boolean();
+    bool isStation = data["IsStation"];
     for (auto& s : this->stations) {
         if (s->typeSite == gal::TypeSite::FleetCarrier && stype == "FleetCarrier") {
             if (s->name == sname)
@@ -572,6 +622,7 @@ spItem StarSystem::addFSSSignalDiscovered(std::shared_ptr<GameEvent> event) {
     }
     this->stations.push_back(site);
     this->saved = false;
+    saveStarSystem(this);
     return site;
 }
 

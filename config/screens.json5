@@ -9,7 +9,7 @@
       { name: 'btn-compare', action: 'dlg-compare', rect: [97,509,134,79] },
       { name: 'btn-to-sell', action: 'mod-sell', rect: [96,316,133,129] },
       { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
-      { name: 'lst-goods', action: 'dlg-trade', rect: [250,252,1018,718], row_height: 36, row_gap: 2.3,
+      { name: 'lst-goods', action: 'dlg-trade', rect: [250,252,1018,718], row_height: 36, row_gap: 2, header: 38,
         tabs: [
           {left:0,   right:114 },
           {left:120, right:548, ocr_top: 10, ocr_bot: 28, name: 'name' }, // commodity name
@@ -53,7 +53,7 @@
                   { name: 'btn-more', action: 'mod-less', rect: [762,"848+sdim.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"575+sdim.oy",490,60] },
                   { name: 'spn-amount', rect: [510,"349+sdim.oy",493,59] },
-                  { name: 'lbl-commodity', rect: [573,"298+sdtm.oy",430,"43-sdtm.oy+sdim.oy"], invert: true, row: 41 },
+                  { name: 'lbl-commodity', rect: [573,"298+sdtm.oy",430,"43-sdtm.oy+sdim.oy"], ocr_top: 6, ocr_bot: 38 },
                   { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"809+sdim.oy",382,76] },
                   { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,350,"482+sdim.oy"] }
                 ]
@@ -83,7 +83,7 @@
                   { name: 'btn-more', action: 'mod-more', rect: [964,"832+bdil.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [712,"560+bdil.oy",490,60] },
                   { name: 'spn-amount', rect: [712,"360+bdil.oy",496,60]},
-                  { name: 'lbl-commodity', rect: [778,"310+bdtl.oy",432,"43-bdtl.oy+bdil.oy"], invert: true, row: 41 }
+                  { name: 'lbl-commodity', rect: [778,"310+bdtl.oy",432,"43-bdtl.oy+bdil.oy"], ocr_top: 6, ocr_bot: 38 }
                 ]
               },
               {
@@ -97,7 +97,7 @@
                   { name: 'btn-more', action: 'mod-less', rect: [761,"832+bdim.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"560+bdim.oy",490,60] },
                   { name: 'spn-amount', rect: [510,"360+bdim.oy",494,62] },
-                  { name: 'lbl-commodity', rect: [573,"310+bdtm.oy",432,"43-bdtm.oy+bdim.oy"], invert: true, row: 41 },
+                  { name: 'lbl-commodity', rect: [573,"310+bdtm.oy",432,"43-bdtm.oy+bdim.oy"], ocr_top: 6, ocr_bot: 38 },
                   { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"796+bdim.oy",382,76] },
                   { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,310,350,"486+bdim.oy"] }
                 ]
@@ -113,9 +113,13 @@
     status: { gui: 'Services', docked: true },
     detect: [
       { tiles: [172,444,966,484], rows: [2,4], cols: 3, gap: 10, name: "dserv", t: [0.7, 0.9],
-        icons: "services/dock-*.png", rect: [0,0,50,50]},
-      { tiles: [1165,771,584,158], rows: 1, cols: 4, gap: 16, name: "sserv", t: [0.7, 0.9],
-        icons: "services/ship-*.png", rect: [0,0,90,80]}
+        icons: "services/dock-*.png", rect: [0,0,50,50], ext: [0,0,12,12],
+        icon_align: "top-left"
+      },
+      { tiles: [1165,771,584,158], rows: 1, cols: [3,4], gap: 16, name: "sserv", t: [0.7, 0.9],
+        icons: "services/ship-*.png", rect: [0,0,90,80],
+        icon_align: "top-left"
+      }
     ],
     have: [
       { name: 'btn-exit', action: 'close', rect: [162,960,306,38] },
@@ -130,7 +134,7 @@
       { name: 'til-redempt',     action: 'redempt',     icon: "dserv:dock-redempt" },
       { name: 'til-blackmarket', action: 'blackmarket', icon: "dserv:dock-blackmarket" },
       { name: 'til-arch',        action: 'arch',        icon: "dserv:dock-arch" },
-      { name: 'til-news',        action: 'news',        row: 3, col: 0 },
+      //{ name: 'til-news',        action: 'news',        row: 3, col: 0 },
 
       { name: 'til-outfitting',  action: 'outfitting',   icon: "sserv:ship-outfitting" },
       { name: 'til-design',      action: 'design',       icon: "sserv:ship-design" },
@@ -175,9 +179,8 @@
     status: { gui: 'None', docked: false },
     vars: {
       compass: [
-        { scale: 1.0, key: ['cutter'] },
-        { scale: 0.9, key: ['mandalay'] },
-        { scale: 1.0 }
+        { size: [62,58], rect: [679,803,72,68], key: ['type9'] },
+        { size: [61,58], rect: [679,803,71,71] }
       ],
       undistort: [ // for fov [54,60]
         { fov: [1.9,2.1], key: ['2560x1080'] },
@@ -261,8 +264,8 @@
           { name: 'btn-filter', action: 'dlg-filter', rect: [11,219,104,60], ext: [5,25,5,15] },
           { name: 'btn-galaxy', action: 'galaxy-map', rect: [11,476,104,60] },
           { name: 'btn-system', action: 'system-map', rect: [11,592,104,60] },
-          { name: 'lst-bodies', rect: [265,"btn-filter.t",880,"btn-system.b - btn-filter.t"],
-            row_height: 37, row_gap: 2.3,
+          { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",875,"btn-system.b - btn-filter.t + 3"],
+            row_height: 36, row_gap: 3.55,
             tabs: [
               {left:0,   right:750, ocr_top: 9, ocr_bot: 33, name: 'name' }, // nav/body name
               {left:750, right:880, ocr_top: 9, ocr_bot: 28, name: 'dist' }, // distance
@@ -302,6 +305,7 @@
         detect: ["nvline", {
           tiles: [152,512,884,66], rows: 1, cols: [2,6], gap: 6, name: 'dest', t: [0.7, 0.9],
           icons: 'left/ti-dest-*.png', rect: [0,0,40,40], // Y=520
+          icon_align: "center",
           hud: true // try hard
         }],
         have: [

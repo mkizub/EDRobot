@@ -8,6 +8,7 @@
 #include "../OCR.h"
 
 #include <iomanip>
+#include <glob/glob.h>
 
 namespace detect {
 
@@ -17,26 +18,28 @@ CompassDetector::CompassDetector()
         , lastHemisphere(0)
         , navTargetFound(false)
 {
-    baseTestScales = {1, 1.025, 0.975, 1.05, 0.95, /*1.075, 0.925, 1.1, 0.9, 1.125, 0.875*/};
-    compassDetector = std::make_unique<ImageTemplate>("templates/compass/compass_full.png", std::make_shared<ConstRect>(679,803,71,71));
-    compassDetector->testAngles = {0}; //{0, -1, +1};
-    compassDetector->testScales = baseTestScales;
-    compassDetector->extendLT = {20, 40}; //{40, 80};
-    compassDetector->extendRB = {60, 60}; //{50, 140};
-    compassDetector->threshold_min = 0.3;
-    compassDetector->threshold_max = 0.8;
-    compassDetector->matchMethod = cv::TM_CCORR;
+    loadCompass();
+    HsvMaskFilter* hsvFilter;
 
-    navTargetScales = {1.0};
-
-    HsvMaskFilter* hsvFilter = new HsvMaskFilter();
-    hsvFilter->rangesU.emplace_back(cv::Vec3b(10,50,254),cv::Vec3b(35,255,255)); // limit Hue[10..30]
-    compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.65, 0)));
-    compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
+    // dot in compass (forward/backward)
+    XMat dotFwdImage;
+    XMat dotBwdImage;
+    ImageTemplate::loadImageAndMask("templates/compass/dot_fwd.png", dotFwdImage);
+    ImageTemplate::loadImageAndMask("templates/compass/dot_bwd.png", dotBwdImage);
+    compassDotsOrig.emplace_back(1.0, 0, "dot_fwd.png", dotFwdImage);
+    compassDotsOrig.emplace_back(1.0, 0, "dot_bwd.png", dotBwdImage);
 
     hsvFilter = new HsvColorCropFilter();
-    hsvFilter->rangesU.emplace_back(cv::Vec3b(0,0,80),cv::Vec3b(255,90,255)); // limit Saturation[..90] and Value[80..]
+    hsvFilter->rangesU.emplace_back(cv::Vec3b(30,0,180),cv::Vec3b(100,90,255)); // limit Saturation[..90] and Value[80..]
     dotsFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
+
+    // nav target (3/4 circle with distance)
+    navTargetReferenceRadius = 48;
+    navTargetScales = {1.0};
+    targetReferenceRect = {1920/2-540,1080/2-540,540*2,540+260};
+    XMat targetImage;
+    ImageTemplate::loadImageAndMask("templates/compass/nav_target_base.png", targetImage);
+    navTargetOrig.emplace_back(1.0, 0, "nav_target_base.png", targetImage);
 
     // HsvMaskCropFilter or HsvGrayCropFilter + LaplacianFilter + DilateFilter
     hsvFilter = new HsvMaskFilter();
@@ -50,34 +53,61 @@ CompassDetector::CompassDetector()
     hsvFilter->rangesU.emplace_back(cv::Vec3b(15,120,200),cv::Vec3b(35,255,255));
     distOCRFilters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.2, 0)));
     distOCRFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
+}
 
-    XMat dotFwdImage;
-    XMat dotBwdImage;
-    ImageTemplate::loadImageAndMask("templates/compass/dot_fwd.png", dotFwdImage);
-    ImageTemplate::loadImageAndMask("templates/compass/dot_bwd.png", dotBwdImage);
-    compassDotsOrig.emplace_back(1.0, 0, "dot_fwd.png", dotFwdImage);
-    compassDotsOrig.emplace_back(1.0, 0, "dot_bwd.png", dotBwdImage);
+void CompassDetector::loadCompass() {
+    preprocessedShip = st::shipInfo.shipType;
+    const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem("scr-cockpit");
+    cv::Rect compassRefRect;
+    auto &varSet = scr_cockpit->varSetMap.at("compass");
+    for (auto &vars: varSet) {
+        if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), preprocessedShip)) {
+            compassRefSize.width = vars.values.at("size")[0];
+            compassRefSize.height = vars.values.at("size")[1];
+            compassRefRect.x = vars.values.at("rect")[0];
+            compassRefRect.y = vars.values.at("rect")[1];
+            compassRefRect.width = vars.values.at("rect")[2];
+            compassRefRect.height = vars.values.at("rect")[3];
+            break;
+        }
+    }
+    compassImageName = std::format("templates/compass/compass*_{}.png",preprocessedShip);
+    auto paths = glob::glob(compassImageName);
+    if (paths.empty())
+        compassImageName = "templates/compass/compass*_default.png";
 
-    targetReferenceRect = {1920/2-540,1080/2-540,540*2,540+260};
-    targetReferenceRadius = 48;
-    XMat targetImage;
-    ImageTemplate::loadImageAndMask("templates/compass/nav_target_base.png", targetImage);
-    navTargetOrig.emplace_back(1.0, 0, "nav_target_base.png", targetImage);
+    compassDetector = std::make_unique<ImageTemplate>(compassImageName, std::make_shared<ConstRect>(compassRefRect));
+    compassDetector->testAngles = {0}; //{0, -1, +1};
+    compassDetector->testScales = {1, 1.025, 0.975, 1.05, 0.95, /*1.075, 0.925, 1.1, 0.9, 1.125, 0.875*/};
+    compassDetector->extendLT = {40, 60}; //{40, 80};
+    compassDetector->extendRB = {60, 110}; //{50, 140};
+    compassDetector->threshold_min = 0.3;
+    compassDetector->threshold_max = 0.8;
+    compassDetector->matchMethod = cv::TM_CCORR_NORMED;
+
+    HsvMaskFilter* hsvFilter = new HsvGrayCropFilter();
+    //hsvFilter->rangesU.emplace_back(cv::Vec3b(15,50,254),cv::Vec3b(35,255,255)); // limit Hue[10..30]
+    hsvFilter->rangesU.emplace_back(cv::Vec3b(10,0,0),cv::Vec3b(35,255,255)); // limit Hue[10..35]
+    compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.65, 0)));
+    compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
 }
 
 double CompassDetector::match(ClassifyEnv &env) {
     lastHemisphere = 0;
     navTargetFound = false;
-    lastNavTargetText.clear();
+    lastNavDist = {};
 
     {
-        const std::string &ship = Cfg.getShipType();
+        const std::string &ship = st::shipInfo.shipType;
+        if (preprocessedShip != ship) {
+            loadCompass();
+        }
         double fov = Cfg.getConfigFOV();
-        if (preprocessedShip != ship || preprocessedFOV != fov) {
+        if (preprocessedFOV != fov) {
             compassDetector->preprocessedTemplateScale = 0;
             preprocessedDotsScale = 0;
-            preprocessedShip = ship;
             preprocessedFOV = fov;
+
             // config FOV is Vertical for 16:9 aspect ratio
             {
                 double x_scale = double(env.captureRect.width) / env.ReferenceScreenSize.width;
@@ -91,21 +121,6 @@ double CompassDetector::match(ClassifyEnv &env) {
                 captureFovY = std::round(captureFovY * 65536) / 65536;
                 captureFovX = std::round(captureFovX * 65536) / 65536;
             }
-
-            shipCompassScale = 1;
-            const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem("scr-cockpit");
-            if (scr_cockpit) {
-                auto &varSet = scr_cockpit->varSetMap.at("compass");
-                for (auto &vars: varSet) {
-                    if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), ship)) {
-                        shipCompassScale = vars.values.at("scale")[0];
-                        break;
-                    }
-                }
-            }
-            compassDetector->testScales.clear();
-            for (auto scl : baseTestScales)
-                compassDetector->testScales.push_back(scl * shipCompassScale);
         }
     }
 
@@ -194,18 +209,19 @@ double CompassDetector::match(ClassifyEnv &env) {
             LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", dr.value,
                                       ((dr.index & 1) ? "backward" : "forward"));
             cv::Size dotSize = {dr.im->opt_w, dr.im->opt_h};
-            lastDotValue = dr.value;
             lastHemisphere = dr.index & 1 ? -1 : +1;
             dotCaptureRect = {matchRect.tl() + dr.loc , dotSize};
-            double radius = env.getScale() * (compassDetector->refRect.width - 14.0) * 0.5 * compassDetector->imagesPrepared[dr.index].scale;
+            double radiusX = env.getScale() * compassRefSize.width * 0.5 * compassDetector->imagesPrepared[dr.index].scale;
+            double radiusY = env.getScale() * compassRefSize.height * 0.5 * compassDetector->imagesPrepared[dr.index].scale;
             dotSpherePosition = {
-                    std::clamp((dr.loc.x + dotSize.width * 0.5 - matchRect.width * 0.5) / radius, -1.0, +1.0),
-                    std::clamp(-(dr.loc.y + dotSize.height * 0.5 - matchRect.height * 0.5) / radius, -1.0, +1.0),
+                    std::clamp((dr.loc.x + dotSize.width * 0.5 - matchRect.width * 0.5) / radiusX, -1.0, +1.0),
+                    std::clamp(-(dr.loc.y + dotSize.height * 0.5 - matchRect.height * 0.5) / radiusY, -1.0, +1.0),
             };
 
             double pitch = std::asin(dotSpherePosition.y) * 90 / M_PI_2;
             double yaw = std::asin(dotSpherePosition.x) * 90 / M_PI_2;
             double roll = std::atan2(dotSpherePosition.x, dotSpherePosition.y) * 90 / M_PI_2;
+            double angle = std::asin(norm(dotSpherePosition)) * 90 / M_PI_2;
 
             if (lastHemisphere < 0) {
                 if (pitch > 0)
@@ -219,12 +235,15 @@ double CompassDetector::match(ClassifyEnv &env) {
                 else
                     yaw = -180 - yaw;
             }
+            if (lastHemisphere < 0) {
+                angle = 180 - angle;
+            }
             lastTgtPitch = pitch;
             lastTgtYaw = yaw;
             lastTgtRoll = roll;
+            lastTgtAngle = angle;
 
-            LOG(DEBUG) << std::format("Compass dot value={:.3f}, direction={}",
-                                      lastDotValue, ((lastHemisphere < 0) ? "backward" : "forward"))
+            LOG(DEBUG) << std::format("Compass dot direction={}", ((lastHemisphere < 0) ? "backward" : "forward"))
                        << ", sphere pos=" << dotSpherePosition
                        << std_format(" pitch:{}, yaw:{}, roll:{}", int(pitch), int(yaw), int(roll));
         }
@@ -246,7 +265,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         //startTime = std::chrono::high_resolution_clock::now();
 
         ImageTemplate::MatchResult nr;
-        ImageTemplate::matchTemplates(cv::TM_CCORR, imagePrepared, navTargetPrepared, nr);
+        ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, imagePrepared, navTargetPrepared, nr);
         if (nr.value > 0.5 && nr.im) {
             LOG(DEBUG) << std::format("compass target match result: {:.3f}", nr.value);
             cv::Point foundPos = nr.loc + cv::Point(nr.im->opt_w, nr.im->opt_h) / 2;
@@ -267,12 +286,14 @@ double CompassDetector::match(ClassifyEnv &env) {
             double yaw = std::atan(lastNavTargetOffset.x / d) * 180 / M_PI;
             double pitch = -std::atan(lastNavTargetOffset.y / d) * 180 / M_PI;
             double roll = std::atan2(lastNavTargetOffset.x, -lastNavTargetOffset.y) * 90 / M_PI_2;
+            double angle = std::asin(norm(lastNavTargetOffset) / d) * 90 / M_PI_2;
             LOG(DEBUG) << "Update compass from nav target: "
                 << std::format("pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f} (delta: {:+.1f}; {:+.1f}; {:+.1f})",
                                pitch, yaw, roll, pitch-lastTgtPitch, yaw-lastTgtYaw, roll-lastTgtRoll);
             lastTgtPitch = pitch;
             lastTgtYaw = yaw;
             lastTgtRoll = roll;
+            lastTgtAngle = angle;
         }
 
         if (navTargetFound) {
@@ -313,11 +334,9 @@ double CompassDetector::match(ClassifyEnv &env) {
             XMat ocrImage = ImageTemplate::applyFilters(distOCRFilters, rotatedImge(ocrRect));
             cv::bitwise_not(ocrImage, ocrImage);
             std::string text;
-            int conf = ocr::ocrLine("(nav dist)", toMat(ocrImage), text, nullptr);
-            if (conf > 80) {
-                lastNavTargetText = text;
+            int conf = ocr::ocrLine(ocr::DISTANCE, "(nav dist)", toMat(ocrImage), text, nullptr);
+            if (conf > 75)
                 lastNavDist = parseDist(toUtf16(text));
-            }
             //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
             //LOG(INFO) << "Compass nav target dist text took: " << elapsedTime.count() << "us";
         }

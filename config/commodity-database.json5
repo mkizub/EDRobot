@@ -14,15 +14,15 @@
         en: "",
         ru: "Разведданные Грома",
       },
-      undergroundsupport: {
-        id: 0,
-        en: "",
-        ru: "Подпольная поддержка Грома",
-      },
       gromwartrophies: {
         id: 0,
         en: "",
         ru: "Военные припасы Грома",
+      },
+      undergroundsupport: {
+        id: 0,
+        en: "",
+        ru: "Подпольная поддержка Грома",
       },
     },
   },
@@ -31,6 +31,18 @@
     en: "Foods",
     ru: "Продукты питания",
     items: {
+      karsukilocusts: {
+        id: 128667023,
+        rare: true,
+        en: "Karsuki Locusts",
+        ru: "Саранча с Karsuki",
+      },
+      neritusberries: {
+        id: 128667056,
+        rare: true,
+        en: "Neritus Berries",
+        ru: "Нерутские ягоды",
+      },
       algae: {
         id: 128049177,
         en: "Algae",
@@ -38,6 +50,7 @@
       },
       bluemilk: {
         id: 128667716,
+        rare: true,
         en: "Azure Milk",
         ru: "Лазурное молоко",
       },
@@ -48,6 +61,7 @@
       },
       wheemetewheatcakes: {
         id: 128667698,
+        rare: true,
         en: "Wheemete Wheat Cakes",
         ru: "Уимитские пшеничные галеты",
       },
@@ -56,11 +70,6 @@
         en: "Synthetic Meat",
         ru: "Синтетическое мясо",
       },
-      neritusberries: {
-        id: 128667056,
-        en: "Neritus Berries",
-        ru: "Нерутские ягоды",
-      },
       animalmeat: {
         id: 128049182,
         en: "Animal Meat",
@@ -68,66 +77,79 @@
       },
       ochoengchillies: {
         id: 128667057,
+        rare: true,
         en: "Ochoeng Chillies",
         ru: "Перчик чили с Ochoeng",
       },
       utgaroarmillenialeggs: {
         id: 128667021,
+        rare: true,
         en: "Utgaroar Millennial Eggs",
         ru: "Миллениальные яйца с Utgaroar",
       },
       aerialedenapple: {
         id: 128667055,
+        rare: true,
         en: "Eden Apples Of Aerial",
         ru: "Райские яблоки с Aerial",
       },
       albinoquechuamammoth: {
         id: 128667020,
+        rare: true,
         en: "Albino Quechua Mammoth Meat",
         ru: "Мясо белого кечуанского мамонта",
       },
       anynacoffee: {
         id: 128667041,
+        rare: true,
         en: "Any Na Coffee",
         ru: "Кофе Any Na",
       },
       aroucaconventualsweets: {
         id: 128667705,
+        rare: true,
         en: "Arouca Conventual Sweets",
         ru: "Монастырские сладости с Arouca",
       },
       bakedgreebles: {
         id: 128667669,
+        rare: true,
         en: "Baked Greebles",
         ru: "Печеные гриблы",
       },
       baltahsinevacuumkrill: {
         id: 128667025,
+        rare: true,
         en: "Baltah'sine Vacuum Krill",
         ru: "Вакуумный криль с Baltah'sine",
       },
       cd75catcoffee: {
         id: 128667042,
+        rare: true,
         en: "CD-75 Kitten Brand Coffee",
         ru: "Кошачий кофе CD-75",
       },
       ceremonialheiketea: {
         id: 128667078,
+        rare: true,
         en: "Ceremonial Heike Tea",
         ru: "Церемониальный чай Heike",
       },
       cetiaepyornisegg: {
         id: 128667670,
+        rare: true,
         en: "Aepyornis Egg",
         ru: "Яйцо эпиорниса",
       },
       cetirabbits: {
         id: 128667026,
+        rare: true,
         en: "Ceti Rabbits",
         ru: "Кролики с Ceti",
       },
       chieridanimarinepaste: {
         id: 128667049,
+        rare: true,
         en: "Chi Eridani Marine Paste",
         ru: "Морская паста с Chi Eridani",
       },
@@ -138,26 +160,31 @@
       },
       coquimspongiformvictuals: {
         id: 128667054,
+        rare: true,
         en: "Coquim Spongiform Victuals",
         ru: "Губковые продукты с Coquim",
       },
       deuringastruffles: {
         id: 128667058,
+        rare: true,
         en: "Deuringas Truffles",
         ru: "Трюфели с Deuringas",
       },
       disomacorn: {
         id: 128667714,
+        rare: true,
         en: "Diso Ma Corn",
         ru: "Зерна дисо ма",
       },
       esusekucaviar: {
         id: 128667050,
+        rare: true,
         en: "Esuseku Caviar",
         ru: "Эсусекусская осетровая икра",
       },
       ethgrezeteabuds: {
         id: 128667077,
+        rare: true,
         en: "Ethgreze Tea Buds",
         ru: "Чайные бутоны с Ethgreze",
       },
@@ -173,6 +200,7 @@
       },
       hr7221wheat: {
         id: 128667059,
+        rare: true,
         en: "HR 7221 Wheat",
         ru: "Пшеница HR 7221",
       },
@@ -183,16 +211,19 @@
       },
       fujintea: {
         id: 128667709,
+        rare: true,
         en: "Fujin Tea",
         ru: "Фудзинский чай",
       },
       giantirukamasnails: {
         id: 128667024,
+        rare: true,
         en: "Giant Irukama Snails",
         ru: "Огромные улитки с Irukama",
       },
       gomanyauponcoffee: {
         id: 128667043,
+        rare: true,
         en: "Goman Yaupon Coffee",
         ru: "Кофе Goman Yaupon",
       },
@@ -203,86 +234,97 @@
       },
       haidneblackbrew: {
         id: 128667679,
+        rare: true,
         en: "Haiden Black Brew",
         ru: "Гайденовский черный напиток",
       },
       hip10175bushmeat: {
         id: 128667019,
+        rare: true,
         en: "HIP 10175 Bush Meat",
         ru: "Мясо лесной дичи с HIP 10175",
       },
       hip41181squid: {
         id: 128667053,
+        rare: true,
         en: "HIP Proto-Squid",
         ru: "Протокальмар с HIP",
       },
       jarouarice: {
         id: 128667060,
+        rare: true,
         en: "Jaroua Rice",
         ru: "Жаруйский рис",
       },
-      karsukilocusts: {
-        id: 128667023,
-        en: "Karsuki Locusts",
-        ru: "Саранча с Karsuki",
-      },
       lftvoidextractcoffee: {
         id: 128667685,
+        rare: true,
         en: "Void Extract Coffee",
         ru: "Кофе «Экстракт пустоты»",
       },
       livehecateseaworms: {
         id: 128667051,
+        rare: true,
         en: "Live Hecate Sea Worms",
         ru: "Живые морские черви с Hecate",
       },
       ltthypersweet: {
         id: 128667688,
+        rare: true,
         en: "LTT Hyper Sweet",
         ru: "Гиперсладости LTT",
       },
       mechucoshightea: {
         id: 128667689,
+        rare: true,
         en: "Mechucos High Tea",
         ru: "Мечукосский кайфочай",
       },
       witchhaulkobebeef: {
         id: 128667022,
+        rare: true,
         en: "Witchhaul Kobe Beef",
         ru: "Мясо кобе с Witchhaul",
       },
       mokojingbeastfeast: {
         id: 128667691,
+        rare: true,
         en: "Mokojing Beast Feast",
         ru: "Мокоджингское зверское яство",
       },
       mukusubiichitinos: {
         id: 128667692,
+        rare: true,
         en: "Mukusubii Chitin-os",
         ru: "Мукусубские хитинос",
       },
       mulachigiantfungus: {
         id: 128667693,
+        rare: true,
         en: "Mulachi Giant Fungus",
         ru: "Гигатские грибы с Mulachi",
       },
       orrerianviciousbrew: {
         id: 128667711,
+        rare: true,
         en: "Orrerian Vicious Brew",
         ru: "Оррерское жуткое пойло",
       },
       sanumameat: {
         id: 128667076,
+        rare: true,
         en: "Sanuma Decorative Meat",
         ru: "Декоративное мясо с Sanuma",
       },
       tanmarktranquiltea: {
         id: 128667079,
+        rare: true,
         en: "Tanmark Tranquil Tea",
         ru: "Успокаивающий чай Tanmark",
       },
       uszaiantreegrub: {
         id: 128667712,
+        rare: true,
         en: "Uszaian Tree Grub",
         ru: "Ушжаанский росток дерева",
       },
@@ -295,76 +337,97 @@
     items: {
       eleuthermals: {
         id: 128667037,
+        rare: true,
         en: "Eleu Thermals",
         ru: "Элеусская теплая одежда",
       },
-      uzumokulowgwings: {
-        id: 128667696,
-        en: "Uzumoku Low-G Wings",
-        ru: "Узумокские крылья для малой гравитации",
-      },
-      momusbogspaniel: {
-        id: 128667713,
-        en: "Momus Bog Spaniel",
-        ru: "Момусовский болотный спаниель",
-      },
-      soontillrelics: {
-        id: 128668018,
-        en: "Soontill Relics",
-        ru: "Реликвии Сунтилла",
-      },
-      njangarisaddles: {
-        id: 128667040,
-        en: "Njangari Saddles",
-        ru: "Седла Njangari",
-      },
-      tiolcewaste2pasteunits: {
-        id: 128667048,
-        en: "Tiolce Waste2Paste Units",
-        ru: "Устройства «Отход-в-приход» Tiolce",
-      },
-      ngunamodernantiques: {
-        id: 128667046,
-        en: "Nguna Modern Antiques",
-        ru: "Современные древности с Nguna",
-      },
-      anduligafireworks: {
-        id: 128667673,
-        en: "Anduliga Fire Works",
-        ru: "Андулигские фейерверки",
-      },
-      advert1: {
-        id: 128671119,
-        en: "Ultra-Compact Processor Prototypes",
-        ru: "Экспериментальные ультракомпактные процессоры",
-      },
       eshuumbrellas: {
         id: 128667038,
+        rare: true,
         en: "Eshu Umbrellas",
         ru: "Зонтики Эшу",
       },
       alacarakmoskinart: {
         id: 128667036,
+        rare: true,
         en: "Alacarakmo Skin Art",
         ru: "Алакаракмовские татуировки",
       },
+      rajukrustoves: {
+        id: 128667047,
+        rare: true,
+        en: "Rajukru Multi-Stoves",
+        ru: "Мультипечи Rajukru",
+      },
+      uzumokulowgwings: {
+        id: 128667696,
+        rare: true,
+        en: "Uzumoku Low-G Wings",
+        ru: "Узумокские крылья для малой гравитации",
+      },
+      momusbogspaniel: {
+        id: 128667713,
+        rare: true,
+        en: "Momus Bog Spaniel",
+        ru: "Момусовский болотный спаниель",
+      },
+      soontillrelics: {
+        id: 128668018,
+        rare: true,
+        en: "Soontill Relics",
+        ru: "Реликвии Сунтилла",
+      },
+      njangarisaddles: {
+        id: 128667040,
+        rare: true,
+        en: "Njangari Saddles",
+        ru: "Седла Njangari",
+      },
+      tiolcewaste2pasteunits: {
+        id: 128667048,
+        rare: true,
+        en: "Tiolce Waste2Paste Units",
+        ru: "Устройства «Отход-в-приход» Tiolce",
+      },
+      ngunamodernantiques: {
+        id: 128667046,
+        rare: true,
+        en: "Nguna Modern Antiques",
+        ru: "Современные древности с Nguna",
+      },
+      anduligafireworks: {
+        id: 128667673,
+        rare: true,
+        en: "Anduliga Fire Works",
+        ru: "Андулигские фейерверки",
+      },
+      advert1: {
+        id: 128671119,
+        rare: true,
+        en: "Ultra-Compact Processor Prototypes",
+        ru: "Экспериментальные ультракомпактные процессоры",
+      },
       alieneggs: {
         id: 128667717,
+        rare: true,
         en: "Leathery Eggs",
         ru: "Кожистые яйца",
       },
       thehuttonmug: {
         id: 128672121,
+        rare: true,
         en: "The Hutton Mug",
         ru: "Кружка Hutton",
       },
       altairianskin: {
         id: 128667700,
+        rare: true,
         en: "Altairian Skin",
         ru: "Альтаирская кожа",
       },
       buckyballbeermats: {
         id: 128748428,
+        rare: true,
         en: "Buckyball Beer Mats",
         ru: "Подставка под пиво Buckyball",
       },
@@ -380,11 +443,13 @@
       },
       shanscharisorchid: {
         id: 128732551,
+        rare: true,
         en: "Shan's Charis Orchid",
         ru: "Орхидея Shan Charis",
       },
       karetiicouture: {
         id: 128667039,
+        rare: true,
         en: "Karetii Couture",
         ru: "Модные вещи от Karetii",
       },
@@ -395,6 +460,7 @@
       },
       taurichimes: {
         id: 128667706,
+        rare: true,
         en: "Tauri Chimes",
         ru: "Колокольчики с Tauri",
       },
@@ -410,11 +476,13 @@
       },
       havasupaidreamcatcher: {
         id: 128667680,
+        rare: true,
         en: "Havasupai Dream Catcher",
         ru: "Хавасупайский ловец снов",
       },
       jaquesquinentianstill: {
         id: 128668017,
+        rare: true,
         en: "Jaques Quinentian Still",
         ru: "Дистиллятор Жака Квиненциана",
       },
@@ -425,18 +493,15 @@
       },
       kinagoinstruments: {
         id: 128667045,
+        rare: true,
         en: "Kinago Violins",
         ru: "Скрипки Kinago",
       },
       ophiuchiexinoartefacts: {
         id: 128667668,
+        rare: true,
         en: "Ophiuch Exino Artefacts",
         ru: "Артефакты офиух экзино",
-      },
-      rajukrustoves: {
-        id: 128667047,
-        en: "Rajukru Multi-Stoves",
-        ru: "Мультипечи Rajukru",
       },
       survivalequipment: {
         id: 128682048,
@@ -445,11 +510,13 @@
       },
       vidavantianlace: {
         id: 128667719,
+        rare: true,
         en: "Vidavantian Lace",
         ru: "Видавантийский шнурок",
       },
       zeesszeantglue: {
         id: 128667707,
+        rare: true,
         en: "Zeessze Ant Grub Glue",
         ru: "Зесский муравьиный клей",
       },
@@ -462,23 +529,19 @@
     items: {
       deltaphoenicispalms: {
         id: 128667073,
+        rare: true,
         en: "Delta Phoenicis Palms",
         ru: "Фениксовые пальмы с Delta",
-      },
-      agronomictreatment: {
-        id: 128924334,
-        en: "Agronomic Treatment",
-        ru: "Средство очистки почвы",
-      },
-      hydrogenfuel: {
-        id: 128049202,
-        en: "Hydrogen Fuel",
-        ru: "Водородное топливо",
       },
       explosives: {
         id: 128049204,
         en: "Explosives",
         ru: "Взрывчатка",
+      },
+      agronomictreatment: {
+        id: 128924334,
+        en: "Agronomic Treatment",
+        ru: "Средство очистки почвы",
       },
       syntheticreagents: {
         id: 128672303,
@@ -487,8 +550,14 @@
       },
       hiporganophosphates: {
         id: 128667682,
+        rare: true,
         en: "Hip Organophosphates",
         ru: "Мощные органофосфаты",
+      },
+      hydrogenfuel: {
+        id: 128049202,
+        en: "Hydrogen Fuel",
+        ru: "Водородное топливо",
       },
       hydrogenperoxide: {
         id: 128673850,
@@ -497,6 +566,7 @@
       },
       korrokungpellets: {
         id: 128667684,
+        rare: true,
         en: "Koro Kung Pellets",
         ru: "Корокунгские катышки",
       },
@@ -507,6 +577,7 @@
       },
       medbstarlube: {
         id: 128667690,
+        rare: true,
         en: "Medb Starlube",
         ru: "Звездная смазка с Medb",
       },
@@ -537,6 +608,7 @@
       },
       toxandjivirocide: {
         id: 128667074,
+        rare: true,
         en: "Toxandji Virocide",
         ru: "Токсанджийские вирициды",
       },
@@ -557,18 +629,39 @@
     en: "Legal drugs",
     ru: "Легальные психоактивные вещества",
     items: {
+      eraninpearlwhisky: {
+        id: 128666746,
+        rare: true,
+        en: "Eranin Pearl Whisky",
+        ru: "Эранинское жемчужное виски",
+      },
+      bastsnakegin: {
+        id: 128667065,
+        rare: true,
+        en: "Bast Snake Gin",
+        ru: "Настойка из бастетовых змей",
+      },
+      geawendancedust: {
+        id: 128667677,
+        rare: true,
+        en: "Geawen Dance Dust",
+        ru: "Геавенская танцевальная пыль",
+      },
       chateaudeaegaeon: {
         id: 128667084,
+        rare: true,
         en: "Chateau De Aegaeon",
         ru: "Шато де Эгеон",
       },
       burnhambiledistillate: {
         id: 128667681,
+        rare: true,
         en: "Burnham Bile Distillate",
         ru: "Бернхемский желчный дистиллят",
       },
       apavietii: {
         id: 128958679,
+        rare: true,
         en: "Apa Vietii",
         ru: "Apa Vietii",
       },
@@ -579,6 +672,7 @@
       },
       animaleffigies: {
         id: 128727921,
+        rare: true,
         en: "Crom Silver Fesh",
         ru: "Кромская серебряная дурь",
       },
@@ -589,33 +683,14 @@
       },
       saxonwine: {
         id: 128667671,
+        rare: true,
         en: "Saxon Wine",
         ru: "Саксонское вино",
-      },
-      gerasiangueuzebeer: {
-        id: 128667678,
-        en: "Gerasian Gueuze Beer",
-        ru: "Герасианское пиво гез",
       },
       basicnarcotics: {
         id: 128049212,
         en: "Narcotics",
         ru: "Наркотики",
-      },
-      geawendancedust: {
-        id: 128667677,
-        en: "Geawen Dance Dust",
-        ru: "Геавенская танцевальная пыль",
-      },
-      eraninpearlwhisky: {
-        id: 128666746,
-        en: "Eranin Pearl Whisky",
-        ru: "Эранинское жемчужное виски",
-      },
-      bastsnakegin: {
-        id: 128667065,
-        en: "Bast Snake Gin",
-        ru: "Настойка из бастетовых змей",
       },
       beer: {
         id: 128049214,
@@ -624,36 +699,49 @@
       },
       centaurimegagin: {
         id: 128667672,
+        rare: true,
         en: "Centauri Mega Gin",
         ru: "Кентаврский мега-джин",
       },
+      gerasiangueuzebeer: {
+        id: 128667678,
+        rare: true,
+        en: "Gerasian Gueuze Beer",
+        ru: "Герасианское пиво гез",
+      },
       harmasilversearum: {
         id: 128793113,
+        rare: true,
         en: "Harma Silver Sea Rum",
         ru: "Ром «Серебряное море Harma»",
       },
       indibourbon: {
         id: 128667704,
+        rare: true,
         en: "Indi Bourbon",
         ru: "Инди-бурбон",
       },
       kamitracigars: {
         id: 128667081,
+        rare: true,
         en: "Kamitra Cigars",
         ru: "Сигара Kamitra",
       },
       konggaale: {
         id: 128667034,
+        rare: true,
         en: "Kongga Ale",
         ru: "Эль с Kongga",
       },
       lavianbrandy: {
         id: 128666747,
+        rare: true,
         en: "Lavian Brandy",
         ru: "Лавианский бренди",
       },
       leestianeviljuice: {
         id: 128667715,
+        rare: true,
         en: "Leestian Evil Juice",
         ru: "Леестийский сок зла",
       },
@@ -664,46 +752,55 @@
       },
       lyraeweed: {
         id: 128667028,
+        rare: true,
         en: "Lyrae Weed",
         ru: "Трава лираи",
       },
       motronaexperiencejelly: {
         id: 128667676,
+        rare: true,
         en: "Motrona Experience Jelly",
         ru: "Мотронское желе",
       },
       onionhead: {
         id: 128667029,
+        rare: true,
         en: "Onionhead",
         ru: "Луковая головка",
       },
       onionheada: {
         id: 128672812,
+        rare: true,
         en: "Onionhead Alpha Strain",
         ru: "Луковая головка, сорт альфа",
       },
       onionheadb: {
         id: 128673069,
+        rare: true,
         en: "Onionhead Beta Strain",
         ru: "Луковая головка, сорт бета",
       },
       pavoniseargrubs: {
         id: 128667701,
+        rare: true,
         en: "Pavonis Ear Grubs",
         ru: "Павлинские ухочерви",
       },
       rusanioldsmokey: {
         id: 128667082,
+        rare: true,
         en: "Rusani Old Smokey",
         ru: "Старые папиросы Rusani",
       },
       tarachtorspice: {
         id: 128667030,
+        rare: true,
         en: "Tarach Spice",
         ru: "Таракская пряность",
       },
       thrutiscream: {
         id: 128667066,
+        rare: true,
         en: "Thrutis Cream",
         ru: "Трутисские сливки",
       },
@@ -714,6 +811,7 @@
       },
       transgeniconionhead: {
         id: 128667760,
+        rare: true,
         en: "Lucan Onionhead",
         ru: "Луканская луковая головка",
       },
@@ -724,16 +822,19 @@
       },
       wolf1301fesh: {
         id: 128667031,
+        rare: true,
         en: "Wolf Fesh",
         ru: "Волчья дурь",
       },
       wuthielokufroth: {
         id: 128667035,
+        rare: true,
         en: "Wuthielo Ku Froth",
         ru: "Пиво Ку с Wuthielo",
       },
       yasokondileaf: {
         id: 128667083,
+        rare: true,
         en: "Yaso Kondi Leaf",
         ru: "Лист ясо Конди",
       },
@@ -744,6 +845,12 @@
     en: "Machinery",
     ru: "Машинное оборудование",
     items: {
+      noneuclidianexotanks: {
+        id: 128667687,
+        rare: true,
+        en: "Non Euclidian Exotanks",
+        ru: "Неевклидовы экзобаки",
+      },
       powertransferconduits: {
         id: 128673864,
         en: "Power Transfer Bus",
@@ -756,13 +863,9 @@
       },
       volkhabbeedrones: {
         id: 128667044,
+        rare: true,
         en: "Volkhab Bee Drones",
         ru: "Дроны Volkhab Bee",
-      },
-      noneuclidianexotanks: {
-        id: 128667687,
-        en: "Non Euclidian Exotanks",
-        ru: "Неевклидовы экзобаки",
       },
       powerconverter: {
         id: 128673862,
@@ -821,6 +924,7 @@
       },
       giantverrix: {
         id: 128667703,
+        rare: true,
         en: "Giant Verrix",
         ru: "Гигант Веррикс",
       },
@@ -881,6 +985,7 @@
       },
       wulpahyperboresystems: {
         id: 128667067,
+        rare: true,
         en: "Wulpa Hyperbore Systems",
         ru: "Гипербурильные системы Wulpa",
       },
@@ -1050,6 +1155,7 @@
       },
       personalgifts: {
         id: 128672431,
+        rare: true,
         en: "Festive Gifts",
         ru: "Праздничные подарки",
       },
@@ -1170,6 +1276,7 @@
       },
       crystallinespheres: {
         id: 128672432,
+        rare: true,
         en: "Crystalline Spheres",
         ru: "Прозрачные сферы",
       },
@@ -1437,11 +1544,13 @@
     items: {
       vherculisbodyrub: {
         id: 128667697,
+        rare: true,
         en: "V Herculis Body Rub",
         ru: "Скраб с V Herculis",
       },
       kachiriginleaches: {
         id: 128667027,
+        rare: true,
         en: "Kachirigin Filter Leeches",
         ru: "Очищающие пиявки с Kachirigin",
       },
@@ -1452,6 +1561,7 @@
       },
       watersofshintara: {
         id: 128667085,
+        rare: true,
         en: "The Waters Of Shintara",
         ru: "Воды с Shintara",
       },
@@ -1462,6 +1572,7 @@
       },
       aganipperush: {
         id: 128667068,
+        rare: true,
         en: "Aganippe Rush",
         ru: "Аганиппийский кайф",
       },
@@ -1472,6 +1583,7 @@
       },
       alyabodilysoap: {
         id: 128667718,
+        rare: true,
         en: "Alya Body Soap",
         ru: "Алийское мыло для тела",
       },
@@ -1482,16 +1594,19 @@
       },
       honestypills: {
         id: 128667686,
+        rare: true,
         en: "Honesty Pills",
         ru: "Пилюли честности",
       },
       nanomedicines: {
         id: 128913661,
+        rare: true,
         en: "Nanomedicines",
         ru: "Нанолекарства",
       },
       pantaaprayersticks: {
         id: 128667708,
+        rare: true,
         en: "Pantaa Prayer Sticks",
         ru: "Пантаские молитвенные палочки",
       },
@@ -1507,11 +1622,13 @@
       },
       terramaterbloodbores: {
         id: 128667069,
+        rare: true,
         en: "Terra Mater Blood Bores",
         ru: "Кровяные усилители с Terra Mater",
       },
       vegaslimweed: {
         id: 128667699,
+        rare: true,
         en: "Vega Slimweed",
         ru: "Водоросли для похудения с Vega",
       },
@@ -1554,6 +1671,7 @@
       },
       sothiscrystallinegold: {
         id: 128672122,
+        rare: true,
         en: "Sothis Crystalline Gold",
         ru: "Кристаллическое золото системы Sothis",
       },
@@ -1574,6 +1692,7 @@
       },
       cherbonesbloodcrystals: {
         id: 128667675,
+        rare: true,
         en: "Cherbones Blood Crystals",
         ru: "Чербонские кровавые кристаллы",
       },
@@ -1604,6 +1723,7 @@
       },
       helvetitjpearls: {
         id: 128667052,
+        rare: true,
         en: "Helvetitj Pearls",
         ru: "Жемчуг с Helvetitj",
       },
@@ -1619,6 +1739,7 @@
       },
       ngadandarifireopals: {
         id: 128667694,
+        rare: true,
         en: "Ngadandari Fire Opals",
         ru: "Нгадандарийские огненные опалы",
       },
@@ -1634,6 +1755,7 @@
       },
       platinumaloy: {
         id: 128793114,
+        rare: true,
         en: "Platinum Alloy",
         ru: "Платиновый сплав",
       },
@@ -1676,11 +1798,13 @@
       },
       hip118311swarm: {
         id: 128667033,
+        rare: true,
         en: "HIP 118311 Swarm",
         ru: "Рой HIP 118311",
       },
       gilyasignatureweapons: {
         id: 128667072,
+        rare: true,
         en: "Gilya Signature Weapons",
         ru: "Именное оружие из системы Gilya",
       },
@@ -1696,6 +1820,7 @@
       },
       borasetanipathogenetics: {
         id: 128667032,
+        rare: true,
         en: "Borasetani Pathogenetics",
         ru: "Боразетанские патогены",
       },
@@ -1706,11 +1831,13 @@
       },
       holvaduellingblades: {
         id: 128667070,
+        rare: true,
         en: "Holva Duelling Blades",
         ru: "Хольванские дуэльные клинки",
       },
       kamorinhistoricweapons: {
         id: 128667071,
+        rare: true,
         en: "Kamorin Historic Weapons",
         ru: "Каморинское историческое оружие",
       },
@@ -1885,6 +2012,7 @@
       },
       masterchefs: {
         id: 128672316,
+        rare: true,
         en: "Master Chefs",
         ru: "Мастер-шефы",
       },
@@ -1900,13 +2028,14 @@
     en: "Technology",
     ru: "Технологии",
     items: {
-      structuralregulators: {
-        id: 128672311,
-        en: "Structural Regulators",
-        ru: "Конструкционные регуляторы",
+      telemetrysuite: {
+        id: 128673872,
+        en: "Telemetry Suite",
+        ru: "Телеметрический комплект",
       },
       duradrives: {
         id: 128922524,
+        rare: true,
         en: "Duradrives",
         ru: "Дюрадрайвы",
       },
@@ -1915,8 +2044,14 @@
         en: "Advanced Catalysers",
         ru: "Улучшенные катализаторы",
       },
+      structuralregulators: {
+        id: 128672311,
+        en: "Structural Regulators",
+        ru: "Конструкционные регуляторы",
+      },
       classifiedexperimentalequipment: {
         id: 129002574,
+        rare: true,
         en: "Classified Experimental Equipment",
         ru: "Засекреченное экспериментальное оборудование",
       },
@@ -1932,13 +2067,9 @@
       },
       azcancriformula42: {
         id: 128667080,
+        rare: true,
         en: "AZ Cancri Formula 42",
         ru: "Формула 42 AZ Cancri",
-      },
-      telemetrysuite: {
-        id: 128673872,
-        en: "Telemetry Suite",
-        ru: "Телеметрический комплект",
       },
       robotics: {
         id: 128049227,
@@ -1962,6 +2093,7 @@
       },
       xihecompanions: {
         id: 128667075,
+        rare: true,
         en: "Xihe Biomorphic Companions",
         ru: "Биоморфные спутники Xihe",
       },
@@ -2019,6 +2151,7 @@
       },
       tiegfriessynthsilk: {
         id: 128667695,
+        rare: true,
         en: "Tiegfries Synth Silk",
         ru: "Тигфрайский синтешелк",
       },
@@ -2034,21 +2167,25 @@
       },
       rapabaosnakeskins: {
         id: 128667063,
+        rare: true,
         en: "Rapa Bao Snake Skins",
         ru: "Змеиные шкуры с Rapa Bao",
       },
       bankiamphibiousleather: {
         id: 128667674,
+        rare: true,
         en: "Banki Amphibious Leather",
         ru: "Кожа банкийских амфибий",
       },
       vanayequirhinofur: {
         id: 128667064,
+        rare: true,
         en: "Vanayequi Ceratomorpha Fur",
         ru: "Мех носорогов с Vanayequi",
       },
       jotunmookah: {
         id: 128667702,
+        rare: true,
         en: "Jotun Mookah",
         ru: "Йотунская моока",
       },
@@ -2059,16 +2196,19 @@
       },
       belalansrayleather: {
         id: 128667061,
+        rare: true,
         en: "Belalans Ray Leather",
         ru: "Кожа белаланских скатов",
       },
       chameleoncloth: {
         id: 128667710,
+        rare: true,
         en: "Chameleon Cloth",
         ru: "Ткань-хамелеон",
       },
       damnacarapaces: {
         id: 128667062,
+        rare: true,
         en: "Damna Carapaces",
         ru: "Панцири с Damna",
       },

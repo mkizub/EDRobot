@@ -9,6 +9,7 @@
 
 #include "EDWidget.h"
 #include "OCR.h"
+#include "State.h"
 #include "detect/Detector.h"
 
 #ifndef NDEBUG
@@ -273,6 +274,406 @@ bool BaseButton::detect(DetectParams& params) {
     return true;
 }
 
+struct Pixel {
+    enum State { UNKNOWN, FLAT, GAP, ROW, EMPTY };
+    short real;
+    short base;
+    short range_id;
+    bool artificial;
+    State state;
+    Pixel(uchar ch) : real(ch), base(ch), range_id(0), state(UNKNOWN), artificial(false) {}
+};
+
+struct Redused {
+    static Pixel empty;
+    const List* list;
+    const int size;
+    const double scale;
+    std::vector<Pixel> pix;
+    int range_count;
+    int empty_threshold;
+    Redused(List* list, uchar* reduced, int len, double scale)
+        : list(list)
+        , size(len)
+        , scale(scale)
+        , range_count(0)
+        , empty_threshold(100)
+    {
+        pix.reserve(len);
+        for (int i=0; i < len; i++)
+            pix.emplace_back(reduced[i]);
+        if (list->header > 0)
+            empty_threshold = 70;
+    }
+    const Pixel& at(int i) {
+        if (i < 0 || i >= size)
+            return empty;
+        return pix[i];
+    }
+    int get_range_end(int start);
+    bool get_flat_range(int start, int& end);
+    int maybe_gap_range(int start, int min_gap, int max_gap);
+    int maybe_row_range(int start, int min_row, int max_row);
+    void detect_flat();
+    void clear_empty();
+    void detect_gaps();
+    void detect_rows();
+    bool insert_gaps();
+    bool insert_rows();
+    bool normalize_rows();
+};
+
+Pixel Redused::empty(0);
+
+int Redused::get_range_end(int start) {
+    int range_id = at(start).range_id;
+    for (int i=start+1; i < size; i++) {
+        if (at(i).range_id != range_id)
+            return i-1;
+    }
+    return size-1;
+}
+
+bool Redused::get_flat_range(int start, int& end) {
+    int sum = 0;
+    for (end = start; end < size; end++) {
+        assert(at(end).state == Pixel::UNKNOWN);
+        sum += at(end).real;
+        int avrg = sum / (end - start + 1);
+        int pv = pix[end].real;
+        if (std::abs(pv - avrg) > 2)
+            break;
+    }
+    if (end - start < 3)
+        return false;
+    int avrg = 0;
+    for (int i=start; i < end; i++)
+        avrg += pix[i].real;
+    avrg /= (end-start);
+    range_count += 1;
+    for (int i=start; i < end; i++) {
+        pix[i].base = avrg;
+        pix[i].range_id = range_count;
+        pix[i].state = Pixel::FLAT;
+    }
+    return true;
+}
+int Redused::maybe_gap_range(int start, int min_gap, int max_gap) {
+    int end = start;
+    for (; end < size; end++) {
+        assert(at(end).state == Pixel::UNKNOWN || at(end).state == Pixel::FLAT);
+        if (at(end).state == Pixel::FLAT) {
+            int flat_end = get_range_end(end);
+            if (flat_end - start > max_gap)
+                break;
+            end = flat_end;
+        }
+    }
+    if (end == start)
+        return end;
+    if (end - start >= min_gap && end - start <= max_gap) {
+        short base = at(start).real;
+        short val_before = at(start-1).real;
+        short val_after = at(end).real;
+        for (int i = start; i < end; i++)
+            base = std::min(base, at(i).real);
+        if (val_before >= base+8 && val_after >= base+8) {
+            range_count += 1;
+            for (int i = start; i < end; i++) {
+                pix[i].base = base;
+                pix[i].range_id = range_count;
+                pix[i].state = Pixel::GAP;
+            }
+        }
+    }
+    return end - 1;
+}
+int Redused::maybe_row_range(int start, int min_row, int max_row) {
+    auto& p_bgn = at(start);
+    if (p_bgn.state != Pixel::FLAT)
+        return start;
+    int end = get_range_end(start);
+    for (int i=end+1; i < start+min_row; i++) {
+        auto& r = at(i);
+        if (r.state == Pixel::GAP || r.state == Pixel::ROW)
+            return get_range_end(i);
+    }
+    int row_end = -1;
+    for (int i=start+min_row; i < size && i < start+max_row; i++) {
+        auto& r = at(i);
+        if (r.state == Pixel::GAP || r.state == Pixel::ROW)
+            break;
+        i = get_range_end(i);
+        if (std::abs(r.base - p_bgn.base) > 6)
+            continue;
+        if (i >= start+max_row)
+            break;
+        row_end = i;
+    }
+    if (row_end < 0)
+        return end;
+    end = row_end;
+    range_count += 1;
+    short base = p_bgn.base;
+    for (int i = start; i < end; i++) {
+        if (base > 120)
+            base = std::max(base, at(i).base);
+        else
+            base = std::min(base, at(i).base);
+    }
+    for (int i = start; i <= end; i++) {
+        pix[i].base = base;
+        pix[i].range_id = range_count;
+        pix[i].state = Pixel::ROW;
+    }
+    return end;
+}
+void Redused::detect_flat() {
+    for (int i=0; i < size; i++) {
+        int end;
+        if (get_flat_range(i, end))
+            i = end;
+    }
+}
+void Redused::clear_empty() {
+    bool have_gaps = false;
+    int threshold;
+    if (list->header > 0) {
+        threshold = 70;
+    } else {
+        short max_threshold = 100;
+        // try to detect threshold from gaps
+        for (int i = 0; i < size; i++) {
+            if (pix[i].state != Pixel::GAP)
+                continue;
+            have_gaps = true;
+            if (at(i - 1).state == Pixel::ROW)
+                max_threshold = std::min(max_threshold, at(i - 1).base);
+            i = get_range_end(i);
+            if (at(i + 1).state == Pixel::ROW)
+                max_threshold = std::min(max_threshold, at(i + 1).base);
+        }
+        threshold = have_gaps ? max_threshold-2 : 35;
+    }
+    empty_threshold = threshold;
+    int empty_start = 0;
+    if (list->row_height <= 0) {
+        // if list have no headers - find last gap/row
+        for (int i=0; i < size; i++) {
+            if (pix[i].state == Pixel::GAP ||pix[i].state == Pixel::ROW) {
+                i = get_range_end(i);
+                empty_start = i+1;
+            }
+        }
+    }
+    //int clear_start = -1;
+    for (int i=empty_start; i < size; i++) {
+        auto& p = pix[i];
+        if (!(p.state == Pixel::FLAT || p.state == Pixel::ROW))
+            continue;
+        if (p.base > threshold) {
+            //clear_start = -1;
+            continue;
+        }
+        //if (clear_start < 0)
+        //    clear_start = i;
+        short range_id = p.range_id;
+        for (; i < size && pix[i].range_id == range_id; i++) {
+            pix[i].range_id = 0;
+            pix[i].state = Pixel::EMPTY;
+        }
+        //if (i - clear_start > list->row_height * scale * 1.5) {
+        //    // clear the rest
+        //    for (i=clear_start; i < size; i++) {
+        //        pix[i].range_id = 0;
+        //        pix[i].state = Pixel::EMPTY;
+        //    }
+        //    return;
+        //}
+        i -= 1;
+    }
+    return;
+}
+void Redused::detect_gaps() {
+    int gap_min = 1;
+    int gap_max = int(std::round(list->row_gap*scale))+3;
+    for (int i=0; i < size; i++) {
+        if (pix.at(i).state != Pixel::UNKNOWN)
+            continue;
+        i = maybe_gap_range(i, gap_min, gap_max);
+    }
+}
+bool Redused::insert_gaps() {
+    int gap_max = std::max(2, int(std::round(list->row_gap*scale))+2);
+    bool added = false;
+    for (int i=0; i < size; i++) {
+        if (pix.at(i).state != Pixel::ROW)
+            continue;
+        // ensure gap before this row
+        if (i > 0 && pix.at(i-1).state != Pixel::GAP) {
+            int g = i-1;
+            for (int j=1; j <= gap_max; j++) {
+                if (i-j < 0)
+                    break;
+                if (pix.at(i-j).state != Pixel::UNKNOWN)
+                    break;
+                g = i - j;
+            }
+            added = true;
+            short base = at(i-1).real;
+            for (int j=g; j < i; j++)
+                base = std::min(base, at(j).real);
+            range_count += 1;
+            for (int j=g; j < i; j++) {
+                pix[j].base = base;
+                pix[j].range_id = range_count;
+                pix[j].state = Pixel::GAP;
+                pix[j].artificial = true;
+            }
+        }
+        // ensure gap after this row
+        i = get_range_end(i);
+        if (i < size-1 && pix.at(i+1).state != Pixel::GAP) {
+            int g = i+1;
+            for (int j=1; j <= gap_max; j++) {
+                if (i+j >= size)
+                    break;
+                if (pix.at(i+j).state != Pixel::UNKNOWN)
+                    break;
+                g = i + j;
+            }
+            added = true;
+            short base = at(i+1).real;
+            for (int j=i+1; j <= g; j++)
+                base = std::min(base, at(j).real);
+            range_count += 1;
+            for (int j=i+1; j <= g; j++) {
+                pix[j].base = base;
+                pix[j].range_id = range_count;
+                pix[j].state = Pixel::GAP;
+                pix[j].artificial = true;
+            }
+        }
+    }
+    return added;
+}
+void Redused::detect_rows() {
+    int height_min = int(std::round((list->row_height-list->row_gap)*scale))-2;
+    int height_max = int(std::round((list->row_height+list->row_gap)*scale))+2;
+    for (int i=0; i < size; i++) {
+        if (pix.at(i).state != Pixel::FLAT)
+            continue;
+        i = maybe_row_range(i, height_min, height_max);
+    }
+}
+bool Redused::insert_rows() {
+    int height_min = int(std::round(list->row_height*scale))-3;
+    int height_max = int(std::round(list->row_height*scale))+3;
+    bool added = false;
+    for (int i=0; i < size-2; i++) {
+        if (at(i).state != Pixel::GAP)
+            continue;
+        if (at(i-1).state == Pixel::UNKNOWN || at(i-1).state == Pixel::FLAT) {
+            // ensure row before this gap
+            int r = i - 1;
+            for (int j = i - 1; j >= 0 && i - j <= height_max; j--) {
+                if (!(pix.at(j).state == Pixel::UNKNOWN || pix.at(j).state == Pixel::FLAT))
+                    break;
+                r = j;
+            }
+            if (r < 0)
+                r = 0;
+            if (i - r - 1 >= height_min && i - r - 1 <= height_max) {
+                added = true;
+                short base = at(r).base;
+                for (int j = r; j < i; j++)
+                    base = std::min(base, at(r).base);
+                range_count += 1;
+                for (int j = r; j < i; j++) {
+                    pix[j].base = base;
+                    pix[j].range_id = range_count;
+                    pix[j].state = Pixel::ROW;
+                    pix[j].artificial = true;
+                }
+            }
+        }
+        // skip to the end of this gap
+        i = get_range_end(i);
+        if (at(i+1).state == Pixel::EMPTY)
+            continue;
+        if (at(i+1).state == Pixel::ROW || at(i+1).state == Pixel::GAP) {
+            // already have row after this gap
+            i = get_range_end(i+1);
+            continue;
+        }
+        // ensure row after this gap
+        int r = i + 1;
+        for (int j = i + 1; j < size && j - i <= height_max; j++) {
+            if (!(pix.at(j).state == Pixel::UNKNOWN || pix.at(j).state == Pixel::FLAT))
+                break;
+            r = j;
+        }
+        if (r >= size)
+            r = size - 1;
+        if (r - i - 1 >= height_min && r - i - 1 <= height_max) {
+            added = true;
+            short base = at(r).base;
+            for (int j = i + 1; j <= r; j++)
+                base = std::min(base, at(r).base);
+            range_count += 1;
+            for (int j = i + 1; j <= r; j++) {
+                pix[j].base = base;
+                pix[j].range_id = range_count;
+                pix[j].state = Pixel::ROW;
+                pix[j].artificial = true;
+            }
+        }
+        i = r;
+    }
+    return added;
+}
+
+bool Redused::normalize_rows() {
+    bool changed = false;
+    int row_norm = int(std::round(list->row_height*scale));
+    for (int i=0; i < size; i++) {
+        if (pix[i].state != Pixel::ROW)
+            continue;
+        int min_val = pix[i].base - 10;
+        int row_bgn = i;
+        int row_end = get_range_end(i);
+        int row_size = row_end - row_bgn + 1;
+        if (row_size < row_norm+1) {
+            auto& prv = at(row_bgn-1);
+            auto& nxt = at(row_end+1);
+            bool can_ext_before = (prv.real >= min_val && prv.state == Pixel::GAP && at(row_bgn-2).state != Pixel::ROW);
+            bool can_ext_after  = (nxt.real >= min_val && nxt.state == Pixel::GAP && at(row_end+2).state != Pixel::ROW);
+            if (can_ext_before && can_ext_after)
+                can_ext_before = (prv.real < nxt.real);
+            if (can_ext_after) {
+                changed = true;
+                pix[row_end+1].state = Pixel::ROW;
+                pix[row_end+1].base = pix[row_end].base;
+                pix[row_end+1].range_id = pix[row_end].range_id;
+            }
+            if (can_ext_before) {
+                changed = true;
+                pix[row_bgn-1].state = Pixel::ROW;
+                pix[row_bgn-1].base = pix[row_bgn].base;
+                pix[row_bgn-1].range_id = pix[row_bgn].range_id;
+            }
+        }
+        else if (row_size > row_norm+1) {
+            auto& fst = at(row_bgn);
+            auto& lst = at(row_end);
+        }
+        i = get_range_end(row_end);
+    }
+    return changed;
+}
+
+//#define DEBUG_LIST_DETECTOR 1
+
 bool List::detect(DetectParams& params) {
     ClassifyEnv& env = params.env;
     cv::Rect listReferenceRect = env.calcReferenceRect(this->rect);
@@ -287,102 +688,65 @@ bool List::detect(DetectParams& params) {
     clsListRect.u.widg.ws = WState::Unknown;
     clsListRect.u.widg.widget = this;
 
+    if (row_height <= 0)
+        return true;
+
     XMat reducedImage;
     cv::reduce(env.getGrayImage()(listCapturedRect), reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
     cv::Mat reducedMat = toMat(reducedImage);
-    uchar* reduced = reducedMat.data;
-    int rows = listCapturedRect.height;
-    //cv::Mat histImage(256, rows, CV_8UC1, cv::Scalar(0));
-    bool in_gap = true;
-    uchar gap_value = 0;
-    struct Gap {
-        int bgn, min, end, val;
-    };
-    std::vector<Gap> detectedGaps;
-    detectedGaps.emplace_back(0,0,0, gap_value);
-    for (int i = 0; i < rows; i++) {
-        if (reduced[i] < 35) {
-            if (!in_gap) {
-                in_gap = true;
-                gap_value = reduced[i];
-                detectedGaps.emplace_back(i,i,i, gap_value);
-            }
-            else if (gap_value < reduced[i]) {
-                gap_value = reduced[i];
-                detectedGaps.back().min = i;
-                detectedGaps.back().val = gap_value;
-                detectedGaps.back().end = i;
-            } else {
-                detectedGaps.back().end = i;
-            }
-        }
-        else if (in_gap) {
-            in_gap = false;
-        }
-//        if (i > 0) {
-//            cv::line(histImage,
-//                     cv::Point(i - 1, reduced[i - 1]),
-//                     cv::Point(i, reduced[i]),
-//                     cv::Scalar(255));
-//        }
+    Redused reduced(this, reducedMat.data, listCapturedRect.height, env.getScale());
+    reduced.detect_flat();
+    reduced.detect_gaps();
+    reduced.detect_rows();
+    reduced.clear_empty();
+    for (bool added = true; added;) {
+        added = reduced.insert_gaps();
+        added |= reduced.insert_rows();
     }
-    if (!in_gap)
-        detectedGaps.emplace_back(rows-1,rows-1,rows-1, 0);
-    if (detectedGaps.size() == 1)
-        return false;
+    while (reduced.normalize_rows())
+        ;
+#ifdef  DEBUG_LIST_DETECTOR
+    cv::Mat histImage(256, reduced.size, CV_8UC1, cv::Scalar(0));
+    cv::line(histImage,
+             cv::Point(0, reduced.empty_threshold),
+             cv::Point(reduced.size, reduced.empty_threshold),
+             cv::Scalar(90));
+    for (int i=0; i < reduced.size; i++) {
+        auto& p = reduced.at(i);
+        if (p.state == Pixel::FLAT)
+            histImage.at<uchar>(0, i) = 180;
+        if (p.state == Pixel::GAP)
+            histImage.at<uchar>(2, i) = p.artificial ? 120 : 180;
+        else if (p.state == Pixel::ROW)
+            histImage.at<uchar>(4, i) = p.artificial ? 120 : 255;
+        histImage.at<uchar>(p.base, i) = 128;
+        histImage.at<uchar>(p.real, i) = 255;
+    }
+#endif
 
-    auto row_width = env.getScale() * listReferenceRect.width;
-    auto row_height = env.getScale() * this->row_height;
-    auto row_gap = env.getScale() * this->row_gap;
-    auto full_height = row_height + row_gap;
-
-    struct Row {
-        int bgn, end, val;
-    };
-    std::vector<Row> detectedRows;
-    for (int r=1; r < detectedGaps.size(); r++) {
-        int count = std::round((detectedGaps[r].bgn - detectedGaps[r-1].end) / full_height);
-        if (count == 0)
+    bool has_rows = false;
+    for (int i=0; i < reduced.size; i++) {
+        if (reduced.pix[i].state != Pixel::ROW)
             continue;
-        if (count == 1) {
-            int b = detectedGaps[r-1].end;
-            int e = detectedGaps[r].bgn;
-            int v = 0;
-            for (int y=b; y < e; y++)
-                v += reduced[y];
-            v /= e - b;
-            detectedRows.emplace_back(b, e, v);
-//            cv::line(histImage, cv::Point(b, 0), cv::Point(b, v), cv::Scalar(255));
-//            cv::line(histImage, cv::Point(e, 0), cv::Point(e, v), cv::Scalar(255));
-        } else {
-            double begin = detectedGaps[r-1].end;
-            for (int i=0; i < count; i++) {
-                int b = begin + full_height*i;
-                int e = b + row_height;
-                int v = 0;
-                for (int y=b; y < e; y++)
-                    v += reduced[y];
-                v /= e - b;
-                detectedRows.emplace_back(b, e, v);
-//                cv::line(histImage, cv::Point(b, 0), cv::Point(b, v), cv::Scalar(255));
-//                cv::line(histImage, cv::Point(e, 0), cv::Point(e, v), cv::Scalar(255));
-            }
-        }
-    }
+        int row_bgn = i;
+        int row_end = reduced.get_range_end(i);
+        int row_val = reduced.pix[i].base;
+        i = row_end;
+        has_rows = true;
 
-    for (auto& row : detectedRows) {
-        cv::Rect rowCapturedRect {0, row.bgn, (int)std::round(row_width), row.end-row.bgn};
+        cv::Rect rowCapturedRect {0, row_bgn, listCapturedRect.width, row_end-row_bgn+1};
         rowCapturedRect += listCapturedRect.tl();
         cv::Rect rowReferenceRect = env.cvtCapturedToReference(rowCapturedRect);
 
         WState ws = WState::Unknown;
-        if (row.val > 30) { // not black
-            if (row.val > 130) // bright = focused
-                ws = WState::Focused;
-            else
-                ws = WState::Normal;
-        }
+        if (row_val > 120) // bright = focused
+            ws = WState::Focused;
+        else
+            ws = WState::Normal;
 
+#ifdef  DEBUG_LIST_DETECTOR
+        cv::Mat rowImage = toMat(env.getGrayImage()(rowCapturedRect));
+#endif
         env.classified.emplace_back(ClsDetType::ListRow, env.isWarpMode(), "", rowReferenceRect);
         ClassifiedRect& clsRowRect = env.classified.back();
         clsRowRect.u.lrow.capturedRect = rowCapturedRect;
@@ -393,102 +757,11 @@ bool List::detect(DetectParams& params) {
             clsListRect.u.widg.ws = WState::Focused;
             clsRowRect.u.lrow.capturedRect.y += 1;
             clsRowRect.u.lrow.capturedRect.height -= 1;
-
             if (!params.uiState.focused)
                 params.uiState.focused = this;
         }
-        //if (params.level >= DetectLevel::ListOcrAllRows || ws == WState::Focused && params.level >= DetectLevel::ListOcrFocusedRow) {
-        //    int conf;
-        //    if (env.isWarpMode())
-        //        conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 0, clsRowRect.text);
-        //    else
-        //        conf = ocr::ocrRowText(toMat(env.getGrayImage()), env, clsRowRect, 1, clsRowRect.text);
-        //    clsRowRect.u.lrow.text_confidence = conf;
-        //}
     }
-    return true;
-}
-
-bool List::cleanBadRows(std::vector<double>& detectedRows, double expectedDist) {
-    int distCount = 1;
-    double avgrDist = expectedDist;
-    for (int i = 1; i < detectedRows.size(); i++) {
-        double dist = detectedRows[i] - detectedRows[i - 1];
-        if (std::abs(dist - expectedDist) / expectedDist < 0.1f) {
-            avgrDist += detectedRows[i] - detectedRows[i - 1];
-            distCount += 1;
-        }
-    }
-    avgrDist /= double(distCount);
-    int rowIdx = -1;
-    std::vector<int> indices;
-    std::vector<double> offsets;
-    for (int i = 0; i < detectedRows.size(); i++) {
-        int idx = (int) std::round(detectedRows[i] / avgrDist);
-        if (idx < rowIdx)
-            idx = rowIdx;
-        indices.push_back(idx);
-        double offset = detectedRows[i] - (idx * avgrDist);
-        offsets.push_back(offset);
-        rowIdx = idx + 1;
-    }
-
-    cv::Scalar meanOffs, stdDev;
-    cv::meanStdDev(offsets, meanOffs, stdDev);
-    double baseOffset = meanOffs[0];
-
-    for (int i = 0; i < detectedRows.size(); i++) {
-        int idx = indices[i];
-        double offset = detectedRows[i] - baseOffset - (idx * avgrDist);
-        if (std::abs(offset) > avgrDist*0.1) {
-            detectedRows.erase(detectedRows.begin()+i);
-            return true;
-        }
-    }
-    return false;
-}
-
-bool List::alignDetectedRows(std::vector<double>& detectedRows, double expectedDist) {
-    int distCount = 1;
-    double avgrDist = expectedDist;
-    for (int i = 1; i < detectedRows.size(); i++) {
-        double dist = detectedRows[i] - detectedRows[i - 1];
-        if (std::abs(dist - expectedDist) / expectedDist < 0.1f) {
-            avgrDist += detectedRows[i] - detectedRows[i - 1];
-            distCount += 1;
-        }
-    }
-    avgrDist /= double(distCount);
-    int rowIdx = 0;
-    std::vector<int> indices;
-    std::vector<double> offsets;
-    for (int i = 0; i < detectedRows.size(); i++) {
-        int idx = (int) std::round(detectedRows[i] / avgrDist);
-        if (idx < rowIdx)
-            idx = rowIdx;
-        indices.push_back(idx);
-        double offset = detectedRows[i] - (idx * avgrDist);
-        offsets.push_back(offset);
-        rowIdx = idx + 1;
-    }
-
-    cv::Scalar meanOffs, stdDev;
-    cv::meanStdDev(offsets, meanOffs, stdDev);
-    double baseOffset = meanOffs[0];
-
-    offsets.clear();
-    for (int i = 0; i < detectedRows.size(); i++) {
-        int idx = indices[i];
-        double offset = detectedRows[i] - baseOffset - (idx * avgrDist);
-        offsets.push_back(offset);
-    }
-
-    cv::meanStdDev(offsets, meanOffs, stdDev);
-    baseOffset += meanOffs[0];
-    for (int i = 0; i < detectedRows.size(); i++) {
-        detectedRows[i] -= offsets[i];
-    }
-    return true;
+    return has_rows;
 }
 
 
@@ -501,12 +774,12 @@ bool Screen::checkStatus() const {
         if (key == "gui" || key == "focus") {
             auto gf = enum_cast<GuiFocus>(val.as_string());
             LOG_IF(!gf.has_value(),ERROR) << "Bad gui focus name: " << val;
-            if (gf.value() != Cfg.getGuiFocus())
+            if (gf.value() != st::guiFocus)
                 return false;
             continue;
         }
         if (key == "ship") {
-            std::string ship = toLower(Cfg.getShipType());
+            std::string ship = toLower(st::shipInfo.shipType);
             bool ok = false;
             if (val.is_string()) {
                 ok = (val.as_string() == ship);
@@ -524,7 +797,7 @@ bool Screen::checkStatus() const {
             continue;
         }
         if (key == "docked") {
-            if (val.as_boolean() != Cfg.getCurrentStatus()->flags.docked)
+            if (val.as_boolean() != st::ship.flags.docked)
                 return false;
             continue;
         }
@@ -962,7 +1235,7 @@ spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const js
 }
 
 cv::Point RefPoint::calcReferencePoint(const ResolvedEnv& detectorState) const {
-    const std::string& ship = Cfg.getShipType();
+    const std::string& ship = st::shipInfo.shipType;
     auto& varSet = mDlg.varSetMap.at(mScope);
     for (auto& vars : varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {
@@ -975,7 +1248,7 @@ cv::Point RefPoint::calcReferencePoint(const ResolvedEnv& detectorState) const {
 }
 
 cv::Rect RefRect::calcReferenceRect(const ResolvedEnv& detectorState) const {
-    const std::string& ship = Cfg.getShipType();
+    const std::string& ship = st::shipInfo.shipType;
     auto& varSet = mDlg.varSetMap.at(mScope);
     for (auto& vars : varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {
@@ -988,7 +1261,7 @@ cv::Rect RefRect::calcReferenceRect(const ResolvedEnv& detectorState) const {
 }
 
 cv::Line RefLine::calcReferenceLine(const ResolvedEnv& detectorState) const {
-    const std::string& ship = Cfg.getShipType();
+    const std::string& ship = st::shipInfo.shipType;
     auto& varSet = mDlg.varSetMap.at(mScope);
     for (auto& vars : varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(),vars.keys.end(), ship)) {

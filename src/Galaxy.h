@@ -55,7 +55,9 @@ typedef std::shared_ptr<Item> spItem;
 typedef std::shared_ptr<Body> spBody;
 typedef std::shared_ptr<Site> spSite;
 
-struct StarSystem {
+struct StarSystem : public std::enable_shared_from_this<StarSystem> {
+    StarSystem() = default;
+    virtual ~StarSystem() = default;
     int64_t address {0};
     std::string name;
     cv::Point3d pos;
@@ -70,6 +72,7 @@ struct StarSystem {
     spSite getDock(int64_t marketId);
     spItem addFSSSignalDiscovered(std::shared_ptr<GameEvent> event);
     spSite addStation(int64_t marketId, const std::string& sname, const std::string& stype);
+    void addDestination();
 
 };
 
@@ -79,7 +82,7 @@ spStarSystem getStarSystem(const std::string& name);
 spStarSystem getStarSystem(const std::string& name, int64_t address);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
-void saveStarSystem(spStarSystem ss);
+void saveStarSystem(StarSystem* ss);
 
 } // namespace gal
 

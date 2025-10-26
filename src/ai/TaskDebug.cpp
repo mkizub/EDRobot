@@ -6,6 +6,7 @@
 
 #include "TaskDebug.h"
 #include "AIManager.h"
+#include "../Keyboard.h"
 #include "../EDWidget.h"
 #include "../FuzzyMatch.h"
 #include "../OCR.h"
@@ -210,7 +211,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
         mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (!mgr.uiState.match("scr-market:"+marketMode)) {
             if (mgr.uiState.match("scr-market:"+marketMode+":dlg-trade:*")) {
-                sendKey("UI_Back", 50, 1000);
+                kbd::send("UI_Back", 50, 1000);
                 continue;
             }
             notifyProgress("Not at market?");
@@ -249,9 +250,9 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
             cv::Rect rect = mgr.master.resolveWidgetReferenceRect("lst-goods");
             int x = rect.x+rect.width/2;
             int y = rect.y - 20;
-            sendMouseClick({x,y}, 0, 500);
+            kbd::sendMouseClick({x, y}, 0, 500);
             for (int i=0; i < 10; i++)
-                sendMouseMove({0, 10}, 25, false);
+                kbd::sendMouseMove({0, 10}, 25, false);
             continue;
         }
         if (!focusedCommodity) {
@@ -298,24 +299,24 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
             if (needIdx < focusedIdx) {
                 int count = focusedIdx - needIdx;
                 for (int cnt=0; cnt < count; cnt++)
-                    sendKey("UI_Up");
+                    kbd::send("UI_Up");
                 if (!isOnScreen) {
                     count = std::min(3, needIdx);
                     for (int cnt = 0; cnt < count; cnt++)
-                        sendKey("up");
+                        kbd::send("up");
                     for (int cnt = 0; cnt < count; cnt++)
-                        sendKey("down");
+                        kbd::send("down");
                 }
             } else {
                 int count = needIdx-focusedIdx;
                 for (int cnt=0; cnt < count; cnt++)
-                    sendKey("UI_Down");
+                    kbd::send("UI_Down");
                 if (!isOnScreen) {
                     count = std::min(shuffle ? 3 : 10, int(table.size()) - 1 - needIdx);
                     for (int cnt = 0; cnt < count; cnt++)
-                        sendKey("down");
+                        kbd::send("down");
                     for (int cnt = 0; cnt < count; cnt++)
-                        sendKey("up");
+                        kbd::send("up");
                 }
             }
             continue;
@@ -340,7 +341,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
 
     std::string text;
     cv::Mat rowDumpImage;
-    int conf = ocr::ocrRowTextForTraining(grayImage, mgr.rEnv, cr, 1, text, rowDumpImage);
+    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, mgr.rEnv, cr, 1, text, rowDumpImage);
 
     filename = std::format("testset-edr/{}-row-gray.png", commodity->nameId);
     cv::imwrite(filename, rowDumpImage);
@@ -499,9 +500,9 @@ Result TaskDebugFindAllNavPoints::run() {
         LOG(ERROR) << "Cannot get system info from spansh.co.uk";
 
     if (!(resume || unfocused)) {
-        sendKey("UI_Right");
-        sendKey("UI_Down");
-        sendKey("UI_Up", 2000, 100);
+        kbd::send("UI_Right");
+        kbd::send("UI_Down");
+        kbd::send("UI_Up", 2000, 100);
     }
 
     int offset = 0;
@@ -512,7 +513,7 @@ Result TaskDebugFindAllNavPoints::run() {
         for (auto &cr: mgr.rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
                 continue;
-            int conf = ocr::ocrRowText(grayImage, mgr.rEnv, cr, 0, cr.text);
+            int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, mgr.rEnv, cr, 0, cr.text);
             cr.u.lrow.text_confidence = conf;
             if (conf <= ocr_confidence || checkOcrError(cr)) {
                 LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << conf << "%";
@@ -535,7 +536,7 @@ Result TaskDebugFindAllNavPoints::run() {
                     focused = &cr;
                     focused_row = row;
                 }
-                int conf = ocr::ocrRowText(grayImage, mgr.rEnv, cr, 0, cr.text);
+                int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, mgr.rEnv, cr, 0, cr.text);
                 cr.u.lrow.text_confidence = conf;
                 if (conf <= ocr_confidence && checkOcrError(cr))
                     rows_with_error.push_back(row);
@@ -546,8 +547,8 @@ Result TaskDebugFindAllNavPoints::run() {
                 failCount += 1;
                 if (failCount >= 3)
                     return Result::Failure;
-                sendKey("UI_Down", 0, 500);
-                sendKey("UI_Up", 0, 500);
+                kbd::send("UI_Down", 0, 500);
+                kbd::send("UI_Up", 0, 500);
                 continue;
             }
             failCount = 0;
@@ -559,7 +560,7 @@ Result TaskDebugFindAllNavPoints::run() {
                 LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
                 checkNavPoint(offset);
                 offset += 1;
-                sendKey("UI_Down", 0, 100);
+                kbd::send("UI_Down", 0, 100);
                 continue;
             }
             LOG(INFO) << "Skip nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
@@ -572,13 +573,13 @@ Result TaskDebugFindAllNavPoints::run() {
             }
             if (skip_rows > 0) {
                 for (int dn = 0; dn < skip_rows; dn++)
-                    sendKey("UI_Down", 0, 100);
+                    kbd::send("UI_Down", 0, 100);
                 continue;
             }
             for (int dn = 0; dn < (10 - focused_row) + 8; dn++)
-                sendKey("UI_Down", 0, 100);
+                kbd::send("UI_Down", 0, 100);
             for (int up = 0; up < 8; up++)
-                sendKey("UI_Up", 0, 100);
+                kbd::send("UI_Up", 0, 100);
         }
     }
     return Result::Success;
@@ -609,7 +610,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
     return size * nmemb;
 }
 
-json::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
+json5pp::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     if (!ss || ss->name.empty() || !ss->address)
         return nullptr;
@@ -636,20 +637,20 @@ json::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
         //ex.print_traceback();
     }
     //LOG(INFO) << "EDSM responce: " << resp.str();
-    std::string error;
-    auto jresp = json::parse5(resp.str(), &error);
-    if (!jresp.has_value()) {
-        LOG(ERROR) << "Error parsing EDSM response: " << error;
+    try {
+        auto jresp = json5pp::parse5(resp.str());
+        if (!jresp["record"]) {
+            LOG(ERROR) << "Bad response, expecting 'record': " << jresp;
+            return nullptr;
+        }
+        return std::move(jresp["record"]);
+    } catch (const json5pp::syntax_error& ex) {
+        LOG(ERROR) << "Error parsing EDSM response: " << ex.what();
         return nullptr;
     }
-    if (!jresp.value().contains("record")) {
-        LOG(ERROR) << "Bad response, expecting 'record': " << jresp.value();
-        return nullptr;
-    }
-    return std::move(jresp.value().at("record"));
 }
 
-json::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, json::value& data) {
+json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, json5pp::value& data) {
     std::string readBuffer;
 
     CURL* curl = curl_easy_init();
@@ -667,7 +668,7 @@ json::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, jso
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);
-    std::string payload = data.to_string();
+    std::string payload = data.stringify();
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, payload.size());
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
@@ -687,24 +688,25 @@ json::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, jso
     if (res != CURLE_OK)
         return {};
 
-    std::string error;
-    auto jresp = json::parse5(readBuffer, &error);
-    if (!jresp.has_value()) {
-        LOG(ERROR) << "Error parsing response: " << error;
+    try {
+        auto jresp = json5pp::parse5(readBuffer);
+        if (!jresp["results"].is_array()) {
+            LOG(ERROR) << "Bad response, expecting 'results': " << jresp;
+            return nullptr;
+        }
+        auto& results = jresp.as_object()["results"];
+        for (auto& r : results.as_array()) {
+            r.as_object().erase("bodies");
+            r.as_object().erase("stations");
+            r.as_object().erase("minor_faction_presences");
+            r.as_object().erase("power");
+        }
+        return results;
+    } catch (const json5pp::syntax_error& ex) {
+        LOG(ERROR) << "Error parsing response: " << ex.what();
         return nullptr;
     }
-    if (!jresp.value().contains("results")) {
-        LOG(ERROR) << "Bad response, expecting 'results': " << jresp.value();
-        return nullptr;
-    }
-    json::array results = jresp.value()["results"].as_array();
-    for (auto& r : results) {
-        r.as_object().erase("bodies");
-        r.as_object().erase("stations");
-        r.as_object().erase("minor_faction_presences");
-        r.as_object().erase("power");
-    }
-    return results;
+
 }
 
 // For nearest systems:
@@ -730,7 +732,7 @@ json::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, jso
 //
 bool TaskDebugFindAllNavPoints::getSpanishInfo() {
     auto j = curlGetRequest("https://www.spansh.co.uk/api/system/");
-    if (j.empty())
+    if (!j)
         return false;
     spanishSystemInfo = std::move(j);
     LOG(DEBUG) << "Got system info: " << spanishSystemInfo;
@@ -738,14 +740,15 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     std::string systemName = ss->name;
 
-    json::value payload;
-    payload["reference_system"] = systemName;
-    payload["filters"] = { { "distance", { {"min", 0}, {"max", 20} } } };
-    payload["size"] = 100;
-    payload["page"] = 0;
+    json5pp::value payload = json5pp::object({
+            { "reference_system", systemName},
+            { "filters", json5pp::object({ {"distance", json5pp::object({{"min", 0}, {"max", 20}})} })},
+            { "size", 100},
+            { "page", 0}
+    });
 
     j = curlPostRequest("https://www.spansh.co.uk/api/systems/search", payload);
-    if (j.empty())
+    if (!j)
         return false;
     spanishNearSystems = std::move(j);
     LOG(DEBUG) << "Got near systems: " << spanishNearSystems;
@@ -775,7 +778,7 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
     std::string lbl_anchor;
     const nav::NavType* navType = nullptr;
     cv::Mat grayImage;
-    sendKey("UI_Select", 0, 1500);
+    kbd::send("UI_Select", 0, 1500);
     mgr.detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
     for (auto& cr : mgr.rEnv.classified) {
         if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
@@ -787,7 +790,7 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
         }
     }
 
-    sendKey("UI_Back", 50, 1000);
+    kbd::send("UI_Back", 50, 1000);
 
     mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
     for (auto& cr : mgr.rEnv.classified) {
@@ -808,37 +811,6 @@ const nav::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& l
             return nt;
         }
     }
-
-//    const gal::spStarSystem& ss = gal::getCurrentStarSystem();
-//    FuzzyMatch fm;
-//    json::value signal;
-//    std::wstring text_ocr = fm.toOCR(toUtf16(lbl_name));
-//    for (auto st : ss->stations) {
-//        std::string name;
-//        if (!st->nloc.empty())
-//            name = st->nloc;
-//        else
-//            name = st->name;
-//        std::wstring name_ocr = fm.toOCR(toUtf16(name));
-//        if (name_ocr == text_ocr) {
-//            signal = it.second->data;
-//            break;
-//        }
-//    }
-//
-//    if (signal.is_null() || !signal.contains("SignalType")) {
-//        LOG(INFO) << "No signal found for name '" << lbl_anchor;
-//        return nullptr;
-//    }
-//
-//    std::string signalType = signal.at("SignalType").as_string();
-//    for (auto nt : nav::ALL_NAV_TYPES) {
-//        if (contains(nt->typeAliases, signalType)) {
-//            LOG(INFO) << "Guessed type from signal type '" << signalType << "'";
-//            return nt;
-//        }
-//    }
-//    LOG(ERROR) << "Unknown starport for type: '" << signalType << "'";
     return nullptr;
 }
 
@@ -873,11 +845,9 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const nav::Na
 //            }
 //        }
 //    }
-    if ((poiType == POIType::Star || poiType == POIType::Planet) && spanishSystemInfo.contains("bodies")) {
+    if ((poiType == POIType::Star || poiType == POIType::Planet) && spanishSystemInfo["bodies"].is_array()) {
         for (auto &js: spanishSystemInfo.at("bodies").as_array()) {
-            if (!js.contains("type"))
-                continue;
-            if (!contains(nav_type->typeAliases, js.at("type").as_string()))
+            if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
                 continue;
             std::string name = js.at("name").as_string();
             std::wstring name_ocr = fm.toOCR(toUtf16(name));
@@ -888,9 +858,9 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const nav::Na
             }
         }
     }
-    else if ((poiType == POIType::Station || poiType == POIType::Port || poiType == POIType::Place || poiType == POIType::FleetCarrier) && spanishSystemInfo.contains("stations")) {
+    else if ((poiType == POIType::Station || poiType == POIType::Port || poiType == POIType::Place || poiType == POIType::FleetCarrier) && spanishSystemInfo["stations"].is_array()) {
         for (auto &js: spanishSystemInfo.at("stations").as_array()) {
-            if (js.contains("type") && !contains(nav_type->typeAliases, js.at("type").as_string()))
+            if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
                 continue;
             std::string name = js.at("name").as_string();
             while (name.ends_with("+"))
@@ -1044,7 +1014,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, c
     StationRowInfo rowInfo {};
     std::string text;
     cv::Mat dumpImage;
-    int conf = ocr::ocrRowTextForTraining(grayImage, mgr.rEnv, cr, 0, text, dumpImage);
+    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, mgr.rEnv, cr, 0, text, dumpImage);
     if (conf < 50) {
         LOG(ERROR) << "Bad ocr for nav row, conf: " << conf << ", text: "<< text;
         text.clear();
@@ -1060,7 +1030,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, c
 
     std::string distText;
     cv::Mat distImage;
-    conf = ocr::ocrRowTextForTraining(grayImage, mgr.rEnv, cr, 1, distText, distImage);
+    conf = ocr::ocrRowTextForTraining(ocr::DISTANCE, grayImage, mgr.rEnv, cr, 1, distText, distImage);
     if (conf < 50) {
         LOG(ERROR) << "Bad ocr for nav dist, conf: " << conf << ", text: "<< distText;
         distText.clear();

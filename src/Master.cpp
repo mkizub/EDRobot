@@ -337,18 +337,18 @@ void Master::initializeInternal(std::string ocr_dir) {
         ocr_dir = Cfg.mTesseractDataPath;
     if (ocr_dir.empty())
         ocr_dir = "tessdata-fast";
-    ocr::init(ocr_dir, Cfg.lng);
+    ocr::init(ocr_dir);
 
     LOG(INFO) << "Initializing compass detector";
     mCompassDetector = std::make_unique<detect::CompassDetector>();
 
     LOG(INFO) << "Setup keyboard hooks";
-    keyboard::acquire_vJoy();
+    kbd::acquire_vJoy();
     std::vector<std::string> keys;
     for (auto& m : Cfg.keyMapping)
         keys.push_back(m.first.first);
-    keyboard::intercept(keys);
-    keyboard::start(tradingKbHook);
+    kbd::intercept(keys);
+    kbd::start(tradingKbHook);
 }
 
 Master::Master() {
@@ -357,8 +357,8 @@ Master::Master() {
 }
 
 Master::~Master() {
-    keyboard::stop();
-    keyboard::release_vJoy();
+    kbd::stop();
+    kbd::release_vJoy();
     delete mAIManager;
     if (mCapturer) {
         mCapturer->stop();
@@ -636,20 +636,31 @@ int Master::canSell(Commodity* commodity) const {
     return commodity->ship.count - commodity->ship.stolen;
 }
 
-const Commodity* Master::ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr) {
+int Master::canBuy(Commodity* commodity) const {
+    spMarket market = Cfg.currentMarket;
+    if (!commodity || commodity->market.stock <= 0)
+        return 0;
+    int free = st::shipStats.cargoCapacity - st::shipStats.cargo;
+    if (free <= 0)
+        return 0;
+    return std::min(free, commodity->market.stock);
+}
+
+const Commodity* Master::ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr, int min_conf) {
     if (cr->cdt != ClsDetType::ListRow)
         return nullptr;
     if (cr->u.lrow.commodity)
         return cr->u.lrow.commodity;
     if (cr->text.empty()) {
-        int conf = ocr::ocrRowText(grayImage, rEnv, *cr, 1, cr->text);
+        int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *cr, 1, cr->text);
         cr->u.lrow.text_confidence = conf;
-        if (conf > 50) {
+        if (conf >= min_conf) {
             cr->u.lrow.commodity = Cfg.getCommodityByName(cr->text, true);
         } else {
             cr->text.clear();
         }
-    } else {
+    }
+    else if (cr->u.lrow.text_confidence >= min_conf) {
         cr->u.lrow.commodity = Cfg.getCommodityByName(cr->text, true);
     }
     return cr->u.lrow.commodity;
@@ -683,13 +694,13 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
     }
     if (!first) {
         for (auto lr: rows) {
-            if (ocrMarketRowCommodity(rEnv, grayImage, lr)) {
+            if (ocrMarketRowCommodity(rEnv, grayImage, lr, 80)) {
                 first = lr;
                 break;
             }
         }
         for (auto lr : rows | std::views::reverse) {
-            if (ocrMarketRowCommodity(rEnv, grayImage, lr)) {
+            if (ocrMarketRowCommodity(rEnv, grayImage, lr, 80)) {
                 last = lr;
                 break;
             }
@@ -711,7 +722,9 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
     if (it_row_last == rows.end())
         return false;
 
-    if (it_table_last - it_table_first != it_row_last - it_row_first) {
+    int table_dist = it_table_last - it_table_first;
+    int list_dist = it_row_last - it_row_first;
+    if (table_dist != list_dist) {
         LOG(ERROR) << "Approximated commodity table does not match with OCR-recognized entries. Do not use market filters!";
         LOG(ERROR) << "Recognized first row: '" << first->u.lrow.commodity->name << "' at row " << (it_row_first - rows.begin())
                    << " expected table position " << (it_table_first - table.begin());
@@ -748,7 +761,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
                 continue;
             }
             std::string text;
-            int ocr_conf = ocr::ocrRowText(grayImage, rEnv, *lr, 1, text);
+            int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *lr, 1, text);
             lr->u.lrow.text_confidence = ocr_conf;
             int fuzzy_conf = 0;
             if (ocr_conf > 30) {
@@ -814,15 +827,6 @@ bool Master::stopAITask() {
 
 bool Master::autopilotAITask() {
     return mAIManager->autopilot();
-}
-
-const json5pp::value& Master::getTaskActions(const std::string& action) {
-    auto it = mActions.find(action);
-    if (it == mActions.end()) {
-        static json5pp::value nullAction;
-        return nullAction;
-    }
-    return it->second;
 }
 
 cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) const {
@@ -934,7 +938,6 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
         }
         debugEnv.isDebugMatch_ = true;
         Widget* foundWidget = nullptr;
-        GuiFocus guiFocus = Cfg.guiFocus;
         for (auto widget: mScreensRoot->have) {
             if (widget->tp != WidgetType::Screen)
                 continue;
@@ -942,7 +945,7 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             if (!screen || !screen->checkStatus())
                 continue;
             auto w = debugTemplates(screen, &debugEnv);
-            if (guiFocus == GuiFocus::None)
+            if (st::guiFocus == GuiFocus::None)
                 mCompassDetector->match(debugEnv);
             el::Loggers::flushAll();
             if (w && !foundWidget) {
@@ -953,6 +956,12 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
                         cv::imwrite("warped-screen-color.png", debugEnv.getWarpedColorImage());
                     }
                 }
+                UIState uiState;
+                uiState.valid = true;
+                uiState.guiFocus = st::guiFocus;
+                uiState.screen = screen;
+                Widget::DetectParams params {debugEnv, uiState, *this, DetectLevel::ListRows};
+                screen->detect(params);
             }
             //std::string fname = "debug-match-"+screen->name+".png";
             //cv::imwrite(fname, env.debugImage);
@@ -1046,34 +1055,40 @@ bool Master::debugWindowUpdate() {
         cv::putText(debugImage, text, {10,40}, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
     }
 
-    if (Cfg.guiFocus == GuiFocus::None && mCompassDetector->lastHemisphere) {
+    if (st::guiFocus == GuiFocus::None) {
         detect::CompassDetector& c = *mCompassDetector.get();
         detect::ImageTemplate& ct = *c.compassDetector.get();
 
-        cv::Point center = (ct.captureRect.tl() + ct.captureRect.br()) / 2;
-        int radius = (ct.captureRect.width + ct.captureRect.height) / 4;
-        if (c.lastHemisphere > 0)
-            cv::circle(debugImage, center, radius, {0,255,0}, 2);
-        else
-            cv::circle(debugImage, center, radius, {255,0,0}, 2);
+        {
+            cv::Rect r = cEnv.cvtReferenceToCaptured(ct.matchRect);
+            cv::rectangle(debugImage, r, {96, 96, 96}, 2);
+        }
 
-        if (c.lastHemisphere > 0)
-            cv::rectangle(debugImage, c.dotCaptureRect, {0,255,0}, 2);
-        else
-            cv::rectangle(debugImage, c.dotCaptureRect, {255,0,0}, 2);
+        if (mCompassDetector->lastHemisphere) {
+            cv::Point center = (ct.captureRect.tl() + ct.captureRect.br()) / 2;
+            cv::Size size = ct.captureRect.size() / 2;
+            cv::Scalar color {0, 255, 0};
+            if (c.lastHemisphere < 0)
+                color = {255, 0, 0};
+            cv::ellipse(debugImage, center, size, 0, 0, 360, color, 2);
+            if (c.lastHemisphere > 0)
+                cv::rectangle(debugImage, c.dotCaptureRect, {0, 255, 0}, 2);
+            else
+                cv::rectangle(debugImage, c.dotCaptureRect, {255, 0, 0}, 2);
 
-        std::string text = std::format("{}/{}/{}", int(c.lastTgtPitch), int(c.lastTgtYaw), int(c.lastTgtRoll));
-        cv::Point orig = ct.captureRect.tl() + cv::Point(0, -10);
-        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {0, 0, 0}, 3);
-        cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
+            std::string text = std::format("{}/{}/{}", int(c.lastTgtPitch), int(c.lastTgtYaw), int(c.lastTgtRoll));
+            cv::Point orig = ct.captureRect.tl() + cv::Point(0, -10);
+            cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {0, 0, 0}, 3);
+            cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
+        }
 
         if (c.navTargetFound) {
-            center = cEnv.cvtReferenceToCaptured(cEnv.ReferenceScreenCenter + c.lastNavTargetOffset);
-            radius = c.targetReferenceRadius * cEnv.getScale();
+            cv::Point center = cEnv.cvtReferenceToCaptured(cEnv.ReferenceScreenCenter + c.lastNavTargetOffset);
+            int radius = c.navTargetReferenceRadius * cEnv.getScale();
             cv::circle(debugImage, center, radius, {255,255,0}, 2);
             if (c.lastNavDist.unit != dist_t::X) {
-                text = c.lastNavDist.to_string();
-                orig = center + cv::Point(radius, -radius);
+                std::string text = c.lastNavDist.to_string();
+                cv::Point orig = center + cv::Point(radius, -radius);
                 cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {0, 0, 0}, 3);
                 cv::putText(debugImage, text, orig, cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
             }
@@ -1295,8 +1310,8 @@ bool Master::detectEDState(DetectLevel level) {
         mLastUIState.valid = false;
         return false;
     }
+    mLastUIState.guiFocus = st::guiFocus;
     mLastUIState.valid = true;
-    mLastUIState.guiFocus = Cfg.getGuiFocus();
     if (level == DetectLevel::None) {
         auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         LOG(INFO) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
@@ -1307,10 +1322,7 @@ bool Master::detectEDState(DetectLevel level) {
     // detect screen and widget
     Widget::DetectParams params {mClassifyEnv, mLastUIState, *this, level};
     mScreensRoot->detect(params);
-    GuiFocus guiFocus = Cfg.guiFocus;
-    bool docked = Cfg.getCurrentStatus()->flags.docked;
-    bool fsd_jump = Cfg.getCurrentStatus()->flags.fsd_jump;
-    if (!docked && !fsd_jump && guiFocus == GuiFocus::None) {
+    if (!st::ship.flags.docked && !st::ship.flags.fsd_jump && st::guiFocus == GuiFocus::None) {
         // detect autopilot
         for (auto& cr : mClassifyEnv.classified) {
             if (cr.cdt == ClsDetType::Detected && cr.text == "auto-pilot") {
@@ -1319,7 +1331,7 @@ bool Master::detectEDState(DetectLevel level) {
             }
         }
         // detect compass
-        if (!mLastUIState.autopilot && !Cfg.getCurrentStatus()->destinationName.empty()) {
+        if (!mLastUIState.autopilot && !st::destination.name.empty()) {
             mCompassDetector->match(mClassifyEnv);
         } else {
             mCompassDetector->lastHemisphere = 0;
@@ -1332,6 +1344,10 @@ bool Master::detectEDState(DetectLevel level) {
     LOG(INFO) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
     debugWindowUpdate();
     return true;
+}
+
+cv::Point Master::cvtReferenceToDesktop(const cv::Point& point) const {
+    return mClassifyEnv.cvtReferenceToDesktop(point);
 }
 
 Capturer* Master::getCapturer() {
@@ -1405,6 +1421,7 @@ void Master::processDetectRequest(pCommand &cmd) {
                 c->request.compass->targetPitch = (float) mCompassDetector->lastTgtPitch;
                 c->request.compass->targetYaw = (float) mCompassDetector->lastTgtYaw;
                 c->request.compass->targetRoll = (float) mCompassDetector->lastTgtRoll;
+                c->request.compass->targetAngle = (float) mCompassDetector->lastTgtAngle;
                 c->request.compass->has_nav_target = mCompassDetector->navTargetFound;
                 if (mCompassDetector->navTargetFound)
                     c->request.compass->nav_target_dist = mCompassDetector->lastNavDist;

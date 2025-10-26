@@ -264,21 +264,21 @@ std::pair<std::string,unsigned> decodeShortcut(std::string key) {
             break;
         std::string mod = toLower(key.substr(0, pos));
         if (mod == "ctrl" || mod == "lctrl")
-            flags |= keyboard::LCTRL;
+            flags |= kbd::LCTRL;
         else if (mod == "rctrl")
-            flags |= keyboard::RCTRL;
+            flags |= kbd::RCTRL;
         else if (mod == "alt" || mod == "lalt" || mod == "menu" || mod == "lmenu")
-            flags |= keyboard::LALT;
+            flags |= kbd::LALT;
         else if (mod == "ralt" || mod == "rmenu")
-            flags |= keyboard::RALT;
+            flags |= kbd::RALT;
         else if (mod == "shift" || mod == "lshift")
-            flags |= keyboard::LSHIFT;
+            flags |= kbd::LSHIFT;
         else if (mod == "rshift")
-            flags |= keyboard::RSHIFT;
+            flags |= kbd::RSHIFT;
         else if (mod == "win" || mod == "meta" || mod == "lwin" || mod == "lmeta")
-            flags |= keyboard::LWIN;
+            flags |= kbd::LWIN;
         else if (mod == "rwin" || mod == "rmeta")
-            flags |= keyboard::RWIN;
+            flags |= kbd::RWIN;
         else
             LOG(ERROR) << "Unknown key modifier " << mod;
         key = key.substr(pos+1);
@@ -288,15 +288,15 @@ std::pair<std::string,unsigned> decodeShortcut(std::string key) {
 
 std::string encodeShortcut(const std::string& name, unsigned flags) {
     std::string res;
-    if (flags & keyboard::LCTRL) res += "LCtrl+";
-    if (flags & keyboard::RCTRL) res += "RCtrl+";
-    if (flags & keyboard::LALT) res += "LAlt+";
-    if (flags & keyboard::RALT) res += "RAlt+";
-    if (flags & keyboard::LSHIFT) res += "LShift+";
-    if (flags & keyboard::RSHIFT) res += "RShift+";
-    if (flags & keyboard::LWIN) res += "LWin+";
-    if (flags & keyboard::RWIN) res += "RWin+";
-    res += keyboard::getNamesForKey(name)[0];
+    if (flags & kbd::LCTRL) res += "LCtrl+";
+    if (flags & kbd::RCTRL) res += "RCtrl+";
+    if (flags & kbd::LALT) res += "LAlt+";
+    if (flags & kbd::RALT) res += "RAlt+";
+    if (flags & kbd::LSHIFT) res += "LShift+";
+    if (flags & kbd::RSHIFT) res += "RShift+";
+    if (flags & kbd::LWIN) res += "LWin+";
+    if (flags & kbd::RWIN) res += "RWin+";
+    res += kbd::getNamesForKey(name)[0];
     return res;
 }
 
@@ -347,7 +347,7 @@ std::ostream& operator<<(std::ostream& os, const dist_t& obj) {
 }
 
 dist_t parseDist(std::wstring dist) {
-    bool cruise = Cfg.getCurrentStatus()->flags.cruise;
+    bool cruise = st::ship.flags.cruise;
     dist_t::Unit unit = dist_t::X;
     dist = trim(dist);
     for (int garbage=0; garbage < 4; garbage++) {

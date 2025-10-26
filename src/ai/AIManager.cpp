@@ -185,10 +185,14 @@ bool AIManager::new_task(const TaskTemplate& templ) {
         task.reset(new TaskSellAll(nullptr, *this, templ));
     else if (templ.name == ED_TASK_MARKET_SELL)
         task.reset(new TaskSell(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_MARKET_BUY)
+        task.reset(new TaskBuy(nullptr, *this, templ));
     else if (templ.name == ED_TASK_AUTOPILOT)
         task.reset(new Autopilot(nullptr, *this, templ));
     else if (templ.name == ED_TASK_TRAVEL)
         task.reset(new TaskTravel(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_NAV_SCAN)
+        task.reset(new NavListScanTask(nullptr, *this, templ));
     else if (templ.name == ED_TASK_DEBUG_AUTOPILOT)
         task.reset(new TaskDebugAutopilot(nullptr, *this, templ));
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
@@ -219,7 +223,7 @@ void AIManager::loop() {
         TRY {
             step();
         } CATCH(const std::exception& ex) {
-            keyboard::reset_vJoy();
+            kbd::reset_vJoy();
             if (auto ir = dynamic_cast<const interrupted_error*>(&ex)) {
                 //mark_interrupted();
             } else {

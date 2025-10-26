@@ -64,6 +64,7 @@ struct CompassInfo {
     float targetPitch;
     float targetYaw;
     float targetRoll;
+    float targetAngle;
     short hemisphere; // +1: front, -1: back, 0: invalid
     bool has_nav_target;
     dist_t nav_target_dist;
@@ -99,7 +100,7 @@ public:
     bool setDetectStream(DetectLevel);
     bool detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastUIState; }
-    const json5pp::value& getTaskActions(const std::string& action);
+    cv::Point cvtReferenceToDesktop(const cv::Point& point) const;
     cv::Rect resolveWidgetReferenceRect(const std::string& name) const;
     ai::AIManager* getAIManager() const { return mAIManager; }
     int getDefaultKeyHoldTime() const { return Cfg.defaultKeyHoldTime; }
@@ -107,6 +108,7 @@ public:
     int getSearchRegionExtent() const { return Cfg.searchRegionExtent; }
 
     int canSell(Commodity* commodity) const;
+    int canBuy(Commodity* commodity) const;
     static const Commodity* getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lbl_name);
     static bool approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lst_name, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify = nullptr);
 
@@ -114,7 +116,7 @@ public:
     void pushDetectRequest(std::promise<bool>&& p, DetectRequest&& req);
     void pushDevRectScreenshotCommand(cv::Rect rect);
 
-    static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr);
+    static const Commodity* ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr, int min_conf);
 
     const widget::Widget* getCfgItem(std::string state) const;
 private:
@@ -155,7 +157,6 @@ private:
     bool debugWindowUpdate();
 
     std::unique_ptr<widget::Root> mScreensRoot;
-    std::map<std::string,json5pp::value> mActions;
     HWND hWndED;
 
     cv::UMat mCapturedED;

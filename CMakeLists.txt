@@ -11,23 +11,25 @@ set(BUILD_SHARED_LIBS TRUE)
 set(OpenCV_ROOT "${VCPKG_INSTALLED_DIR}/x64-windows/share/opencv4")
 find_package(OpenCV REQUIRED)
 
-find_package(Tesseract CONFIG REQUIRED)
-
 #find_package(Gettext REQUIRED)
 find_library(GETTEXT_LIBRARIES intl iconv)
 find_package(CURL REQUIRED)
 find_package(curlcpp CONFIG REQUIRED)
+find_package(cpptrace CONFIG REQUIRED)
 add_library(vJoyInterface SHARED IMPORTED)
+set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION_RELEASE "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.lib")
+
+find_package(Tesseract CONFIG REQUIRED)
+set_target_properties(leptonica PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
+set_target_properties(Tesseract::libtesseract PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
 
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
 add_compile_options(/Zc:__cplusplus /await /utf-8 /Zi)
 add_link_options(/DEBUG)
-
-find_package(cpptrace CONFIG REQUIRED)
 
 add_executable(EDRobot
         src/pch.cpp
@@ -60,6 +62,8 @@ add_executable(EDRobot
 
         src/ai/AutopilotTasks.cpp
         src/ai/AutopilotTasks.h
+        src/ai/NavList.cpp
+        src/ai/NavList.h
         src/ai/TaskCalibrate.cpp
         src/ai/TaskCalibrate.h
         src/ai/TaskDebug.cpp
@@ -153,13 +157,32 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot PRIVATE cpptrace::cpptrace)
 endif()
 
+function(copy_target_dll target)
+  get_target_property(LocationOfDLL ${target} IMPORTED_LOCATION_RELEASE)
+  add_custom_command(TARGET EDRobot POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${LocationOfDLL}"
+          "$<TARGET_FILE_DIR:EDRobot>"
+  )
+endfunction()
+function(copy_release_dll dll)
+  add_custom_command(TARGET EDRobot POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${VCPKG_INSTALLED_DIR}/x64-windows/bin/${dll}.dll"
+          "$<TARGET_FILE_DIR:EDRobot>"
+  )
+endfunction()
+
 target_link_libraries(EDRobot PRIVATE vJoyInterface)
-add_custom_command(TARGET EDRobot POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll" # Source DLL path
-        "$<TARGET_FILE_DIR:EDRobot>"
-        COMMENT "Copying vJoyInterface.dll to executable directory"
-)
+copy_target_dll(vJoyInterface)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  copy_target_dll(leptonica)
+  copy_target_dll(Tesseract::libtesseract)
+  copy_release_dll(libcurl)
+  copy_release_dll(tiff)
+  copy_release_dll(libpng16)
+  copy_release_dll(zlib1)
+endif()
 
 install(TARGETS EDRobot RUNTIME_DEPENDENCIES
         PRE_EXCLUDE_REGEXES "api-ms-win-.*\.dll" "ext-ms-.*\.dll"

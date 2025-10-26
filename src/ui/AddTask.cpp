@@ -182,35 +182,44 @@ void AddTask::add_ctrl(ai::Param &p, int &id, int &left, int &top, int width) {
     else {
         ParamCtrl& ctrl = templ_controls.emplace_back(p, (int) id);
         wl::textbox& tb = ctrl.tb;
+        int w;
         int y = top;
         int cx = left + width / 2;
+
         if (p.type == ai::Param::Int) {
-            int w = 50;
-            tb.create(hwnd(), id, wl::textbox::type::NORMAL, {cx-w-2, y}, w, 21);
-            ctrl.text = std::to_wstring(std::get<int64_t>(p.value));
+            int64_t val = std::get<int64_t>(p.value);
+            if (val)
+                ctrl.text = std::to_wstring(val);
+            w = 50;
         }
         else if (p.type == ai::Param::Real) {
-            int w = 70;
-            tb.create(hwnd(), id, wl::textbox::type::NORMAL, {cx-w-2, y}, w, 21);
-            ctrl.text = std::to_wstring(std::get<double>(p.value));
+            double val = std::get<double>(p.value);
+            if (!std::isnan(val) && val != 0)
+                ctrl.text = std::to_wstring(std::get<double>(p.value));
+            w = 70;
         }
         else if (p.type == ai::Param::Commodity) {
-            int w = width / 2 - 4;
-            tb.create(hwnd(), id, wl::textbox::type::NORMAL, {cx-w-2, y}, w, 21);
             auto commodity = Cfg.getCommodityByName(std::get<std::string>(p.value), false);
-            if (commodity) {
+            if (commodity)
                 ctrl.text = toUtf16(commodity->name);
-            }
+            w = width / 2 - 4;
         }
         else {
-            int w = width / 2 - 4;
-            tb.create(hwnd(), id, wl::textbox::type::NORMAL, {cx-w-2, y}, w, 21);
             ctrl.text = toUtf16(std::get<std::string>(p.value));
+            w = width / 2 - 4;
+        }
+        tb.create(hwnd(), id, wl::textbox::type::NORMAL, {cx-w-2, y}, w, 21);
+        {
+            LONG_PTR style = GetWindowLongPtr(tb.hwnd(), GWL_STYLE);
+            style |= WS_TABSTOP;
+            SetWindowLongPtr(tb.hwnd(), GWL_STYLE, style);
         }
         tb.set_text(ctrl.text);
+
+        // label
         id += 1;
         wl::label& lbl = templ_controls.back().label;
-        int w = width / 2 - 4;
+        w = width / 2 - 4;
         lbl.create(hwnd(), id, toUtf16(p.name).c_str(), {cx+2, y}, {w, 21});
     }
 
@@ -229,12 +238,16 @@ bool AddTask::validate(ParamCtrl& ctrl) {
             ok = std::ranges::contains(split(ctrl.param.meta, '|'), text) || ctrl.param.optional;
         }
         else if (ctrl.param.type == ai::Param::Int) {
-            curr_templ->set(ctrl.param.name, std::stoll(ctrl.text));
-            ok = std::get<int64_t>(ctrl.param.value) >= 0 || ctrl.param.optional;
+            try {
+                curr_templ->set(ctrl.param.name, std::stoll(ctrl.text));
+                ok = std::get<int64_t>(ctrl.param.value) >= 0 || ctrl.param.optional;
+            } catch (...) {}
         }
         else if (ctrl.param.type == ai::Param::Real) {
-            curr_templ->set(ctrl.param.name, std::stod(ctrl.text));
-            ok = std::isfinite(std::get<double>(ctrl.param.value)) || ctrl.param.optional;
+            try {
+                curr_templ->set(ctrl.param.name, std::stod(ctrl.text));
+                ok = std::isfinite(std::get<double>(ctrl.param.value)) || ctrl.param.optional;
+            } catch (...) {}
         }
         else if (ctrl.param.type == ai::Param::String ||
                 ctrl.param.type == ai::Param::System ||
@@ -249,7 +262,8 @@ bool AddTask::validate(ParamCtrl& ctrl) {
             if (commodity) {
                 curr_templ->set(ctrl.param.name, commodity->nameId);
             } else {
-                curr_templ->set(ctrl.param.name, "");
+                std::string empty;
+                curr_templ->set(ctrl.param.name, empty);
                 ok = ctrl.param.optional;
             }
         }

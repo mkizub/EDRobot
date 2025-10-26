@@ -202,6 +202,7 @@ public:
 
     ImageTemplate(const std::string& filename, spEvalRect rect);
     ~ImageTemplate() override = default;
+    void setTemplate(const std::string& filename);
 
     double match(ClassifyEnv& env) override;
 
@@ -251,11 +252,15 @@ public:
     CompassDetector();
     ~CompassDetector() override = default;
 
+    void loadCompass();
+
     double match(ClassifyEnv& env) override;
 
     cv::Rect targetReferenceRect;
     cv::Rect targetRemapRect;
-    int targetReferenceRadius;
+
+    cv::Size compassRefSize;
+    std::string compassImageName;
 
     std::unique_ptr<ImageTemplate>  compassDetector;
 
@@ -266,17 +271,16 @@ public:
     std::vector<ImageTemplate::ImageMatrix> compassDotsPrepared;
     std::vector<ImageTemplate::ImageMatrix> navTargetOrig;
     std::vector<ImageTemplate::ImageMatrix> navTargetPrepared;
+    int navTargetReferenceRadius;
     cv::Mat navTargetRemapXY;
     XMat navTargetRemap1;
     XMat navTargetRemap2;
 
     double preprocessedDotsScale = 0;
     double preprocessedFOV = 0; // config fov
-    double shipCompassScale = 1;
     double captureFovX = 0;
     double captureFovY = 0;
     std::string preprocessedShip;
-    std::vector<double> baseTestScales;
     std::vector<double> navTargetScales;
 
     const double threshold_dot;
@@ -285,14 +289,13 @@ public:
     double lastTgtPitch;
     double lastTgtYaw;
     double lastTgtRoll;
+    double lastTgtAngle;
 
     cv::Rect dotCaptureRect;
     cv::Point2d dotSpherePosition;
-    double lastDotValue;
 
     bool navTargetFound;
     cv::Point lastNavTargetOffset;
-    std::string lastNavTargetText;
     dist_t lastNavDist;
 
     static void tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect);
@@ -305,16 +308,24 @@ public:
     ~TilesDetector() override = default;
 
     double match(ClassifyEnv& env) override;
+    std::vector<cv::Rect> detectColumns(XMat& roiImage, int gap);
+    std::vector<cv::Rect> detectRows(XMat& roiImage, int gap);
 
     const std::string name;
     cv::Rect mTilesRect;
     std::vector<std::string> mIconFiles;
+    enum IconAlign {
+        Center, TopLeft
+    } mIconAlign;
     bool hudTryHard {false};
 
     std::vector<ClassifiedRect> mDetectedTiles;
 
 private:
-    bool getColSpan(int& col, int& span, cv::Rect& bbox, cv::Rect& captureRect, int gap) const;
+    struct Range {
+        int bgn, end, val;
+    };
+    std::vector<Range> split(bool columns, uchar* reduced, int size, int gap, int& threshold);
 
     int mMinRows;
     int mMaxRows;

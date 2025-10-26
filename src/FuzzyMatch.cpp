@@ -72,10 +72,10 @@ double FuzzyMatch::ratio(const std::wstring &source, const std::wstring &target)
     double dist, dist_max;
     if (source.size() <= target.size()) {
         dist = distance(source, target);
-        dist_max = double(target.size());
+        dist_max = double(source.size());
     } else {
         dist = distance(target, source);
-        dist_max = double(source.size());
+        dist_max = double(target.size());
     }
     return (1 - dist / dist_max) * 100;
 }

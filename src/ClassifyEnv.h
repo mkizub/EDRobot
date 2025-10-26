@@ -188,9 +188,7 @@ struct ClassifiedRect {
             detect::LineDetector* detector;
         } ldet;
         struct {
-            int row;
-            int col;
-            int span; // column span
+            const char* icon;
         } tile;
         struct {
             cv::Rect referenceRect;     // originally expected rect in reference coordinates
@@ -356,14 +354,12 @@ private:
 
 class TileRect : public EvalRect {
 public:
-    TileRect(const std::string& name, int row, int col)
-        : name(name), row(row), col(col)
+    TileRect(const std::string& name)
+        : name(name)
     {}
     cv::Rect calcReferenceRect(const ResolvedEnv& env) const override;
 
     const std::string name;
-    const int row;
-    const int col;
 };
 
 #endif //EDROBOT_CLASSIFYENV_H

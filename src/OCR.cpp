@@ -8,6 +8,7 @@
 #include "EDWidget.h"
 
 #include <tesseract/baseapi.h>
+#include <tesseract/capi.h>
 #include <leptonica/allheaders.h>
 
 #include <opencv2/dnn_superres.hpp>
@@ -20,12 +21,9 @@ static tesseract::TessBaseAPI* tesseractApi;
 //static tesseract::TessBaseAPI* tesseractApiTmp;
 //static cv::dnn_superres::DnnSuperResImpl dnnSuperRes;
 
-void init(const std::string& tessdata, Lang lng) {
-    LOG(INFO) << "Initializing Tesseract OCR for lang '" << enum_name<Lang>(lng) << "', tessdata: " << tessdata << "";
+void init(const std::string& tessdata) {
+    LOG(INFO) << "Initializing Tesseract OCR for lang '" << enum_name<Lang>(st::lng) << "', tessdata: " << tessdata << "";
     const char* tesseractLang = "edr";
-    if (lng == RU) {
-        tesseractLang = "edr";
-    }
     tesseractApi = new tesseract::TessBaseAPI();
     int fail = tesseractApi->Init(tessdata.c_str(), tesseractLang, tesseract::OEM_DEFAULT, nullptr, 0, 0, 0, true);
     if (fail) {
@@ -63,7 +61,7 @@ void shutdown() {
 //    }
 }
 
-int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut) {
+int ocrLine(TextType type, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut) {
     text.clear();
     if (rectOut)
         *rectOut = {};
@@ -76,6 +74,18 @@ int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Re
     // 'edr'
     auto startTime = std::chrono::high_resolution_clock::now();
 
+    if (type == NUMERIC) {
+        tesseractApi->SetVariable("tessedit_char_whitelist", " +-.,/%0123456789");
+    }
+    else if (type == DISTANCE) {
+        if (st::lng == Lang::RU)
+            tesseractApi->SetVariable("tessedit_char_whitelist", " .,/%0123456789Mмкcвл");
+        else
+            tesseractApi->SetVariable("tessedit_char_whitelist", " .,/%0123456789Mmklsy");
+    }
+    else {
+        tesseractApi->SetVariable("tessedit_char_whitelist", "");
+    }
     tesseractApi->SetImage(grayImage.data, grayImage.cols, grayImage.rows, 1, (int)grayImage.step);
     tesseractApi->Recognize(nullptr);
     int conf = tesseractApi->MeanTextConf();
@@ -105,9 +115,9 @@ int ocrLine(const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Re
                 count += 1;
                 conf += ri->Confidence(tesseract::PageIteratorLevel::RIL_WORD);
             }
-            delete[] word;
+            TessDeleteText(word);
         } while (valid && ri->Next(tesseract::PageIteratorLevel::RIL_WORD));
-        delete ri;
+        TessPageIteratorDelete(ri);
         if (rectOut)
             *rectOut = lr;
         conf /= count;
@@ -183,7 +193,7 @@ static cv::Mat scaleImage(cv::Mat& image, double scale, bool force) {
 //    return scaledImage;
 }
 
-int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Rect* rectOut) {
+int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Rect* rectOut) {
     assert (cr.cdt == ClsDetType::ListRow);
     const widget::List* lst = cr.u.lrow.list;
     if (lst->tabs.size() <= tab)
@@ -246,11 +256,11 @@ int ocrRowText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const Classifi
         double add = - blackIdx * mul;
         cv::convertScaleAbs(ocrImage, ocrImage, mul, add);
     }
-    int conf = ocr::ocrLine("(list row)", ocrImage, text, rectOut);
+    int conf = ocr::ocrLine(tt, "(list row)", ocrImage, text, rectOut);
     return conf;
 }
 
-int ocrRowTextForTraining(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Mat& dumpImage) {
+int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Mat& dumpImage) {
     assert (cr.cdt == ClsDetType::ListRow);
     const widget::List* lst = cr.u.lrow.list;
     if (lst->tabs.size() <= tab)
@@ -272,7 +282,7 @@ int ocrRowTextForTraining(const cv::Mat& grayImage, const ResolvedEnv& rEnv, con
     ocrRect &= cv::Rect(0, 0, scaledImage.cols, scaledImage.rows);
     cv::Mat ocrImage(scaledImage, ocrRect);
     cv::Rect rect;
-    int conf = ocr::ocrLine("(list row training)", ocrImage, text, &rect);
+    int conf = ocr::ocrLine(tt, "(list row training)", ocrImage, text, &rect);
     if (conf < 50) {
         dumpImage = ocrImage;
     } else {
@@ -299,7 +309,7 @@ int ocrMarketLblText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const Cl
         cv::Rect ocrLineRect (0, l*ocr::LINE_HEIGHT, scaledImage.cols, ocr::LINE_HEIGHT);
         cv::Mat ocrImage(scaledImage, ocrLineRect);
         std::string line;
-        int conf = ocr::ocrLine("(market lbl)", ocrImage, line, nullptr);
+        int conf = ocr::ocrLine(TextType::GENERIC, "(market lbl)", ocrImage, line, nullptr);
         ocr_conf_sum += conf;
         if (l > 0)
             text += " ";
@@ -328,7 +338,7 @@ int ocrMarketLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv& rEn
         cv::Mat ocrImage(scaledImage, ocrLineRect);
         std::string text;
         cv::Rect rect;
-        int conf = ocr::ocrLine("(market lbl training)", ocrImage, text, &rect);
+        int conf = ocr::ocrLine(TextType::GENERIC, "(market lbl training)", ocrImage, text, &rect);
         ocr_conf_sum += conf;
         texts.push_back(text);
         if (conf < 50) {
@@ -353,7 +363,7 @@ int ocrNavigationLblText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, cons
     cv::Mat scaledImage = scaleImage(lblImage, scale, true);
     cv::bitwise_not(scaledImage, scaledImage);
 
-    int conf = ocr::ocrLine("(nav lbl)", scaledImage, text, nullptr);
+    int conf = ocr::ocrLine(TextType::GENERIC, "(nav lbl)", scaledImage, text, nullptr);
     return conf;
 }
 
@@ -370,7 +380,7 @@ int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&
     cv::bitwise_not(scaledImage, scaledImage);
 
     cv::Rect rect;
-    int conf = ocr::ocrLine("(nav lbl training)", scaledImage, text, &rect);
+    int conf = ocr::ocrLine(TextType::GENERIC, "(nav lbl training)", scaledImage, text, &rect);
     if (conf < 50) {
         dumpImage = scaledImage;
     } else {

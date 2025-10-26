@@ -8,7 +8,7 @@
 #include "Keyboard.h"
 #include "vjoy/vjoyinterface.h"
 
-namespace keyboard
+namespace kbd
 {
 static bool keyboardShutdown;
 static std::thread interceptor_thread;
@@ -207,7 +207,7 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { VK_CONTROL,        0x1D,            { "CtrlLeft", "Ctrl", "LeftControl" } },
         { VK_LWIN,           0x5B | EXT_KEY,  { "LWin", "WinLeft", "Win", "Meta" } },
         { VK_MENU,           0x38,            { "AltLeft", "Alt", "LeftAlt" } },
-        { ' ',               0x39,            { "Space", " "} },
+        { VK_SPACE,          0x39,            { "Space", " "} },
         { VK_MENU,           0x38 | EXT_KEY,  { "AltRight", "Alt", "RightAlt"} },
         { VK_RWIN,           0x5C | EXT_KEY,  { "RWin", "WinRight", "Win", "Meta" } },
         { VK_APPS,           0x5D | EXT_KEY,  { "Apps", "ContextMenu", "Context"} },
@@ -467,79 +467,116 @@ static INPUT fillInput(const GameKey& gk, bool up) {
     return input;
 }
 
-bool sendKeyDown(const GameKey& gk) {
-    std::vector<INPUT> input;
-    input.reserve(1 + gk.modifiers.size());
-    for (auto& gkm : gk.modifiers)
-        input.push_back(fillInput(gkm, false));
-    input.push_back(fillInput(gk, false));
-    unsigned sent = SendInput((int)input.size(), input.data(), sizeof(INPUT));
-    if (sent != input.size()) {
-        LOG(ERROR) << "SendInput keydown '" << gk << "' failed: " << getErrorMessage();
-        return false;
+
+void kbd_sleep(int milliseconds, bool precise) {
+    ai::check_interrupted();
+    if (milliseconds <= 0)
+        return;
+    if (milliseconds >= 75 && !precise) {
+        auto now = std::chrono::system_clock::now();
+        auto until = now + std::chrono::milliseconds(milliseconds);
+        while (now < until) {
+            auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
+            if (left.count() < 5)
+                break;
+            auto duration = std::min(std::chrono::milliseconds(500), left);
+            std::this_thread::sleep_for(duration);
+            now = std::chrono::system_clock::now();
+        }
+        ai::check_interrupted();
+        return;
     }
+
+    LARGE_INTEGER frequency, start, end;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&start);
+
+    double seconds = milliseconds * 0.001;
+    while (true) {
+        QueryPerformanceCounter(&end);
+        double elapsed_seconds = double(end.QuadPart - start.QuadPart) / double(frequency.QuadPart);
+        if (elapsed_seconds >= seconds)
+            break;
+        ai::check_interrupted();
+    }
+}
+
+bool send(const std::string& name, int delay_ms, int pause_ms, bool precise) {
+    if (!Mgr.setGameForeground())
+        return false;
+    if (delay_ms <= 0)
+        delay_ms = Cfg.getDefaultKeyHoldTime();
+    if (pause_ms <= 0)
+        pause_ms = Cfg.getDefaultKeyAfterTime();
+    LOG(INFO) << "send('" << name << "'," << delay_ms << "," << pause_ms << ")";
+    const KeyBindings& keyBindings = Cfg.getGameKeyBindings(name);
+    if (keyBindings.primary.device != GameKey::Void) {
+         if (!post(keyBindings.primary, delay_ms))
+            return false;
+        kbd_sleep(delay_ms + pause_ms, precise);
+        return true;
+    }
+    else if (keyBindings.secondary.device != GameKey::Void) {
+        if (!post(keyBindings.secondary, delay_ms))
+            return false;
+        kbd_sleep(delay_ms + pause_ms, precise);
+        return true;
+    }
+    int code = getScanCode(name);
+    if (!code)
+        return false;
+    GameKey tmp {GameKey::Keyboard, name, code};
+    if (!post(tmp, delay_ms))
+        return false;
+    kbd_sleep(delay_ms + pause_ms, precise);
     return true;
 }
 
-bool sendKeyUp(const GameKey& gk) {
-    std::vector<INPUT> input;
-    input.reserve(1 + gk.modifiers.size());
-    input.push_back(fillInput(gk, true));
-    for (auto& gkm : gk.modifiers | std::views::reverse)
-        input.push_back(fillInput(gkm, true));
-    unsigned sent = SendInput((int)input.size(), input.data(), sizeof(INPUT));
-    if (sent != input.size()) {
-        LOG(ERROR) << "SendInput   keyup '" << gk << "' failed: " << getErrorMessage();
+bool sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) {
+    if (!Mgr.setGameForeground())
         return false;
+    bool virtualDesktop = false;
+    int x = point.x;
+    int y = point.y;
+    if (absolute) {
+        virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
+        cv::Point screen = Mgr.cvtReferenceToDesktop(point);
+        x = screen.x;
+        y = screen.y;
     }
+    //LOG(INFO) << "sendMouseMove recalculated from reference " << point << " to screen " << screen;
+    if (!sendMouseMoveTo(x, y, absolute, virtualDesktop))
+        return false;
+    kbd_sleep(pause_ms > 0 ? pause_ms : Cfg.getDefaultKeyAfterTime(), false);
     return true;
 }
 
-bool sendKeyDown(const std::string& nm) {
-    auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(toLower(nm));
-    if (it == US_QWERTY_MAPPING_NAME_TO_KEY.end()) {
-        LOG(ERROR) << "Scancode for " << nm << " not found";
-        return false;
+bool sendMouseDown(int buttons);
+bool sendMouseUp(int buttons);
+bool sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) {
+    bool double_click = false;
+    if (!Mgr.isGameForeground()) {
+        if (!Mgr.setGameForeground())
+            return false;
+        double_click = true;
     }
-    const Key& key = it->second;
-    unsigned code = key.scanCode & 0xFF;
-    bool extended = (code & EXT_KEY) != 0;
-    //LOG(INFO) << "SendInput   key down '" << nm << "' " << (code & 0xFF);
-    INPUT input[1]{};
-    input[0].type = INPUT_KEYBOARD;
-    input[0].ki.wScan = code;
-    input[0].ki.dwFlags = KEYEVENTF_SCANCODE;
-    if (extended)
-        input[0].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-    unsigned sent = SendInput(1, input, sizeof(input));
-    if (!sent) {
-        LOG(ERROR) << "SendInput keydown '" << nm << "' " << code << " failed: " << getErrorMessage();
+    cv::Point screen = Mgr.cvtReferenceToDesktop(point);
+    bool virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
+    //LOG(INFO) << "sendMouseClick recalculated from reference " << point << " to screen " << screen;
+    if (!sendMouseMoveTo(screen.x, screen.y, true, virtualDesktop))
         return false;
+    GameKey tmp {GameKey::Mouse, "Mouse_1", 1};
+    if (double_click) {
+        post(tmp, 50);
+        kbd_sleep(100, false);
     }
-    return true;
-}
-
-bool sendKeyUp(const std::string& nm) {
-    auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(toLower(nm));
-    if (it == US_QWERTY_MAPPING_NAME_TO_KEY.end()) {
-        LOG(ERROR) << "Scancode for " << nm << " not found";
-        return false;
-    }
-    const Key& key = it->second;
-    unsigned code = key.scanCode & 0xFF;
-    bool extended = (code & EXT_KEY) >= EXT_KEY;
-    //LOG(INFO) << "SendInput   key up   '" << nm << "' " << (code & 0xFF);
-    INPUT input[1]{};
-    input[0].type = INPUT_KEYBOARD;
-    input[0].ki.wScan = code;
-    input[0].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-    if (extended)
-        input[0].ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-    unsigned sent = SendInput(1, input, sizeof(input));
-    if (!sent) {
-        LOG(ERROR) << "SendInput keyup   '" << nm << "' " << code << " failed: " << getErrorMessage();
-        return false;
-    }
+    sendMouseDown(1);
+    kbd_sleep(delay_ms, false);
+    sendMouseUp(1);
+    kbd_sleep(pause_ms, false);
+    //if (!post(tmp, delay_ms))
+    //    return false;
+    //kbd_sleep(delay_ms + pause_ms, false);
     return true;
 }
 
@@ -622,15 +659,11 @@ bool sendMouseWheel(int count) {
     return true;
 }
 
-const vJoyAxisInfo* getJoyAxis(const std::string& axis_name) {
-    if (!vJoyAxisMap.contains(axis_name))
-        return nullptr;
-    return &vJoyAxisMap.at(axis_name);
-}
-
 // value -1..1 for full-range axes, or 0..1 for others
-bool sendJoyAxis(const KeyBindings& bindings, double value) {
+bool axis(const KeyBindings& bindings, double value) {
     if (!(bindings.mode == KeyBindings::Axis || bindings.mode == KeyBindings::AxisInv))
+        return false;
+    if (!Mgr.setGameForeground())
         return false;
     const GameKey& gk = bindings.primary;
     if (gk.device != GameKey::vJoy)
@@ -653,6 +686,8 @@ bool sendJoyAxis(const KeyBindings& bindings, double value) {
 
 bool sendJoyAxis(const std::string& axis_name, double value) {
     if (!vJoyAxisMap.contains(axis_name))
+        return false;
+    if (!Mgr.setGameForeground())
         return false;
     const vJoyAxisInfo& ax = vJoyAxisMap.at(axis_name);
     LONG val;
@@ -917,9 +952,27 @@ void processKeyRelease() {
     releaseKeys();
 }
 
-unsigned sendKeyDown(const GameKey& gk, int hold) {
+unsigned post(const std::string& name, int hold_ms) {
+    if (!Mgr.setGameForeground())
+        return 0;
+    LOG(INFO) << "holdKeyDown('" << name << ")";
+    const KeyBindings& keyBindings = Cfg.getGameKeyBindings(name);
+    if (keyBindings.primary.device != GameKey::Void) {
+        return post(keyBindings.primary, hold_ms);
+    }
+    else if (keyBindings.secondary.device != GameKey::Void) {
+        return post(keyBindings.secondary, hold_ms);
+    }
+    int code = getScanCode(name);
+    if (!code)
+        return false;
+    GameKey tmp {GameKey::Keyboard, name, code};
+    return post(tmp, hold_ms);
+}
+
+unsigned post(const GameKey& gk, int hold_ms) {
     std::unique_lock<std::mutex> lock(keyboardMutex);
-    unsigned inputId = addInputWait(gk, hold);
+    unsigned inputId = addInputWait(gk, hold_ms);
     std::vector<INPUT> inputs;
     inputs.reserve(1 + gk.modifiers.size());
     for (auto& gkm : gk.modifiers) {

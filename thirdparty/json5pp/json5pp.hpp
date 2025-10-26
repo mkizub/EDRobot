@@ -1137,7 +1137,7 @@ private:
       return parse_boolean(v, ch);
     default:
       if (is_digit(ch) || (ch == '-') || (ch == '+') ||
-          (ch == '.') || (ch == 'i') || (ch == 'N')) {
+          (ch == '.') || (ch == 'i') || (ch == 'I') || (ch == 'N')) {
         // [number]?
         return parse_number(v, ch);
       }
@@ -1243,7 +1243,7 @@ private:
       } else if (has_flag(flags::leading_decimal_point) && (ch == '.')) {
         // ['.'] (JSON5)
         break;
-      } else if (has_flag(flags::infinity_number) && (ch == 'i')) {
+      } else if (has_flag(flags::infinity_number) && (ch == 'i' || ch == 'I')) {
         // ["infinity"] (JSON5)
         if (equals(ch, 'n', 'f', 'i', 'n', 'i', 't', 'y')) {
           v = negative ?

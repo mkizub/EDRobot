@@ -19,6 +19,14 @@ ImageTemplate::ImageTemplate(
         , threshold_min(0.8)
         , threshold_max(0.8)
 {
+    setTemplate(filename);
+}
+
+void ImageTemplate::setTemplate(const std::string& filename) {
+    imagesOrig.clear();
+    imagesPrepared.clear();
+
+    this->filename = filename;
     if (!filename.empty()) {
         auto paths = glob::glob(filename);
         ResolvedEnv rEnv;
@@ -477,14 +485,14 @@ void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<Im
         if (method == cv::TM_SQDIFF || method == cv::TM_SQDIFF_NORMED) {
             if ((1-minVal) > out.value) {
                 out.value = (1-minVal);
-                out.loc = minLoc;
+                out.loc = minLoc + cv::Point(im.opt_l, im.opt_t);
                 out.im = &im;
                 out.index = idx;
             }
         } else {
             if (maxVal > out.value) {
                 out.value = maxVal;
-                out.loc = maxLoc;
+                out.loc = maxLoc + cv::Point(im.opt_l, im.opt_t);
                 out.im = &im;
                 out.index = idx;
             }

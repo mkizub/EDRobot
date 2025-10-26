@@ -54,7 +54,7 @@ bool Step::run_sub_step(spStep step) {
         check_interrupted();
         ok = step->step();
     } CATCH (const std::exception& ex) {
-        keyboard::reset_vJoy();
+        kbd::reset_vJoy();
         if (dynamic_cast<const nonlocal_return*>(&ex)) {
             throw;
         }
@@ -103,7 +103,7 @@ Result Task::safe_run() {
         if (this->result == Result::Trouble)
             this->missCount += 1;
     } CATCH (const std::exception& ex) {
-        keyboard::reset_vJoy();
+        kbd::reset_vJoy();
         if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
             if (nlr->task) {
                 nlr->task->result = nlr->result;
@@ -127,7 +127,7 @@ Result Task::safe_run() {
     return this->result;
 }
 
-void Step::sleep(int milliseconds, bool precise) const {
+void ai_sleep(int milliseconds, bool precise) {
     check_interrupted();
     if (milliseconds <= 0)
         return;
@@ -158,107 +158,6 @@ void Step::sleep(int milliseconds, bool precise) const {
             break;
         check_interrupted();
     }
-}
-
-bool Step::sendKey(const std::string& name, int delay_ms, int pause_ms, bool precise) const {
-    if (!mgr.master.setGameForeground())
-        return false;
-    if (delay_ms <= 0)
-        delay_ms = mgr.cfg.getDefaultKeyHoldTime();
-    if (pause_ms <= 0)
-        pause_ms = mgr.cfg.getDefaultKeyAfterTime();
-    LOG(INFO) << "sendKey('" << name << "'," << delay_ms << "," << pause_ms << ")";
-    const KeyBindings& keyBindings = mgr.cfg.getGameKeyBindings(name);
-    if (keyBindings.primary.device != GameKey::Void) {
-        if (!keyboard::sendKeyDown(keyBindings.primary, delay_ms))
-            return false;
-        sleep(delay_ms + pause_ms, precise);
-        return true;
-    }
-    else if (keyBindings.secondary.device != GameKey::Void) {
-        if (!keyboard::sendKeyDown(keyBindings.secondary, delay_ms))
-            return false;
-        sleep(delay_ms + pause_ms, precise);
-        return true;
-    }
-    int code = keyboard::getScanCode(name);
-    if (!code)
-        return false;
-    GameKey tmp {GameKey::Keyboard, name, code};
-    if (!keyboard::sendKeyDown(tmp, delay_ms))
-        return false;
-    sleep(delay_ms + pause_ms, precise);
-    return true;
-}
-
-unsigned Step::holdKeyDown(const std::string& name, int delay_ms) const {
-    if (!mgr.master.setGameForeground())
-        return 0;
-    LOG(INFO) << "holdKeyDown('" << name << ")";
-    const KeyBindings& keyBindings = mgr.cfg.getGameKeyBindings(name);
-    if (keyBindings.primary.device != GameKey::Void) {
-        return keyboard::sendKeyDown(keyBindings.primary, delay_ms);
-    }
-    else if (keyBindings.secondary.device != GameKey::Void) {
-        return keyboard::sendKeyDown(keyBindings.secondary, delay_ms);
-    }
-    int code = keyboard::getScanCode(name);
-    if (!code)
-        return false;
-    GameKey tmp {GameKey::Keyboard, name, code};
-    return keyboard::sendKeyDown(tmp, delay_ms);
-}
-
-void Step::releaseKey(unsigned handler) const {
-    keyboard::clearInput(handler);
-}
-
-
-bool Step::sendAxis(const std::string& name, double value) const {
-    if (!mgr.master.setGameForeground())
-        return false;
-    return keyboard::sendJoyAxis(name, value);
-}
-
-bool Step::sendAxis(const KeyBindings& bindings, double value) const {
-    if (!mgr.master.setGameForeground())
-        return false;
-    return keyboard::sendJoyAxis(bindings, value);
-}
-
-bool Step::sendMouseMove(const cv::Point& point, int pause_ms, bool absolute) const {
-    if (!mgr.master.setGameMouseCapture())
-        return false;
-    bool virtualDesktop = false;
-    int x = point.x;
-    int y = point.y;
-    if (absolute) {
-        virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
-        cv::Point screen = mgr.rEnv.cvtReferenceToDesktop(point);
-        screen = mgr.rEnv.cvtReferenceToDesktop(point);
-        x = screen.x;
-        y = screen.y;
-    }
-    //LOG(INFO) << "sendMouseMove recalculated from reference " << point << " to screen " << screen;
-    if (!keyboard::sendMouseMoveTo(x, y, absolute, virtualDesktop))
-        return false;
-    sleep(pause_ms > 0 ? pause_ms : mgr.cfg.getDefaultKeyAfterTime());
-    return true;
-}
-
-bool Step::sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms) const {
-    if (!mgr.master.setGameMouseCapture())
-        return false;
-    cv::Point screen = mgr.rEnv.cvtReferenceToDesktop(point);
-    bool virtualDesktop = (GetSystemMetrics(SM_CMONITORS) > 1);
-    //LOG(INFO) << "sendMouseClick recalculated from reference " << point << " to screen " << screen;
-    if (!keyboard::sendMouseMoveTo(screen.x, screen.y, true, virtualDesktop))
-        return false;
-    GameKey tmp {GameKey::Mouse, "", keyboard::MOUSE_L_BUTTON};
-    if (!keyboard::sendKeyDown(tmp, delay_ms))
-        return false;
-    sleep(delay_ms + pause_ms);
-    return true;
 }
 
 static int get_int(const json5pp::value& val, const json5pp::value& args, int dflt = -1) {
@@ -297,23 +196,6 @@ bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const jso
     }
     LOG(ERROR) << "Expected button name or [x,y]";
     return false;
-}
-
-bool Task::executeAction(const std::string& actionName, const json5pp::value& args) {
-    const json5pp::value& action = taskActions.at(actionName);
-    if (!action.is_object()) {
-        LOG(ERROR) << "Action '" << actionName << "' not found";
-        return false;
-    }
-    if (!action.at("from").is_string() || !action.at("dest").is_string()) {
-        LOG(ERROR) << "Action '" << actionName << "' has no 'from' or 'dest' states declarations";
-        return false;
-    }
-    this->fromState = action.at("from").as_string();
-    this->destState = action.at("dest").as_string();
-    const json5pp::value& execute = action.at("exec");
-
-    return executeStep(execute, args);
 }
 
 bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
@@ -431,9 +313,9 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
                     LOG(DEBUG) << "key '" << key.as_string() << "' not bound, action failed";
                     return false;
                 }
-                unsigned inputId = keyboard::sendKeyDown(*gk, 60000);
+                unsigned inputId = kbd::post(*gk, 60000);
                 ok = executeStep(step.at("hold"), args);
-                keyboard::clearInput(inputId);
+                kbd::clearInput(inputId);
                 if (ok) {
                     int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
                     sleep(after);
@@ -441,7 +323,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
             } else {
                 int hold = get_int(step.at("hold"), args, mgr.cfg.getDefaultKeyHoldTime());
                 int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
-                ok = sendKey(key.as_string(), hold, after);
+                ok = kbd::send(key.as_string(), hold, after);
             }
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
@@ -455,7 +337,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
                 return false;
             }
             int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
-            bool ok = sendMouseMove(pos, after);
+            bool ok = kbd::sendMouseMove(pos, after);
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }
@@ -469,7 +351,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
             }
             int hold = get_int(step.at("hold"), args, mgr.cfg.getDefaultKeyHoldTime());
             int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
-            bool ok = sendMouseClick(pos, hold, after);
+            bool ok = kbd::sendMouseClick(pos, hold, after);
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }

@@ -60,18 +60,14 @@ struct Button : public BaseButton {
 };
 
 struct TileBtn : public BaseButton {
-    TileBtn(const std::string& name, Widget* parent, const std::string& icon, int row, int col)
+    TileBtn(const std::string& name, Widget* parent, const std::string& icon)
         : BaseButton(WidgetType::TileBtn, name, parent)
         , icon(icon)
-        , row(row)
-        , col(col)
     {
-        rect = std::shared_ptr<EvalRect>(new TileRect(icon, row, col));
+        rect = std::shared_ptr<EvalRect>(new TileRect(icon));
     }
 
     const std::string icon;
-    const int row;
-    const int col;
 };
 
 struct Spinner : public BaseButton {
@@ -83,11 +79,10 @@ struct Spinner : public BaseButton {
 struct List : public Widget {
     List(const std::string& name, Widget* parent) : Widget(WidgetType::List, name, parent) {}
     bool detect(DetectParams& params) final;
-    bool cleanBadRows(std::vector<double>& rows, double expectedDist);
-    bool alignDetectedRows(std::vector<double>& rows, double expectedDist);
 
     float row_height {0};
     float row_gap {0};
+    float header {0};
     struct Tab {
         std::string name;
         int tab_left {0};
@@ -119,14 +114,14 @@ struct Dialog : public BaseDialog {
 };
 
 struct Screen : public BaseDialog {
-    Screen(const std::string& name, Widget* parent, json::value status)
+    Screen(const std::string& name, Widget* parent, json5pp::value status)
         : BaseDialog(WidgetType::Screen, name, parent)
         , status(std::move(status))
     {}
     bool detect(DetectParams& params) final;
 
     bool checkStatus() const;
-    const json::value status;
+    const json5pp::value status;
 
     spEvalTransform transform;
 };

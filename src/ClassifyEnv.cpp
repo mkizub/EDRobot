@@ -237,10 +237,6 @@ cv::Rect TileRect::calcReferenceRect(const ResolvedEnv& env) const {
             if (cr.text.starts_with(name))
                 return cr.detectedRect;
         }
-        if (col >= 0 && row >= 0) {
-            if (col == cr.u.tile.col && row == cr.u.tile.row)
-                return cr.detectedRect;
-        }
     }
     return {};
 }

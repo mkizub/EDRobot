@@ -5,6 +5,16 @@
 #ifndef EDROBOT_TYPES_H
 #define EDROBOT_TYPES_H
 
+typedef std::chrono::time_point<std::chrono::utc_clock> Timestamp;
+
+enum class WState : int { Unknown=-1, Normal=0, Focused=1, Active=2, Disabled=3 };
+
+enum class Lang { XX=-1, EN=0, RU=1 };
+
+enum class GuiFocus { None=0, Right=1, Left=2, Chat=3, Role=4, Services=5, GalaxyMap=6, SystemMap=7, Orrery=8, FSS=9, SAA=10, Codex=11 };
+
+
+
 namespace gal {
 
 enum class TypeNav {

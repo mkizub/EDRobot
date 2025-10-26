@@ -10,7 +10,7 @@
 #include <functional>
 #include <thread>
 
-namespace keyboard {
+namespace kbd {
 
 typedef std::function<void(int code, int scancode, int flags, const std::string& name)> KeyboardCollbackFn;
 
@@ -45,20 +45,17 @@ void start(KeyboardCollbackFn callback);
 void stop();
 
 int getScanCode(const std::string& key_name);
-//bool sendKeyDown(const GameKey& gk);
-//bool sendKeyUp(const GameKey& gk);
-//bool sendKeyDown(const std::string& key_name);
-//bool sendKeyUp(const std::string& key_name);
+bool send(const std::string& name, int delay_ms= 0, int pause_ms= 0, bool precise= false);
+bool sendMouseMove(const cv::Point& point, int pause_ms, bool absolute=true);
+bool sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms);
+bool sendMouseWheel(int count);
 bool sendMouseMoveTo(int x, int y, bool absolute, bool virtualDesk);
-//bool sendMouseDown(int buttons);
-//bool sendMouseUp(int buttons);
 bool sendMouseWheel(int count); // positive - forward, away from the user; negative - backward, toward the user
 // return inputId that can be used to clearInput()
-unsigned sendKeyDown(const GameKey& gk, int hold);
+unsigned post(const std::string& name, int hold_ms);
+unsigned post(const GameKey& gk, int hold_ms);
 bool clearInput(unsigned inputId);
-const vJoyAxisInfo* getJoyAxis(const std::string& axis_name);
-bool sendJoyAxis(const KeyBindings& gk, double value); // value -1..1 for full-range axes, or 0..1 for others
-bool sendJoyAxis(const std::string& axis_name, double value); // value -1..1 for full-range axes, or 0..1 for others
+bool axis(const KeyBindings& gk, double value); // value -1..1 for full-range axes, or 0..1 for others
 
 }
 

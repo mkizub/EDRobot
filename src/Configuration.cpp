@@ -9,6 +9,7 @@
 #include "FuzzyMatch.h"
 #include "EDWidget.h"
 #include "Capturer.h"
+#include "ShipStats.h"
 #include "detect/Detector.h"
 #include "detect/Lines.h"
 #include "detect/NavPanel.h"
@@ -35,7 +36,7 @@ Configuration& Configuration::getInstance() {
     return cfg;
 }
 
-static cv::Vec3b color_from_json(const json::value& v);
+static cv::Vec3b color_from_json(const json5pp::value& v);
 static detect::Detector* detector_from_json(const json5pp::value& j, widget::Widget& widget);
 static widget::Widget* widget_from_json(const json5pp::value& j, widget::Widget* parent);
 
@@ -81,16 +82,16 @@ bool Configuration::load() {
 
     // initialize default keymapping
     keyMapping = {
-            {{"esc",0}, Command::Stop},
-            {{"printscreen",0}, Command::Start},
-            {{"scrolllock",0}, Command::Resume},
-            {{"pause",0}, Command::Pause},
-            {{"printscreen",keyboard::LCTRL|keyboard::LALT}, Command::DebugTemplates},
-            {{"a",keyboard::LALT}, Command::Autopilot},
-            {{"r",keyboard::LCTRL|keyboard::LALT}, Command::DevRectSelect},
-            {{"[",keyboard::LCTRL|keyboard::LALT}, Command::DebugWindow},
-            {{"\\",keyboard::LCTRL|keyboard::LALT}, Command::DebugStream},
-            {{"]",keyboard::LCTRL|keyboard::LALT}, Command::ResetCapturer},
+            {{"esc",         0},                      Command::Stop},
+            {{"printscreen", 0},                      Command::Start},
+            {{"scrolllock",  0},                      Command::Resume},
+            {{"pause",       0},                      Command::Pause},
+            {{"printscreen", kbd::LCTRL | kbd::LALT}, Command::DebugTemplates},
+            {{"a",           kbd::LALT},              Command::Autopilot},
+            {{"r",           kbd::LCTRL | kbd::LALT}, Command::DevRectSelect},
+            {{"[",           kbd::LCTRL | kbd::LALT}, Command::DebugWindow},
+            {{"\\",          kbd::LCTRL | kbd::LALT}, Command::DebugStream},
+            {{"]",           kbd::LCTRL | kbd::LALT}, Command::ResetCapturer},
     };
 
     {
@@ -161,6 +162,7 @@ bool Configuration::load() {
         LOG(INFO) << "Initializing D3D device";
         Capturer::InitD3DDevice();
 
+        eddb::loadEDDB();
         preloadGameJournal(); // game language & version
         loadGameSettings(true);
         loadPlayerOptions();
@@ -169,13 +171,11 @@ bool Configuration::load() {
         loadCommodityDatabase(); // initialization depends on game language
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
-        loadEDDB();
 
         loadMarket();
         if (!loadCargo())
             currentCargo = std::make_shared<ShipCargo>();
-        if (!loadGameStatus())
-            currentStatus = std::make_shared<ShipStatus>();
+        loadGameStatus();
         loadCalibration();
 
         LOG(INFO) << "Setting journal directory listener";
@@ -192,17 +192,9 @@ bool Configuration::load() {
         }
     }
 
-    LOG(INFO) << "Setting actions.json5 and screens.json5";
-    Master& master = Master::getInstance();
     {
-        std::ifstream ifs_config("actions.json5");
-        auto j_actions = json5pp::parse5(ifs_config).as_object();
-        for (auto& act: j_actions) {
-            master.mActions[act.first] = act.second;
-        }
-    }
-    {
-        widget::Root* screensRoot = master.mScreensRoot.get();
+        LOG(INFO) << "Setting screens.json5";
+        widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
         std::ifstream ifs_config("screens.json5");
         auto j_screens = json5pp::parse5(ifs_config).as_array();
         for (json5pp::value& s: j_screens) {
@@ -236,7 +228,7 @@ void Configuration::parseShortcutConfig(Command command, const std::string& name
 
 std::string Configuration::filenameFromPreset(std::string base, std::string preset, const char* ext) {
     std::string filename = base + trim(preset);
-    if (isOdyssey) {
+    if (st::client.isOdyssey) {
         if (std::filesystem::exists(filename + ".4.2." + ext))
             filename = filename + ".4.2." + ext;
         else
@@ -265,7 +257,7 @@ GameKey Configuration::parseGameKey(XMLNode *keyNode, bool has_modifiers, bool a
         gk.device = GameKey::Keyboard;
         gk.key = key;
         if (gk.key.starts_with("Key_"))
-            gk.code = keyboard::getScanCode(key+4);
+            gk.code = kbd::getScanCode(key + 4);
         if (!gk.code)
             gk.device = GameKey::Void;
     }
@@ -672,95 +664,9 @@ bool Configuration::preloadGameJournal() {
     }
 }
 
-bool Configuration::loadGameStatus() {
-    static std::ifstream ifs;
-    LOG(INFO) << "Loading Status.json";
-    if (!ifs.is_open()) {
-        std::wstring filename = mEDLogsPath + L"\\Status.json";
-        ifs.open(filename);
-        if (!ifs.is_open())
-            return false;
-    }
-
-    std::optional<json::value> read_result;
-    spGameEvent ge;
-    for (int cnt=0; ; cnt++) {
-        if (!ifs) {
-            ifs.clear();
-            ifs.seekg(0, std::ios::beg);
-        }
-        std::stringstream buffer;
-        buffer << ifs.rdbuf();
-        ifs.clear();
-        ifs.seekg(0, std::ios::beg);
-        ge = parseEvent(buffer.str());
-        if (!ge) {
-            if (cnt < 3) {
-                Sleep(50);
-                ifs.clear();
-                ifs.seekg(0, std::ios::beg);
-                continue;
-            }
-            LOG(ERROR) << "Error loading Status.json";
-            return false;
-        }
-        break;
-    }
-    if (ge->event != "Status")
-        return false;
-    json::object& j = ge->data;
-    spShipStatus status = std::make_shared<ShipStatus>();
-    status->timestamp = ge->timestamp;
-    if (j.contains("Flags"))
-        status->flags.all = j["Flags"].as_unsigned();
-    if (j.contains("Flags2"))
-        status->flags2.all = j["Flags2"].as_unsigned();
-    if (j.contains("FireGroup"))
-        status->fireGroup = j["FireGroup"].as_unsigned();
-    if (j.contains("GuiFocus")) {
-        auto gf = enum_cast<GuiFocus>(j.at("GuiFocus").as_integer());
-        status->guiFocus = gf.has_value() ? gf.value() : GuiFocus::None;
-    }
-    if (j.contains("Pips")) {
-        json::array j_pips = j.at("Pips").as_array();
-        status->pips[0] = j_pips[0].as_unsigned();
-        status->pips[1] = j_pips[1].as_unsigned();
-        status->pips[2] = j_pips[2].as_unsigned();
-    }
-    if (j.contains("Fuel")) {
-        json::object j_fuel = j.at("Fuel").as_object();
-        status->fuelMain = j_fuel.at("FuelMain").as_float();
-        status->fuelReservoir = j_fuel.at("FuelReservoir").as_float();
-    }
-    if (j.contains("Cargo"))
-        status->cargo = j.at("Cargo").as_float();
-    if (j.contains("Balance"))
-        status->balance = j.at("Balance").as_unsigned_long_long();
-    if (j.contains("LegalState"))
-        status->legalState = j.at("LegalState").as_string();
-
-    if (j.contains("BodyName"))
-        status->bodyName = j["BodyName"].as_string();
-
-    if (j.contains("Destination")) {
-        auto& jd = j["Destination"].as_object();
-        if (jd.contains("Name"))
-            status->destinationName = jd["Name"].as_string();
-        if (jd.contains("System"))
-            status->destinationSystem = jd["System"].as_long_long();
-        if (jd.contains("Body"))
-            status->destinationBody = jd["Body"].as_integer();
-    }
-
-    guiFocus = status->guiFocus;
-    currentStatus.swap(status);
-    LOG(INFO) << "Ship status: " << *currentStatus.get();
-    return true;
-}
-
-std::ostream& operator<<(std::ostream& os, const ShipStatus& st) {
+std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
     os << "{";
-    os << "gui-focus:" << enum_name<GuiFocus>(st.guiFocus)<<",";
+    os << "gui-focus:" << enum_name<GuiFocus>(::st::guiFocus)<<",";
     if (st.flags.docked) os << "docked,";
     if (st.flags.landed) os << "landed,";
     if (st.flags.landing_gear_down) os << "landing-gear,";
@@ -791,32 +697,32 @@ std::ostream& operator<<(std::ostream& os, const ShipStatus& st) {
 
 bool Configuration::loadCalibration() {
     LOG(INFO) << "Loading calibration.json5";
-    std::ifstream ifs("calibration.json5");
-    if (!ifs)
-        return false;
-    std::stringstream buffer;
-    buffer << ifs.rdbuf();
-    std::string error;
-    auto res = json::parse5(buffer.str(), &error);
-    if (!res.has_value()) {
-        LOG(ERROR) << "Error loading calibration.json5: " << error;
+    json5pp::value j;
+    try {
+        std::ifstream ifs("calibration.json5");
+        if (!ifs)
+            return false;
+        std::stringstream buffer;
+        buffer << ifs.rdbuf();
+        j = json5pp::parse5(buffer.str());
+    } catch (const json5pp::syntax_error& ex) {
+        LOG(ERROR) << "Error loading calibration.json5: " << ex.what();
         return false;
     }
-    auto j = res.value();
     if (j.at("dashboardGUIBrightness").is_number())
-        calibrationDashboardGUIBrightness = j.at("dashboardGUIBrightness").as_double();
+        calibrationDashboardGUIBrightness = j.at("dashboardGUIBrightness").as_number();
     if (j.at("gammaOffset").is_number())
-        calibrationGammaOffset = j.at("gammaOffset").as_double();
+        calibrationGammaOffset = j.at("gammaOffset").as_number();
     if (j.at("screenWidth").is_number())
         calibrationScreenWidth = j.at("screenWidth").as_integer();
     if (j.at("screenHeight").is_number())
         calibrationScreenHeight = j.at("screenHeight").as_integer();
     std::optional<FullScreenMode> fullScreenMode;
-    if (j.contains("fullScreen")) {
-        if (j.at("fullScreen").is_string())
-            fullScreenMode = enum_cast<FullScreenMode>(j.at("fullScreen").as_string());
-        else if (j.at("fullScreen").is_number())
-            fullScreenMode = enum_cast<FullScreenMode>(j.at("fullScreen").as_integer());
+    if (auto& jfs = j["fullScreen"]; jfs) {
+        if (jfs.is_string())
+            fullScreenMode = enum_cast<FullScreenMode>(jfs.as_string());
+        else if (jfs.is_number())
+            fullScreenMode = enum_cast<FullScreenMode>(jfs.as_integer());
         if (fullScreenMode.has_value())
             calibrationFullScreen = fullScreenMode.value();
     }
@@ -946,7 +852,6 @@ void Configuration::setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBG
 }
 
 bool Configuration::saveCalibration() const {
-    typedef json::value j;
     std::ofstream wf("calibration.json5", std::ios::trunc | std::ios::binary);
     wf << "{" << std::endl;
     wf << "  dashboardGUIBrightness: " << configDashboardGUIBrightness << "," << std::endl;
@@ -1021,8 +926,8 @@ CommodityCategory& Configuration::getOrAddCommodityCategory(CommodityCategory&& 
     }
     allKnownCommodityCategories.emplace_back(cc_add);
     CommodityCategory& cc = allKnownCommodityCategories.back();
-    if (lng != XX)
-        cc.name = cc.translation[lng];
+    if (st::lng != Lang::XX)
+        cc.name = cc.translation[int(st::lng)];
     else
         cc.name = cc.nameId;
     cc.wide = toUtf16(cc.name);
@@ -1054,13 +959,17 @@ Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
                 c.translation[i] = c_add.translation[i];
                 mCommodityDatabaseUpdated = true;
             }
+            if (!c.rare && c_add.rare) {
+                c.rare = true;
+                mCommodityDatabaseUpdated = true;
+            }
         }
         return c;
     }
     allKnownCommodities.emplace_back(c_add);
     Commodity& c = allKnownCommodities.back();
-    if (lng != XX)
-        c.name = c.translation[lng];
+    if (st::lng != Lang::XX)
+        c.name = c.translation[int(st::lng)];
     else
         c.name = c.nameId;
     c.wide = toUtf16(c.name);
@@ -1141,7 +1050,7 @@ Commodity* Configuration::getCommodityByName(const std::wstring& name, bool fuzz
 
 std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     std::vector<Commodity*> out;
-    if (lng == XX)
+    if (st::lng == Lang::XX)
         return out;
     spMarket market = currentMarket;
     if (!market)
@@ -1156,11 +1065,20 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     for (auto& c : allKnownCommodities) {
         if (!market->items.contains(&c))
             continue;
-        if (isFC && c.market.demand <= 0)
+        if (c.rare && c.ship.count <= c.ship.stolen)
             continue;
+        if (isFC) {
+            if (c.market.demand <= 0)
+                continue;
+        } else {
+            if (!c.market.isConsumer || c.market.demand <= 0) {
+                if (c.ship.count <= c.ship.stolen)
+                    continue;
+            }
+        }
         if (marketShowRareGoods && c.rare)
             out.push_back(&c);
-        else if (marketShowInCargo && c.ship.count > c.ship.stolen)
+        else if (marketShowInCargo)
             out.push_back(&c);
         else if ((marketCommodityFilter & (1 << c.category->intId)) != 0)
             out.push_back(&c);
@@ -1180,7 +1098,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
 
 std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
     std::vector<Commodity*> out;
-    if (lng == XX)
+    if (st::lng == Lang::XX)
         return out;
     spMarket market = currentMarket;
     if (!market)
@@ -1269,24 +1187,24 @@ bool Configuration::loadMarket() {
     for (auto& j_item : items) {
         auto item = j_item.as_object();
         std::array<std::string,2> translation;
-        if (lng == EN)
+        if (st::lng == Lang::EN)
             translation = {item.at("Category_Localised").as_string(),""};
-        if (lng == RU)
+        if (st::lng == Lang::RU)
             translation = {"",item.at("Category_Localised").as_string()};
         CommodityCategory& cc = getOrAddCommodityCategory({
                 .nameId = item.at("Category").as_string(),
                 .translation = translation
         });
-        if (lng == EN)
+        if (st::lng == Lang::EN)
             translation = {item.at("Name_Localised").as_string(),""};
-        if (lng == RU)
+        if (st::lng == Lang::RU)
             translation = {"",item.at("Name_Localised").as_string()};
         Commodity& commodity = getOrAddCommodity({
                 .intId = item.at("id").as_integer(),
                 .nameId = item.at("Name").as_string(),
                 .category = &cc,
                 .translation = translation,
-                .rare = item.at("Rare").as_boolean()
+                .rare = j_item.at("Rare",false).as_boolean()
         });
         MarketLine& ml = commodity.market;
         ml.timestamp = timestamp;
@@ -1355,9 +1273,9 @@ bool Configuration::loadCargo() {
             LOG(ERROR) << "Unknown cargo item name: " << name << ", adding to dummy category";
             std::array<std::string,2> translation;
             CommodityCategory* cc = getCommodityCategoryByName("");
-            if (lng == EN)
+            if (st::lng == Lang::EN)
                 translation = {item.at("Name_Localised").as_string(),""};
-            if (lng == RU)
+            if (st::lng == Lang::RU)
                 translation = {"",item.at("Name_Localised").as_string()};
             c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
         }
@@ -1378,49 +1296,51 @@ bool Configuration::loadCargo() {
 
 bool Configuration::loadCommodityDatabase() {
     LOG(INFO) << "Loading commodity database";
-    std::ifstream dbf("commodity-database.json5");
-    if (!dbf)
-        return false;
-    std::stringstream buffer;
-    buffer << dbf.rdbuf();
-    std::string error;
-    auto j = json::parse5(buffer.str(), &error);
-    if (!j.has_value()) {
-        LOG(ERROR) << "Error loading commodity-database.json5: " << error;
+    json5pp::value j;
+    try {
+        std::ifstream dbf("commodity-database.json5");
+        if (!dbf)
+            return false;
+        std::stringstream buffer;
+        buffer << dbf.rdbuf();
+        j = json5pp::parse5(buffer.str());
+    } catch (const json5pp::syntax_error& ex) {
+        LOG(ERROR) << "Error loading commodity-database.json5: " << ex.what();
         return false;
     }
-    for (auto& jcc_it : j.value().as_object()) {
+    for (auto& jcc_it : j.as_object()) {
         if (jcc_it.first.contains("-order-"))
             continue;
         CommodityCategory cc_add;
         cc_add.nameId = jcc_it.first;
         auto& jcc = jcc_it.second;
         cc_add.intId = jcc["id"].as_integer();
-        cc_add.translation[EN] = jcc["en"].as_string();
-        cc_add.translation[RU] = jcc["ru"].as_string();
+        cc_add.translation[int(Lang::EN)] = jcc["en"].as_string();
+        cc_add.translation[int(Lang::RU)] = jcc["ru"].as_string();
         CommodityCategory& cc = getOrAddCommodityCategory(std::move(cc_add));
         for (auto& jc_it : jcc["items"].as_object()) {
             auto& jc = jc_it.second;
             Commodity c_add{
-                    .intId = jc["id"].as_long(),
+                    .intId = jc["id"].as_integer(),
                     .nameId = jc_it.first,
                     .category = &cc,
-                    .translation = {jc["en"].as_string(), jc["ru"].as_string()}
+                    .translation = {jc["en"].as_string(), jc["ru"].as_string()},
+                    .rare = jc.at("rare",false).as_boolean(),
             };
             getOrAddCommodity(std::move(c_add));
         }
     }
-    for (auto& jcc_it : j.value().as_object()) {
+    for (auto& jcc_it : j.as_object()) {
         if (!jcc_it.first.contains("-order-"))
             continue;
-        Lang l = jcc_it.first.ends_with("-en") ? EN : RU;
+        Lang l = jcc_it.first.ends_with("-en") ? Lang::EN : Lang::RU;
         int64_t commodityOrder = 1;
         for (auto& jn : jcc_it.second.as_array()) {
             if (!jn.is_string())
                 continue;
             auto c = getCommodityByName(jn.as_string(), false);
             if (c)
-                c->carrierSortingOrder[l] = commodityOrder;
+                c->carrierSortingOrder[int(l)] = commodityOrder;
             commodityOrder += 1;
         }
     }
@@ -1429,30 +1349,31 @@ bool Configuration::loadCommodityDatabase() {
 }
 
 bool Configuration::dumpCommodityDatabase() {
-    typedef json::value j;
     std::ofstream wf("commodity-database.json5", std::ios::trunc | std::ios::binary);
     wf << "{" << std::endl;
     for (auto& ccit : commodityCategoryMap) {
         auto& cc = *ccit.second;
         wf << "  '" << cc.nameId << "': {" << std::endl;
-        wf << "    en: " << cc.intId << "," << std::endl;
-        wf << "    en: " << j(cc.translation[EN]) << "," << std::endl;
-        wf << "    ru: " << j(cc.translation[RU]) << "," << std::endl;
+        wf << "    id: " << cc.intId << "," << std::endl;
+        wf << "    en: " << json5pp::value(cc.translation[int(Lang::EN)]) << "," << std::endl;
+        wf << "    ru: " << json5pp::value(cc.translation[int(Lang::RU)]) << "," << std::endl;
         wf << "    items: {" << std::endl;
         for (auto& cit : commodityMap) {
             auto& c = *cit.second;
             if (c.category != &cc) continue;
             wf << "      " << c.nameId << ": {" << std::endl;
             wf << "        id: " << c.intId << "," << std::endl;
-            wf << "        en: " << j(c.translation[EN]) << "," << std::endl;
-            wf << "        ru: " << j(c.translation[RU]) << "," << std::endl;
+            if (c.rare)
+                wf << "        rare: true," << std::endl;
+            wf << "        en: " << json5pp::value(c.translation[int(Lang::EN)]) << "," << std::endl;
+            wf << "        ru: " << json5pp::value(c.translation[int(Lang::RU)]) << "," << std::endl;
             wf << "      }," << std::endl;
         }
         wf << "    }," << std::endl;
         wf << "  }," << std::endl;
     }
     for (int l=0; l < 2; l++) {
-        std::string suffix = l==EN ? "-en" : "-ru";
+        std::string suffix = l==int(Lang::EN) ? "-en" : "-ru";
         std::vector<Commodity *> cv;
         for (auto &c: allKnownCommodities)
             cv.push_back(&c);
@@ -1465,34 +1386,13 @@ bool Configuration::dumpCommodityDatabase() {
         });
         wf << "  'carrier-order" << suffix << "': [" << std::endl;
         for (auto &c: cv) {
-            wf << "    " << j(c->nameId) << ", // " << c->translation[0] << " | " << c->translation[1] << std::endl;
+            wf << "    " << json5pp::value(c->nameId) << ", // " << c->translation[0] << " | " << c->translation[1] << std::endl;
         }
         wf << "  ]," << std::endl;
     }
     wf << "}" << std::endl;
     wf.close();
     mCommodityDatabaseUpdated = false;
-    return true;
-}
-
-bool Configuration::loadEDDB() {
-    LOG(INFO) << "Loading EDDB";
-    std::ifstream dbf("eddb.json5");
-    if (!dbf)
-        return false;
-    try {
-        mEDDBFull = json5pp::parse5(dbf);
-    } catch (const json5pp::syntax_error& ex) {
-        LOG(ERROR) << ex.what();
-    }
-    if (!mEDDBFull) {
-        LOG(ERROR) << "Error loading eddb.json5";
-        return false;
-    }
-    for (auto& ship : mEDDBFull["ship"].as_array()) {
-        std::string type = toLower(ship["fdname"].as_string());
-        mEDDBShips.emplace(type, ship);
-    }
     return true;
 }
 
@@ -1651,7 +1551,7 @@ void Configuration::readJournalChanges(std::ifstream& journalStream, std::string
 using namespace widget;
 using namespace detect;
 
-static cv::Vec3b color_from_json(const json::value& v) {
+static cv::Vec3b color_from_json(const json5pp::value& v) {
     unsigned bgr = 0;
     if (v.is_number())
         bgr = v.as_unsigned();
@@ -1669,45 +1569,11 @@ static cv::Vec3b color_from_json(const json::value& v) {
     return encodeBGR(bgr);
 }
 
-static cv::Vec3b color_from_json(const json5pp::value& v) {
-    unsigned bgr = 0;
-    if (v.is_integer())
-        bgr = v.as_integer();
-    else if (v.is_array()) {
-        unsigned r = v.as_array().at(0).as_integer();
-        unsigned g = v.as_array().at(1).as_integer();
-        unsigned b = v.as_array().at(2).as_integer();
-        bgr = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
-    }
-    else if (v.is_string()) {
-        auto& s = v.as_string();
-        if (s.size() == 7 && s[0] == '#')
-            bgr = std::stol(s.substr(1), nullptr, 16);
-    }
-    return encodeBGR(bgr);
-}
-
-static cv::Point point_from_json(const json::value& v) {
-    cv::Point p;
-    p.x = v[0].as_integer();
-    p.y = v[1].as_integer();
-    return p;
-}
-
 static cv::Point point_from_json(const json5pp::value& v) {
     cv::Point p;
     p.x = v[0].as_integer();
     p.y = v[1].as_integer();
     return p;
-}
-
-static cv::Rect rect_from_json(const json::value& v) {
-    cv::Rect rect;
-    rect.x = v[0].as_integer();
-    rect.y = v[1].as_integer();
-    rect.width = v[2].as_integer();
-    rect.height = v[3].as_integer();
-    return rect;
 }
 
 static cv::Rect rect_from_json(const json5pp::value& v) {
@@ -2029,6 +1895,14 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
                                                      rows_min, rows_max, cols_min, cols_max, gap);
 
             minmax_from_json(j["t"], tiles->threshold_min, tiles->threshold_max);
+            ext_from_json(j["ext"], tiles->extendLT, tiles->extendRB);
+            if (j["icon_align"].is_string()) {
+                auto& align = j["icon_align"].as_string();
+                if (toLower(align) == "center")
+                    tiles->mIconAlign = TilesDetector::IconAlign::Center;
+                else if (toLower(align) == "top-left")
+                    tiles->mIconAlign = TilesDetector::IconAlign::TopLeft;
+            }
             if (j["hud"].is_boolean())
                 tiles->hudTryHard = j["hud"].as_boolean();
             return tiles;
@@ -2098,19 +1972,13 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     auto& jo = j.as_object();
     auto name = jo.at("name").as_string();
     if (name.starts_with("scr-")) {
-        json::value status;
-        if (jo.contains("status")) {
-            std::string s = json5pp::stringify5(jo.at("status"), json5pp::rule::no_indent());
-            status = json::parse5(s).value();
+        auto scr = new Screen(name, parent, j["status"]);
+        if (auto& jvars = j["vars"]; jvars.is_object()) {
+            from_json(jvars, scr->varSetMap);
         }
-        auto scr = new Screen(name, parent, status);
-        if (jo.contains("vars")) {
-            from_json(jo.at("vars"), scr->varSetMap);
-        }
-        if (jo.contains("transform")) {
+        if (auto& jt = j["transform"]; jt.is_object()) {
             // transform: { tl: [212,256], tr: [1276,242], br: [1296,800], bl: [270,912] }
             // transform: { line: "lpline", tl: [0,-50], tr: [0,-50], ratio: 1.77777777 }
-            auto& jt = jo.at("transform");
             spEvalPoint tl = makeEvalPoint(*scr, "tl", jt["tl"]);
             spEvalPoint tr = makeEvalPoint(*scr, "tr", jt["tr"]);
             spEvalPoint br = makeEvalPoint(*scr, "br", jt["br"]);
@@ -2156,15 +2024,9 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     }
     else if (name.starts_with("til-")) {
         std::string icon;
-        int row = -1;
-        int col = -1;
         if (jo.contains("icon"))
             icon = jo.at("icon").as_string();
-        if (jo.contains("row"))
-            row = jo.at("row").as_integer();
-        if (jo.contains("col"))
-            col = jo.at("col").as_integer();
-        auto btn = new TileBtn(name, parent, icon, row, col);
+        auto btn = new TileBtn(name, parent, icon);
         widget = btn;
     }
     else if (name.starts_with("lbl-")) {
@@ -2180,10 +2042,9 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
         auto lst = new List(name, parent);
         widget = lst;
         widget->setRect("rect", j);
-        if (jo.contains("row_height") && jo.contains("row_gap")) {
-            lst->row_height = (float) jo.at("row_height").as_number();
-            lst->row_gap = (float) jo.at("row_gap").as_number();
-        }
+        lst->row_height = (float) j.at("row_height",0).as_number();
+        lst->row_gap = (float) j.at("row_gap",0).as_number();
+        lst->header = (float) j.at("header",0).as_number();
         if (jo.contains("tabs")) {
             auto& jtabs = jo.at("tabs").as_array();
             for (auto& jt : jtabs) {

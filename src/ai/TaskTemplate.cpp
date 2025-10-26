@@ -164,6 +164,7 @@ const std::string ED_TASK_MARKET_SELL = "tsk-market-sell";
 const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
 const std::string ED_TASK_TRAVEL = "tsk-travel";
+const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
 const std::string ED_TASK_GAL_MAP_SELECT = "tsk-star-select";
 const std::string ED_TASK_SYS_MAP_SELECT = "tsk-poi-select";
 const std::string ED_TASK_NIGH = "tsk-nigh";
@@ -243,17 +244,20 @@ void AIManager::initTemplates() {
     std::vector<TaskTemplate> templates {
             { .name = ED_TASK_AUTOPILOT, .maxMisses = 5 },
             { .name = ED_TASK_MARKET_SELL_ALL,
-                    .params = {{Param::Int, "chunk", 0 }},
-                    .maxMisses = 3 },
-            { .name = ED_TASK_MARKET_SELL_ALL,
               .params = {{Param::Int, "chunk", 0 }},
               .maxMisses = 3 },
             { .name = ED_TASK_MARKET_SELL,
               .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }, {Param::Int, "chunk", 0 }},
               .maxMisses = 3 },
+            { .name = ED_TASK_MARKET_BUY,
+              .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }},
+              .maxMisses = 3 },
             { .name = ED_TASK_TRAVEL,
               .params = {{Param::System, "system", ""}, {Param::Dock, "dock", ""}},
               .maxMisses = 5 },
+            { .name = ED_TASK_NAV_SCAN,
+              .params = {{Param::Bool, "travel", false}},
+              .maxMisses = 10 },
             { ED_TASK_CALIBRATE },
             { .name = ED_TASK_DEBUG_FIND_ALL_COMMODITIES,
               .params = {{Param::Bool, "shuffle", false}, {Param::Bool, "dump_images", false}, {Param::Int, "start_index", 0 }},
@@ -263,7 +267,7 @@ void AIManager::initTemplates() {
               .maxMisses = 3 },
             { .name = ED_TASK_DEBUG_AUTOPILOT,
               .params = {
-                    {Param::Enum, "test", "", "OrientTowards|OrientAway|Departure|Dock|EnterCruise|FocusDestDock|FocusDestBody|FocusNearestBody|FocusTopEntry|NavDockSelect|NavBodySelect|DockAndBodyDist|CruiseToDist|DiveUnderPlanet|ExitCruiseToStation" },
+                    {Param::Enum, "test", "", "OrientTowards|OrientAway|Departure|Dock|EnterCruise|LeaveBody|FocusDestDock|FocusDestBody|FocusNearestBody|FocusTopEntry|NavDockSelect|NavBodySelect|CruiseToDist|DiveUnderPlanet|ExitCruiseToStation" },
                     {Param::String, "target", "", "", true},
                     {Param::Real, "precision", 1.0, "", true }
                     },

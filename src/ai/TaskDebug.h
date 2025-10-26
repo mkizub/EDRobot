@@ -51,8 +51,8 @@ private:
                                 const std::string& lbl_text, const nav::NavType* nt);
     void saveOcrNavigationLbl(const cv::Mat& grayImage, const ClassifiedRect& cr, int offset,
                                 std::string& lbl_text, const nav::NavType* nt);
-    json::value curlGetRequest(const char* url);
-    json::value curlPostRequest(const char* url, json::value& data);
+    json5pp::value curlGetRequest(const char* url);
+    json5pp::value curlPostRequest(const char* url, json5pp::value& data);
     bool getSpanishInfo();
     //bool getSystemStations();
     //bool getSystemBodies();
@@ -67,10 +67,10 @@ private:
     int txt_confidence;
     int offset_append;
 
-    json::value spanishSystemInfo;
-    json::value spanishNearSystems;
-    //json::array systemStations;
-    //json::array systemBodies;
+    json5pp::value spanishSystemInfo;
+    json5pp::value spanishNearSystems;
+    //json5pp::array systemStations;
+    //json5pp::array systemBodies;
 
     struct StationRowInfo {
         wchar_t type;  // ✦ / ☄ / ✇ / etc.

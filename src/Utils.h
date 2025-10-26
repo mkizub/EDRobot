@@ -14,6 +14,10 @@ inline cv::Rect fromRECT(RECT& r) {
     return {r.left, r.top, r.right-r.left, r.bottom-r.top};
 }
 
+namespace ai {
+    void check_interrupted();
+}
+
 extern std::string getErrorMessage();
 extern std::string getErrorMessage(unsigned errorCode);
 extern void pasteToClipboard(const std::string& text);

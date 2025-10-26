@@ -10,6 +10,7 @@
 
 #include "Types.h"
 #include "Task.h"
+#include "NavList.h"
 
 namespace gal {
 class Item;
@@ -22,71 +23,10 @@ typedef std::shared_ptr<Site> spSite;
 
 namespace ai {
 
-struct NavListEntry {
-    wchar_t icon {L'\0'};  // ✦ / ☄ / ✇ / etc.
-    bool isTarget {false}; // < Name >
-    bool isMarked {false}; // Name∇
-    uint8_t indent {0};
-    uint8_t portSize {0}; // Name ++
-    wchar_t portDanger {L'\0'}; // ◇ / ⬖ / ◆
-    std::wstring name;
-    dist_t dist;
-    const nav::NavType* navType {nullptr};
-    gal::spItem item {};
-    int ocr_conf {};
-    bool focused {};
-    bool parsed {};
-    int8_t confirmed {};
-};
-
-class NavList {
-public:
-
-    NavList() = default;
-    bool init(Task* task, const gal::spSite& dock, const gal::spBody& body, st::NavPanelFilters filters);
-    std::vector<ClassifiedRect*> initNavList(cv::Mat& grayImage);
-    std::vector<ClassifiedRect*> recognizeWholePage(cv::Mat& grayImage);
-    gal::spItem guessNavItem(NavListEntry &nle);
-    bool fixupNavList();
-
-    bool focusDestDock();
-    bool focusDestBody();
-    bool focusNearestBody();
-    bool focusTopEntry();
-
-    bool selectFocused();
-
-    dist_t getFocusedDist();
-
-    NavListEntry* getFocusedEntry() {
-        if (focusIdx < 0 || focusIdx >= list.size())
-            return nullptr;
-        return &list[focusIdx];
-    }
-
-    st::NavPanelFilters locationFilters;
-    std::vector<NavListEntry> list;
-
-    Task* task;
-    gal::spBody destBody;
-    gal::spSite destDock;
-
-    int focusIdx {-1};
-    bool isDestDockFocused {};
-    bool isDestBodyFocused {};
-    bool isNearestBodyFocused {};
-    bool isTopEntryFocused {};
-
-    bool badBodyHierarchy {};
-};
-
-
 class BaseAutopilotTask : public Task {
 public:
     BaseAutopilotTask(Task* parent, AIManager& mgr, const TaskTemplate& templ);
     void relogin();
-
-    bool getFocusedNavRow(NavListEntry& rowInfo);
 
     bool setSpeed(int percents);
     void orientRollStep(double requiredRoll, int max_time_ms=5000);
@@ -94,7 +34,7 @@ public:
     void orientYawStep(double requiredYaw, int max_time_ms=5000);
     bool orientTowardTargetStep(double precision, int max_time_ms=5000);
     bool orientTowardTarget(double precision);
-    bool orientAwayFromTargetStep(double precision);
+    bool orientAwayFromTargetStep(double precision, int max_time_ms=5000);
     bool orientAwayFromTarget(double precision);
 
     gal::spBody destBody;
@@ -104,7 +44,7 @@ public:
     dist_t distanceToBody; // distance to the body
     dist_t distanceToDock; // distance to the dock
 
-    NavList nl;
+    nav::NavList nl;
 };
 
 class BaseAutopilotStep : public Step {
@@ -150,6 +90,18 @@ public:
     } status {READY};
 };
 
+class LeaveBodyStep : public BaseAutopilotStep {
+public:
+    explicit LeaveBodyStep(Step* parent) : BaseAutopilotStep(parent) {}
+    bool step() final;
+    const char* getName() override { return "LeaveBodyStep"; }
+
+    std::string getStatus() override;
+    enum {
+        READY, LOCK_BODY, ORIENT, MASSLOCKED, PREPARE, FSD_COOLDOWN, ENTER_CRUISE, LEAVING_BODY
+    } status {READY};
+};
+
 class DockStep : public BaseAutopilotStep {
 public:
     DockStep(Task* parent) : BaseAutopilotStep(parent) {}
@@ -157,7 +109,9 @@ public:
     const char* getName() override { return "DockStep"; }
 
     spGameEvent requestDockingPermit();
+    bool getDockDistance();
     bool flyTowardsTarget();
+    bool flyTowardsStep();
 
     std::string getStatus() override;
     enum {
@@ -181,18 +135,6 @@ public:
     bool step() override;
 
     gal::spBody body;
-};
-
-class DockAndBodyDist : public BaseAutopilotStep {
-public:
-    DockAndBodyDist(Step* parent) : BaseAutopilotStep(parent) {}
-    const char* getName() override { return "DockAndBodyDist"; }
-    bool step() override;
-
-    std::string getStatus() override;
-    enum {
-        READY, DIST_DOCK, DIST_BODY,
-    } status {READY};
 };
 
 class CruiseToDistStep : public BaseAutopilotStep {
@@ -221,8 +163,16 @@ public:
     {}
     const char* getName() override { return "DiveUnderPlanetStep"; }
     bool step() override;
-    bool orient(int pitchGoal);
-    bool fly(int pitchGoal);
+    bool get_dist_body();
+    bool get_dist_dock();
+    bool orient_roll(float requiredRoll);
+    bool orient_pitch(int pitchGoal);
+    bool fly_dive(int pitchGoal);
+
+    std::string getStatus() override;
+    enum {
+        READY, ORIENT_BODY, DIST_BODY, ORIENT_DOCK, DIST_DOCK, ORIENT_DIVE, FLY_DIVE
+    } status {READY};
 };
 
 class ExitCruiseToStationStep : public BaseAutopilotStep {
