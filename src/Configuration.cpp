@@ -172,9 +172,9 @@ bool Configuration::load() {
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
 
-        loadMarket();
-        if (!loadCargo())
-            currentCargo = std::make_shared<ShipCargo>();
+        currentMarket = std::make_shared<Market>();
+        currentCargo = std::make_shared<ShipCargo>();
+        currentNavRoute = std::make_shared<NavRoute>();
         loadGameStatus();
         loadCalibration();
 
@@ -274,7 +274,7 @@ GameKey Configuration::parseGameKey(XMLNode *keyNode, bool has_modifiers, bool a
         gk.key = key;
         if (!axis) {
             if (gk.key.starts_with("Joy_"))
-                gk.code = atoi(key + 6);
+                gk.code = atoi(key + 4);
             if (!gk.code)
                 gk.device = GameKey::Void;
         }
@@ -543,7 +543,6 @@ bool Configuration::loadInputBindings() {
             parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPanel");
             parseKeyBindings(rootNode, mKeyBindingsMap, "CycleNextPage");
             parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPage");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");
             xml_node_free(rootNode);
             rootNode = nullptr;
         } else {
@@ -585,13 +584,14 @@ bool Configuration::loadInputBindings() {
             parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed50");
             parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed75");
             parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed100");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "HyperSuperCombination");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "Supercruise");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "Hyperspace");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "HyperSuperCombination");       // vJoy_1
+            parseKeyBindings(rootNode, mKeyBindingsMap, "Supercruise");                 // vJoy_2
+            parseKeyBindings(rootNode, mKeyBindingsMap, "Hyperspace");                  // vJoy_3
+            parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");               // vJoy_4
             parseKeyBindings(rootNode, mKeyBindingsMap, "ToggleCargoScoop");
             parseKeyBindings(rootNode, mKeyBindingsMap, "DeployHardpointToggle");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "MouseReset");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "TargetNextRouteSystem");       // vJoy_5
+            parseKeyBindings(rootNode, mKeyBindingsMap, "MouseReset");                  // vJoy_6
             parseKeyBindings(rootNode, mKeyBindingsMap, "YawAxisRaw");
             parseKeyBindings(rootNode, mKeyBindingsMap, "PitchAxisRaw");
             parseKeyBindings(rootNode, mKeyBindingsMap, "RollAxisRaw");
@@ -1151,7 +1151,7 @@ std::vector<Commodity*> Configuration::getAllKnownCommodities() {
     return out;
 }
 
-bool Configuration::loadMarket() {
+bool Configuration::loadMarket(Timestamp event_timestamp) {
     LOG(INFO) << "Loading Market.json";
     json5pp::value j_market;
     try {
@@ -1169,12 +1169,8 @@ bool Configuration::loadMarket() {
     if (!j_market)
         return false;
     Timestamp timestamp;
-    std::istringstream iss(j_market.at("timestamp").as_string());
-    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
-    if (iss.fail()) {
-        LOG(ERROR) << "Timestamp parse failed, Market.json file corrupted?";
+    if (!parseTimestamp(j_market, timestamp) || event_timestamp < timestamp)
         return false;
-    }
 
     spMarket market = std::shared_ptr<Market>(new Market{
             .timestamp = timestamp,
@@ -1232,7 +1228,7 @@ bool Configuration::loadMarket() {
     return true;
 }
 
-bool Configuration::loadCargo() {
+bool Configuration::loadCargo(Timestamp event_timestamp) {
     json5pp::value j_cargo;
     try {
         std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
@@ -1249,12 +1245,9 @@ bool Configuration::loadCargo() {
     if (!j_cargo)
         return false;
     Timestamp timestamp;
-    std::istringstream iss(j_cargo.at("timestamp").as_string());
-    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
-    if (iss.fail()) {
-        LOG(ERROR) << "Timestamp parse failed, Cargo.json file corrupted?";
+    if (!parseTimestamp(j_cargo, timestamp) || event_timestamp < timestamp)
         return false;
-    }
+
     spShipCargo cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
             .timestamp = timestamp,
             .vessel = j_cargo.at("Vessel").as_string(),
@@ -1291,6 +1284,44 @@ bool Configuration::loadCargo() {
             c.ship = {};
         }
     }
+    return true;
+}
+
+bool Configuration::loadNavRoute(Timestamp event_timestamp) {
+    json5pp::value j_route;
+    try {
+        std::ifstream routeFile(mEDLogsPath + L"/NavRoute.json", std::ifstream::in);
+        if (routeFile.fail()) {
+            LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/NavRoute.json");
+            return false;
+        }
+        j_route = json5pp::parse5(routeFile);
+        routeFile.close();
+    } catch (...) {
+        LOG(ERROR) << "Failed to read/parse NavRoute.json";
+        return false;
+    }
+    if (!j_route)
+        return false;
+    Timestamp timestamp;
+    if (!parseTimestamp(j_route, timestamp) || event_timestamp < timestamp)
+        return false;
+
+    spNavRoute route = std::make_shared<NavRoute>();
+    route->timestamp = timestamp;
+    auto entries = j_route.at("Route").as_array();
+    for (auto& je : entries) {
+        std::string starSystem = je["StarSystem"].as_string();
+        int64_t systemAddress = je["SystemAddress"].as_int64();
+        cv::Point3d pos;
+        std::string starClass = je["StarClass"].as_string();
+        if (je["StarPos"].is_array()) {
+            auto& jp = je["StarPos"];
+            pos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+        }
+        route->route.emplace_back(starSystem, systemAddress, pos, starClass);
+    }
+    currentNavRoute.swap(route);
     return true;
 }
 
@@ -1462,8 +1493,6 @@ void Configuration::changeDirThreadLoop() {
         bool needReloadSettings = false;
         bool needReloadOptions = false;
         bool needReloadBindings = false;
-        bool needReloadMarket = false;
-        bool needReloadCargo = false;
         bool needReloadStatus = false;
         std::wstring journalFilenameW;
 
@@ -1472,14 +1501,10 @@ void Configuration::changeDirThreadLoop() {
         Sleep(100); // let ED finish writes
         while (changeDirListener->Pop(action, filenameW)) {
             LOG(DEBUG) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
-            if (filenameW.ends_with(L".log") && filenameW.contains(L"\\Journal.")) {
+            if (filenameW.ends_with(L".log") && filenameW.contains(L"\\Journal."))
                 journalFilenameW = filenameW;
-            } else if (filenameW.ends_with(L"\\Status.json"))
+            else if (filenameW.ends_with(L"\\Status.json"))
                 needReloadStatus = true;
-            else if (filenameW.ends_with(L"\\Cargo.json"))
-                needReloadCargo = true;
-            else if (filenameW.ends_with(L"\\Market.json"))
-                needReloadMarket = true;
             else if (filenameW.ends_with(LR"(\Options\Graphics\DisplaySettings.xml)"))
                 needReloadSettings = true;
             else if (filenameW.ends_with(LR"(\Options\Graphics\Settings.xml)"))
@@ -1496,10 +1521,6 @@ void Configuration::changeDirThreadLoop() {
             loadPlayerOptions();
         if (needReloadBindings)
             loadInputBindings();
-        if (needReloadMarket)
-            loadMarket();
-        if (needReloadCargo)
-            loadCargo();
         if (needReloadStatus)
             loadGameStatus();
 
@@ -1784,6 +1805,16 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
 static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
     if (j.is_null())
         return nullptr;
+    if (j.is_boolean()) {
+        if (j.as_boolean())
+            return new ConstDetector(1);
+        return new ConstDetector(0);
+    }
+    if (j.is_number()) {
+        double value = j.as_number();
+        value = std::clamp(value, 0.0, 1.0);
+        return new ConstDetector(value);
+    }
     if (j.is_string()) {
         std::string referred = j.as_string();
         return new detect::ReferDetector(referred);

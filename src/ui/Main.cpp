@@ -120,8 +120,8 @@ bool Main::hide() {
 
 int Main::on_command_stop_new(wl::params &params) {
     try {
-        ai::spTask curr_task = aiManager->curr_task();
-        if (!curr_task) {
+        ai::spTask task = aiManager->activeTask;
+        if (!task) {
             //hide();
             AddTask addTaskDlg;
             int res = addTaskDlg.show(this);
@@ -142,8 +142,8 @@ int Main::on_command_stop_new(wl::params &params) {
 
 int Main::on_command_pause_resume(wl::params &params) {
     try {
-        ai::spTask curr_task = aiManager->curr_task();
-        if (!curr_task) {
+        ai::spTask task = aiManager->activeTask;
+        if (!task) {
             hide();
             AddTask addTaskDlg;
             int res = addTaskDlg.show(this);
@@ -166,13 +166,15 @@ int Main::on_command_pause_resume(wl::params &params) {
 }
 
 void Main::update_curr_task() {
-    ai::spTask curr_task = aiManager->curr_task();
-    if (!curr_task) {
+    ai::spTask task = aiManager->curr_task();
+    if (!task)
+        task = aiManager->lastTask;
+    if (!task) {
         lbl_curr_task.set_text(L"No active task");
         btn_stop_new.set_text(L"New");
         btn_pause_resume.set_text(L"Repeat");
     } else {
-        lbl_curr_task.set_text(toUtf16(curr_task->templ.name).c_str());
+        lbl_curr_task.set_text(toUtf16(task->templ.name).c_str());
         btn_stop_new.set_text(L"Stop");
         if (aiManager->active())
             btn_pause_resume.set_text(L"Pause");
@@ -181,7 +183,11 @@ void Main::update_curr_task() {
     }
     std::string status;
     int indent = 0;
-    for (ai::spStep step=curr_task; step; step = step->currentSubStep) {
+    for (ai::spStep step=task; step; step = step->currentSubStep) {
+        status += std::string(indent, ' ');
+        status += step->getName();
+        status += ":\n";
+        indent += 4;
         for (auto& msg : step->getMessages()) {
             status += std::string(indent, ' ');
             status += msg;
@@ -191,12 +197,6 @@ void Main::update_curr_task() {
             status += std::string(indent, ' ');
             status += msg;
             status += "\n";
-        }
-        if (step->currentSubStep) {
-            status += std::string(indent, ' ');
-            status += step->currentSubStep->getName();
-            status += ":\n";
-            indent += 4;
         }
     }
     lbl_task_status.set_text(toUtf16(status));

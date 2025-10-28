@@ -87,7 +87,7 @@ namespace ai {
 class NavListScanTask : public Task {
 public:
     NavListScanTask(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    bool run() final;
     bool gotoNavPageNavigation();
 
     bool mTravel {false};

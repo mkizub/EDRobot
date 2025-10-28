@@ -25,25 +25,6 @@ ShipStatus ship {};
 ShipAtBody shipAtBody {};
 }
 
-inline bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
-    std::istringstream iss(str);
-    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
-    if (iss.fail()) {
-        LOG(ERROR) << "Timestamp parse failed, event corrupted?";
-        return false;
-    }
-    return true;
-}
-
-inline bool parseTimestamp(const json5pp::value& value, Timestamp& timestamp) {
-    if (value.is_string())
-        return parseTimestampString(value.as_string(), timestamp);
-    auto& ts = value["timestamp"];
-    if (!ts.is_string())
-        return false;
-    return parseTimestampString(ts.as_string(), timestamp);
-}
-
 inline void set(std::string& field, const json5pp::value& value) {
     if (!value.is_string()) {
         field.clear();
@@ -94,7 +75,13 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
     else if (event == "Loadout")
         parseEvent_Loadout(gameEvent);
     else if (event == "Cargo")
-        parseEvent_Cargo(gameEvent);
+        Cfg.loadCargo(gameEvent->timestamp);
+    else if (event == "Market")
+        Cfg.loadMarket(gameEvent->timestamp);
+    else if (event == "NavRoute")
+        Cfg.loadNavRoute(gameEvent->timestamp);
+    else if (event == "NavRouteClear")
+        Cfg.currentNavRoute = std::make_shared<NavRoute>();
     else if (event == "ShipyardSwap")
         parseEvent_ShipyardSwap(gameEvent);
     else if (event == "Docked")
@@ -343,10 +330,6 @@ void Configuration::parseEvent_Loadout(spGameEvent& ge) {
     eddb::setShipStats(ss);
 }
 
-void Configuration::parseEvent_Cargo(spGameEvent& ge) {
-    // TODO: call loadCargo(), with timestamp check
-}
-
 void Configuration::parseEvent_ShipyardSwap(spGameEvent& ge) {
     auto& je = ge->data;
 
@@ -374,6 +357,10 @@ void Configuration::parseEvent_Undocked(spGameEvent& ge) {
 
 void Configuration::parseEvent_Docking(spGameEvent& ge) {
     dockingEvent = ge;
+    auto& je = ge->data;
+    st::space.marketId = je.at("MarketID",0).as_int64();
+    st::space.stationName = je["StationName"];
+    st::space.stationType = je.at("StationType", st::dockedAt.stationType);
 //    if (event == "DockingDenied") {
 //        // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
 //        if (je.contains("Reason"))
@@ -424,6 +411,18 @@ void Configuration::parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
     st::space.marketId = je.at("MarketID",0).as_int64();
     st::space.stationName = je.at("Type").as_string();
     st::space.stationType.clear();
+    gal::spStarSystem ss = gal::getCurrentStarSystem();
+    if (!ss)
+        return;
+    gal::spSite dock = ss->getDock(st::space.marketId);
+    if (dock) {
+        switch (dock->typeSite) {
+        case gal::TypeSite::FleetCarrier: st::space.stationType = "FleetCarrier"; break;
+        case gal::TypeSite::SpaceConstr: st::space.stationType = "SpaceConstructionDepot"; break;
+        }
+    }
+    if (st::space.stationType.empty() && st::space.stationName.starts_with("Orbital Construction Site"))
+        st::space.stationType = "SpaceConstructionDepot";
 }
 
 void Configuration::parseEvent_SupercruiseExit(spGameEvent& ge) {

@@ -152,8 +152,7 @@ bool NavList::init(ai::Step* task, gal::spSite dock, gal::spBody body, st::NavPa
 
         task->mgr.detectEDState(DetectLevel::Buttons);
         if (!task->mgr.uiState.match("scr-left-panel:dlg-filters")) {
-            LOG(WARNING) << "TaskDock expecting 'scr-left-panel:dlg-filters' but got " << task->mgr.uiState;
-            task->task_return(ai::Result::Trouble);
+            task->throw_trouble("TaskDock expecting 'scr-left-panel:dlg-filters' but got " + task->mgr.uiState.to_string());
         }
         // currently ED always opens filters at top position 'stars',
         // so just scroll down and select/deselect what we need
@@ -780,7 +779,7 @@ NavListScanTask::NavListScanTask(Task* parent, AIManager& mgr, const TaskTemplat
     }
 }
 
-Result NavListScanTask::run() {
+bool NavListScanTask::run() {
     kbd::send("SetSpeedZero", 50);
     st::NavPanelFilters filters {};
     filters.star = true;
@@ -792,16 +791,16 @@ Result NavListScanTask::run() {
     //filters.settlement = true;
 
     if (!nl.init(this, nullptr, nullptr, filters))
-        return Result::Trouble;
+        return false;
 
     if (!gotoNavPageNavigation())
-        return Result::Trouble;
+        return false;
     if (!nl.focusTopEntry())
-        return Result::Trouble;
+        return false;
 
     auto starSystem = gal::getCurrentStarSystem();
     if (!starSystem)
-        return Result::Failure;
+        throw_failed("StarSystem not known");
     std::vector<gal::spBody> scannedBodies;
     std::vector<gal::spSite> scannedSites;
     for (;;) {
@@ -831,7 +830,7 @@ Result NavListScanTask::run() {
         }
     }
 
-    return Result::Success;
+    return true;
 }
 
 bool NavListScanTask::gotoNavPageNavigation() {

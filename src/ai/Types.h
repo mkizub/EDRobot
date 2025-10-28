@@ -40,15 +40,6 @@ enum class POIType {
     None,
 };
 
-enum class Result {
-    Created,    // just created, need planning and execution
-    Started,    // already started, maybe was interrupted/suspended
-    Trouble,    // failed, but may try again (stop if failed many times)
-    Failure,    // completely failed
-    Partly,     // partial success, i.e. bought something, but not all required, and market is empty now
-    Success,    // all is done successfully
-};
-
 struct Param {
     enum Type { Bool, Enum, Int, Real, String, System, POI, Dock, Commodity };
 
@@ -87,24 +78,20 @@ struct TaskTemplate {
 
 class nonlocal_return : public std::exception {
 public:
-    explicit nonlocal_return(Result result, Task* task)
-        : result(result)
-        , task(task)
+    explicit nonlocal_return(bool failed)
+        : failed(failed)
         , std::exception()
     {}
-    explicit nonlocal_return(Result result, Task* task, const char *arg)
-        : result(result)
-        , task(task)
-        , std::exception(arg)
+    explicit nonlocal_return(bool failed, const char *message)
+        : failed(failed)
+        , std::exception(message)
     {}
-    explicit nonlocal_return(Result result, Task* task, const std::string& arg)
-            : result(result)
-            , task(task)
-            , std::exception(arg.c_str())
+    explicit nonlocal_return(bool failed, const std::string& message)
+        : failed(failed)
+        , std::exception(message.c_str())
     {}
 
-    const Result result;
-    Task * const task;
+    const bool failed;
 };
 
 class interrupted_error : public std::exception {

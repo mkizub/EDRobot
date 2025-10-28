@@ -95,11 +95,11 @@ TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Task* parent, AIManager
     }
 }
 
-Result TaskDebugFindAllCommodities::run() {
+bool TaskDebugFindAllCommodities::run() {
     checkAndFixOCRText();
     mgr.detectEDState(DetectLevel::Screen);
     if (!mgr.uiState.match("scr-market:*"))
-        notifyError("Not in market?", Result::Failure);
+        throw_failed("Not in market?");
     std::string marketMode = mgr.uiState.path().substr(11);
     std::vector<Commodity*> table;
     if (marketMode == "mod-sell")
@@ -107,9 +107,9 @@ Result TaskDebugFindAllCommodities::run() {
     else if (marketMode == "mod-buy")
         table = mgr.cfg.getMarketInBuyOrder();
     else
-        notifyError("Unknown market mode "+marketMode, Result::Failure);
+        throw_failed("Unknown market mode "+marketMode);
     if (table.empty())
-        notifyError("Empty market?", Result::Failure);
+        throw_failed("Empty market?");
     struct VerifyStats {
         int ocr_min_conf = 100;
         int ocr_max_conf = 0;
@@ -189,7 +189,7 @@ Result TaskDebugFindAllCommodities::run() {
     if (!checkCommoditiesTable.empty())
         notifyProgress("Cannot verify all commodities");
     notifyProgress("All commodities verified");
-    return Result::Success;
+    return true;
 }
 
 bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const std::string &marketMode,
@@ -486,16 +486,12 @@ TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Task *parent, AIManager &mg
     LOG(INFO) << "Start nav numbering offset: " << offset_append;
 }
 
-Result TaskDebugFindAllNavPoints::run() {
+bool TaskDebugFindAllNavPoints::run() {
     checkAndFixOCRText();
     mgr.detectEDState(DetectLevel::Screen);
     if (!mgr.uiState.match("scr-left-panel:mod-navigation"))
-        notifyError("Not in mod-navigation?", Result::Failure);
+        throw_failed("Not in mod-navigation?");
 
-    //if (!getSystemStations())
-    //    notifyError("Cannot get system stations?", Result::Failure);
-    //if (!getSystemBodies())
-    //    notifyError("Cannot get system bodies?", Result::Failure);
     if (!getSpanishInfo())
         LOG(ERROR) << "Cannot get system info from spansh.co.uk";
 
@@ -546,7 +542,7 @@ Result TaskDebugFindAllNavPoints::run() {
                 LOG(ERROR) << "Focused row not found";
                 failCount += 1;
                 if (failCount >= 3)
-                    return Result::Failure;
+                    throw_failed("Focused row not found");
                 kbd::send("UI_Down", 0, 500);
                 kbd::send("UI_Up", 0, 500);
                 continue;
@@ -582,7 +578,7 @@ Result TaskDebugFindAllNavPoints::run() {
                 kbd::send("UI_Up", 0, 100);
         }
     }
-    return Result::Success;
+    return true;
 }
 
 bool TaskDebugFindAllNavPoints::checkOcrError(const ClassifiedRect& cr) {

@@ -19,7 +19,6 @@
 #ifdef CPPTRACE_TRY
 # define TRY CPPTRACE_TRY
 # define CATCH(param) CPPTRACE_CATCH(param)
-# define GET_STACK_TRACE std::stacktrace::current().to_string()
 # define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
 #else
 # define TRY try
@@ -70,7 +69,7 @@ bool Step::run_sub_step(spStep step) {
     return ok;
 }
 
-Task::Task(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+Task::Task(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
     : Step(parent, mgr)
     , templ(templ_)
     , taskName(templ.name)
@@ -83,48 +82,29 @@ const char* Task::getName() {
 }
 
 bool Task::step() {
-    if (this->result == Result::Created)
-        this->result = Result::Started;
-    for (int i=missCount; i <= maxMisses; i++) {
-        this->result = safe_run();
-        if (this->result == Result::Trouble) {
-            this->missCount += 1;
-            continue;
-        }
-    }
-    return (result >= Result::Partly);
+    return safe_run();
 }
 
-Result Task::safe_run() {
+bool Task::safe_run() {
+    bool result;
     TRY {
         currentSubStep.reset();
         check_interrupted();
-        this->result = this->run();
-        if (this->result == Result::Trouble)
-            this->missCount += 1;
+        result = this->run();
     } CATCH (const std::exception& ex) {
         kbd::reset_vJoy();
         if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
-            if (nlr->task) {
-                nlr->task->result = nlr->result;
-                if (nlr->task->result == Result::Trouble)
-                    nlr->task->missCount += 1;
-            }
-            else if (nlr->result == Result::Trouble) {
-                this->missCount += 1;
-            }
-            return nlr->result;
+            result = false;
         }
         else if (dynamic_cast<const interrupted_error*>(&ex)) {
             throw;
         }
         else {
             LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
-            this->result = Result::Failure;
-            return Result::Failure;
+            result = false;
         }
     }
-    return this->result;
+    return result;
 }
 
 void ai_sleep(int milliseconds, bool precise) {
@@ -374,11 +354,11 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* co
         in >> json5pp::rule::json5() >> parsed;
     } catch (...) {
         LOG(ERROR) << "Failed to parse json " << step;
-        task_return(Result::Failure, "hardcoded step parse failed");
+        throw nonlocal_return(true, "hardcoded step parse failed");
     }
     if (!executeStep(parsed, args)) {
         LOG(ERROR) << "Failed to execute " << step;
-        task_return(Result::Trouble, "hardcoded step failed");
+        throw nonlocal_return(false, "hardcoded step failed");
     }
     mgr.detectEDState(level, colorImage, grayImage);
 }
@@ -420,25 +400,29 @@ void Step::notifyProgress(const std::string& msg) {
     LOG(INFO) << msg;
     UIManager::showToast(getName(), msg);
 }
-void Step::notifyError(const char* msg, Result res) {
+void Step::throw_trouble(const char* msg) {
     addMessage(msg);
     LOG(ERROR) << msg;
     UIManager::showToast(getName(), msg);
-    throw nonlocal_return(res, getTask(), msg);
+    throw nonlocal_return(false, msg);
 }
-void Step::notifyError(const std::string& msg, Result res) {
+void Step::throw_trouble(const std::string& msg) {
     addMessage(msg);
     LOG(ERROR) << msg;
     UIManager::showToast(getName(), msg);
-    throw nonlocal_return(res, getTask(), msg);
+    throw nonlocal_return(false, msg);
 }
-
-void Step::task_return(Result res) {
-    throw nonlocal_return(res, getTask());
+void Step::throw_failed(const char* msg) {
+    addMessage(msg);
+    LOG(ERROR) << msg;
+    UIManager::showToast(getName(), msg);
+    throw nonlocal_return(true, msg);
 }
-
-void Step::task_return(Result res, const char* msg) {
-    throw nonlocal_return(res, getTask(), msg);
+void Step::throw_failed(const std::string& msg) {
+    addMessage(msg);
+    LOG(ERROR) << msg;
+    UIManager::showToast(getName(), msg);
+    throw nonlocal_return(true, msg);
 }
 
 } // namespace ai

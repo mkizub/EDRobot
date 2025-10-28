@@ -29,7 +29,7 @@ protected:
 class TaskDebugFindAllCommodities final : public TaskDebugFindAllBase {
 public:
     TaskDebugFindAllCommodities(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    bool run() final;
 private:
     bool checkCommodity(Commodity* commodity, const std::string& marketMode, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify);
     void saveOcrMarketRow(const cv::Mat& grayImage, const ClassifiedRect& cr, const Commodity* commodity);
@@ -43,7 +43,7 @@ private:
 class TaskDebugFindAllNavPoints final : public TaskDebugFindAllBase {
 public:
     TaskDebugFindAllNavPoints(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    bool run() final;
 private:
     bool checkOcrError(const ClassifiedRect& cr);
     bool checkNavPoint(int offset);

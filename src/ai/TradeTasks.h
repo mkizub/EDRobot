@@ -4,8 +4,8 @@
 
 #pragma once
 
-#ifndef EDROBOT_TASKSELL_H
-#define EDROBOT_TASKSELL_H
+#ifndef EDROBOT_TRADETASKS_H
+#define EDROBOT_TRADETASKS_H
 
 #include "Task.h"
 
@@ -29,19 +29,22 @@ public:
 class TaskSellAll final : public BaseMarketTask {
 public:
     TaskSellAll(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    bool run() final;
 private:
-    void plan();
-
     int mChunk;
-    std::deque<spTask> sell_queue;
-    std::deque<spTask> sell_archive;
+    struct SubTask {
+        Commodity* commodity {};
+        spTask task;
+        bool complete {};
+        bool failed {};
+    };
+    std::vector<SubTask> sell_queue;
 };
 
 class TaskSell final : public BaseMarketTask {
 public:
     TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    bool run() final;
     bool processTradeDialog();
 
     Commodity* mCommodity;
@@ -59,7 +62,7 @@ public:
 class TaskBuy final : public BaseMarketTask {
 public:
     TaskBuy(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    bool run() final;
     bool processTradeDialog();
 
     Commodity* mCommodity;
@@ -73,7 +76,18 @@ public:
     } status {READY};
 };
 
+class TaskConstr final : public BaseMarketTask {
+public:
+    TaskConstr(Task* parent, AIManager& mgr, const TaskTemplate& templ);
+    bool run() final;
+
+    std::string getStatus() override;
+    enum {
+        READY, TO_MARKET, UNLOAD
+    } status {READY};
+};
+
 
 } // ai
 
-#endif //EDROBOT_TASKSELL_H
+#endif //EDROBOT_TRADETASKS_H

@@ -25,17 +25,18 @@ namespace ai {
 
 class BaseAutopilotTask : public Task {
 public:
-    BaseAutopilotTask(Task* parent, AIManager& mgr, const TaskTemplate& templ);
+    BaseAutopilotTask(Step* parent, AIManager& mgr, const TaskTemplate& templ);
     void relogin();
 
     bool setSpeed(int percents);
-    void orientRollStep(double requiredRoll, int max_time_ms=5000);
-    void orientPitchStep(double requiredPitch, int max_time_ms=5000);
-    void orientYawStep(double requiredYaw, int max_time_ms=5000);
+    void orientRollStep(double delta, int max_time_ms=5000);
+    void orientPitchStep(double delta, int max_time_ms=5000);
+    void orientYawStep(double delta, int max_time_ms=5000);
     bool orientTowardTargetStep(double precision, int max_time_ms=5000);
     bool orientTowardTarget(double precision);
     bool orientAwayFromTargetStep(double precision, int max_time_ms=5000);
     bool orientAwayFromTarget(double precision);
+    int getNavRoutePosition();
 
     gal::spBody destBody;
     gal::spSite destDock;
@@ -56,8 +57,8 @@ protected:
 
 class TaskDebugAutopilot : public BaseAutopilotTask {
 public:
-    TaskDebugAutopilot(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    TaskDebugAutopilot(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    bool run() final;
 
     std::string test;
     std::string target;
@@ -82,11 +83,23 @@ class EnterCruiseStep : public BaseAutopilotStep {
 public:
     explicit EnterCruiseStep(Step* parent) : BaseAutopilotStep(parent) {}
     bool step() final;
-    const char* getName() override { return "EnterCruiseStep"; }
+    const char* getName() override { return "EnterCruise"; }
 
     std::string getStatus() override;
     enum {
         READY, LOCK_BODY, LOCK_TARGET, ORIENT, MASSLOCKED, PREPARE, FSD_COOLDOWN, ENTER_CRUISE,
+    } status {READY};
+};
+
+class HyperJumpStep : public BaseAutopilotStep {
+public:
+    explicit HyperJumpStep(Step* parent) : BaseAutopilotStep(parent) {}
+    bool step() final;
+    const char* getName() override { return "HyperJump"; }
+
+    std::string getStatus() override;
+    enum {
+        READY, ORIENT, CHARGE, HYPERSPACE, AVOID_STAR, FLY_AWAY
     } status {READY};
 };
 
@@ -104,7 +117,7 @@ public:
 
 class DockStep : public BaseAutopilotStep {
 public:
-    DockStep(Task* parent) : BaseAutopilotStep(parent) {}
+    DockStep(Step* parent) : BaseAutopilotStep(parent) {}
     bool step() final;
     const char* getName() override { return "DockStep"; }
 
@@ -113,9 +126,12 @@ public:
     bool flyTowardsTarget();
     bool flyTowardsStep();
 
+    const double dock_req_dist {7500};
+    double safe_dist {dock_req_dist-200};
+
     std::string getStatus() override;
     enum {
-        READY, PREPARE, APPROACH, REQUEST, AUTOPILOT
+        READY, PREPARE, APPROACH, REQUEST, AUTOPILOT, REFUEL
     } status {READY};
 };
 
@@ -161,7 +177,7 @@ public:
     DiveUnderPlanetStep(Step* parent)
             : BaseAutopilotStep(parent)
     {}
-    const char* getName() override { return "DiveUnderPlanetStep"; }
+    const char* getName() override { return "DiveUnderPlanet"; }
     bool step() override;
     bool get_dist_body();
     bool get_dist_dock();
@@ -192,21 +208,47 @@ public:
     int exit_confirm {};
 };
 
+class CompleteNavRoute : public BaseAutopilotStep {
+public:
+    CompleteNavRoute(Step* parent)
+            : BaseAutopilotStep(parent)
+    {}
+    const char* getName() override { return "CompleteNavRoute"; }
+    bool step() override;
+
+    std::string getStatus() override;
+    enum {
+        READY, ORIENT, ENTER_CRUISE, LEAVE_BODY, FLY_AWAY
+    } status {READY};
+};
+
+class CruiseAndDock : public BaseAutopilotStep {
+public:
+    CruiseAndDock(Step* parent)
+            : BaseAutopilotStep(parent)
+    {}
+    const char* getName() override { return "CruiseAndDock"; }
+    bool step() override;
+
+    std::string getStatus() override;
+    enum {
+        READY, DEPARTURE, ENTER_CRUISE, LEAVE_BODY, APPROACH, DIVE, LEAVE_CRUISE, DOCK
+    } status {READY};
+};
+
 class TaskTravel : public BaseAutopilotTask {
 public:
-    TaskTravel(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    TaskTravel(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    bool run() final;
 
-    void plan();
-
-    std::string destSystem;
-    std::string destDock;
+    std::string destSystemName;
+    std::string destDockName;
 };
 
 class Autopilot : public BaseAutopilotTask {
 public:
-    Autopilot(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    Result run() final;
+    Autopilot(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    bool run() final;
 };
 
 } // namespace ai

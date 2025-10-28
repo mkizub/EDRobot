@@ -68,8 +68,8 @@ add_executable(EDRobot
         src/ai/TaskCalibrate.h
         src/ai/TaskDebug.cpp
         src/ai/TaskDebug.h
-        src/ai/TaskSell.cpp
-        src/ai/TaskSell.h
+        src/ai/TradeTasks.cpp
+        src/ai/TradeTasks.h
 
         src/detect/Detector.h
         src/detect/Detector.cpp

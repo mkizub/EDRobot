@@ -162,6 +162,7 @@ const std::string ED_TASK_GOTO_MARKET = "tsk-goto-market";
 const std::string ED_TASK_MARKET_SELL_ALL = "tsk-market-sell-all";
 const std::string ED_TASK_MARKET_SELL = "tsk-market-sell";
 const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
+const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
 const std::string ED_TASK_TRAVEL = "tsk-travel";
 const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
@@ -252,6 +253,8 @@ void AIManager::initTemplates() {
             { .name = ED_TASK_MARKET_BUY,
               .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }},
               .maxMisses = 3 },
+            { .name = ED_TASK_CONSTR_UNLOAD,
+              .maxMisses = 3 },
             { .name = ED_TASK_TRAVEL,
               .params = {{Param::System, "system", ""}, {Param::Dock, "dock", ""}},
               .maxMisses = 5 },
@@ -267,7 +270,7 @@ void AIManager::initTemplates() {
               .maxMisses = 3 },
             { .name = ED_TASK_DEBUG_AUTOPILOT,
               .params = {
-                    {Param::Enum, "test", "", "OrientTowards|OrientAway|Departure|Dock|EnterCruise|LeaveBody|FocusDestDock|FocusDestBody|FocusNearestBody|FocusTopEntry|NavDockSelect|NavBodySelect|CruiseToDist|DiveUnderPlanet|ExitCruiseToStation" },
+                    {Param::Enum, "test", "", "OrientTowards|OrientAway|Departure|Dock|EnterCruise|HyperJump|LeaveBody|FocusDestDock|FocusDestBody|FocusNearestBody|GalMapNavRoute|FocusTopEntry|NavDockSelect|NavBodySelect|CruiseToDist|DiveUnderPlanet|ExitCruiseToStation" },
                     {Param::String, "target", "", "", true},
                     {Param::Real, "precision", 1.0, "", true }
                     },

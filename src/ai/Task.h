@@ -32,11 +32,11 @@ public:
 
     void notifyProgress(const char* msg);
     void notifyProgress(const std::string& msg);
-    [[noreturn]] void notifyError(const char* msg, Result result);
-    [[noreturn]] void notifyError(const std::string& msg, Result result);
+    [[noreturn]] void throw_trouble(const char* msg);
+    [[noreturn]] void throw_trouble(const std::string& msg);
+    [[noreturn]] void throw_failed(const char* msg);
+    [[noreturn]] void throw_failed(const std::string& msg);
 
-    [[noreturn]] void task_return(Result result);
-    [[noreturn]] void task_return(Result result, const char* msg);
     void addMessage(const char* msg);
     void addMessage(const std::string& msg);
     std::vector<std::string> getMessages();
@@ -56,11 +56,11 @@ public:
 
 class Task : public Step {
 public:
-    Task(Task* parent, AIManager& mgr, const TaskTemplate& templ);
+    Task(Step* parent, AIManager& mgr, const TaskTemplate& templ);
     virtual ~Task() = default;
     virtual bool step();
-    Result safe_run();
-    virtual Result run() = 0;
+    bool safe_run();
+    virtual bool run() = 0;
     virtual const char* getName();
 
     TaskTemplate templ;
@@ -74,8 +74,6 @@ public:
 
     short missCount { 0 };
     short maxMisses { 0 };
-    Result result { Result::Created };
-
 };
 
 } //namespace ai

@@ -35,7 +35,10 @@ std::string getErrorMessage(unsigned errorCode) {
 }
 
 void pasteToClipboard(const std::string& text) {
-    OpenClipboard(nullptr);
+    if (!OpenClipboard(NULL)) {
+        LOG(ERROR) << "Cannot open clipboard";
+        return;
+    }
     EmptyClipboard();
     HGLOBAL hg=GlobalAlloc(GMEM_MOVEABLE, text.size()+1);
     if (!hg) {
@@ -47,6 +50,30 @@ void pasteToClipboard(const std::string& text) {
     SetClipboardData(CF_TEXT,hg);
     CloseClipboard();
     GlobalFree(hg);
+}
+
+std::string textFromClipboard() {
+    if (!OpenClipboard(NULL)) {
+        LOG(ERROR) << "Cannot open clipboard";
+        return {};
+    }
+    HANDLE hData = GetClipboardData(CF_TEXT);
+    if (hData == NULL) {
+        LOG(ERROR) << "No text data in clipboard";
+        CloseClipboard();
+        return {};
+    }
+    const char* str = static_cast<const char*>(GlobalLock(hData));
+    if (str == NULL) {
+        LOG(ERROR) << "Cannot get text from clipboard";
+        GlobalUnlock(hData);
+        CloseClipboard();
+        return {};
+    }
+    std::string text = str;
+    GlobalUnlock(hData);
+    CloseClipboard();
+    return text;
 }
 
 std::string trim(const char* source) {
@@ -299,6 +326,26 @@ std::string encodeShortcut(const std::string& name, unsigned flags) {
     res += kbd::getNamesForKey(name)[0];
     return res;
 }
+
+bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
+    std::istringstream iss(str);
+    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
+    if (iss.fail()) {
+        LOG(ERROR) << "Timestamp parse failed, event corrupted?";
+        return false;
+    }
+    return true;
+}
+
+bool parseTimestamp(const json5pp::value& value, Timestamp& timestamp) {
+    if (value.is_string())
+        return parseTimestampString(value.as_string(), timestamp);
+    auto& ts = value["timestamp"];
+    if (!ts.is_string())
+        return false;
+    return parseTimestampString(ts.as_string(), timestamp);
+}
+
 
 const double MM_LS = 299.792458;
 const double LS_LY = 31536000;

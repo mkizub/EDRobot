@@ -59,6 +59,18 @@ private:
     string referred;
 };
 
+class ConstDetector : public Detector {
+public:
+    ConstDetector(double value)
+            : value(value)
+    {}
+    ~ConstDetector() override = default;
+
+    double match(ClassifyEnv& env) override { return value; }
+private:
+    double value;
+};
+
 class Histogram {
 public:
     enum class Mode {

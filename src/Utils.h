@@ -21,6 +21,7 @@ namespace ai {
 extern std::string getErrorMessage();
 extern std::string getErrorMessage(unsigned errorCode);
 extern void pasteToClipboard(const std::string& text);
+extern std::string textFromClipboard();
 extern std::string trim(const char* source);
 extern std::string trim(const std::string & source);
 extern std::wstring trim(const std::wstring & source);
@@ -57,6 +58,8 @@ extern int distanceHsv(const cv::Vec3b& hsv1, const cv::Vec3b& hsv2);
 extern std::pair<std::string,unsigned> decodeShortcut(std::string key);
 extern std::string encodeShortcut(const std::string& name, unsigned flags);
 
+extern bool parseTimestampString(const std::string& str, Timestamp& timestamp);
+extern bool parseTimestamp(const json5pp::value& value, Timestamp& timestamp);
 extern dist_t parseDist(std::wstring dist);
 
 

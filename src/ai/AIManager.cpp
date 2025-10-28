@@ -6,7 +6,7 @@
 
 #include "AIManager.h"
 #include "TaskCalibrate.h"
-#include "TaskSell.h"
+#include "TradeTasks.h"
 #include "TaskDebug.h"
 #include "../ui/UIManager.h"
 #include "../Keyboard.h"
@@ -150,16 +150,12 @@ bool AIManager::new_task(spTask&& task) {
     UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->taskName));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
-    spTask oldTask;
-    activeTask.swap(oldTask);
+    lastTask.reset();
+    activeTask.reset();
     taskCond.notify_one();
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
         return !isWorking || isLoopWaiting;
     });
-    if (oldTask) {
-        LOG(INFO) << "AIManager::new_task(): suspending " << oldTask->taskName;
-        archivedTasks.emplace_back(std::move(oldTask));
-    }
     LOG(INFO) << "AIManager::new_task(): activating " << task->taskName;
     activeTask.swap(task);
     isInterrupted = false;
@@ -187,6 +183,8 @@ bool AIManager::new_task(const TaskTemplate& templ) {
         task.reset(new TaskSell(nullptr, *this, templ));
     else if (templ.name == ED_TASK_MARKET_BUY)
         task.reset(new TaskBuy(nullptr, *this, templ));
+    else if (templ.name == ED_TASK_CONSTR_UNLOAD)
+        task.reset(new TaskConstr(nullptr, *this, templ));
     else if (templ.name == ED_TASK_AUTOPILOT)
         task.reset(new Autopilot(nullptr, *this, templ));
     else if (templ.name == ED_TASK_TRAVEL)
@@ -243,67 +241,17 @@ void AIManager::step() {
         return;
     }
     if (activeTask) {
-        switch (activeTask->result) {
-        case Result::Failure:
-        case Result::Partly:
-        case Result::Success:
-            archivedTasks.emplace_back(std::move(activeTask));
-            return;
-        case Result::Trouble:
-            if (activeTask->missCount >= activeTask->templ.maxMisses) {
-                UIManager::showToast("EDRobot task", std::format("Too many failures ({}), task '{}' aborted",
-                                                                 activeTask->missCount, activeTask->taskName));
-                activeTask->result = Result::Failure;
-                archivedTasks.emplace_back(std::move(activeTask));
-                return;
-            }
-            activeTask->result = Result::Started;
-            break;
-        case Result::Created:
-        case Result::Started:
-            break;
-        }
-    }
-
-    if (activeTask) {
         master.setGameForeground();
         LOG(INFO) << "AIManager::loop(): executing active task: " << activeTask->taskName;
-        activeTask->safe_run();
-        LOG(INFO) << "AIManager::loop(): active task result: " << enum_name<Result>(activeTask->result);
-        UIManager::showToast("EDRobot task", std::format("Active task '{}' result {}", activeTask->taskName, enum_name<Result>(activeTask->result)));
+        bool ok = activeTask->safe_run();
+        if (ok) {
+            lastTask.reset();
+            lastTask.swap(activeTask);
+        }
+        LOG(INFO) << "AIManager::loop(): active task: " << (ok ? "passed" : "not complete");
         return;
     }
 }
-
-//AIManager::CheckResult AIManager::checkTaskReqMatch(TaskState& ts) {
-//    if (!ts.task)
-//        return CheckResult::Failure;
-//
-//    FlyState flyState = edState.flyState;
-//    ViewMode viewMode = edState.viewMode;
-//
-//    if (!ts.started) {
-//        if (ts.task->workingState.empty())
-//            return CheckResult::Resume;
-//        for (auto &st: ts.task->requiredStartStates) {
-//            if ((!st.flyState.has_value() || st.flyState.value() == flyState) &&
-//                (!st.viewMode.has_value() || st.viewMode.value() == viewMode)) {
-//                return CheckResult::Resume;
-//            }
-//        }
-//    } else {
-//        if (ts.task->workingState.empty())
-//            return CheckResult::Resume;
-//        for (auto &st: ts.task->workingState) {
-//            if ((!st.flyState.has_value() || st.flyState.value() == flyState) &&
-//                (!st.viewMode.has_value() || st.viewMode.value() == viewMode)) {
-//                return CheckResult::Resume;
-//            }
-//        }
-//        ts.result = Result::Interrupt;
-//    }
-//    return CheckResult::Replan;
-//}
 
 const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
     check_interrupted();

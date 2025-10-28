@@ -53,7 +53,7 @@ public:
     std::map<std::string,TaskTemplate*> AllImplementedTaskMap;
 
     spTask activeTask;
-    std::vector<spTask> archivedTasks;
+    spTask lastTask;
     std::chrono::milliseconds nextDelay;
     DetectLevel nextDetectLevel {DetectLevel::None};
 

@@ -488,6 +488,7 @@
       },
       jaradharrepuzzlebox: {
         id: 128667683,
+        rare: true,
         en: "",
         ru: "Джарадхаррская головоломка",
       },

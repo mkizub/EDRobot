@@ -104,6 +104,7 @@ extern const std::string ED_TASK_GOTO_MARKET;       // select 'market' button at
 extern const std::string ED_TASK_MARKET_SELL_ALL;   // sell all commodities, maybe by a few items
 extern const std::string ED_TASK_MARKET_SELL;       // sell specified commodity, maybe by a few items
 extern const std::string ED_TASK_MARKET_BUY;        // buy a list of commodities
+extern const std::string ED_TASK_CONSTR_UNLOAD;     // unload all construction materials at construction depot
 extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination
 extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
 extern const std::string ED_TASK_NAV_SCAN;          // san navigation map

@@ -82,6 +82,17 @@ struct ShipCargo {
     std::vector<Commodity*> inventory;
 };
 
+struct NavRoute {
+    struct Entry {
+        std::string starSystem;
+        int64_t systemAddress;
+        cv::Point3d starpos;
+        std::string starClass;
+    };
+    Timestamp timestamp;
+    std::vector<Entry> route;
+};
+
 struct GameEvent {
     GameEvent(json5pp::value&& data);
     json5pp::value data;
@@ -91,6 +102,7 @@ struct GameEvent {
 
 typedef std::shared_ptr<Market> spMarket;
 typedef std::shared_ptr<ShipCargo> spShipCargo;
+typedef std::shared_ptr<NavRoute> spNavRoute;
 typedef std::shared_ptr<GameEvent> spGameEvent;
 
 struct GameKey {
@@ -134,13 +146,14 @@ public:
     Commodity* getCommodityByName(const std::string& name, bool fuzzy_ocr);
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);
 
-    bool loadMarket();
-    bool loadCargo();
+    bool loadMarket(Timestamp timestamp);
+    bool loadCargo(Timestamp timestamp);
+    bool loadNavRoute(Timestamp timestamp);
     const char* makeTesseractWordsFile();
 
     const spMarket getCurrentMarket() const { return currentMarket; }
-    const spShipCargo& getCurrentCargo() const { return currentCargo; }
-    //const spStarSystem& getCurrentStarSystem() const { return currentStarSystem; }
+    const spShipCargo getCurrentCargo() const { return currentCargo; }
+    const spNavRoute getCurrentNavRoute() const { return currentNavRoute; }
     std::vector<Commodity*> getMarketInSellOrder();
     std::vector<Commodity*> getMarketInBuyOrder();
     std::vector<Commodity*> getAllKnownCommodities();
@@ -205,7 +218,6 @@ private:
     void parseEvent_CarrierLocation(spGameEvent& ge);
     void parseEvent_Location(spGameEvent& ge);
     void parseEvent_Loadout(spGameEvent& ge);
-    void parseEvent_Cargo(spGameEvent& ge);
     void parseEvent_ShipyardSwap(spGameEvent& ge);
     void parseEvent_Docked(spGameEvent& ge);
     void parseEvent_Undocked(spGameEvent& ge);
@@ -284,6 +296,7 @@ private:
 
     spMarket currentMarket;
     spShipCargo currentCargo;
+    spNavRoute currentNavRoute;
 
     const unsigned marketCommodityFilterShowAll {0xFFFFFFFFu};
     const unsigned marketCommodityFilterShowNone {0xFFFE0001u};

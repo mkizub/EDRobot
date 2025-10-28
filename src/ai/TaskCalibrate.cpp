@@ -152,24 +152,10 @@ void TaskCalibrate::getRowsByState(const ClassifiedRect** rows) {
     }
 }
 
-Result TaskCalibrate::run() {
-    if (result == Result::Started) {
-        for (int i=0; i < 4; i++) {
-            mButtonBGR[i].clear();
-            mLstRowBGR[i].clear();
-            mButtonBGRAverage[i] = cv::Vec3b::zeros();
-            mLstRowBGRAverage[i] = cv::Vec3b::zeros();
-        }
-        result = Result::Created;
-    }
-    if (result != Result::Created) {
-        return Result::Failure;
-    }
-    result = Result::Started;
-
+bool TaskCalibrate::run() {
     mgr.detectEDState(DetectLevel::Buttons, &colorImage, nullptr);
     if (!mgr.uiState.match("scr-market:*"))
-        notifyError(_("Not at market, calibration fails"), Result::Failure);
+        throw_failed(_("Not at market, calibration fails"));
 
     notifyProgress(_("Calibration started"));
 
@@ -254,7 +240,7 @@ Result TaskCalibrate::run() {
     hardcodedStep("{click:'btn-to-sell', after: 1000}", DetectLevel::ListRows, &colorImage, nullptr);
     LOG(INFO) << "State " << mgr.uiState << " expected state 'scr-market:mod-sell'";
     if (!mgr.uiState.match("scr-market:mod-sell"))
-        notifyError(_("Not at market sell, calibration fails"), Result::Failure);
+        throw_failed(_("Not at market sell, calibration fails"));
 
     //
     // Detect normal list rows in sell market
@@ -279,7 +265,7 @@ Result TaskCalibrate::run() {
     getRowsByState(list_rows);
     const ClassifiedRect* row_to_test = list_rows[int(WState::Normal)];
     if (!row_to_test)
-        notifyError(_("Cannot find commodity to test sell dialog, calibration fails"), Result::Failure);
+        throw_failed(_("Cannot find commodity to test sell dialog, calibration fails"));
 
     //
     // found commodity to test, check we detected list row correctly
@@ -297,7 +283,7 @@ Result TaskCalibrate::run() {
     getRowsByState(list_rows);
     row_to_test = list_rows[int(WState::Focused)];
     if (!row_to_test)
-        notifyError(_("Cannot find commodity to test sell dialog, calibration fails"), Result::Failure);
+        throw_failed(_("Cannot find commodity to test sell dialog, calibration fails"));
 
     hardcodedStep("[{key:'UI_Select', after:2000},"
                   "{check:'scr-market:mod-sell:dlg-trade:*'},"
@@ -342,7 +328,7 @@ Result TaskCalibrate::run() {
     getRowsByState(list_rows);
     row_to_test = list_rows[int(WState::Active)];
     if (!row_to_test)
-        notifyError(_("Cannot find commodity to test buy dialog, calibration fails"), Result::Failure);
+        throw_failed(_("Cannot find commodity to test buy dialog, calibration fails"));
 
     {
         auto& row_rect = row_to_test->detectedRect;
@@ -375,9 +361,9 @@ Result TaskCalibrate::run() {
         notifyProgress(_("Calibration completed successfully!"));
         mgr.cfg.saveCalibration();
     } else {
-        notifyError(_("Failed to calibrate button state detector"), Result::Failure);
+        throw_failed(_("Failed to calibrate button state detector"));
     }
-    return Result::Success;
+    return true;
 }
 
 

@@ -109,6 +109,58 @@
     ],
   },
   {
+    name: 'scr-constr',
+    status: { gui: 'Services', docked: true },
+    detect: [
+      { img: "at_constr_lbl-*.png", t: [0.6, 0.8], rect:[254, 136, 226, 42] },
+      { img: "at_constr.png", t: 0.7, rect:[180, 110, 58, 66] },
+    ],
+    have: [
+      { name: 'btn-exit', rect: [162,960,306,40] },
+      { name: 'btn-reset', rect: [164,856,265,80] },
+      { name: 'btn-commit', rect: [438,856,530,80] },
+      { name: 'btn-all', rect: [976,856,262,80] },
+      { name: 'lst-goods', rect: [170,254,1048,598] },
+    ]
+  },
+  {
+    name: 'scr-galaxy',
+    status: { gui: 'GalaxyMap' },
+    detect: true,
+    have: [
+      { name: 'btn-my-bookmarks', rect: [76,169,44,44] },
+      { name: 'btn-my-constr',    rect: [76,226,44,44] },
+      { name: 'btn-my-fleet',     rect: [76,284,44,44] },
+      { name: 'btn-my-missions',  rect: [76,341,44,44] },
+      { name: 'btn-view-1',       rect: [76,410,44,44] },
+      { name: 'btn-view-2',       rect: [76,467,44,44] },
+      { name: 'btn-view-3',       rect: [76,525,44,44] },
+      { name: 'btn-view-4',       rect: [76,583,44,44] },
+      { name: 'btn-view-5',       rect: [76,640,44,44] },
+      { name: 'btn-star-size',    rect: [76,709,44,44] },
+      { name: 'btn-trade',        rect: [76,767,44,44] },
+      { name: 'btn-route',        rect: [76,835,44,44] },
+      { name: 'btn-filters',      rect: [76,893,44,44] },
+      { name: 'btn-exit',         rect: [76,983,44,44] },
+      { name: 'btn-tgt-info',     rect: [1801,168,44,44] },
+      { name: 'btn-tgt-constr',   rect: [1801,226,44,44] },
+      { name: 'btn-tgt-xxx',      rect: [1801,283,44,44] },
+      { name: 'btn-tgt-trade',    rect: [1801,341,44,44] },
+      { name: 'btn-tgt-ships',    rect: [1801,399,44,44] },
+      { name: 'btn-tgt-missions', rect: [1801,456,44,44] },
+      { name: 'btn-tgt-friends',  rect: [1801,513,44,44] },
+      { name: 'btn-tgt-nav-to',   rect: [1801,582,44,44] },
+      { name: 'btn-tgt-select',   rect: [1801,640,44,44] },
+      { name: 'btn-tgt-bookmark', rect: [1801,697,44,44] },
+      { name: 'btn-tgt-system',   rect: [1801,755,44,44] },
+      { name: 'btn-tgt-xy',       rect: [1801,813,44,44] },
+      { name: 'btn-tgt-focus',    rect: [1801,881,44,44] },
+      { name: 'btn-tgt-copy',     rect: [1801,939,44,44] },
+      { name: 'lbl-search',       rect: [691,112,475,28] },
+      { name: 'lbl-drop-down',    rect: [689,143,544,74] }
+    ]
+  },
+  {
     name: 'scr-services',
     status: { gui: 'Services', docked: true },
     detect: [

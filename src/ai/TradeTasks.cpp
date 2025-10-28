@@ -4,13 +4,24 @@
 
 #include "../pch.h"
 
-#include "TaskSell.h"
+#include "TradeTasks.h"
 #include "AIManager.h"
 #include "../EDWidget.h"
 #include "../FuzzyMatch.h"
 #include "../Keyboard.h"
 
 using namespace std::chrono_literals;
+
+#ifdef CPPTRACE_TRY
+# define TRY CPPTRACE_TRY
+# define CATCH(param) CPPTRACE_CATCH(param)
+# define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
+#else
+# define TRY try
+# define CATCH(param) catch(param)
+# include <stacktrace>
+# define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
+#endif
 
 namespace ai {
 
@@ -19,12 +30,12 @@ bool BaseMarketTask::clickButton(const char* btn) {
     if (rect.empty())
         return false;
     cv::Point pos = (rect.tl() + rect.br()) * 0.5;
-    return kbd::sendMouseClick(pos, 100, mgr.cfg.getDefaultKeyAfterTime());
+    return kbd::sendMouseClick(pos, 100, Cfg.getDefaultKeyAfterTime());
 }
 
 void BaseMarketTask::gotoMarketScreen(bool buy) {
     if (!st::ship.flags.docked)
-        task_return(Result::Failure, "Not docked");
+        throw_failed("Not docked");
     for (int step=0; step < 20; step++) {
         mgr.detectEDState(DetectLevel::Buttons);
         if (st::guiFocus == GuiFocus::None) {
@@ -42,6 +53,9 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
             clickButton("til-market");
             waitUiState("scr-market:*", 5s);
             continue;
+        }
+        if (mgr.uiState.match("scr-constr")) {
+            return;
         }
         if (mgr.uiState.match("scr-market:mod-buy")) {
             if (buy)
@@ -63,7 +77,7 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
         }
         kbd::send("UI_Back", 0, 1000);
     }
-    task_return(Result::Trouble, "Cannot enter market");
+    throw_trouble("Cannot enter market");
 }
 
 bool BaseMarketTask::waitUiState(const std::string& state, std::chrono::seconds duration) {
@@ -125,100 +139,66 @@ TaskSellAll::TaskSellAll(Task* parent, AIManager& mgr, const TaskTemplate& templ
     }
 }
 
-void TaskSellAll::plan() {
-    spShipCargo shipCargo = mgr.cfg.getCurrentCargo();
-    if (!shipCargo)
-        task_return(Result::Trouble, "Ship cargo not loaded");
+bool TaskSellAll::run() {
     gotoMarketScreen(false);
-    for (Commodity* commodity: shipCargo->inventory) {
-        auto it_arch = std::find_if(sell_archive.begin(), sell_archive.end(), [commodity](const spTask& t) {
-            auto ts = dynamic_cast<TaskSell*>(t.get());
-            return (ts && ts->mCommodity == commodity);
-        });
-        if (it_arch != sell_archive.end())
-            continue;
-        auto it_old = std::find_if(sell_queue.begin(), sell_queue.end(), [commodity](const spTask& t) {
-            auto ts = dynamic_cast<TaskSell*>(t.get());
-            return (ts && ts->mCommodity == commodity);
-        });
-        TaskSell* old = it_old == sell_queue.end() ? nullptr : dynamic_cast<TaskSell*>(it_old->get());
-        int toSell = mgr.master.canSell(commodity);
-        if (toSell <= 0) {
-            if (old)
-                sell_queue.erase(it_old);
-        }
-        else if (!old) {
+
+    if (sell_queue.empty()) {
+        spShipCargo shipCargo = mgr.cfg.getCurrentCargo();
+        for (Commodity* commodity: shipCargo->inventory) {
+            bool complete = false;
+            for (auto& st : sell_queue) {
+                if (st.commodity == commodity && (st.complete || st.failed)) {
+                    complete = true;
+                    break;
+                }
+            }
+            if (complete)
+                continue;
             TaskTemplate impl = mgr.getTaskTemplate(ED_TASK_MARKET_SELL);
             impl.set("commodity", commodity->nameId);
             impl.set("amount", 0);
             impl.set("chunk", mChunk);
-            sell_queue.push_back(std::make_unique<TaskSell>(this, mgr, impl));
+            spTask task = std::make_unique<TaskSell>(this, mgr, impl);
+            sell_queue.emplace_back(commodity, task, false, false);
         }
     }
-    if (result == Result::Created)
-        result = Result::Started;
-}
-
-Result TaskSellAll::run() {
-    switch (result) {
-    case Result::Created:
-    case Result::Started:
-    case Result::Trouble:
-        plan();
-        break;
-    case Result::Failure:
-    case Result::Partly:
-    case Result::Success:
-        LOG(ERROR) << "Bad state on task run(): " << enum_name<Result>(result);
-        return result;
-    }
-
-    while (!sell_queue.empty()) {
-        spTask& pTask = sell_queue.front();
-        currentSubStep = pTask;
-        Result res = pTask->safe_run();
-        currentSubStep.reset();
-        switch (res) {
-        case Result::Created:
-        case Result::Started:
-            LOG(ERROR) << "Bad state after task run(): " << enum_name<Result>(res);
-            plan();
+    for (auto& st : sell_queue) {
+        if (st.complete || st.failed)
             continue;
-        case Result::Trouble:
-            if (pTask->missCount < pTask->maxMisses) {
-                plan();
-                pTask->result = Result::Started;
-                continue;
+        currentSubStep = st.task;
+        TRY {
+            check_interrupted();
+            st.complete = st.task->run();
+        } CATCH (const std::exception& ex) {
+            if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
+                if (nlr->failed) {
+                    st.failed = true;
+                    st.complete = true;
+                }
             }
-            pTask->result = Result::Failure;
-            // fall through
-        case Result::Failure:
-        case Result::Partly:
-        case Result::Success:
-            if ( dynamic_cast<TaskSell*>(pTask.get()) )
-                sell_archive.emplace_back(std::move(pTask));
-            sell_queue.pop_front();
-            break;
+            else if (dynamic_cast<const interrupted_error*>(&ex)) {
+                throw;
+            }
+            else {
+                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+                st.failed = true;
+                st.complete = true;
+            }
         }
     }
-    notifyProgress(_("Sold everything we can"));
-
-    int total = 0;
-    int sold = 0;
-    std::for_each(sell_archive.begin(), sell_archive.end(), [&](const spTask& t){
-        auto st = dynamic_cast<TaskSell*>(t.get());
-        if (st) {
-            total += st->mTotal;
-            sold += st->mSold;
-        }
-    });
-    if (sold >= total)
-        result = Result::Success;
-    else if (sold == 0)
-        result = Result::Failure;
-    else
-        result = Result::Partly;
-    return result;
+    int soldTotal = 0;
+    bool complete = true;
+    for (auto& st : sell_queue) {
+        soldTotal += std::static_pointer_cast<TaskSell>(st.task)->mSold;
+        if (!st.complete && !st.failed)
+            complete = false;
+    }
+    if (complete) {
+        if (!soldTotal)
+            throw_failed("Nothing was sold");
+        return true;
+    }
+    throw_trouble("Not complete");
 }
 
 TaskSell::TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
@@ -240,22 +220,11 @@ TaskSell::TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
     }
 }
 
-Result TaskSell::run() {
-    switch (result) {
-    case Result::Created:
-    case Result::Started:
-    case Result::Trouble:
-        result = Result::Started;
-        break;
-    case Result::Failure:
-    case Result::Partly:
-    case Result::Success:
-        return result;
-    }
+bool TaskSell::run() {
     FuzzyMatch matcher;
 
     if (!mCommodity)
-        return Result::Failure;
+        throw_failed("No commodity to sell");
 
     status = TO_MARKET;
     gotoMarketScreen(false);
@@ -265,7 +234,7 @@ Result TaskSell::run() {
     else
         mLeft = std::min(mTotal-mSold, mgr.master.canSell(mCommodity));
     if (mLeft <= 0)
-        return mSold >= mTotal ? Result::Success : Result::Partly;
+        return true;
 
     if (mChunk > 0)
         notifyProgress(std_format(_("Start selling {} by {} item(s)"), mLeft, mChunk));
@@ -277,7 +246,7 @@ Result TaskSell::run() {
         mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (mgr.uiState.match("scr-market:mod-sell")) {
             if (!mgr.master.approximateListOfCommodities(mgr.rEnv, grayImage, "lst-goods", mgr.cfg.getMarketInSellOrder()))
-                notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
+                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
@@ -324,7 +293,7 @@ Result TaskSell::run() {
                 continue;
             }
             if (!focusedCommodity)
-                notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
+                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
 
             int focusedIdx = -1;
             int needIdx = -1;
@@ -347,7 +316,7 @@ Result TaskSell::run() {
                 }
                 continue;
             }
-            notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
+            throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
         } else if (mgr.uiState.match("scr-market:mod-sell:dlg-trade:*")) {
             kbd::send("UI_Back");
             waitUiState("scr-market:mod-sell", 2s);
@@ -357,7 +326,7 @@ Result TaskSell::run() {
             gotoMarketScreen(false);
         }
     }
-    return Result::Success;
+    return true;
 }
 
 bool TaskSell::processTradeDialog() {
@@ -428,22 +397,11 @@ TaskBuy::TaskBuy(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
     }
 }
 
-Result TaskBuy::run() {
-    switch (result) {
-    case Result::Created:
-    case Result::Started:
-    case Result::Trouble:
-        result = Result::Started;
-        break;
-    case Result::Failure:
-    case Result::Partly:
-    case Result::Success:
-        return result;
-    }
+bool TaskBuy::run() {
     FuzzyMatch matcher;
 
     if (!mCommodity)
-        return Result::Failure;
+        throw_failed("No commodity to sell");
 
     status = TO_MARKET;
     gotoMarketScreen(true);
@@ -453,7 +411,7 @@ Result TaskBuy::run() {
     else
         mLeft = std::min(mTotal-mBought, mgr.master.canBuy(mCommodity));
     if (mLeft <= 0)
-        return mBought >= mTotal ? Result::Success : Result::Partly;
+        return true;
 
     notifyProgress(std_format(_("Start purchasing {} item(s)"), mLeft));
     while (mLeft > 0) {
@@ -462,7 +420,7 @@ Result TaskBuy::run() {
         mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (mgr.uiState.match("scr-market:mod-buy")) {
             if (!mgr.master.approximateListOfCommodities(mgr.rEnv, grayImage, "lst-goods", mgr.cfg.getMarketInBuyOrder()))
-                notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
+                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
@@ -509,7 +467,7 @@ Result TaskBuy::run() {
                 continue;
             }
             if (!focusedCommodity)
-                notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
+                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
 
             int focusedIdx = -1;
             int needIdx = -1;
@@ -532,7 +490,7 @@ Result TaskBuy::run() {
                 }
                 continue;
             }
-            notifyError(_("Cannot detect commodities in 'lst-goods', aborting"), Result::Trouble);
+            throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
         } else if (mgr.uiState.match("scr-market:mod-buy:dlg-trade:*")) {
             kbd::send("UI_Back");
             waitUiState("scr-market:mod-buy", 2s);
@@ -542,7 +500,7 @@ Result TaskBuy::run() {
             gotoMarketScreen(true);
         }
     }
-    return Result::Success;
+    return true;
 }
 
 bool TaskBuy::processTradeDialog() {
@@ -588,5 +546,40 @@ std::string TaskBuy::getStatus() {
     st += std::format("\n  bought: {}\n  left: {}", mBought, mLeft);
     return st;
 }
+
+TaskConstr::TaskConstr(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+        : BaseMarketTask(parent, mgr, templ_)
+{
+    assert (templ.name == ED_TASK_CONSTR_UNLOAD);
+}
+
+bool TaskConstr::run() {
+    status = TO_MARKET;
+    gotoMarketScreen(false);
+
+    mgr.detectEDState(DetectLevel::Buttons);
+    if (!mgr.uiState.match("scr-constr"))
+        throw_failed("Cannot enter unload screen");
+
+    status = UNLOAD;
+    clickButton("btn-all");
+    sleep(1000);
+    clickButton("btn-commit");
+    return true;
+}
+
+std::string TaskConstr::getStatus() {
+    std::string st;
+    switch (status) {
+    case READY:
+        return st = "----";
+    case TO_MARKET:
+        return st = "Going to market";
+    case UNLOAD:
+        return st = "Unloading";
+    }
+    return "----";
+}
+
 
 } // ai

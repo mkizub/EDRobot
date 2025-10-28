@@ -181,6 +181,7 @@ extern struct ShipAtBody {
 
 }
 
+
 extern std::ostream& operator<<(std::ostream& os, const st::ShipStatus& obj);
 
 #endif //EDROBOT_STATE_H

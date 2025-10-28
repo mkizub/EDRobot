@@ -15,7 +15,7 @@ class TaskCalibrate final : public Task {
 public:
     TaskCalibrate(Task *parent, AIManager &mgr, const TaskTemplate &templ);
 
-    Result run() final;
+    bool run() final;
 
 private:
     std::array<std::vector<cv::Vec3b>, 4> mButtonBGR;

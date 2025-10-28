@@ -21,6 +21,7 @@ static std::atomic<unsigned> keyboardInputCounter(1);
 
 void loop();
 
+static bool vJoyAcquired;
 static std::map<std::string,vJoyAxisInfo> vJoyAxisMap;
 
 
@@ -374,6 +375,7 @@ bool acquire_vJoy() {
         LOG(INFO) << "vJoy device " << rID << " acquired";
     }
 
+    vJoyAcquired = true;
     ResetVJD(rID);
     vJoyAxisMap.clear();
     addAxis(rID, HID_USAGE_X, "Joy_XAxis", true);
@@ -404,6 +406,7 @@ bool release_vJoy() {
     unsigned rID = Cfg.getVJoyDeviceID();
     LOG(INFO) << "Release vJoy (device " << rID << ")";
     RelinquishVJD(rID);
+    vJoyAcquired = false;
     return true;
 }
 
@@ -458,11 +461,11 @@ static INPUT fillInput(const GameKey& gk, bool up) {
     else if (gk.device == GameKey::Mouse) {
         input.type = INPUT_MOUSE;
         if (gk.code == 1)
-            input.ki.dwFlags |= up ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+            input.mi.dwFlags |= up ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
         else if (gk.code == 2)
-            input.ki.dwFlags |= up ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
+            input.mi.dwFlags |= up ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
         else if (gk.code == 3)
-            input.ki.dwFlags |= up ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
+            input.mi.dwFlags |= up ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
     }
     return input;
 }
@@ -510,7 +513,13 @@ bool send(const std::string& name, int delay_ms, int pause_ms, bool precise) {
         pause_ms = Cfg.getDefaultKeyAfterTime();
     LOG(INFO) << "send('" << name << "'," << delay_ms << "," << pause_ms << ")";
     const KeyBindings& keyBindings = Cfg.getGameKeyBindings(name);
-    if (keyBindings.primary.device != GameKey::Void) {
+    if (vJoyAcquired && keyBindings.secondary.device == GameKey::vJoy) {
+        if (!post(keyBindings.secondary, delay_ms))
+            return false;
+        kbd_sleep(delay_ms + pause_ms, precise);
+        return true;
+    }
+    else if (keyBindings.primary.device != GameKey::Void) {
          if (!post(keyBindings.primary, delay_ms))
             return false;
         kbd_sleep(delay_ms + pause_ms, precise);
@@ -886,7 +895,6 @@ int64_t getNextWakeupTime() {
 
 
 void releaseKeys() {
-    std::vector<INPUT> inputs;
     for (unsigned i=0; i < inputKeysSize; i++) {
         auto& ik = inputKeys[i];
         if (ik.counter > 0 || ik.device == GameKey::Void)
@@ -899,17 +907,21 @@ void releaseKeys() {
             input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
             if (ik.code & EXT_KEY)
                 input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-            inputs.push_back(input);
+            unsigned sent = SendInput(1, &input, sizeof(INPUT));
+            if (sent != 1)
+                LOG(ERROR) << "SendInput failed: " << getErrorMessage();
         }
         else if (ik.device == GameKey::Mouse && ik.code >= 1 && ik.code <= 3) {
             INPUT input {};
             input.type = INPUT_MOUSE;
             switch (ik.code) {
-            case 1: input.ki.dwFlags |= MOUSEEVENTF_LEFTUP; break;
-            case 2: input.ki.dwFlags |= MOUSEEVENTF_RIGHTUP; break;
-            case 3: input.ki.dwFlags |= MOUSEEVENTF_MIDDLEUP; break;
+            case 1: input.mi.dwFlags |= MOUSEEVENTF_LEFTUP; break;
+            case 2: input.mi.dwFlags |= MOUSEEVENTF_RIGHTUP; break;
+            case 3: input.mi.dwFlags |= MOUSEEVENTF_MIDDLEUP; break;
             }
-            inputs.push_back(input);
+            unsigned sent = SendInput(1, &input, sizeof(INPUT));
+            if (sent != 1)
+                LOG(ERROR) << "SendInput failed: " << getErrorMessage();
         }
         else if (ik.device == GameKey::vJoy && ik.code > 0) {
             SetBtn(FALSE, Cfg.getVJoyDeviceID(), ik.code);
@@ -923,11 +935,6 @@ void releaseKeys() {
         inputKeysSize = i;
     }
     //logInputKeys();
-    if (inputs.empty())
-        return;
-    unsigned sent = SendInput((int)inputs.size(), inputs.data(), sizeof(INPUT));
-    if (sent != inputs.size())
-        LOG(ERROR) << "SendInput failed: " << getErrorMessage();
 }
 
 void processKeyRelease() {
@@ -972,23 +979,56 @@ unsigned post(const std::string& name, int hold_ms) {
 
 unsigned post(const GameKey& gk, int hold_ms) {
     std::unique_lock<std::mutex> lock(keyboardMutex);
-    unsigned inputId = addInputWait(gk, hold_ms);
-    std::vector<INPUT> inputs;
-    inputs.reserve(1 + gk.modifiers.size());
+    unsigned inputId = addInputWait(gk, hold_ms + 10*gk.modifiers.size());
     for (auto& gkm : gk.modifiers) {
         if (gkm.device == GameKey::Void)
             continue;
         else if (gkm.device == GameKey::vJoy && gkm.code > 0)
             SetBtn(TRUE, Cfg.getVJoyDeviceID(), gkm.code);
-        else if (gkm.device == GameKey::Keyboard || gkm.device == GameKey::Mouse)
-            inputs.push_back(fillInput(gkm, false));
+        else if (gkm.device == GameKey::Keyboard) {
+            INPUT input {};
+            input.type = INPUT_KEYBOARD;
+            input.ki.wScan = gkm.code & 0xFF;
+            input.ki.dwFlags = KEYEVENTF_SCANCODE;
+            if (gkm.code & EXT_KEY)
+                input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+            unsigned sent = SendInput(1, &input, sizeof(INPUT));
+            if (sent != 1)
+                LOG(ERROR) << "SendInput keydown '" << gkm << "' failed: " << getErrorMessage();
+            kbd_sleep(10, true);
+        }
+        else if (gkm.device == GameKey::Mouse) {
+            INPUT input {};
+            input.type = INPUT_MOUSE;
+            if (gkm.code == 1) input.mi.dwFlags |= MOUSEEVENTF_LEFTDOWN;
+            else if (gkm.code == 2) input.mi.dwFlags |= MOUSEEVENTF_RIGHTDOWN;
+            else if (gkm.code == 3) input.mi.dwFlags |= MOUSEEVENTF_MIDDLEDOWN;
+            unsigned sent = SendInput(1, &input, sizeof(INPUT));
+            if (sent != 1)
+                LOG(ERROR) << "SendInput mouse button '" << gkm << "' failed: " << getErrorMessage();
+            kbd_sleep(10, true);
+        }
     }
-    if (gk.device == GameKey::Keyboard || gk.device == GameKey::Mouse)
-        inputs.push_back(fillInput(gk, false));
-    if (!inputs.empty()) {
-        unsigned sent = SendInput((int) inputs.size(), inputs.data(), sizeof(INPUT));
-        if (sent != inputs.size())
+    if (gk.device == GameKey::Keyboard) {
+        INPUT input {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wScan = gk.code & 0xFF;
+        input.ki.dwFlags = KEYEVENTF_SCANCODE;
+        if (gk.code & EXT_KEY)
+            input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        unsigned sent = SendInput(1, &input, sizeof(INPUT));
+        if (sent != 1)
             LOG(ERROR) << "SendInput keydown '" << gk << "' failed: " << getErrorMessage();
+    }
+    if (gk.device == GameKey::Mouse) {
+        INPUT input {};
+        input.type = INPUT_MOUSE;
+        if (gk.code == 1) input.mi.dwFlags |= MOUSEEVENTF_LEFTDOWN;
+        else if (gk.code == 2) input.mi.dwFlags |= MOUSEEVENTF_RIGHTDOWN;
+        else if (gk.code == 3) input.mi.dwFlags |= MOUSEEVENTF_MIDDLEDOWN;
+        unsigned sent = SendInput(1, &input, sizeof(INPUT));
+        if (sent != 1)
+            LOG(ERROR) << "SendInput mouse button '" << gk << "' failed: " << getErrorMessage();
     }
     if (gk.device == GameKey::vJoy && gk.code > 0)
         SetBtn(TRUE, Cfg.getVJoyDeviceID(), gk.code);
