@@ -45,7 +45,7 @@ int getNavPageIndex(const std::string &page_name) {
     return pageIndex;
 }
 
-bool gotoNavPage(Step *task, const std::string &page_name) {
+bool gotoNavPage(Step *task, const std::string &page_name, bool required) {
     int targetPageIndex = getNavPageIndex(page_name);
     if (targetPageIndex < 0)
         task->throw_failed("Bad page: "+page_name);
@@ -90,8 +90,11 @@ bool gotoNavPage(Step *task, const std::string &page_name) {
                 kbd::send("CyclePreviousPanel", 0, 250);
         }
     }
-    if (!task->mgr.uiState.match("scr-left-panel:" + page_name))
-        task->throw_trouble("Unexpected: " + task->mgr.uiState.to_string());
+    if (!task->mgr.uiState.match("scr-left-panel:" + page_name)) {
+        if (required)
+            task->throw_trouble("Unexpected: " + task->mgr.uiState.to_string());
+        return false;
+    }
     return true;
 }
 
@@ -481,7 +484,7 @@ bool BaseAutopilotTask::orientAwayFromTarget(double precision) {
 }
 
 int BaseAutopilotTask::getNavRoutePosition() {
-    auto navRoute = Cfg.getCurrentNavRoute();
+    auto navRoute = st::currentNavRoute;
     if (!navRoute || navRoute->route.empty())
         return -1;
 
@@ -491,7 +494,7 @@ int BaseAutopilotTask::getNavRoutePosition() {
 
     int currIdx = -1;
     for (int i = 0; i < navRoute->route.size(); i++) {
-        if (navRoute->route[i].systemAddress == starSystem->address) {
+        if (navRoute->route[i].systemAddress == starSystem->systemAddress) {
             currIdx = i;
             break;
         }
@@ -502,10 +505,34 @@ int BaseAutopilotTask::getNavRoutePosition() {
     return currIdx;
 }
 
+void BaseAutopilotTask::initNavFilter() {
+    st::NavPanelFilters filters{};
+    filters.star = true;
+    filters.planetOrMoon = true;
+    filters.landablePlanetOrMoon = true;
+    filters.station = true;
+    if (destDock) {
+        if (destDock->typeNav == gal::TypeNav::SpacePort)
+            filters.station = true;
+        if (destDock->typeNav == gal::TypeNav::Carrier) {
+            if (destDock->marketId != st::cmdr.carrierId)
+                filters.fleetCarrier = true;
+        }
+        if (destDock->typeNav == gal::TypeNav::MegashipDock) {
+            if (destDock->typeSite == gal::TypeSite::TrailblazerDream)
+                filters.pointOfInterest = true;
+            else
+                filters.station = true;
+        }
+    }
+    nl.init(this, destDock, destBody, filters);
+}
+
+
 TaskDebugAutopilot::TaskDebugAutopilot(ai::Step *parent, ai::AIManager &mgr, const ai::TaskTemplate &templ)
         : BaseAutopilotTask(parent, mgr, templ)
 {
-    assert (templ.name == ED_TASK_DEBUG_AUTOPILOT);
+    assert (templ.id == ED_TASK_DEBUG_AUTOPILOT);
     for (auto& p : templ.params) {
         if (p.name == "test")
             test = std::get<std::string>(p.value);
@@ -529,25 +556,7 @@ bool TaskDebugAutopilot::run() {
         destBody = starSystem->getBody(target);
     }
 
-    st::NavPanelFilters filters = {};
-    filters.star = true;
-    filters.planetOrMoon = true;
-    filters.landablePlanetOrMoon = true;
-    filters.station = true;
-    if (destDock) {
-        if (destDock->typeNav == gal::TypeNav::SpacePort)
-            filters.station = true;
-        if (destDock->typeNav == gal::TypeNav::Carrier)
-            filters.fleetCarrier = true;
-        if (destDock->typeNav == gal::TypeNav::MegashipDock) {
-            if (destDock->typeSite == gal::TypeSite::TrailblazerDream)
-                filters.pointOfInterest = true;
-            else
-                filters.station = true;
-        }
-    }
-
-    nl.init(this, destDock, destBody, filters);
+    initNavFilter();
 
     setSpeed(0);
 
@@ -639,6 +648,7 @@ bool DepartureStep::step() {
 
         LOG(INFO) << "Refuel...";
         status = REFUEL;
+        sleep(500);
         for (int i = 0; i < 4; i++)
             kbd::send("UI_Up");
         kbd::send("UI_Select", 0, 500); // refuel
@@ -857,22 +867,25 @@ bool HyperJumpStep::step() {
     }
 
     // select next jump system and jump
-    status = ORIENT;
-    task->setSpeed(50);
-    task->orientTowardTarget(5);
-    task->setSpeed(100);
+    timer = utc_timer(15s);
     status = CHARGE;
     kbd::send("HyperSuperCombination", 100, 1000);
     if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
         parent->notifyProgress("Entering jump failed");
         return false;
     }
-    timer = utc_timer(20s);
+    task->setSpeed(50);
+    task->orientTowardTarget(5);
+    while (timer.expired())
+        sleep(500);
+    task->setSpeed(100);
     for (;;) {
         if (st::ship.flags.fsd_jump)
             break;
-        if (!st::ship.flags.fsd_charging || timer.expired()) {
+        if (!st::ship.flags.fsd_charging || timer.sec_passed() > 60) {
             parent->notifyProgress("Jump failed");
+            if (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging)
+                kbd::send("HyperSuperCombination");
             return false;
         }
         sleep(500);
@@ -908,10 +921,8 @@ std::string HyperJumpStep::getStatus() {
     switch (status) {
     case READY:
         return "Ready";
-    case ORIENT:
-        return "Orienting";
     case CHARGE:
-        return std::format("Charging: {}", timer.left());
+        return std::format("Charging: {}", timer.passed());
     case HYPERSPACE:
         return "Hyperspace";
         return std::format("Hyperspace: {}", timer.left());
@@ -1163,22 +1174,24 @@ bool DockStep::step() {
         }
         sleep(250);
         mgr.detectEDState(DetectLevel::Screen);
-        if (st::ship.flags.docked || (mgr.cfg.dockingEvent && mgr.cfg.dockingEvent->event == "Docked")) {
+        if (st::ship.flags.docked) {
             LOG(INFO) << "Docking complete, status docked: " << st::ship.flags.docked
                       << ", docking event: " << (mgr.cfg.dockingEvent ? mgr.cfg.dockingEvent->event : "null");
             break;
         }
-        if (!mgr.cfg.dockingEvent || mgr.cfg.dockingEvent->event != "DockingGranted") {
+        auto de = mgr.cfg.dockingEvent;
+        if (!de || !(de->event == "DockingGranted" || de->event == "Docked")) {
             LOG(ERROR) << "Docking permission revoked, docking event: " << (mgr.cfg.dockingEvent ? mgr.cfg.dockingEvent->event : "null");
             return false;
         }
     }
 
     if (st::ship.flags.docked) {
+        status = REFUEL;
+        sleep(2000);
         mgr.detectEDState(DetectLevel::Screen);
         if (mgr.uiState.guiFocus == GuiFocus::None) {
             LOG(INFO) << "Refuel...";
-            status = REFUEL;
             for (int i = 0; i < 4; i++)
                 kbd::send("UI_Up");
             kbd::send("UI_Select", 0, 500); // refuel
@@ -1487,6 +1500,7 @@ bool CruiseToDistStep::step() {
         if (currentDist_km.dist <= requiredDist_km.dist) {
             status = DIST_STOP;
             task->setSpeed(0);
+            sleep(5000);
             return true;
         }
         else if (currentDist_km.dist <= requiredDist_km.dist * 1.5) {
@@ -1955,8 +1969,11 @@ bool CompleteNavRoute::step() {
         for (int retry=0; retry < 5; retry++) {
             status = ORIENT;
             task->setSpeed(50);
-            if (!task->orientTowardTarget(5))
+            if (!task->orientTowardTarget(3))
                 return false;
+            if (mgr.compassInfo.has_nav_target)
+                break;
+            mgr.detectEDState(DetectLevel::Screen);
             if (mgr.compassInfo.has_nav_target)
                 break;
             bool leave_body = st::shipAtBody.approachBody || st::shipAtBody.nearBody;
@@ -1989,6 +2006,7 @@ bool CompleteNavRoute::step() {
                 sleep(250);
             }
         }
+        status = JUMP;
         if (!run_sub_step(spStep(new HyperJumpStep(this))))
             return false;
     }
@@ -2007,6 +2025,8 @@ std::string CompleteNavRoute::getStatus() {
         return "Fly away from nearest body";
     case FLY_AWAY:
         return std::format("Fly away {}", timer.passed());
+    case JUMP:
+        return "----";
     }
     return "----";
 }
@@ -2046,11 +2066,16 @@ bool CruiseAndDock::step() {
 
     if (!at_dock) {
         // a few degrees visible angle to stop and avoid planet
-        double distToCorrect = 15000;
-        if (task->destBody)
-            distToCorrect = task->destBody->radius * 70;
-        if (distToCorrect < 15000)
-            distToCorrect = 15000;
+        const double min_dist = 15000;
+        const double max_dist = dist_t(dist_t::LS, 3).get(dist_t::KM);
+        double distToCorrect = min_dist;
+        if (task->destBody) {
+            if (task->destBody->typeNav == gal::TypeNav::Planet)
+                distToCorrect = task->destBody->radius * 40;
+            else if (task->destBody->typeNav == gal::TypeNav::Star)
+                distToCorrect = task->destBody->radius * 10;
+        }
+        distToCorrect = std::clamp(distToCorrect, min_dist, max_dist);
         status = APPROACH;
         if (!run_sub_step(spStep(new CruiseToDistStep(this, distToCorrect))))
             throw_trouble("Cannot cruise to dock/body");
@@ -2100,9 +2125,10 @@ std::string CruiseAndDock::getStatus() {
     return "----";
 }
 
-TaskTravel::TaskTravel(Step *parent, AIManager &mgr, const TaskTemplate &templ)
-    : BaseAutopilotTask(parent, mgr, templ)
+TaskTravel::TaskTravel(Step *parent, AIManager &mgr, const TaskTemplate &templ_)
+    : BaseAutopilotTask(parent, mgr, templ_)
 {
+    assert(templ.id == ED_TASK_TRAVEL);
     for (auto& p : templ.params) {
         if (p.name == "system")
             destSystemName = std::get<std::string>(p.value);
@@ -2115,9 +2141,9 @@ bool TaskTravel::run() {
     if (destSystemName.empty() || destDockName.empty())
         throw_failed("Destination system and dock required");
 
-    if (gal::getCurrentStarSystem()->name != destSystemName) {
+    if (gal::getCurrentStarSystem()->systemName != destSystemName) {
         bool change_route = false;
-        auto navRoute = Cfg.getCurrentNavRoute();
+        auto navRoute = st::currentNavRoute;
         if (!navRoute || navRoute->route.empty())
             change_route = true;
         else if (navRoute->route.back().starSystem != destSystemName)
@@ -2126,59 +2152,36 @@ bool TaskTravel::run() {
             if (!selectOnGalaxyMap(this, destSystemName))
                 throw_trouble("Cannot name route to destination system: " + destSystemName);
         }
-        st::NavPanelFilters filters {};
-        filters.star = true;
-        filters.system = true;
-        nl.init(this, nullptr, nullptr, filters);
+        nl.init(this, nullptr, nullptr, st::navFilters);
         if (!run_sub_step(spStep(new CompleteNavRoute(this))))
             throw_trouble("Cannot reach destination system");
-        if (gal::getCurrentStarSystem()->name != destSystemName)
+        if (gal::getCurrentStarSystem()->systemName != destSystemName)
             throw_trouble("Cannot reach destination system");
     }
 
     auto starSystem = gal::getCurrentStarSystem();
     destDock = starSystem->getDock(destDockName);
-    if (!destDock) {
-        throw_failed("Cannot find destination dock: " + destDockName + " in system " + starSystem->name);
+    if (!destDock)
+        throw_failed("Cannot find destination dock: " + destDockName + " in system " + starSystem->systemName);
+
+    if (destDock->parentBodyId < 0) {
+        initNavFilter();
+        if (!run_sub_step(spStep(new NavDockSelect(this, destDock))))
+            throw_trouble("Cannot select destination dock");
+        sleep(500);
     }
-    int bodyId = st::destination.bodyId;
-    if (destDock->typeNav == gal::TypeNav::SpacePort) {
-        if (!destDock->bodyId.has_value()) {
-            destDock->bodyId = bodyId;
-            starSystem->saved = false;
-            gal::saveStarSystem(starSystem.get());
-        }
-        bodyId = destDock->parentBodyId;
-    }
+
+    int bodyId = destDock->parentBodyId;
     if (bodyId > 0) {
         auto body = starSystem->getBodyById(bodyId);
         if (!body)
-            throw_failed("Cannot find body id: " + std::to_string(bodyId) + " in system " + starSystem->name);
+            throw_failed("Cannot find body id: " + std::to_string(bodyId) + " in system " + starSystem->systemName);
         destBody = std::dynamic_pointer_cast<gal::Body>(body);
         if (!destBody)
             throw_failed("Not a body: " + body->name);
     }
 
-    {
-        st::NavPanelFilters filters{};
-        filters.star = true;
-        filters.planetOrMoon = true;
-        filters.landablePlanetOrMoon = true;
-        filters.station = true;
-        if (destDock) {
-            if (destDock->typeNav == gal::TypeNav::SpacePort)
-                filters.station = true;
-            if (destDock->typeNav == gal::TypeNav::Carrier)
-                filters.fleetCarrier = true;
-            if (destDock->typeNav == gal::TypeNav::MegashipDock) {
-                if (destDock->typeSite == gal::TypeSite::TrailblazerDream)
-                    filters.pointOfInterest = true;
-                else
-                    filters.station = true;
-            }
-        }
-        nl.init(this, destDock, destBody, filters);
-    }
+    initNavFilter();
 
     if (!run_sub_step(spStep(new CruiseAndDock(this))))
         throw_trouble("Cannot cruise and dock");
@@ -2193,10 +2196,7 @@ Autopilot::Autopilot(Step *parent, AIManager &mgr, const TaskTemplate &templ)
 
 bool Autopilot::run() {
     if (getNavRoutePosition() >= 0) {
-        st::NavPanelFilters filters {};
-        filters.star = true;
-        filters.system = true;
-        nl.init(this, nullptr, nullptr, filters);
+        nl.init(this, nullptr, nullptr, st::navFilters);
         if (!run_sub_step(spStep(new CompleteNavRoute(this))))
             throw_trouble("Cannot reach destination system");
     }
@@ -2206,8 +2206,9 @@ bool Autopilot::run() {
     if (!destDock) {
         if (st::destination.name.empty())
             throw_failed("No destination dock selected");
-        throw_failed("Cannot find destination dock: " + st::destination.name + " in system " + starSystem->name);
+        throw_failed("Cannot find destination dock: " + st::destination.name + " in system " + starSystem->systemName);
     }
+
     int bodyId = st::destination.bodyId;
     if (destDock->typeNav == gal::TypeNav::SpacePort) {
         if (!destDock->bodyId.has_value()) {
@@ -2220,32 +2221,13 @@ bool Autopilot::run() {
     if (bodyId > 0) {
         auto body = starSystem->getBodyById(bodyId);
         if (!body)
-            throw_failed("Cannot find body id: " + std::to_string(bodyId) + " in system " + starSystem->name);
+            throw_failed("Cannot find body id: " + std::to_string(bodyId) + " in system " + starSystem->systemName);
         destBody = std::dynamic_pointer_cast<gal::Body>(body);
         if (!destBody)
             throw_failed("Not a body: " + body->name);
     }
 
-    {
-        st::NavPanelFilters filters{};
-        filters.star = true;
-        filters.planetOrMoon = true;
-        filters.landablePlanetOrMoon = true;
-        filters.station = true;
-        if (destDock) {
-            if (destDock->typeNav == gal::TypeNav::SpacePort)
-                filters.station = true;
-            if (destDock->typeNav == gal::TypeNav::Carrier)
-                filters.fleetCarrier = true;
-            if (destDock->typeNav == gal::TypeNav::MegashipDock) {
-                if (destDock->typeSite == gal::TypeSite::TrailblazerDream)
-                    filters.pointOfInterest = true;
-                else
-                    filters.station = true;
-            }
-        }
-        nl.init(this, destDock, destBody, filters);
-    }
+    initNavFilter();
 
     if (!run_sub_step(spStep(new CruiseAndDock(this))))
         throw_trouble("Cannot cruise and dock");

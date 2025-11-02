@@ -10,6 +10,7 @@
 #include "EDWidget.h"
 #include "Capturer.h"
 #include "ShipStats.h"
+#include "Galaxy.h"
 #include "detect/Detector.h"
 #include "detect/Lines.h"
 #include "detect/NavPanel.h"
@@ -172,9 +173,6 @@ bool Configuration::load() {
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
 
-        currentMarket = std::make_shared<Market>();
-        currentCargo = std::make_shared<ShipCargo>();
-        currentNavRoute = std::make_shared<NavRoute>();
         loadGameStatus();
         loadCalibration();
 
@@ -1052,7 +1050,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     std::vector<Commodity*> out;
     if (st::lng == Lang::XX)
         return out;
-    spMarket market = currentMarket;
+    spMarket market = st::currentMarket;
     if (!market)
         return out;
     // check filters are supported
@@ -1063,15 +1061,17 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     bool isFC = (market->stationType == "FleetCarrier");
     // add everything we can sell, then sort according to market order
     for (auto& c : allKnownCommodities) {
-        if (!market->items.contains(&c))
+        auto it = market->items.find(&c);
+        if (it == market->items.end())
             continue;
+        MarketLine& ml = it->second;
         if (c.rare && c.ship.count <= c.ship.stolen)
             continue;
         if (isFC) {
-            if (c.market.demand <= 0)
+            if (ml.demand <= 0)
                 continue;
         } else {
-            if (!c.market.isConsumer || c.market.demand <= 0) {
+            if (!ml.isConsumer || ml.demand <= 0) {
                 if (c.ship.count <= c.ship.stolen)
                     continue;
             }
@@ -1100,7 +1100,7 @@ std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
     std::vector<Commodity*> out;
     if (st::lng == Lang::XX)
         return out;
-    spMarket market = currentMarket;
+    spMarket market = st::currentMarket;
     if (!market)
         return out;
     // check filters are supported
@@ -1110,9 +1110,11 @@ std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
     }
     // add everything we can buy, then sort according to market order
     for (auto& c : allKnownCommodities) {
-        if (!market->items.contains(&c))
+        auto it = market->items.find(&c);
+        if (it == market->items.end())
             continue;
-        if (c.market.stock <= 0)
+        MarketLine& ml = it->second;
+        if (ml.stock <= 0)
             continue;
         if (marketShowRareGoods && c.rare)
             out.push_back(&c);
@@ -1202,8 +1204,7 @@ bool Configuration::loadMarket(Timestamp event_timestamp) {
                 .translation = translation,
                 .rare = j_item.at("Rare",false).as_boolean()
         });
-        MarketLine& ml = commodity.market;
-        ml.timestamp = timestamp;
+        MarketLine ml {};
         ml.buyPrice = item.at("BuyPrice").as_int32();
         ml.sellPrice = item.at("SellPrice").as_int32();
         ml.meanPrice = item.at("MeanPrice").as_int32();
@@ -1218,13 +1219,8 @@ bool Configuration::loadMarket(Timestamp event_timestamp) {
     if (mCommodityDatabaseUpdated)
         dumpCommodityDatabase();
 
-    currentMarket.swap(market);
-    Timestamp zero_time;
-    for (auto& c : allKnownCommodities) {
-        if (c.market.timestamp > zero_time && c.market.timestamp < timestamp) {
-            c.market = {};
-        }
-    }
+    st::currentMarket.swap(market);
+    gal::setMarketData(st::currentMarket);
     return true;
 }
 
@@ -1277,7 +1273,7 @@ bool Configuration::loadCargo(Timestamp event_timestamp) {
         c->ship.stolen = item.at("Stolen").as_integer();
         cargo->inventory.push_back(c);
     }
-    currentCargo.swap(cargo);
+    st::currentCargo.swap(cargo);
     Timestamp zero_time;
     for (auto& c : allKnownCommodities) {
         if (c.ship.timestamp > zero_time && c.ship.timestamp < timestamp) {
@@ -1321,7 +1317,7 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
         }
         route->route.emplace_back(starSystem, systemAddress, pos, starClass);
     }
-    currentNavRoute.swap(route);
+    st::currentNavRoute.swap(route);
     return true;
 }
 
@@ -2045,6 +2041,8 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
         widget->setRect("rect", j);
         if (jo.contains("ext"))
             ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
+        if (j["icon"].is_string())
+            btn->icon = j["icon"].as_string();
     }
     else if (name.starts_with("spn-")) {
         auto btn = new Spinner(name, parent);
@@ -2076,6 +2074,10 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
         lst->row_height = (float) j.at("row_height",0).as_number();
         lst->row_gap = (float) j.at("row_gap",0).as_number();
         lst->header = (float) j.at("header",0).as_number();
+        if (j["row_test"].is_array()) {
+            lst->row_test_bgn = j["row_test"][0].as_integer();
+            lst->row_test_end = j["row_test"][1].as_integer();
+        }
         if (jo.contains("tabs")) {
             auto& jtabs = jo.at("tabs").as_array();
             for (auto& jt : jtabs) {

@@ -43,6 +43,8 @@ extern int ocrMarketLblTextForTraining(const cv::Mat& grayImage, const ResolvedE
 extern int ocrNavigationLblText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string& text);
 extern int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string& text, cv::Mat& dumpImage);
 
+extern cv::Mat normalizeTargetDistText(const cv::Mat& grayImage);
+extern int ocrTargetDistText(const cv::Mat& grayImage, std::string& text);
 }
 
 #endif //EDROBOT_OCR_H

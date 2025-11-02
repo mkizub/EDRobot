@@ -839,7 +839,9 @@
 			topspd:200, bstspd:340, mnv:1, shields:228, armour:440, mass:400, fwdacc:NaN, revacc:NaN, latacc:NaN, // TODO: *acc
 			minthrust:45, boostcost:10, boostint:6, pitch:28, yaw:18, roll:60, pitchacc:NaN, yawacc:NaN, rollacc:NaN, minpitch:17, minyaw:16, // TODO: *acc
 			heatcap:236, heatdismin:NaN, heatdismax:36.50, fuelcost:50, fuelreserve:0.52, hardness:58, masslock:18, crew:1, // TODO: heatdismin
-			yaw_cruise: [9,18,11], pitch_cruise: [9,18,11], roll_cruise: [48,60,48],
+			pitch_cruise: [9,18,11], pitch_space: [0.8,1,0.8],
+			yaw_cruise: [9,18,11], yaw_space: [0.8,1,0.8],
+			roll_cruise: [48,60,48], roll_space: [0.84,1,0.6],
 			slots:{
 				hardpoint:[2,1,1,1,1,1],
 				utility  :[0,0,0,0],

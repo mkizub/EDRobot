@@ -210,7 +210,7 @@ int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, c
     if (cr.u.lrow.ws != WState::Focused)
         cv::bitwise_not(scaledImage, scaledImage);
     int ocr_top = t.ocr_top * scale - ocr::LEADING;
-    cv::Rect ocrRect {0, ocr_top-4, scaledImage.cols, ocr::LINE_HEIGHT+8};
+    cv::Rect ocrRect {0, ocr_top-3, scaledImage.cols, ocr::LINE_HEIGHT+4};
     ocrRect &= cv::Rect(0, 0, scaledImage.cols, scaledImage.rows);
     cv::Mat ocrImage(scaledImage, ocrRect);
     {
@@ -389,4 +389,55 @@ int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&
 
     return conf;
 }
+
+cv::Mat normalizeTargetDistText(const cv::Mat& grayImage) {
+    int histSize = 256;
+    float range[]{0, 256}; //the upper boundary is exclusive
+    const float *histRange[]{range};
+    cv::Mat hist;
+    cv::calcHist(&grayImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+    cv::GaussianBlur(hist, hist, cv::Size(9,9), 0); // TODO: maybe not needed
+
+//    // Create histogram image
+//    int hist_w = 256;
+//    int hist_h = 200;
+//    int bin_w = cvRound((double)hist_w / 256.0);
+//    cv::Mat histImage(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
+//    // Normalize histogram to fit image height
+//    cv::normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
+//    // Draw lines for each bin
+//    for (int i = 1; i < histSize; i++) {
+//        cv::line(histImage,
+//                 cv::Point(bin_w * (i - 1), hist_h - cvRound(hist.at<float>(i - 1))),
+//                 cv::Point(bin_w * (i), hist_h - cvRound(hist.at<float>(i))),
+//                 cv::Scalar(255, 255, 255), 2, 8, 0); // White lines for grayscale
+//    }
+
+    int blackIdx=-1, whiteIdx=-1;
+    float blackVal=0, whiteVal=0;
+    // first, locate maximum, the background - white value
+    for (int i=10; i < 240; i++) {
+        float val = hist.at<float>(i);
+        if (blackIdx < 0 && val > 0) {
+            blackIdx = i;
+        }
+        if (val > 0) {
+            whiteVal = val;
+            whiteIdx = i;
+        }
+    }
+    // scale image range (between black and white) to full range
+    double mul = 255.0 / (whiteIdx - blackIdx);
+    double add = - blackIdx * mul;
+    cv::Mat ocrImage;
+    cv::convertScaleAbs(grayImage, ocrImage, mul, add);
+    return ocrImage;
+}
+
+int ocrTargetDistText(const cv::Mat& grayImage, std::string& text) {
+    cv::Mat ocrImage = normalizeTargetDistText(grayImage);
+    int conf = ocr::ocrLine(ocr::DISTANCE, "(nav dist)", ocrImage, text, nullptr);
+    return conf;
+}
+
 }

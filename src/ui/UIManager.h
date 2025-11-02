@@ -11,10 +11,10 @@ class UIToast;
 class UISellInput;
 class UICalibration;
 class UISelectRect;
-class Main;
+class UIMainDialog;
 
 class UIManager {
-    UIManager(Main&);
+    UIManager(UIMainDialog&);
     ~UIManager();
 
 public:
@@ -30,13 +30,12 @@ public:
     static bool showDebugWindow();
     static bool postToDebugWindow(const XMat& image);
     static bool postToDebugWindow(const XMat& image, const cv::Mat& overlay);
-    static bool askCalibrationDialog(const std::string& line1);
     static bool askSelectRectWindow();
 
 private:
     void uiThreadLoop();
 
-    Main& uiMain;
+    UIMainDialog& uiMain;
     std::thread uiThread;
 };
 

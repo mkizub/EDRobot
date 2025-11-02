@@ -23,7 +23,14 @@ NavPanelFilters navFilters {};
 Destination destination {};
 ShipStatus ship {};
 ShipAtBody shipAtBody {};
+
+spMarket currentMarket;
+spShipCargo currentCargo;
+spNavRoute currentNavRoute;
 }
+
+static int64_t fssSignalSystemAddress;
+static std::vector<spGameEvent> allFSSSignalEvents;
 
 inline void set(std::string& field, const json5pp::value& value) {
     if (!value.is_string()) {
@@ -44,6 +51,59 @@ GameEvent::GameEvent(json5pp::value&& j) : data(std::move(j)) {
         event = data["event"].as_string();
 }
 
+void parseEvent_Fileheader(spGameEvent& ge);
+void parseEvent_Commander(spGameEvent& ge);
+void parseEvent_LoadGame(spGameEvent& ge);
+void parseEvent_CarrierLocation(spGameEvent& ge);
+void parseEvent_Location(spGameEvent& ge);
+void parseEvent_Loadout(spGameEvent& ge);
+void parseEvent_Cargo(spGameEvent& ge);
+void parseEvent_Market(spGameEvent& ge);
+void parseEvent_NavRoute(spGameEvent& ge);
+void parseEvent_NavRouteClear(spGameEvent& ge);
+void parseEvent_ColonisationConstructionDepot(spGameEvent& ge);
+void parseEvent_ShipyardSwap(spGameEvent& ge);
+void parseEvent_Docked(spGameEvent& ge);
+void parseEvent_Undocked(spGameEvent& ge);
+void parseEvent_Docking(spGameEvent& ge);
+void parseEvent_StartJump(spGameEvent& ge);
+void parseEvent_FSDJump(spGameEvent& ge);
+void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge);
+void parseEvent_SupercruiseExit(spGameEvent& ge);
+void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
+void parseEvent_ApproachBody(spGameEvent& ge);
+void parseEvent_LeaveBody(spGameEvent& ge);
+
+std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
+        {"Fileheader", parseEvent_Fileheader},
+        {"Commander", parseEvent_Commander},
+        {"LoadGame", parseEvent_LoadGame},
+        {"CarrierLocation", parseEvent_CarrierLocation},
+        {"Location", parseEvent_Location},
+        {"Loadout", parseEvent_Loadout},
+        {"Cargo", parseEvent_Cargo},
+        {"Market", parseEvent_Market},
+        {"NavRoute", parseEvent_NavRoute},
+        {"NavRouteClear", parseEvent_NavRouteClear},
+        {"ColonisationConstructionDepot", parseEvent_ColonisationConstructionDepot},
+        {"ShipyardSwap", parseEvent_ShipyardSwap},
+        {"Docked", parseEvent_Docked},
+        {"Undocked", parseEvent_Undocked},
+        {"Liftoff", parseEvent_Undocked},
+        {"DockingCancelled", parseEvent_Docking},
+        {"DockingDenied", parseEvent_Docking},
+        {"DockingGranted", parseEvent_Docking},
+        {"DockingRequested", parseEvent_Docking},
+        {"DockingTimeout", parseEvent_Docking},
+        {"StartJump", parseEvent_StartJump},
+        {"FSDJump", parseEvent_FSDJump},
+        {"SupercruiseDestinationDrop", parseEvent_SupercruiseDestinationDrop},
+        {"SupercruiseExit", parseEvent_SupercruiseExit},
+        {"FSSSignalDiscovered", parseEvent_FSSSignalDiscovered},
+        {"ApproachBody", parseEvent_ApproachBody},
+        {"LeaveBody", parseEvent_LeaveBody},
+};
+
 spGameEvent Configuration::parseEvent(const std::string& line) {
     spGameEvent gameEvent;
     {
@@ -62,48 +122,15 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
     auto& event = gameEvent->event;
     LOG(DEBUG) << "Journal event: " << event;
 
-    if (event == "Fileheader")
-        parseEvent_Fileheader(gameEvent);
-    else if (event == "LoadGame")
-        parseEvent_LoadGame(gameEvent);
-    else if (event == "Commander")
-        parseEvent_Commander(gameEvent);
-    else if (event == "CarrierLocation")
-        parseEvent_CarrierLocation(gameEvent);
-    else if (event == "Location")
-        parseEvent_Location(gameEvent);
-    else if (event == "Loadout")
-        parseEvent_Loadout(gameEvent);
-    else if (event == "Cargo")
-        Cfg.loadCargo(gameEvent->timestamp);
-    else if (event == "Market")
-        Cfg.loadMarket(gameEvent->timestamp);
-    else if (event == "NavRoute")
-        Cfg.loadNavRoute(gameEvent->timestamp);
-    else if (event == "NavRouteClear")
-        Cfg.currentNavRoute = std::make_shared<NavRoute>();
-    else if (event == "ShipyardSwap")
-        parseEvent_ShipyardSwap(gameEvent);
-    else if (event == "Docked")
-        parseEvent_Docked(gameEvent);
-    else if (event == "Undocked" || event == "Liftoff")
-        parseEvent_Undocked(gameEvent);
-    else if (event.starts_with("Docking"))
-        parseEvent_Docking(gameEvent);
-    else if (event == "StartJump")
-        parseEvent_StartJump(gameEvent);
-    else if (event == "FSDJump")
-        parseEvent_FSDJump(gameEvent);
-    else if (event == "SupercruiseDestinationDrop")
-        parseEvent_SupercruiseDestinationDrop(gameEvent);
-    else if (event == "SupercruiseExit")
-        parseEvent_SupercruiseExit(gameEvent);
-    else if (event == "FSSSignalDiscovered")
-        parseEvent_FSSSignalDiscovered(gameEvent);
-    else if (event == "ApproachBody")
-        parseEvent_ApproachBody(gameEvent);
-    else if (event == "LeaveBody")
-        parseEvent_LeaveBody(gameEvent);
+    if (fssSignalSystemAddress) {
+        if (event != "FSSSignalDiscovered") {
+            spGameEvent empty;
+            parseEvent_FSSSignalDiscovered(empty);
+        }
+    }
+    auto it = eventMap.find(event);
+    if (it != eventMap.end())
+        it->second(gameEvent);
 
     return gameEvent;
 }
@@ -186,13 +213,13 @@ bool Configuration::loadGameStatus() {
     if (auto& jd = j["Destination"]; jd.is_object()) {
         // "Destination":{ "System":2381282543995, "Body":0, "Name":"Col 285 Sector XK-O d6-69" }
         // "Destination":{ "System":2868098639337, "Body":1, "Name":"Orbital Construction Site: Piestrak Town" }
-        int64 system = jd.at("System",0).as_int64();
+        int64 systemAddress = jd.at("System",0).as_int64();
         std::string name = jd.at("Name","").as_string();
         int bodyId = jd.at("Body",0).as_integer();
-        if (system != st::destination.system || name != st::destination.name || bodyId != st::destination.bodyId) {
-            st::destination.system = jd.at("System", 0).as_int64();
-            st::destination.name = jd.at("Name", "").as_string();
-            st::destination.bodyId = jd.at("Body", 0).as_integer();
+        if (systemAddress != st::destination.systemAddress || name != st::destination.name || bodyId != st::destination.bodyId) {
+            st::destination.systemAddress = systemAddress;
+            st::destination.name = name;
+            st::destination.bodyId = bodyId;
             auto &ss = gal::getCurrentStarSystem();
             if (ss)
                 ss->addDestination();
@@ -205,7 +232,7 @@ bool Configuration::loadGameStatus() {
     return true;
 }
 
-void Configuration::parseEvent_Fileheader(spGameEvent& ge) {
+void parseEvent_Fileheader(spGameEvent& ge) {
     auto& je = ge->data;
     auto& client = const_cast<st::GameClient&>(st::client);
     client.isOdyssey = je["Odyssey"].as_boolean();
@@ -225,13 +252,13 @@ void Configuration::parseEvent_Fileheader(spGameEvent& ge) {
     }
 }
 
-void Configuration::parseEvent_Commander(spGameEvent& ge) {
+void parseEvent_Commander(spGameEvent& ge) {
     auto& je = ge->data;
     const_cast<st::Commander&>(st::cmdr).name = je["Name"].as_string();
     const_cast<st::Commander&>(st::cmdr).fid = je["FID"].as_string();
 }
 
-void Configuration::parseEvent_LoadGame(spGameEvent& ge) {
+void parseEvent_LoadGame(spGameEvent& ge) {
     auto& je = ge->data;
     if (je["Commander"].is_string()) {
         const_cast<st::Commander&>(st::cmdr).name = je["Commander"].as_string();
@@ -263,10 +290,16 @@ void Configuration::parseEvent_LoadGame(spGameEvent& ge) {
     shipInfo.shipId = je.at("ShipID",0).as_integer();
 }
 
-void Configuration::parseEvent_CarrierLocation(spGameEvent& ge) {
+void parseEvent_CarrierLocation(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    auto& cmdr = const_cast<st::Commander&>(st::cmdr);
+    cmdr.carrierId = je.at("CarrierID",0).as_int64();
+    cmdr.carrierInSystem = je.at("StarSystem","").as_string();
+    cmdr.carrierAtBodyId = je.at("BodyID",-1).as_integer();
 }
 
-void Configuration::parseEvent_Location(spGameEvent& ge) {
+void parseEvent_Location(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto& starSystem = je["StarSystem"];
@@ -274,20 +307,20 @@ void Configuration::parseEvent_Location(spGameEvent& ge) {
         st::currentStarSystem = starSystem.as_string();
         int64_t address = je.at("SystemAddress",0).as_int64();
         gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
-        if (cv::norm(ss->pos) == 0 && je["StarPos"].is_array()) {
+        if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
             auto& jp = je["StarPos"].as_array();
-            ss->pos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+            ss->starPos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
         }
         gal::setCurrentStarSystem(ss);
     }
     if (ge->event == "Docked" || je["Docked"]) {
-        st::space = {};
         st::dockedAt.marketId = je.at("MarketID",0).as_int64();
         set(st::dockedAt.stationName, je.at("StationName",""));
         set(st::dockedAt.stationType, je.at("StationType",""));
-    }
-    else {
-        st::dockedAt = {};
+        gal::spStarSystem ss = gal::getCurrentStarSystem();
+        ss->addStation(st::dockedAt.marketId, st::dockedAt.stationName, st::dockedAt.stationType);
+        st::space = {};
+    } else {
         if (je["Body"].is_string()) {
             st::space.bodyId = je.at("BodyID",0).as_integer();
             set(st::space.bodyName, je.at("Body",""));
@@ -295,10 +328,11 @@ void Configuration::parseEvent_Location(spGameEvent& ge) {
         } else {
             st::space = {};
         }
+        st::dockedAt = {};
     }
 }
 
-void Configuration::parseEvent_Loadout(spGameEvent& ge) {
+void parseEvent_Loadout(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
@@ -330,7 +364,20 @@ void Configuration::parseEvent_Loadout(spGameEvent& ge) {
     eddb::setShipStats(ss);
 }
 
-void Configuration::parseEvent_ShipyardSwap(spGameEvent& ge) {
+void parseEvent_Cargo(spGameEvent& ge) {
+    Cfg.loadCargo(ge->timestamp);
+}
+void parseEvent_Market(spGameEvent& ge) {
+    Cfg.loadMarket(ge->timestamp);
+}
+void parseEvent_NavRoute(spGameEvent& ge) {
+    Cfg.loadNavRoute(ge->timestamp);
+}
+void parseEvent_NavRouteClear(spGameEvent& ge) {
+    st::currentNavRoute = std::make_shared<NavRoute>();
+}
+
+void parseEvent_ShipyardSwap(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
@@ -342,21 +389,22 @@ void Configuration::parseEvent_ShipyardSwap(spGameEvent& ge) {
     shipInfo.shipId = je.at("ShipID",0).as_integer();
 }
 
-void Configuration::parseEvent_Docked(spGameEvent& ge) {
-    dockingEvent = ge;
+void parseEvent_Docked(spGameEvent& ge) {
+    Cfg.dockingEvent = ge;
     parseEvent_Location(ge);
 }
 
-void Configuration::parseEvent_Undocked(spGameEvent& ge) {
-    dockingEvent.reset();
+void parseEvent_Undocked(spGameEvent& ge) {
+    Cfg.dockingEvent.reset();
+    st::currentMarket.reset();
     auto& je = ge->data;
     st::space.marketId = je.at("MarketID",0).as_int64();
     st::space.stationName = je["StationName"];
     st::space.stationType = je.at("StationType", st::dockedAt.stationType);
 }
 
-void Configuration::parseEvent_Docking(spGameEvent& ge) {
-    dockingEvent = ge;
+void parseEvent_Docking(spGameEvent& ge) {
+    Cfg.dockingEvent = ge;
     auto& je = ge->data;
     st::space.marketId = je.at("MarketID",0).as_int64();
     st::space.stationName = je["StationName"];
@@ -372,7 +420,7 @@ void Configuration::parseEvent_Docking(spGameEvent& ge) {
 //    }
 }
 
-void Configuration::parseEvent_StartJump(spGameEvent& ge) {
+void parseEvent_StartJump(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::dockedAt = {};
@@ -386,7 +434,7 @@ void Configuration::parseEvent_StartJump(spGameEvent& ge) {
     }
 }
 
-void Configuration::parseEvent_FSDJump(spGameEvent& ge) {
+void parseEvent_FSDJump(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::dockedAt = {};
@@ -394,9 +442,9 @@ void Configuration::parseEvent_FSDJump(spGameEvent& ge) {
     st::currentStarSystem = je["StarSystem"].as_string();
     int64_t address = je["SystemAddress"].as_int64();
     gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
-    if (cv::norm(ss->pos) == 0 && je["StarPos"].is_array()) {
+    if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
         auto& jp = je["StarPos"].as_array();
-        ss->pos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+        ss->starPos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
     }
     gal::setCurrentStarSystem(ss);
     st::space.bodyId = je.at("BodyID",0).as_integer();
@@ -404,28 +452,36 @@ void Configuration::parseEvent_FSDJump(spGameEvent& ge) {
     set(st::space.bodyType, je.at("BodyType",""));
 }
 
-void Configuration::parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
+void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::dockedAt = {};
     st::space.marketId = je.at("MarketID",0).as_int64();
-    st::space.stationName = je.at("Type").as_string();
+    st::space.stationName = je.at("Type","").as_string();
     st::space.stationType.clear();
-    gal::spStarSystem ss = gal::getCurrentStarSystem();
-    if (!ss)
+    gal::spStarSystem starSystem = gal::getCurrentStarSystem();
+    if (!starSystem)
         return;
-    gal::spSite dock = ss->getDock(st::space.marketId);
-    if (dock) {
+    if (st::space.marketId) {
+        gal::spSite dock = starSystem->getDock(st::space.marketId);
+        if (!dock)
+            dock = starSystem->addStation(st::space.marketId, st::space.stationName, st::space.stationType);
         switch (dock->typeSite) {
-        case gal::TypeSite::FleetCarrier: st::space.stationType = "FleetCarrier"; break;
-        case gal::TypeSite::SpaceConstr: st::space.stationType = "SpaceConstructionDepot"; break;
+        case gal::TypeSite::FleetCarrier:
+            st::space.stationType = "FleetCarrier";
+            break;
+        case gal::TypeSite::SpaceConstr:
+            st::space.stationType = "SpaceConstructionDepot";
+            break;
+        default:
+            break;
         }
+        if (st::space.stationType.empty() && st::space.stationName.starts_with("Orbital Construction Site"))
+            st::space.stationType = "SpaceConstructionDepot";
     }
-    if (st::space.stationType.empty() && st::space.stationName.starts_with("Orbital Construction Site"))
-        st::space.stationType = "SpaceConstructionDepot";
 }
 
-void Configuration::parseEvent_SupercruiseExit(spGameEvent& ge) {
+void parseEvent_SupercruiseExit(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::dockedAt = {};
@@ -434,17 +490,34 @@ void Configuration::parseEvent_SupercruiseExit(spGameEvent& ge) {
     set(st::space.bodyType, je.at("BodyType",""));
 }
 
-void Configuration::parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
-    auto& je = ge->data;
+void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
+    if (!ge || ge->event != "FSSSignalDiscovered") {
+        // stop FSSSignalDiscovered chain
+        gal::spStarSystem ss = gal::getCurrentStarSystem();
+        if (ss && fssSignalSystemAddress && ss->systemAddress == fssSignalSystemAddress && !allFSSSignalEvents.empty()) {
+            ss->addFSSSignalDiscovered(allFSSSignalEvents);
+        }
+        allFSSSignalEvents.clear();
+        fssSignalSystemAddress = 0;
+    } else {
+        auto& je = ge->data;
 
-    int64_t address = je["SystemAddress"].as_int64();
-    gal::spStarSystem ss = gal::getCurrentStarSystem();
-    if (!ss || ss->address != address)
-        return;
-    ss->addFSSSignalDiscovered(ge);
+        int64_t address = je.at("SystemAddress",0).as_int64();
+        gal::spStarSystem ss = gal::getCurrentStarSystem();
+        if (!ss || !address || ss->systemAddress != address) {
+            allFSSSignalEvents.clear();
+            fssSignalSystemAddress = 0;
+            return;
+        }
+        if (!fssSignalSystemAddress) {
+            allFSSSignalEvents.clear();
+            fssSignalSystemAddress = address;
+        }
+        allFSSSignalEvents.push_back(ge);
+    }
 }
 
-void Configuration::parseEvent_ApproachBody(spGameEvent& ge) {
+void parseEvent_ApproachBody(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::shipAtBody.approachBody = true;
@@ -452,7 +525,7 @@ void Configuration::parseEvent_ApproachBody(spGameEvent& ge) {
     set(st::shipAtBody.bodyName, je.at("Body",""));
 }
 
-void Configuration::parseEvent_LeaveBody(spGameEvent& ge) {
+void parseEvent_LeaveBody(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::shipAtBody.approachBody = false;
@@ -460,3 +533,46 @@ void Configuration::parseEvent_LeaveBody(spGameEvent& ge) {
     set(st::shipAtBody.bodyName, je.at("Body",""));
 }
 
+void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    auto starSystem = gal::getCurrentStarSystem();
+    if (!starSystem)
+        return;
+    int64_t marketId = je.at("MarketID").as_int64();
+    auto dock = starSystem->getDock(marketId);
+    if (!dock)
+        return;
+    if (dock->marketData && dock->marketData->timestamp > ge->timestamp)
+        return;
+    spMarket market = std::shared_ptr<Market>(new Market{
+            .timestamp = ge->timestamp,
+            .marketId = marketId,
+            .stationName = dock->name,
+            .stationType = "",
+            .starSystem = starSystem->systemName,
+    });
+    auto& resources = je.at("ResourcesRequired").as_array();
+    for (auto& jr : resources) {
+        if (!jr["Name"].is_string())
+            continue;
+        std::string name = jr["Name"].as_string();
+        // "$aluminium_name;"
+        if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
+            continue;
+        name = name.substr(1,name.size()-7);
+        Commodity* commodity = Cfg.getCommodityById(name);
+        if (!commodity)
+            continue;
+        MarketLine ml {};
+        ml.sellPrice = jr.at("Payment",0).as_int32();
+        ml.stock = jr.at("ProvidedAmount",0).as_int32();
+        ml.demand = jr.at("RequiredAmount",0).as_int32();
+        ml.isConsumer = true;
+        ml.isProducer = false;
+        market->items.emplace(commodity, ml);
+    }
+
+    st::currentMarket.swap(market);
+    gal::setMarketData(st::currentMarket);
+}

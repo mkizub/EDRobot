@@ -29,8 +29,9 @@ public:
     bool new_task(spTask&& task);
     bool new_task(const TaskTemplate& templ);
 
-    const std::vector<TaskTemplate*>& getTaskTemplates();
-    const TaskTemplate& getTaskTemplate(const std::string& name);
+    const std::list<TaskTemplate>& getUserTasks();
+    const std::list<TaskTemplate>& getTemplates();
+    const TaskTemplate* getTaskTemplate(const std::string& name);
 
     enum class CheckResult {
         Failure,
@@ -47,10 +48,12 @@ public:
     Configuration& cfg;
 
     void initTemplates();
+    TaskTemplate loadTemplate(const json5pp::value& j_task);
+    void loadSavedTasks();
 
-    std::vector<TaskTemplate> AllImplementedTasks;
-    std::vector<TaskTemplate*> AllImplementedTaskRefs;
-    std::map<std::string,TaskTemplate*> AllImplementedTaskMap;
+    std::list<TaskTemplate> AllTasks;
+    std::list<TaskTemplate> AllTaskTemplates;
+    std::map<std::string,TaskTemplate*> TaskTemplateMap;
 
     spTask activeTask;
     spTask lastTask;

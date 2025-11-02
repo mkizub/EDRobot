@@ -77,40 +77,15 @@ namespace ai {
 
 
 
-extern const std::string ED_STATE_VOID;    // unknown state
-extern const std::string ED_STATE_SPACE;   // in conventional space
-extern const std::string ED_STATE_JUMP;    // jumping from one system to another
-extern const std::string ED_STATE_CRUISE;  // in hyper-cruise space mode
-extern const std::string ED_STATE_CRUISE_INT; // intercepted during hyper-cruise
-extern const std::string ED_STATE_CRUISE_JET; // int neutron star jet
-extern const std::string ED_STATE_DOCKED;  // docked at station/settlement
-extern const std::string ED_STATE_LANDED;  // landed outside of station/settlement
-extern const std::string ED_STATE_DEPART;  // departure from docked/landed state
-
-extern const std::string ED_UI_MODE_NORM;  // default, not viewing any info panel
-extern const std::string ED_UI_MODE_LEFT;  // viewing navigation (left-1) panel
-extern const std::string ED_UI_MODE_RIGHT; // viewing ship information (right-4) panel
-extern const std::string ED_UI_MODE_DOWN;  // viewing command (bottom-3) panel
-extern const std::string ED_UI_MODE_CHAT;  // viewing communication (up-2) panel
-extern const std::string ED_UI_MODE_DOCK;  // docked at station (departure, goto services, refuel, etc.)
-extern const std::string ED_UI_MODE_STATION; // viewing docked station services screens (trading/etc.)
-extern const std::string ED_UI_MODE_GAL_MAP; // viewing galaxy map
-extern const std::string ED_UI_MODE_SYS_MAP; // viewing star system map
-
-extern const std::string ED_TASK_SEQ;               // sequence of several tasks
-extern const std::string ED_TASK_LOOP;              // repeat task a few times
-extern const std::string ED_TASK_GOTO_SERVICES;     // just press 'services' button at dock
-extern const std::string ED_TASK_GOTO_MARKET;       // select 'market' button at dock
-extern const std::string ED_TASK_MARKET_SELL_ALL;   // sell all commodities, maybe by a few items
+extern const std::string ED_TASK_REPEAT;            // repeat sequence of several tasks
 extern const std::string ED_TASK_MARKET_SELL;       // sell specified commodity, maybe by a few items
+extern const std::string ED_TASK_MARKET_SELL_ALL;   // sell all commodities, maybe by a few items
 extern const std::string ED_TASK_MARKET_BUY;        // buy a list of commodities
+extern const std::string ED_TASK_MARKET_BUY_CONSTR; // buy commodities needed for construction
 extern const std::string ED_TASK_CONSTR_UNLOAD;     // unload all construction materials at construction depot
 extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination
 extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
 extern const std::string ED_TASK_NAV_SCAN;          // san navigation map
-extern const std::string ED_TASK_GAL_MAP_SELECT;    // select destination star system on galaxy map
-extern const std::string ED_TASK_SYS_MAP_SELECT;    // select destination POI on system map
-extern const std::string ED_TASK_NIGH;              // fly toward port/station after cruise exit
 
 extern const std::string ED_TASK_CALIBRATE;         // calibrate colors
 extern const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES;

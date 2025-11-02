@@ -72,13 +72,11 @@ bool Step::run_sub_step(spStep step) {
 Task::Task(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
     : Step(parent, mgr)
     , templ(templ_)
-    , taskName(templ.name)
-    , maxMisses(templ.maxMisses)
 {
 }
 
 const char* Task::getName() {
-    return taskName.c_str();
+    return templ.name.c_str();
 }
 
 bool Task::step() {
@@ -423,6 +421,71 @@ void Step::throw_failed(const std::string& msg) {
     LOG(ERROR) << msg;
     UIManager::showToast(getName(), msg);
     throw nonlocal_return(true, msg);
+}
+
+
+TaskRepeat::TaskRepeat(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
+    : Task(parent, mgr, templ_)
+{
+    assert (templ.id == ED_TASK_REPEAT);
+    for (auto& p : templ.params) {
+        if (p.name == "count")
+            mTotal = std::get<int64_t>(p.value);
+        else if (p.name == "duration")
+            mDuration = std::chrono::minutes(std::get<int64_t>(p.value));
+    }
+}
+
+bool TaskRepeat::run() {
+    if (mTotal - mCompleted <= 0)
+        return true;
+    if (mDuration.count() <= 0)
+        return true;
+    if (templ.steps.empty())
+        return true;
+
+    if (!timer.started())
+        timer = utc_timer(mDuration);
+
+    if (timer.expired() || mCompleted >= mTotal)
+        return true;
+    if (!currentSubStep && mStepIdx==0) {
+        // skip to travel entry if we are docked
+        for (int i=0; i < templ.steps.size(); i++) {
+            TaskTemplate &step_templ = templ.steps[i];
+            if (step_templ.id == ED_TASK_TRAVEL && st::ship.flags.docked) {
+                std::string destDockName;
+                for (auto& p : step_templ.params) {
+                    if (p.name == "dock")
+                        destDockName = std::get<std::string>(p.value);
+                }
+                if (st::dockedAt.stationName == destDockName) {
+                    mStepIdx = i + 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    while (!timer.expired() && mTotal > mCompleted) {
+        for (; mStepIdx < templ.steps.size(); mStepIdx++) {
+            if (currentSubStep) {
+                // resume
+                if (!run_sub_step(currentSubStep))
+                    return false;
+            } else {
+                TaskTemplate &step_templ = templ.steps[mStepIdx];
+                auto step = spStep(step_templ.factory(this, step_templ));
+                if (!step)
+                    throw_failed("Cannot create task for next step");
+                if (!run_sub_step(step))
+                    return false;
+            }
+        }
+        mCompleted += 1;
+        mStepIdx = 0;
+    }
+    return true;
 }
 
 } // namespace ai

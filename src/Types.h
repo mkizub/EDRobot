@@ -84,6 +84,7 @@ struct utc_timer {
         time_start = std::chrono::utc_clock::now();
         time_limit = time_start + seconds;
     }
+    bool started();
     bool expired();
     int sec_passed();
     int sec_left();

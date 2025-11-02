@@ -14,7 +14,7 @@ namespace detect {
 ImageTemplate::ImageTemplate(
         const std::string &filename, spEvalRect rect)
         : filename(filename)
-        , referenceRect(std::move(rect))
+        , refEvalRect(std::move(rect))
         , channels(0)
         , threshold_min(0.8)
         , threshold_max(0.8)
@@ -29,13 +29,15 @@ void ImageTemplate::setTemplate(const std::string& filename) {
     this->filename = filename;
     if (!filename.empty()) {
         auto paths = glob::glob(filename);
-        ResolvedEnv rEnv;
-        cv::Size refSize = referenceRect->calcReferenceRect(rEnv).size();
         for (auto &path: paths) {
             XMat templImage;
             if (!loadImageAndMask(path.string(), templImage) || templImage.empty())
                 throw std::runtime_error("Cannot load image: " + path.string());
-            if (templImage.cols != refSize.width || templImage.rows != refSize.height)
+            if (refSize.width == 0 || refSize.height == 0) {
+                refSize.width = templImage.cols;
+                refSize.height = templImage.rows;
+            }
+            else if (templImage.cols != refSize.width || templImage.rows != refSize.height)
                 throw std::runtime_error(std::format(
                         "Image size {}x{} does not match expected size {}x{}",
                         templImage.cols, templImage.rows, refSize.width, refSize.height));
@@ -514,8 +516,9 @@ cv::Rect ImageTemplate::makeOptimalMatchRect(cv::Rect r) {
 
 double ImageTemplate::match(ClassifyEnv &env) {
     lastMatch = 0;
-    refRect = referenceRect->calcReferenceRect(env);
-    if (imagesOrig.empty() || refRect.empty() || !channels)
+    if (refEvalRect)
+        refOrig = refEvalRect->calcReferenceRect(env).tl();
+    if (imagesOrig.empty() || refSize.empty() || !channels)
         return 0;
     XMat gameImage = channels == 1 ? env.getGrayImage() : env.getColorImage();
     if (gameImage.empty())
@@ -526,6 +529,7 @@ double ImageTemplate::match(ClassifyEnv &env) {
     auto startTime = std::chrono::high_resolution_clock::now();
 
     int ext = Master::getInstance().getSearchRegionExtent();
+    cv::Rect refRect(refOrig, refSize);
     captureRect = env.cvtReferenceToCaptured(refRect);
     matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
                          captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));

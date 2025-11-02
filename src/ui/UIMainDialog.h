@@ -4,8 +4,8 @@
 
 #pragma once
 
-#ifndef EDROBOT_MAIN_H
-#define EDROBOT_MAIN_H
+#ifndef EDROBOT_UIMAINDIALOG_H
+#define EDROBOT_UIMAINDIALOG_H
 
 #include <shellapi.h>
 #include <winlamb/dialog_main.h>
@@ -14,9 +14,9 @@
 
 #include "../ai/AIManager.h"
 
-class Main : public wl::dialog_main {
+class UIMainDialog : public wl::dialog_main {
 public:
-    Main();
+    UIMainDialog();
 
     bool show();
     bool hide();
@@ -39,4 +39,4 @@ public:
 };
 
 
-#endif //EDROBOT_MAIN_H
+#endif //EDROBOT_UIMAINDIALOG_H

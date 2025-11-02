@@ -4,26 +4,23 @@
 
 #include "../pch.h"
 
-#include <shellapi.h>
 #include "../../ui/resource.h"
 
 #include "UIManager.h"
-#include "Main.h"
+#include "UIMainDialog.h"
 #include "UIStartupDialog.h"
 #include "UIToast.h"
-#include "AddTask.h"
-#include "UISellInput.h"
-#include "UICalibration.h"
+#include "UIAddTask.h"
 #include "UISelectRect.h"
 #include "UIDebug.h"
 
 UIManager &UIManager::getInstance() {
-    static Main mainDialog;
+    static UIMainDialog mainDialog;
     static UIManager uiManager(mainDialog);
     return uiManager;
 }
 
-UIManager::UIManager(Main& main)
+UIManager::UIManager(UIMainDialog& main)
     : uiMain(main)
 {
 }
@@ -66,11 +63,6 @@ bool UIManager::showStartupDialog(const std::string &message) {
 bool UIManager::showMainDialog() {
     UIManager& mgr = getInstance();
     return mgr.uiMain.show();
-}
-
-bool UIManager::askCalibrationDialog(const string &line1) {
-    UICalibration dlg(line1);
-    return dlg.show();
 }
 
 

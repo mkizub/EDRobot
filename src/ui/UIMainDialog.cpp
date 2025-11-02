@@ -4,15 +4,15 @@
 
 #include "../pch.h"
 
-#include "Main.h"
+#include "UIMainDialog.h"
 #include "UIManager.h"
-#include "AddTask.h"
+#include "UIAddTask.h"
 #include "../../ui/resource.h"
 
 #define TRAY_ICONUID 100
 #define WM_TRAY_NOTIFY WM_APP + 100
 
-Main::Main()
+UIMainDialog::UIMainDialog()
     : mNotifyIconData{}
 {
     setup.dialogId = IDD_ED_ROBOT;
@@ -78,7 +78,7 @@ Main::Main()
 }
 
 
-int Main::initialize(wl::params &params) {
+int UIMainDialog::initialize(wl::params &params) {
     aiManager = Master::getInstance().getAIManager();
 
     HINSTANCE hInstance = GetModuleHandle(nullptr);
@@ -104,26 +104,26 @@ int Main::initialize(wl::params &params) {
     return TRUE;
 }
 
-bool Main::show() {
+bool UIMainDialog::show() {
     ShowWindow(this->hwnd(), SW_RESTORE);
     SetForegroundWindow(this->hwnd());
     mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
     return true;
 }
 
-bool Main::hide() {
+bool UIMainDialog::hide() {
     ShowWindow(this->hwnd(), SW_HIDE);
     KillTimer(this->hwnd(), mUpdateTimerId);
     mUpdateTimerId = {};
     return true;
 }
 
-int Main::on_command_stop_new(wl::params &params) {
+int UIMainDialog::on_command_stop_new(wl::params &params) {
     try {
         ai::spTask task = aiManager->activeTask;
         if (!task) {
             //hide();
-            AddTask addTaskDlg;
+            UIAddTask addTaskDlg;
             int res = addTaskDlg.show(this);
             if (res == IDOK)
                 return TRUE;
@@ -140,12 +140,12 @@ int Main::on_command_stop_new(wl::params &params) {
     return TRUE;
 }
 
-int Main::on_command_pause_resume(wl::params &params) {
+int UIMainDialog::on_command_pause_resume(wl::params &params) {
     try {
         ai::spTask task = aiManager->activeTask;
         if (!task) {
             hide();
-            AddTask addTaskDlg;
+            UIAddTask addTaskDlg;
             int res = addTaskDlg.show(this);
             show();
             if (res == IDOK)
@@ -165,7 +165,7 @@ int Main::on_command_pause_resume(wl::params &params) {
     return TRUE;
 }
 
-void Main::update_curr_task() {
+void UIMainDialog::update_curr_task() {
     ai::spTask task = aiManager->curr_task();
     if (!task)
         task = aiManager->lastTask;
@@ -174,7 +174,7 @@ void Main::update_curr_task() {
         btn_stop_new.set_text(L"New");
         btn_pause_resume.set_text(L"Repeat");
     } else {
-        lbl_curr_task.set_text(toUtf16(task->templ.name).c_str());
+        lbl_curr_task.set_text(toUtf16(task->templ.id).c_str());
         btn_stop_new.set_text(L"Stop");
         if (aiManager->active())
             btn_pause_resume.set_text(L"Pause");

@@ -235,7 +235,7 @@ public:
     void prepareImages(ClassifyEnv& env);
     std::string name;
     std::string filename;
-    spEvalRect referenceRect;
+    spEvalRect refEvalRect;
     int channels;
     cv::Point extendLT;
     cv::Point extendRB;
@@ -249,7 +249,8 @@ public:
 
     double preprocessedTemplateScale = 0;
 
-    cv::Rect refRect;
+    cv::Point refOrig;
+    cv::Size refSize;
     cv::Rect captureRect;
     cv::Rect matchRect;
     cv::Point matchedCaptureOffset;
@@ -263,6 +264,18 @@ class CompassDetector : public Detector {
 public:
     CompassDetector();
     ~CompassDetector() override = default;
+    void clear() {
+        lastHemisphere = 0;
+        lastTgtPitch = 0;
+        lastTgtYaw = 0;
+        lastTgtRoll = 0;
+        lastTgtAngle = 0;
+        dotCaptureRect = {};
+        dotSpherePosition = {};
+        navTargetFound = false;
+        lastNavTargetOffset = {};
+        lastNavDist = {};
+    }
 
     void loadCompass();
 

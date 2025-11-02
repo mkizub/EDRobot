@@ -37,6 +37,7 @@ public:
     bool orientAwayFromTargetStep(double precision, int max_time_ms=5000);
     bool orientAwayFromTarget(double precision);
     int getNavRoutePosition();
+    void initNavFilter();
 
     gal::spBody destBody;
     gal::spSite destDock;
@@ -99,7 +100,7 @@ public:
 
     std::string getStatus() override;
     enum {
-        READY, ORIENT, CHARGE, HYPERSPACE, AVOID_STAR, FLY_AWAY
+        READY, CHARGE, HYPERSPACE, AVOID_STAR, FLY_AWAY
     } status {READY};
 };
 
@@ -218,7 +219,7 @@ public:
 
     std::string getStatus() override;
     enum {
-        READY, ORIENT, ENTER_CRUISE, LEAVE_BODY, FLY_AWAY
+        READY, ORIENT, ENTER_CRUISE, LEAVE_BODY, FLY_AWAY, JUMP
     } status {READY};
 };
 

@@ -24,7 +24,6 @@ enum class Command {
     Resume,
     Stop,
     Autopilot,
-    Calibrate,
     DebugTemplates,
     DebugWindow,
     DebugStream,
@@ -139,8 +138,6 @@ private:
     void resetCapturer();
 
     bool preInitTask();
-    bool startCalibration();
-//    bool startTrade();
     bool pauseAITask();
     bool resumeAITask();
     bool stopAITask();

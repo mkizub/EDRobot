@@ -7,6 +7,10 @@
 #ifndef EDROBOT_STATE_H
 #define EDROBOT_STATE_H
 
+struct Market;
+struct ShipCargo;
+struct NavRoute;
+
 namespace st {
 
 extern Lang lng;
@@ -18,6 +22,9 @@ extern GuiFocus guiFocus;
 extern struct Commander {
     std::string name;
     std::string fid;
+    int64_t carrierId;
+    std::string carrierInSystem;
+    int carrierAtBodyId;
 } const cmdr;
 
 extern struct GameClient {
@@ -86,7 +93,7 @@ extern union NavPanelFilters {
 } navFilters;
 
 extern struct Destination {
-    int64 system;
+    int64 systemAddress;
     int bodyId;
     std::string name;
 } destination;
@@ -178,6 +185,10 @@ extern struct ShipAtBody {
     double heading;
     double planetRadius;
 } shipAtBody;
+
+extern std::shared_ptr<Market> currentMarket;
+extern std::shared_ptr<ShipCargo> currentCargo;
+extern std::shared_ptr<NavRoute> currentNavRoute;
 
 }
 

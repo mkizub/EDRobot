@@ -9,7 +9,8 @@
       { name: 'btn-compare', action: 'dlg-compare', rect: [97,509,134,79] },
       { name: 'btn-to-sell', action: 'mod-sell', rect: [96,316,133,129] },
       { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
-      { name: 'lst-goods', action: 'dlg-trade', rect: [250,252,1018,718], row_height: 36, row_gap: 2, header: 38,
+      { name: 'lst-goods', action: 'dlg-trade', rect: [250,252,1018,718],
+        row_height: 36, row_gap: 2, header: 38, row_test: [300,540],
         tabs: [
           {left:0,   right:114 },
           {left:120, right:548, ocr_top: 10, ocr_bot: 28, name: 'name' }, // commodity name
@@ -313,11 +314,11 @@
         name: "mod-navigation",
         detect: ["lpline",{ img: "at_left_navigation-*.png", t: 0.7, rect:[110, 12, 130, 28], filter: {channel: 'red'} }],
         have: [
-          { name: 'btn-filter', action: 'dlg-filter', rect: [11,219,104,60], ext: [5,25,5,15] },
+          { name: 'btn-filter', action: 'dlg-filter', rect: [11,219,104,60], ext: [5,25,5,15], icon: "templates/left/btn-nav-filter*.png" },
           { name: 'btn-galaxy', action: 'galaxy-map', rect: [11,476,104,60] },
           { name: 'btn-system', action: 'system-map', rect: [11,592,104,60] },
           { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",875,"btn-system.b - btn-filter.t + 3"],
-            row_height: 36, row_gap: 3.55,
+            row_height: 36, row_gap: 3.55, row_test: [400,730],
             tabs: [
               {left:0,   right:750, ocr_top: 9, ocr_bot: 33, name: 'name' }, // nav/body name
               {left:750, right:880, ocr_top: 9, ocr_bot: 28, name: 'dist' }, // distance

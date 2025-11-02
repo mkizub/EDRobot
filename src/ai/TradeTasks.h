@@ -11,39 +11,23 @@
 
 namespace ai {
 
-class TaskSell;
-
 class BaseMarketTask : public Task {
 public:
-    BaseMarketTask(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+    BaseMarketTask(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
         : Task(parent, mgr, templ_)
     {}
 
     bool clickButton(const char* btn);
+    bool moveToWidget(const char* widget);
     void gotoMarketScreen(bool buy);
     bool waitUiState(const std::string& state, std::chrono::seconds duration);
     bool enterTradeDialog(Commodity* commodity, std::string state);
     bool commitTradeDialog(Commodity* commodity, std::string state);
 };
 
-class TaskSellAll final : public BaseMarketTask {
-public:
-    TaskSellAll(Task* parent, AIManager& mgr, const TaskTemplate& templ);
-    bool run() final;
-private:
-    int mChunk;
-    struct SubTask {
-        Commodity* commodity {};
-        spTask task;
-        bool complete {};
-        bool failed {};
-    };
-    std::vector<SubTask> sell_queue;
-};
-
 class TaskSell final : public BaseMarketTask {
 public:
-    TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskSell(Step* parent, AIManager& mgr, const TaskTemplate& templ);
     bool run() final;
     bool processTradeDialog();
 
@@ -59,9 +43,24 @@ public:
     } status {READY};
 };
 
+class TaskSellAll final : public BaseMarketTask {
+public:
+    TaskSellAll(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    bool run() final;
+private:
+    int mChunk;
+    struct SubTask {
+        Commodity* commodity {};
+        std::shared_ptr<TaskSell> task;
+        bool complete {};
+        bool failed {};
+    };
+    std::vector<SubTask> sell_queue;
+};
+
 class TaskBuy final : public BaseMarketTask {
 public:
-    TaskBuy(Task* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskBuy(Step* parent, AIManager& mgr, const TaskTemplate& templ);
     bool run() final;
     bool processTradeDialog();
 
@@ -76,9 +75,26 @@ public:
     } status {READY};
 };
 
-class TaskConstr final : public BaseMarketTask {
+class TaskBuyConstr final : public BaseMarketTask {
 public:
-    TaskConstr(Task* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskBuyConstr(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    bool run() final;
+
+    std::string destSystemName;
+    std::string destConstrName;
+
+    struct SubTask {
+        Commodity* commodity {};
+        std::shared_ptr<TaskBuy> task;
+        bool complete {};
+        bool failed {};
+    };
+    std::vector<SubTask> buy_queue;
+};
+
+class TaskConstrUnload final : public BaseMarketTask {
+public:
+    TaskConstrUnload(Step* parent, AIManager& mgr, const TaskTemplate& templ);
     bool run() final;
 
     std::string getStatus() override;

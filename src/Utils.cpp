@@ -327,9 +327,21 @@ std::string encodeShortcut(const std::string& name, unsigned flags) {
     return res;
 }
 
+std::string formatTimestampString(Timestamp timestamp) {
+    auto ts = std::chrono::floor<std::chrono::seconds>(timestamp);
+    return std::format("{:%Y-%m-%dT%H:%M:%S}Z", ts);
+}
+
 bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
+    if (str.empty())
+        return false;
     std::istringstream iss(str);
-    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
+    if (str.size() >= 20 && str[str.size()-1] == 'Z' && str[10] == 'T')
+        iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
+    else if (str.size() >= 19 && str[10] == ' ')
+        iss >> std::chrono::parse("%Y-%m-%d %H:%M:%SZ", timestamp);
+    else
+        return false;
     if (iss.fail()) {
         LOG(ERROR) << "Timestamp parse failed, event corrupted?";
         return false;
@@ -466,6 +478,9 @@ dist_t parseDist(std::wstring dist) {
     }
 }
 
+bool utc_timer::started() {
+    return time_start.time_since_epoch() != std::chrono::utc_clock::duration::zero();
+}
 bool utc_timer::expired() {
     auto now = std::chrono::utc_clock::now();
     return now >= time_limit;

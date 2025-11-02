@@ -138,11 +138,15 @@ bool NavList::init(ai::Step* task, gal::spSite dock, gal::spBody body, st::NavPa
     this->isTopEntryFocused = false;
     this->list.clear();
 
+    if (filters == st::navFilters)
+        return true;
+
     for (int retry=0; retry < 3; retry++) {
         if (filters == st::navFilters)
             return true;
 
-        gotoNavPage(task, "mod-navigation");
+        if (!gotoNavPage(task, "mod-navigation", false))
+            continue;
 
         int delay = 300;
         kbd::send("UI_Left", 0, delay);
@@ -772,7 +776,7 @@ namespace ai {
 NavListScanTask::NavListScanTask(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
         : Task(parent, mgr, templ_)
 {
-    assert (templ.name == ED_TASK_NAV_SCAN);
+    assert (templ.id == ED_TASK_NAV_SCAN);
     for (auto& p : templ.params) {
         if (p.name == "travel")
             mTravel = std::get<bool>(p.value);

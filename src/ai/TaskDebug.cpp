@@ -78,13 +78,13 @@ void TaskDebugFindAllBase::checkAndFixOCRText() {
         LOG(INFO) << "Fixed " << errorCount << " OCR text errors";
 }
 
-TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
         : TaskDebugFindAllBase(parent, mgr, templ_, true)
         , shuffle(false)
         , dump_images(false)
         , start_index(0)
 {
-    assert (templ.name == ED_TASK_DEBUG_FIND_ALL_COMMODITIES);
+    assert (templ.id == ED_TASK_DEBUG_FIND_ALL_COMMODITIES);
     for (auto& p : templ.params) {
         if (p.name == "shuffle")
             shuffle = std::get<bool>(p.value);
@@ -443,7 +443,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketLbl(const cv::Mat& grayImage, con
     }
 }
 
-TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Task *parent, AIManager &mgr, const TaskTemplate &templ)
+TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Step *parent, AIManager &mgr, const TaskTemplate &templ)
     : TaskDebugFindAllBase(parent, mgr, templ, false)
     , dump_images(false)
     , resume(false)
@@ -451,7 +451,7 @@ TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Task *parent, AIManager &mg
     , txt_confidence(90)
     , offset_append(0)
 {
-    assert (templ.name == ED_TASK_DEBUG_FIND_ALL_NAV_POINTS);
+    assert (templ.id == ED_TASK_DEBUG_FIND_ALL_NAV_POINTS);
     for (auto& p : templ.params) {
         if (p.name == "dump_images")
             dump_images = std::get<bool>(p.value);
@@ -608,18 +608,18 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 
 json5pp::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
-    if (!ss || ss->name.empty() || !ss->address)
+    if (!ss || ss->systemName.empty() || !ss->systemAddress)
         return nullptr;
     std::ostringstream resp;
     curl::curl_ios<std::ostringstream> writer(resp);
     curl::curl_easy easy(writer);
     std::string url = base_url;
     if (url.contains("www.edsm.net")) {
-        std::string systemName = ss->name;
+        std::string systemName = ss->systemName;
         easy.escape(systemName);
         url += "?systemName=" + systemName;
     } else {
-        url += std::to_string(ss->address);
+        url += std::to_string(ss->systemAddress);
     }
     easy.add<CURLOPT_URL>(url.c_str());
     easy.add<CURLOPT_FOLLOWLOCATION>(1L);
@@ -734,7 +734,7 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
     LOG(DEBUG) << "Got system info: " << spanishSystemInfo;
 
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
-    std::string systemName = ss->name;
+    std::string systemName = ss->systemName;
 
     json5pp::value payload = json5pp::object({
             { "reference_system", systemName},

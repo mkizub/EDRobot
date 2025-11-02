@@ -15,8 +15,7 @@ public:
     virtual bool isBody() { return false; }
     virtual bool isSite() { return false; }
     virtual bool nameEq(const std::string& nm);
-    virtual bool nameEq(const std::wstring& nm);
-    TypeNav typeNav : 16 {TypeNav::Other};
+    TypeNav typeNav {TypeNav::Other};
     short parentBodyId {-1}; // on orbit of
     std::string name;
     std::optional<short> bodyId;
@@ -45,10 +44,11 @@ class Site : public Item {
 public:
     bool isSite() override { return true; }
     bool nameEq(const std::string& nm) override;
-    bool nameEq(const std::wstring& nm) override;
-    TypeSite typeSite : 16 {TypeSite::Other};
+    TypeSite typeSite {TypeSite::Other};
     int64_t marketId {0};
     std::string nloc;
+    spMarket marketData;
+    Timestamp updated;
 };
 
 typedef std::shared_ptr<Item> spItem;
@@ -58,9 +58,9 @@ typedef std::shared_ptr<Site> spSite;
 struct StarSystem : public std::enable_shared_from_this<StarSystem> {
     StarSystem() = default;
     virtual ~StarSystem() = default;
-    int64_t address {0};
-    std::string name;
-    cv::Point3d pos;
+    int64_t systemAddress {0};
+    std::string systemName;
+    cv::Point3d starPos;
 
     std::vector<spBody> bodies;
     std::vector<spSite> stations;
@@ -70,10 +70,15 @@ struct StarSystem : public std::enable_shared_from_this<StarSystem> {
     spBody getBody(const std::string& bname);
     spSite getDock(const std::string& sname);
     spSite getDock(int64_t marketId);
-    spItem addFSSSignalDiscovered(std::shared_ptr<GameEvent> event);
+    void addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>& events);
     spSite addStation(int64_t marketId, const std::string& sname, const std::string& stype);
     void addDestination();
 
+private:
+    void checkType(spSite& site, TypeNav type, Timestamp timestamp);
+    void checkType(spSite& site, TypeSite type, Timestamp timestamp);
+    void checkName(spSite& site, const std::string& name, Timestamp timestamp);
+    void checkNloc(spSite& site, const std::string& nloc, Timestamp timestamp);
 };
 
 typedef std::shared_ptr<StarSystem> spStarSystem;
@@ -83,6 +88,7 @@ spStarSystem getStarSystem(const std::string& name, int64_t address);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
 void saveStarSystem(StarSystem* ss);
+void setMarketData(spMarket market);
 
 } // namespace gal
 

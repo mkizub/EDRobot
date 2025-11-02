@@ -48,10 +48,11 @@ CompassDetector::CompassDetector()
     navTargetFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
     //navTargetFilters.push_back(std::unique_ptr<ImageFilter>(new LaplacianFilter(1, 5)));
     //navTargetFilters.push_back(std::unique_ptr<ImageFilter>(new DilateFilter(3, 3, 2)));
+    navTargetFilters.push_back(std::unique_ptr<ImageFilter>(new DilateFilter(3, 3, 1)));
 
     hsvFilter = new HsvGrayCropFilter();
     hsvFilter->rangesU.emplace_back(cv::Vec3b(15,120,200),cv::Vec3b(35,255,255));
-    distOCRFilters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.2, 0)));
+    //distOCRFilters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.2, 0)));
     distOCRFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
 }
 
@@ -93,9 +94,7 @@ void CompassDetector::loadCompass() {
 }
 
 double CompassDetector::match(ClassifyEnv &env) {
-    lastHemisphere = 0;
-    navTargetFound = false;
-    lastNavDist = {};
+    clear();
 
     {
         const std::string &ship = st::shipInfo.shipType;
@@ -208,7 +207,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         if (dr.value >= threshold_dot) {
             LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", dr.value,
                                       ((dr.index & 1) ? "backward" : "forward"));
-            cv::Size dotSize = {dr.im->opt_w, dr.im->opt_h};
+            cv::Size dotSize = {dr.im->org_w, dr.im->org_h};
             lastHemisphere = dr.index & 1 ? -1 : +1;
             dotCaptureRect = {matchRect.tl() + dr.loc , dotSize};
             double radiusX = env.getScale() * compassRefSize.width * 0.5 * compassDetector->imagesPrepared[dr.index].scale;
@@ -266,11 +265,12 @@ double CompassDetector::match(ClassifyEnv &env) {
 
         ImageTemplate::MatchResult nr;
         ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, imagePrepared, navTargetPrepared, nr);
+        cv::Point2f navCapturePos;
         if (nr.value > 0.5 && nr.im) {
             LOG(DEBUG) << std::format("compass target match result: {:.3f}", nr.value);
-            cv::Point foundPos = nr.loc + cv::Point(nr.im->opt_w, nr.im->opt_h) / 2;
-            auto capturePosF = navTargetRemapXY.at<cv::Point2f>(foundPos);
-            cv::Point referencePos = env.cvtCapturedToReference(capturePosF);
+            cv::Point foundPos = nr.loc + cv::Point(nr.im->org_w, nr.im->org_h) / 2;
+            navCapturePos = navTargetRemapXY.at<cv::Point2f>(foundPos);
+            cv::Point referencePos = env.cvtCapturedToReference(navCapturePos);
             lastNavTargetOffset = referencePos - env.ReferenceScreenCenter;
             navTargetFound = true;
         } else {
@@ -296,47 +296,76 @@ double CompassDetector::match(ClassifyEnv &env) {
             lastTgtAngle = angle;
         }
 
-        if (navTargetFound) {
+        if (navTargetFound && lastTgtAngle <= 10) {
             //startTime = std::chrono::high_resolution_clock::now();
 
-            float cx = env.ReferenceScreenCenter.x;
-            float cy = env.ReferenceScreenCenter.y;
-            cv::Point foundPos = nr.loc + cv::Point(nr.im->opt_w, nr.im->opt_h) / 2;
-            double dx = (foundPos.x + targetRemapRect.x - cx) / cx;
-            double dy = (foundPos.y + targetRemapRect.y - cy) / cx;
-            double sin_a = 0.3 * std::pow(std::abs(dx*dx*dy) + std::abs(dy*dy*dx), 0.8);
-            if (dx*dy < 0)
-                sin_a *= -1;
-            double cos_a = std::sqrt(1 - sin_a*sin_a);
-            double angle = std::asin(sin_a) * 180 / M_PI;
-
+//            float cx = env.ReferenceScreenCenter.x;
+//            float cy = env.ReferenceScreenCenter.y;
+//            cv::Point foundPos = nr.loc + cv::Point(nr.im->org_w, nr.im->org_h) / 2;
+//            double dx = (foundPos.x + targetRemapRect.x - cx) / cx;
+//            double dy = (foundPos.y + targetRemapRect.y - cy) / cx;
+//            double sin_a = 0.3 * std::pow(std::abs(dx*dx*dy) + std::abs(dy*dy*dx), 0.8);
+//            if (dx*dy < 0)
+//                sin_a *= -1;
+//            double cos_a = std::sqrt(1 - sin_a*sin_a);
+//            double angle = std::asin(sin_a) * 180 / M_PI;
+//
             int scaledSz = 210; // 420x210
             cv::Rect ocrRect {210, 114, 170, ocr::LINE_HEIGHT};
 
-            int sz = nr.im->opt_h;
-            double scale = double(scaledSz) / nr.im->opt_h;
+            int sz = nr.im->org_h;
+//            double scale = double(scaledSz) / nr.im->org_h;
+//
+//            cv::Matx23d affineMatrix = cv::getRotationMatrix2D_({sz*0.5f, sz*0.5f}, angle, scale);
+//            affineMatrix.val[2] += (scaledSz - sz) * 0.5;
+//            affineMatrix.val[5] += (scaledSz - sz) * 0.5;
 
-            cv::Matx23d affineMatrix = cv::getRotationMatrix2D_({sz*0.5f, sz*0.5f}, angle, scale);
-            affineMatrix.val[2] += (scaledSz - sz) * 0.5;
-            affineMatrix.val[5] += (scaledSz - sz) * 0.5;
-
-            cv::Rect srcRect {foundPos.x-sz/2, foundPos.y-sz/2, 2*sz, sz};
-            srcRect &= cv::Rect(0,0,correctedColorImage.cols,correctedColorImage.rows);
-            XMat targetImage (correctedColorImage, srcRect);
-            XMat rotatedImge;
-            cv::warpAffine(targetImage, rotatedImge, affineMatrix, {2*scaledSz, scaledSz}, cv::INTER_LINEAR, cv::BORDER_TRANSPARENT);
+            cv::Rect srcRect {(int)std::round(navCapturePos.x-sz*0.5f), (int)std::round(navCapturePos.y-sz*0.5f), 2*sz, sz};
+            env.cropToCapture(srcRect);
+            XMat targetImage (env.getColorImage(), srcRect);
+            XMat normImage;
+//            if (std::abs(angle) > 2) {
+//                cv::warpAffine(targetImage, normImage, affineMatrix, {2 * scaledSz, scaledSz}, cv::INTER_LINEAR, cv::BORDER_TRANSPARENT);
+//            } else {
+                cv::resize(targetImage, normImage, {2 * scaledSz, scaledSz}, cv::INTER_LINEAR);
+//            }
             if (env.isDebugMatch()) {
                 cv::Mat debugImage;
-                rotatedImge.copyTo(debugImage);
+                normImage.copyTo(debugImage);
                 cv::rectangle(debugImage, ocrRect, {255,255,255});
                 cv::imwrite("nav-target-screen-color.png", debugImage);
             }
-            XMat ocrImage = ImageTemplate::applyFilters(distOCRFilters, rotatedImge(ocrRect));
+            XMat ocrImage = ImageTemplate::applyFilters(distOCRFilters, normImage(ocrRect));
             cv::bitwise_not(ocrImage, ocrImage);
             std::string text;
-            int conf = ocr::ocrLine(ocr::DISTANCE, "(nav dist)", toMat(ocrImage), text, nullptr);
-            if (conf > 75)
+            int conf =  ocr::ocrTargetDistText(toMat(ocrImage), text);
+            if (conf >= 75)
                 lastNavDist = parseDist(toUtf16(text));
+//            else {
+//                static int counter = 0;
+//                if (!counter) {
+//                    for (const auto &entry: std::filesystem::directory_iterator("testset-edr")) {
+//                        if (!entry.is_regular_file())
+//                            continue;
+//                        auto &ep = entry.path();
+//                        if (!ep.has_extension() || ep.extension() != ".png")
+//                            continue;
+//                        if (!ep.filename().string().starts_with("nav-tgt-"))
+//                            continue;
+//                        auto strings = split(ep.filename().string(), '-');
+//                        int num = std::stoi(strings[2], nullptr, 10);
+//                        counter = std::max(num, counter);
+//                    }
+//                }
+//                counter += 1;
+//                cv::Mat normImage = ocr::normalizeTargetDistText(toMat(ocrImage));
+//                std::string filename = std::format("testset-edr/nav-tgt-{:04d}-{}", counter, conf);
+//                cv::imwrite(filename+".png", normImage);
+//                filename = std::format("testset-edr/nav-tgt-{:04d}-{}.gt.txt", counter, conf);
+//                std::ofstream gt_txt(filename+".gt.txt", std::ios::trunc | std::ios::binary);
+//                gt_txt << text;
+//                gt_txt.close();
+//            }
             //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
             //LOG(INFO) << "Compass nav target dist text took: " << elapsedTime.count() << "us";
         }

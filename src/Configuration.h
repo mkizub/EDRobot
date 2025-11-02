@@ -26,7 +26,6 @@ public:
 };
 
 struct MarketLine {
-    Timestamp timestamp;
     int buyPrice;
     int sellPrice;
     int meanPrice;
@@ -62,8 +61,6 @@ public:
         Timestamp timestamp;
         int count;
     } fc;
-
-    MarketLine market;
 };
 
 struct Market {
@@ -151,9 +148,6 @@ public:
     bool loadNavRoute(Timestamp timestamp);
     const char* makeTesseractWordsFile();
 
-    const spMarket getCurrentMarket() const { return currentMarket; }
-    const spShipCargo getCurrentCargo() const { return currentCargo; }
-    const spNavRoute getCurrentNavRoute() const { return currentNavRoute; }
     std::vector<Commodity*> getMarketInSellOrder();
     std::vector<Commodity*> getMarketInBuyOrder();
     std::vector<Commodity*> getAllKnownCommodities();
@@ -212,23 +206,6 @@ private:
 
     void readJournalChanges(std::ifstream& journalStream, std::string& journalLine);
     spGameEvent parseEvent(const std::string& line);
-    void parseEvent_Fileheader(spGameEvent& ge);
-    void parseEvent_Commander(spGameEvent& ge);
-    void parseEvent_LoadGame(spGameEvent& ge);
-    void parseEvent_CarrierLocation(spGameEvent& ge);
-    void parseEvent_Location(spGameEvent& ge);
-    void parseEvent_Loadout(spGameEvent& ge);
-    void parseEvent_ShipyardSwap(spGameEvent& ge);
-    void parseEvent_Docked(spGameEvent& ge);
-    void parseEvent_Undocked(spGameEvent& ge);
-    void parseEvent_Docking(spGameEvent& ge);
-    void parseEvent_StartJump(spGameEvent& ge);
-    void parseEvent_FSDJump(spGameEvent& ge);
-    void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge);
-    void parseEvent_SupercruiseExit(spGameEvent& ge);
-    void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
-    void parseEvent_ApproachBody(spGameEvent& ge);
-    void parseEvent_LeaveBody(spGameEvent& ge);
 
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;
     HANDLE hShutdownEvent {};
@@ -293,10 +270,6 @@ private:
     std::deque<Commodity> allKnownCommodities;
     std::unordered_map<std::string,CommodityCategory*> commodityCategoryMap;
     std::unordered_map<std::string,Commodity*> commodityMap;
-
-    spMarket currentMarket;
-    spShipCargo currentCargo;
-    spNavRoute currentNavRoute;
 
     const unsigned marketCommodityFilterShowAll {0xFFFFFFFFu};
     const unsigned marketCommodityFilterShowNone {0xFFFE0001u};

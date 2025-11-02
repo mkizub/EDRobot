@@ -89,7 +89,8 @@ double AnchoredLineDetector::match(ClassifyEnv &env) {
     const cv::Point& extendRB = an->extendRB;
 
     const cv::Line refLine = referenceLine->calcReferenceLine(env);
-    const double expectedAnchorDist = distanceToLine((an->refRect.tl()+an->refRect.br())*0.5, refLine) * env.getScale();
+    cv::Rect anRefRect(an->refOrig, an->refSize);
+    const double expectedAnchorDist = distanceToLine((anRefRect.tl()+anRefRect.br())*0.5, refLine) * env.getScale();
     expectedLine = env.cvtReferenceToCaptured(refLine);
     cv::Point captureP0 = expectedLine.p0() + an->matchedCaptureOffset;
     cv::Point captureP1 = expectedLine.p1() + an->matchedCaptureOffset;
@@ -181,7 +182,7 @@ double AnchoredLineDetector::match(ClassifyEnv &env) {
 
     ClassifiedRect& cr = env.classified.emplace_back(ClsDetType::LineDetected, env.isWarpMode(),
                                 name + ':' + an->imagesPrepared[an->lastTemplatedx].name,
-                                an->refRect + env.scaleToReference(an->matchedCaptureOffset));
+                                anRefRect + env.scaleToReference(an->matchedCaptureOffset));
     cr.u.ldet.referenceLine = env.cvtCapturedToReference(detectedLine);
     cr.u.ldet.scale = lastDeltaScale;
     cr.u.ldet.angle = lastDeltaAngle;

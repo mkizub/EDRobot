@@ -16,8 +16,7 @@ namespace ai {
 TaskCalibrate::TaskCalibrate(Task* parent, AIManager& mgr, const TaskTemplate& templ)
         : Task(parent, mgr, templ)
 {
-    assert(templ.name == ED_TASK_CALIBRATE);
-    taskName = "Calibration";
+    assert(templ.id == ED_TASK_CALIBRATE);
 }
 
 void TaskCalibrate::recordButton(const char* button, WState bs) {

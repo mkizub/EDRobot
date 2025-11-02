@@ -4,8 +4,8 @@
 
 #pragma once
 
-#ifndef EDROBOT_ADDTASK_H
-#define EDROBOT_ADDTASK_H
+#ifndef EDROBOT_UIADDTASK_H
+#define EDROBOT_UIADDTASK_H
 
 #include <shellapi.h>
 #include <winlamb/dialog_modal.h>
@@ -18,9 +18,9 @@
 
 #include "../ai/AIManager.h"
 
-class AddTask : public wl::dialog_modal {
+class UIAddTask : public wl::dialog_modal {
 public:
-    AddTask();
+    UIAddTask();
 
     int initialize(wl::params& params);
     int on_template_selected(wl::params& params);
@@ -44,7 +44,7 @@ private:
     bool validate(ParamCtrl& ctrl);
 
     ai::AIManager* aiManager;
-    std::vector<ai::TaskTemplate*> templates;
+    std::vector<const ai::TaskTemplate*> templates;
 
     wl::resizer  layoutResizer;
     wl::combobox cb_tasks;
@@ -58,4 +58,4 @@ private:
 };
 
 
-#endif //EDROBOT_ADDTASK_H
+#endif //EDROBOT_UIADDTASK_H

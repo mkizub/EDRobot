@@ -9,6 +9,7 @@
 #include "../EDWidget.h"
 #include "../FuzzyMatch.h"
 #include "../Keyboard.h"
+#include "../Galaxy.h"
 
 using namespace std::chrono_literals;
 
@@ -31,6 +32,14 @@ bool BaseMarketTask::clickButton(const char* btn) {
         return false;
     cv::Point pos = (rect.tl() + rect.br()) * 0.5;
     return kbd::sendMouseClick(pos, 100, Cfg.getDefaultKeyAfterTime());
+}
+
+bool BaseMarketTask::moveToWidget(const char* widget) {
+    cv::Rect rect = mgr.master.resolveWidgetReferenceRect(widget);
+    if (rect.empty())
+        return false;
+    cv::Point pos = (rect.tl() + rect.br()) * 0.5;
+    return kbd::sendMouseMove(pos, 300);
 }
 
 void BaseMarketTask::gotoMarketScreen(bool buy) {
@@ -58,8 +67,10 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
             return;
         }
         if (mgr.uiState.match("scr-market:mod-buy")) {
-            if (buy)
+            if (buy) {
+                moveToWidget("lst-goods");
                 return;
+            }
             // go to sell mode
             clickButton("btn-to-sell");
             if (waitUiState("scr-market:mod-buy", 2s))
@@ -67,8 +78,10 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
             continue;
         }
         if (mgr.uiState.match("scr-market:mod-sell")) {
-            if (!buy)
+            if (!buy) {
+                moveToWidget("lst-goods");
                 return;
+            }
             // go to sell mode
             clickButton("btn-to-buy");
             if (waitUiState("scr-market:mod-sell", 2s))
@@ -128,11 +141,11 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
     return true;
 }
 
-TaskSellAll::TaskSellAll(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+TaskSellAll::TaskSellAll(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
         : BaseMarketTask(parent, mgr, templ_)
         , mChunk(1000)
 {
-    assert (templ.name == ED_TASK_MARKET_SELL_ALL);
+    assert (templ.id == ED_TASK_MARKET_SELL_ALL);
     for (auto& p : templ.params) {
         if (p.name == "chunk")
             mChunk = std::get<int64_t>(p.value);
@@ -143,7 +156,7 @@ bool TaskSellAll::run() {
     gotoMarketScreen(false);
 
     if (sell_queue.empty()) {
-        spShipCargo shipCargo = mgr.cfg.getCurrentCargo();
+        spShipCargo shipCargo = st::currentCargo;
         for (Commodity* commodity: shipCargo->inventory) {
             bool complete = false;
             for (auto& st : sell_queue) {
@@ -154,11 +167,14 @@ bool TaskSellAll::run() {
             }
             if (complete)
                 continue;
-            TaskTemplate impl = mgr.getTaskTemplate(ED_TASK_MARKET_SELL);
+            const TaskTemplate* templ = mgr.getTaskTemplate(ED_TASK_MARKET_SELL);
+            if (!templ)
+                throw_failed("Cannot find task template");
+            TaskTemplate impl = *templ;
             impl.set("commodity", commodity->nameId);
             impl.set("amount", 0);
             impl.set("chunk", mChunk);
-            spTask task = std::make_unique<TaskSell>(this, mgr, impl);
+            auto task = std::make_shared<TaskSell>(this, mgr, impl);
             sell_queue.emplace_back(commodity, task, false, false);
         }
     }
@@ -174,6 +190,12 @@ bool TaskSellAll::run() {
                 if (nlr->failed) {
                     st.failed = true;
                     st.complete = true;
+                } else {
+                    st.task->missCount += 1;
+                    if (st.task->missCount >= 3) {
+                        st.failed = true;
+                        st.complete = true;
+                    }
                 }
             }
             else if (dynamic_cast<const interrupted_error*>(&ex)) {
@@ -189,7 +211,7 @@ bool TaskSellAll::run() {
     int soldTotal = 0;
     bool complete = true;
     for (auto& st : sell_queue) {
-        soldTotal += std::static_pointer_cast<TaskSell>(st.task)->mSold;
+        soldTotal += st.task->mSold;
         if (!st.complete && !st.failed)
             complete = false;
     }
@@ -201,7 +223,7 @@ bool TaskSellAll::run() {
     throw_trouble("Not complete");
 }
 
-TaskSell::TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+TaskSell::TaskSell(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
         : BaseMarketTask(parent, mgr, templ_)
         , mCommodity(nullptr)
         , mTotal(0)
@@ -209,7 +231,7 @@ TaskSell::TaskSell(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
         , mSold(0)
         , mLeft(0)
 {
-    assert (templ.name == ED_TASK_MARKET_SELL);
+    assert (templ.id == ED_TASK_MARKET_SELL);
     for (auto& p : templ.params) {
         if (p.name == "commodity")
             mCommodity = mgr.cfg.getCommodityById(std::get<std::string>(p.value));
@@ -280,6 +302,10 @@ bool TaskSell::run() {
             if (canTrade) {
                 if (processTradeDialog())
                     missCount = 0;
+                else
+                    missCount += 1;
+                if (missCount >= 3)
+                    throw_failed("Too many fails");
                 continue;
             }
             if (!focusedRow) {
@@ -381,14 +407,14 @@ std::string TaskSell::getStatus() {
     return st;
 }
 
-TaskBuy::TaskBuy(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+TaskBuy::TaskBuy(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
         : BaseMarketTask(parent, mgr, templ_)
         , mCommodity(nullptr)
         , mTotal(0)
         , mBought(0)
         , mLeft(0)
 {
-    assert (templ.name == ED_TASK_MARKET_BUY);
+    assert (templ.id == ED_TASK_MARKET_BUY);
     for (auto& p : templ.params) {
         if (p.name == "commodity")
             mCommodity = mgr.cfg.getCommodityById(std::get<std::string>(p.value));
@@ -454,6 +480,10 @@ bool TaskBuy::run() {
             if (canTrade) {
                 if (processTradeDialog())
                     missCount = 0;
+                else
+                    missCount += 1;
+                if (missCount >= 3)
+                    throw_failed("Too many fails");
                 continue;
             }
             if (!focusedRow) {
@@ -547,13 +577,129 @@ std::string TaskBuy::getStatus() {
     return st;
 }
 
-TaskConstr::TaskConstr(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
+TaskBuyConstr::TaskBuyConstr(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
         : BaseMarketTask(parent, mgr, templ_)
 {
-    assert (templ.name == ED_TASK_CONSTR_UNLOAD);
+    assert (templ.id == ED_TASK_MARKET_BUY_CONSTR);
+    for (auto& p : templ.params) {
+        if (p.name == "system")
+            destSystemName = std::get<std::string>(p.value);
+        else if (p.name == "depot")
+            destConstrName = std::get<std::string>(p.value);
+    }
 }
 
-bool TaskConstr::run() {
+bool TaskBuyConstr::run() {
+    auto starSystem = gal::getStarSystem(destSystemName);
+    if (!starSystem)
+        throw_failed("Star system '"+destSystemName+"' not known");
+    auto depot = starSystem->getDock(destConstrName);
+    if (!depot)
+        throw_failed("Construction depot '"+destConstrName+"' not known");
+    if (!(depot->typeNav == gal::TypeNav::SpaceConstr || depot->typeNav == gal::TypeNav::PlanetConstr))
+        throw_failed("Site '"+destConstrName+"' is not a construction depot");
+    if (!depot->marketData || depot->marketData->items.empty())
+        throw_failed("Construction depot '"+destConstrName+"' demand is not known");
+
+    if (st::shipStats.cargo >= st::shipStats.cargoCapacity)
+        return true;
+    gotoMarketScreen(true);
+
+    bool triedToBuy = false;
+    if (buy_queue.empty()) {
+        spMarket depotMarket = depot->marketData;
+
+        for (auto it: depotMarket->items) {
+            Commodity* commodity = it.first;
+            MarketLine& ml = it.second;
+            int demand = ml.demand - ml.stock - commodity->ship.count;
+            if (demand <= 0)
+                continue;
+            int buy = mgr.master.canBuy(commodity);
+            buy = std::min(buy, demand);
+            if (buy <= 0)
+                continue;
+
+            bool complete = false;
+            for (auto& st : buy_queue) {
+                if (st.commodity == commodity && (st.complete || st.failed)) {
+                    complete = true;
+                    break;
+                }
+            }
+            if (complete)
+                continue;
+            triedToBuy = true;
+            const TaskTemplate* templ = mgr.getTaskTemplate(ED_TASK_MARKET_BUY);
+            if (!templ)
+                throw_failed("Cannot find task template");
+            TaskTemplate impl = *templ;
+            impl.set("commodity", commodity->nameId);
+            impl.set("amount", buy);
+            auto task = std::make_shared<TaskBuy>(this, mgr, impl);
+            buy_queue.emplace_back(commodity, task, false, false);
+        }
+        std::sort(buy_queue.begin(), buy_queue.end(), [](const SubTask& a, const SubTask& b) {
+            return a.task->mTotal < b.task->mTotal;
+        });
+    }
+    if (!triedToBuy)
+        return true;
+
+    for (auto& st : buy_queue) {
+        if (st.complete || st.failed)
+            continue;
+        if (st::shipStats.cargo >= st::shipStats.cargoCapacity)
+            break;
+        currentSubStep = st.task;
+        TRY {
+            check_interrupted();
+            st.complete = st.task->run();
+        } CATCH (const std::exception& ex) {
+            if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
+                if (nlr->failed) {
+                    st.failed = true;
+                    st.complete = true;
+                } else {
+                    st.task->missCount += 1;
+                    if (st.task->missCount >= 3) {
+                        st.failed = true;
+                        st.complete = true;
+                    }
+                }
+            }
+            else if (dynamic_cast<const interrupted_error*>(&ex)) {
+                throw;
+            }
+            else {
+                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+                st.failed = true;
+                st.complete = true;
+            }
+        }
+    }
+    int boughtTotal = 0;
+    bool complete = true;
+    for (auto& st : buy_queue) {
+        boughtTotal += st.task->mBought;
+        if (!st.complete && !st.failed)
+            complete = false;
+    }
+    if (complete) {
+        if (!boughtTotal)
+            throw_failed("Nothing was bought");
+        return true;
+    }
+    throw_trouble("Not complete");
+}
+
+TaskConstrUnload::TaskConstrUnload(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
+        : BaseMarketTask(parent, mgr, templ_)
+{
+    assert (templ.id == ED_TASK_CONSTR_UNLOAD);
+}
+
+bool TaskConstrUnload::run() {
     status = TO_MARKET;
     gotoMarketScreen(false);
 
@@ -568,15 +714,14 @@ bool TaskConstr::run() {
     return true;
 }
 
-std::string TaskConstr::getStatus() {
-    std::string st;
+std::string TaskConstrUnload::getStatus() {
     switch (status) {
     case READY:
-        return st = "----";
+        return "----";
     case TO_MARKET:
-        return st = "Going to market";
+        return "Going to market";
     case UNLOAD:
-        return st = "Unloading";
+        return "Unloading";
     }
     return "----";
 }

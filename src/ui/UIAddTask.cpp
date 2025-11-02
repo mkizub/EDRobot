@@ -4,14 +4,14 @@
 
 #include "../pch.h"
 
-#include "AddTask.h"
+#include "UIAddTask.h"
 
 #include "../../ui/resource.h"
 
 //static const wchar_t* gWindowClass = L"AddTaskWindowClass";
 //static const wchar_t* gWindowName = L"EDRobot Add Task";
 
-AddTask::AddTask() : aiManager(nullptr) {
+UIAddTask::UIAddTask() : aiManager(nullptr) {
     aiManager = Master::getInstance().getAIManager();
     setup.dialogId = IDD_ADD_TASK;
 
@@ -42,8 +42,11 @@ AddTask::AddTask() : aiManager(nullptr) {
 
 }
 
-int AddTask::initialize(wl::params &params) {
-    templates = aiManager->getTaskTemplates();
+int UIAddTask::initialize(wl::params &params) {
+    for (auto& tt : aiManager->getUserTasks())
+        templates.push_back(&tt);
+    for (auto& tt : aiManager->getTemplates())
+        templates.push_back(&tt);
 
     btn_ok.assign(hwnd(), IDOK);
     btn_cancel.assign(hwnd(), IDCANCEL);
@@ -59,7 +62,7 @@ int AddTask::initialize(wl::params &params) {
     return TRUE;
 }
 
-int AddTask::on_template_selected(wl::params &params) {
+int UIAddTask::on_template_selected(wl::params &params) {
     if (HIWORD(params.wParam) != CBN_SELCHANGE)
         return TRUE;
     int idx = cb_tasks.get_selected_index();
@@ -68,9 +71,9 @@ int AddTask::on_template_selected(wl::params &params) {
     if (idx < 0 || idx >= templates.size())
         return TRUE;
 
-    ai::TaskTemplate* templ = templates[idx];
-    templMap.try_emplace(templ->name, *templ);
-    curr_templ = &templMap[templ->name];
+    auto templ = templates[idx];
+    templMap.try_emplace(templ->id, *templ);
+    curr_templ = &templMap[templ->id];
 
     RECT rcCtrl{};
     GetWindowRect(cb_tasks.hwnd(), &rcCtrl);
@@ -97,7 +100,7 @@ int AddTask::on_template_selected(wl::params &params) {
     return TRUE;
 }
 
-int AddTask::on_ctrl_change(wl::params& p) {
+int UIAddTask::on_ctrl_change(wl::params& p) {
     if (HIWORD(p.wParam) != EN_CHANGE && HIWORD(p.wParam) != BN_CLICKED && HIWORD(p.wParam) != CBN_SELCHANGE)
         return TRUE;
     if (!curr_templ)
@@ -124,7 +127,7 @@ int AddTask::on_ctrl_change(wl::params& p) {
     return TRUE;
 }
 
-void AddTask::on_ctrl_edit(ParamCtrl& ctrl) {
+void UIAddTask::on_ctrl_edit(ParamCtrl& ctrl) {
     try {
         if (ctrl.param.type == ai::Param::Bool) {
             curr_templ->set(ctrl.param.name, ctrl.cb.is_checked());
@@ -140,7 +143,7 @@ void AddTask::on_ctrl_edit(ParamCtrl& ctrl) {
     }
 }
 
-void AddTask::add_ctrl(ai::Param &p, int &id, int &left, int &top, int width) {
+void UIAddTask::add_ctrl(ai::Param &p, int &id, int &left, int &top, int width) {
     if (p.type == ai::Param::Bool) {
         ParamCtrl& ctrl = templ_controls.emplace_back(p, (int) id);
         wl::checkbox& cb = ctrl.cb;
@@ -227,7 +230,7 @@ void AddTask::add_ctrl(ai::Param &p, int &id, int &left, int &top, int width) {
     top += 25;
 }
 
-bool AddTask::validate(ParamCtrl& ctrl) {
+bool UIAddTask::validate(ParamCtrl& ctrl) {
     bool ok = true;
     try {
         if (ctrl.param.type == ai::Param::Bool)
@@ -273,13 +276,13 @@ bool AddTask::validate(ParamCtrl& ctrl) {
     return ok;
 }
 
-AddTask::ParamCtrl::ParamCtrl(ai::Param &p, int id)
+UIAddTask::ParamCtrl::ParamCtrl(ai::Param &p, int id)
     : param(p)
     , id(id)
 {
 }
 
-AddTask::ParamCtrl::~ParamCtrl() {
+UIAddTask::ParamCtrl::~ParamCtrl() {
     BOOL ok;
     if (cb.hwnd()) {
         ok = DestroyWindow(cb.hwnd());

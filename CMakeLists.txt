@@ -81,10 +81,10 @@ add_executable(EDRobot
         src/detect/NavPanel.h
         src/detect/Tiles.cpp
 
-        src/ui/AddTask.cpp
-        src/ui/AddTask.h
-        src/ui/Main.cpp
-        src/ui/Main.h
+        src/ui/UIAddTask.cpp
+        src/ui/UIAddTask.h
+        src/ui/UIMainDialog.cpp
+        src/ui/UIMainDialog.h
         src/ui/UICalibration.cpp
         src/ui/UICalibration.h
         src/ui/UIDebug.cpp
@@ -93,8 +93,6 @@ add_executable(EDRobot
         src/ui/UIDialog.h
         src/ui/UIManager.cpp
         src/ui/UIManager.h
-        src/ui/UISellInput.cpp
-        src/ui/UISellInput.h
         src/ui/UISelectRect.cpp
         src/ui/UISelectRect.h
         src/ui/UIStartupDialog.cpp

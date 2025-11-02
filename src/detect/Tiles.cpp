@@ -222,6 +222,7 @@ std::vector<cv::Rect> TilesDetector::detectColumns(XMat& roiImage, int gap) {
         cv::reduce(roiImage(reduceRect), reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
         cv::Mat reducedMat = toMat(reducedImage);
         std::vector<Range> rows;
+        threshold = -1;
         if (mMaxRows > 1)
             rows = split(false, reducedMat.data, H, gap, threshold);
         else

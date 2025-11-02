@@ -56,24 +56,20 @@ struct ReqState {
 };
 
 struct TaskTemplate {
-    const std::string name;
+    const std::string id;
+    std::string name;
     std::vector<Param> params;
     std::vector<TaskTemplate> steps;
-    std::vector<ReqState> requiredStartStates;
-    std::vector<ReqState> workingState;
-    std::vector<ReqState> expectedFinalStates;
+    std::function<Task*(Step* parent, const TaskTemplate& templ)> factory;
 
-    int maxMisses;
-
-    bool operator<(const TaskTemplate& other) const {
-        return name < other.name;
-    }
     bool set(const string& param, bool value);
     bool set(const string& param, int64_t value);
     bool set(const string& param, int32_t value) { return set(param, (int64_t)value); }
     bool set(const string& param, double value);
     bool set(const string& param, float value) { return set(param, (double)value); }
     bool set(const string& param, const string& value);
+
+    bool validate();
 };
 
 class nonlocal_return : public std::exception {

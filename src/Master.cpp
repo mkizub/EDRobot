@@ -403,9 +403,6 @@ void Master::loop() {
             case Command::Autopilot:
                 autopilotAITask();
                 break;
-            case Command::Calibrate:
-                startCalibration();
-                break;
             case Command::DebugTemplates:
                 debugTemplates(nullptr, nullptr);
                 break;
@@ -579,14 +576,6 @@ bool Master::preInitTask() {
     return true;
 }
 
-bool Master::startCalibration() {
-    if (!preInitTask())
-        return false;
-    LOG(INFO) << "Staring calibration task";
-    auto& templ = mAIManager->getTaskTemplate(ai::ED_TASK_CALIBRATE);
-    return mAIManager->new_task(templ);
-}
-
 
 const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lbl_name) {
     const Widget* widget = getInstance().getCfgItem(lbl_name);
@@ -629,21 +618,35 @@ int Master::canSell(Commodity* commodity) const {
         return 0;
     if (commodity->ship.count <= commodity->ship.stolen)
         return 0;
-    spMarket market = Cfg.currentMarket;
+    spMarket market = st::currentMarket;
+    if (!market || market->items.empty())
+        return 0;
     if (market->stationType == "FleetCarrier") {
-        return std::min(commodity->ship.count, commodity->market.demand);
+        auto it = market->items.find(commodity);
+        if (it == market->items.end())
+            return 0;
+        MarketLine& ml = it->second;
+        return std::min(commodity->ship.count, ml.demand);
     }
     return commodity->ship.count - commodity->ship.stolen;
 }
 
 int Master::canBuy(Commodity* commodity) const {
-    spMarket market = Cfg.currentMarket;
-    if (!commodity || commodity->market.stock <= 0)
+    if (!commodity)
+        return 0;
+    spMarket market = st::currentMarket;
+    if (!market || market->items.empty())
+        return 0;
+    auto it = market->items.find(commodity);
+    if (it == market->items.end())
+        return 0;
+    MarketLine& ml = it->second;
+    if (ml.stock <= 0)
         return 0;
     int free = st::shipStats.cargoCapacity - st::shipStats.cargo;
     if (free <= 0)
         return 0;
-    return std::min(free, commodity->market.stock);
+    return std::min(free, ml.stock);
 }
 
 const Commodity* Master::ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, ClassifiedRect* cr, int min_conf) {
@@ -706,7 +709,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
             }
         }
     }
-    if (!first || !last)
+     if (!first || !last)
         return false;
     // check first and last match with table
     auto it_table_first = std::find_if(table.begin(), table.end(), [first](Commodity* c) { return c == first->u.lrow.commodity; });
@@ -782,33 +785,6 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
 
     return true;
 }
-
-//bool Master::startTrade() {
-//    int total = 0;
-//    int chunk = mSellChunk;
-//    Commodity* commodity = nullptr;
-//    bool res = UIManager::askSellInput(total, chunk, commodity);
-//    if (!res || total <= 0 || chunk <= 0)
-//        return false;
-//    mSellChunk = chunk;
-//
-//    if (!preInitTask())
-//        return false;
-//
-//    LOG(INFO) << "Staring new trade task";
-//    if (commodity) {
-//        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL);
-//        templ.set("commodity", commodity->nameId);
-//        templ.set("amount", total);
-//        templ.set("chunk", chunk);
-//        mAIManager->new_task(templ);
-//    } else {
-//        ai::TaskTemplate templ = mAIManager->getTaskTemplate(ai::ED_TASK_MARKET_SELL_ALL);
-//        templ.set("chunk", chunk);
-//        mAIManager->new_task(templ);
-//    }
-//    return true;
-//}
 
 bool Master::pauseAITask() {
     mAIManager->interrupt();
@@ -947,6 +923,8 @@ widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
             auto w = debugTemplates(screen, &debugEnv);
             if (st::guiFocus == GuiFocus::None)
                 mCompassDetector->match(debugEnv);
+            else
+                mCompassDetector->clear();
             el::Loggers::flushAll();
             if (w && !foundWidget) {
                 foundWidget = w;
@@ -1334,9 +1312,7 @@ bool Master::detectEDState(DetectLevel level) {
         if (!mLastUIState.autopilot && !st::destination.name.empty()) {
             mCompassDetector->match(mClassifyEnv);
         } else {
-            mCompassDetector->lastHemisphere = 0;
-            mCompassDetector->navTargetFound = false;
-            mCompassDetector->lastNavDist = {};
+            mCompassDetector->clear();
         }
     }
 

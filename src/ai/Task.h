@@ -13,7 +13,7 @@ namespace ai {
 
 void check_interrupted();
 void ai_sleep(int milliseconds, bool precise=false);
-bool gotoNavPage(Step *task, const std::string &page_name);
+bool gotoNavPage(Step *task, const std::string &page_name, bool required=true);
 void rollBlindCompass();
 
 class Step : std::enable_shared_from_this<Step> {
@@ -70,10 +70,21 @@ public:
     bool executeWait(const json5pp::value& step, const json5pp::value& args);
     void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
 
-    std::string taskName;
-
     short missCount { 0 };
-    short maxMisses { 0 };
+};
+
+class TaskRepeat : public Task {
+public:
+    TaskRepeat(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    virtual ~TaskRepeat() = default;
+    bool run() override;
+
+    int mTotal {};
+    std::chrono::minutes mDuration;
+
+    int mCompleted {};
+    utc_timer timer;
+    int mStepIdx {};
 };
 
 } //namespace ai

@@ -209,11 +209,28 @@ bool BaseButton::detect(DetectParams& params) {
     if (expectedR.empty())
         return false;
     cv::Rect detectedR = expectedR;
-    cv::Rect captureR = env.cvtCapturedToReference(expectedR);
-    if (captureR.empty())
-        return false;
+    cv::Rect captureR = env.cvtReferenceToCaptured(expectedR);
 
-    if (extendLT != cv::Point() || extendRB != cv::Point()) {
+    if (!icon.empty()) {
+        if (!detector) {
+            detector = std::make_unique<detect::ImageTemplate>(icon, nullptr);
+            detector->extendLT = extendLT;
+            detector->extendRB = extendRB;
+        }
+        // assume icon is at the center of this bgutton
+        auto& orig = detector->refOrig;
+        auto& size = detector->refSize;
+        orig.x = expectedR.x + expectedR.width/2 - size.width/2;
+        orig.y = expectedR.y + expectedR.height/2 - size.height/2;
+        if (detector->match(params.env) < 0.5)
+            return false;
+        int cx = detector->captureRect.x + detector->captureRect.width/2;
+        int cy = detector->captureRect.y + detector->captureRect.height/2;
+        captureR.x = cx - captureR.width/2;
+        captureR.y = cy - captureR.height/2;
+        detectedR = env.cvtCapturedToReference(captureR);
+    }
+    else if (extendLT != cv::Point() || extendRB != cv::Point()) {
         cv::Rect extendR = {expectedR.tl() - extendLT, expectedR.br() + extendRB};
         cv::Rect matchR = env.cvtReferenceToCaptured(extendR);
 
@@ -274,359 +291,393 @@ bool BaseButton::detect(DetectParams& params) {
     return true;
 }
 
-struct Pixel {
-    enum State { UNKNOWN, FLAT, GAP, ROW, EMPTY };
-    short real;
-    short base;
-    short range_id;
-    bool artificial;
-    State state;
-    Pixel(uchar ch) : real(ch), base(ch), range_id(0), state(UNKNOWN), artificial(false) {}
-};
-
 struct Redused {
-    static Pixel empty;
+    enum State { UNKNOWN, FLAT, GAP, ROW, HDR, EMPTY };
+    struct Range {
+        State state;
+        uint8_t val;
+        uint8_t min;
+        uint8_t max;
+        uint8_t avr;
+        short bgn;
+        short end;
+        bool artificial;
+
+        short len() { return end-bgn+1; }
+    };
+
+    static Range emptyRange;
     const List* list;
     const int size;
     const double scale;
-    std::vector<Pixel> pix;
+    const uchar* pix;
+    std::vector<Range> rng;
     int range_count;
     int empty_threshold;
-    Redused(List* list, uchar* reduced, int len, double scale)
+    Redused(List* list, int len, uchar* pixels, double scale)
         : list(list)
         , size(len)
+        , pix(pixels)
         , scale(scale)
         , range_count(0)
         , empty_threshold(100)
     {
-        pix.reserve(len);
+        rng.reserve(len);
         for (int i=0; i < len; i++)
-            pix.emplace_back(reduced[i]);
+            rng.emplace_back(UNKNOWN, pix[i], pix[i], pix[i], pix[i], i, i, false);
         if (list->header > 0)
             empty_threshold = 70;
     }
-    const Pixel& at(int i) {
+    const Range& at(int i) {
         if (i < 0 || i >= size)
-            return empty;
-        return pix[i];
+            return emptyRange;
+        return rng[i];
     }
-    int get_range_end(int start);
-    bool get_flat_range(int start, int& end);
-    int maybe_gap_range(int start, int min_gap, int max_gap);
-    int maybe_row_range(int start, int min_row, int max_row);
+    void make_range(State state, int bgn, int end, bool artificial=false);
+    bool maybe_flat_range(int bgn, int& end, int& rate);
     void detect_flat();
-    void clear_empty();
+    bool maybe_gap_range(int bgn, int max_gap);
     void detect_gaps();
+    bool maybe_row_range(int bgn, int min_row, int max_row);
     void detect_rows();
+    void calc_threshold();
+    void clear_empty();
     bool insert_gaps();
     bool insert_rows();
     bool normalize_rows();
 };
 
-Pixel Redused::empty(0);
+Redused::Range Redused::emptyRange {EMPTY, 0, 0, 0, 0, 0, 0, false};
 
-int Redused::get_range_end(int start) {
-    int range_id = at(start).range_id;
-    for (int i=start+1; i < size; i++) {
-        if (at(i).range_id != range_id)
-            return i-1;
+void Redused::make_range(State state, int bgn, int end, bool artificial) {
+    assert (end >= bgn);
+    int sum = pix[bgn];
+    uint8_t min = pix[bgn];
+    uint8_t max = pix[bgn];
+    for (int i=bgn+1; i <= end; i++) {
+        auto pv = pix[i];
+        sum += pv;
+        min = std::min(min, pv);
+        max = std::max(max, pv);
     }
-    return size-1;
+    uint8_t avr = sum / (end - bgn + 1);
+    uint8_t val = min;
+    if (state == ROW) {
+        if (avr > min+4)
+            val = avr - 4;
+    }
+    Range r {state, val, min, max, avr, short(bgn), short(end), artificial};
+    for (int i=bgn; i <= end; i++) {
+        rng[i] = r;
+    }
 }
 
-bool Redused::get_flat_range(int start, int& end) {
+bool Redused::maybe_flat_range(int bgn, int& end, int& rate) {
+    rate = 0;
+    uint8_t min = rng[bgn].val;
+    uint8_t max = min;
     int sum = 0;
-    for (end = start; end < size; end++) {
-        assert(at(end).state == Pixel::UNKNOWN);
-        sum += at(end).real;
-        int avrg = sum / (end - start + 1);
-        int pv = pix[end].real;
-        if (std::abs(pv - avrg) > 2)
+    for (end = bgn; end < size; end++) {
+        auto& r = rng[end];
+        assert(r.state == UNKNOWN);
+        auto rv = rng[end].val;
+        min = std::min(min, rv);
+        max = std::max(max, rv);
+        if (max - min > 3)
+            break;
+        sum += rv;
+        int avr = sum / (end - bgn + 1);
+        if (std::abs(rv - avr) > 2)
             break;
     }
-    if (end - start < 3)
+    if (end - bgn < 3)
         return false;
-    int avrg = 0;
-    for (int i=start; i < end; i++)
-        avrg += pix[i].real;
-    avrg /= (end-start);
-    range_count += 1;
-    for (int i=start; i < end; i++) {
-        pix[i].base = avrg;
-        pix[i].range_id = range_count;
-        pix[i].state = Pixel::FLAT;
+    for (int i=bgn; i < end; i++) {
+        int rv = rng[i].val;
+        sum += rv;
+        if (i == bgn)
+            rate = 1;
+        else if (rv == rng[i-1].val)
+            rate += 2;
+        else if (std::abs(rv - rng[i-1].val) < 2)
+            rate += 1;
     }
+    end -= 1;
     return true;
-}
-int Redused::maybe_gap_range(int start, int min_gap, int max_gap) {
-    int end = start;
-    for (; end < size; end++) {
-        assert(at(end).state == Pixel::UNKNOWN || at(end).state == Pixel::FLAT);
-        if (at(end).state == Pixel::FLAT) {
-            int flat_end = get_range_end(end);
-            if (flat_end - start > max_gap)
-                break;
-            end = flat_end;
-        }
-    }
-    if (end == start)
-        return end;
-    if (end - start >= min_gap && end - start <= max_gap) {
-        short base = at(start).real;
-        short val_before = at(start-1).real;
-        short val_after = at(end).real;
-        for (int i = start; i < end; i++)
-            base = std::min(base, at(i).real);
-        if (val_before >= base+8 && val_after >= base+8) {
-            range_count += 1;
-            for (int i = start; i < end; i++) {
-                pix[i].base = base;
-                pix[i].range_id = range_count;
-                pix[i].state = Pixel::GAP;
-            }
-        }
-    }
-    return end - 1;
-}
-int Redused::maybe_row_range(int start, int min_row, int max_row) {
-    auto& p_bgn = at(start);
-    if (p_bgn.state != Pixel::FLAT)
-        return start;
-    int end = get_range_end(start);
-    for (int i=end+1; i < start+min_row; i++) {
-        auto& r = at(i);
-        if (r.state == Pixel::GAP || r.state == Pixel::ROW)
-            return get_range_end(i);
-    }
-    int row_end = -1;
-    for (int i=start+min_row; i < size && i < start+max_row; i++) {
-        auto& r = at(i);
-        if (r.state == Pixel::GAP || r.state == Pixel::ROW)
-            break;
-        i = get_range_end(i);
-        if (std::abs(r.base - p_bgn.base) > 6)
-            continue;
-        if (i >= start+max_row)
-            break;
-        row_end = i;
-    }
-    if (row_end < 0)
-        return end;
-    end = row_end;
-    range_count += 1;
-    short base = p_bgn.base;
-    for (int i = start; i < end; i++) {
-        if (base > 120)
-            base = std::max(base, at(i).base);
-        else
-            base = std::min(base, at(i).base);
-    }
-    for (int i = start; i <= end; i++) {
-        pix[i].base = base;
-        pix[i].range_id = range_count;
-        pix[i].state = Pixel::ROW;
-    }
-    return end;
 }
 void Redused::detect_flat() {
     for (int i=0; i < size; i++) {
-        int end;
-        if (get_flat_range(i, end))
-            i = end;
+        int i_end;
+        int i_rate;
+        if (maybe_flat_range(i, i_end, i_rate)) {
+            int best_rate = i_rate;
+            int b_bgn = i;
+            int b_end = i_end;
+            for (int j=i+1; j <= i_end; j++) {
+                int j_end;
+                int j_rate;
+                if (maybe_flat_range(j, j_end, j_rate)) {
+                    if (j_rate > best_rate) {
+                        best_rate = j_rate;
+                        b_bgn = j;
+                        b_end = j_end;
+                    }
+                }
+            }
+            if (b_bgn == i) {
+                make_range(FLAT, i, i_end);
+                i = rng[i].end;
+            } else if (b_bgn - i > 3) {
+                make_range(FLAT, i, b_bgn-1);
+                make_range(FLAT, b_bgn, b_end);
+                i = b_end;
+            } else {
+                make_range(FLAT, i, b_end);
+                i = b_end;
+            }
+        }
     }
 }
-void Redused::clear_empty() {
-    bool have_gaps = false;
+
+bool Redused::maybe_gap_range(int bgn, int max_gap) {
+    if (rng[bgn].len() > max_gap)
+        return false;
+    const int DELTA = 8;
+    int end = -1;
+    uint8_t min = 255;
+    uint8_t rise = 0;
+    for (int i=bgn; i < size; i++) {
+        auto& r = rng[i];
+        assert(r.state == UNKNOWN || r.state == FLAT);
+        if (r.end - bgn > max_gap)
+            break;
+        if (rise > 0 && r.min < rise)
+            break;
+        if (r.max > min)
+            rise = std::max(rise, r.max);
+        end = r.end;
+        min = std::min(min, r.min);
+        i = r.end;
+    }
+    if (end < bgn)
+        return false;
+    assert (end - bgn <= max_gap);
+    auto& r_prev = at(bgn-1);
+    auto& r_next = at(end+1);
+    bool is_gap = r_prev.max > min+DELTA && r_next.max > min+DELTA;
+    is_gap |= r_prev.min < min+4 && r_next.max > r_prev.min+2*DELTA;
+    is_gap |= r_prev.max > min+2*DELTA && r_next.min < min+4;
+    if (!is_gap)
+        return false;
+    make_range(GAP, bgn, end);
+    return true;
+}
+void Redused::detect_gaps() {
+    int height_min = int(std::round((list->row_height-list->row_gap)*scale))-3;
+    int gap_max = int(std::round(list->row_gap*scale))+2;
+    for (int i=0; i < size; i++) {
+        auto& r = rng[i];
+        assert (r.state == UNKNOWN || r.state == FLAT);
+        if (maybe_gap_range(i, gap_max))
+            i = rng[i].end + height_min;
+        else
+            i = rng[i].end;
+    }
+}
+
+bool Redused::maybe_row_range(int bgn, int min_row, int max_row) {
+    auto& r_bgn = rng[bgn];
+    if (r_bgn.state != FLAT || r_bgn.bgn+min_row >= size)
+        return false;
+    int limit = std::min(size, bgn+min_row);
+    int i = bgn;
+    for (; i < limit; i++) {
+        auto& r = rng[i];
+        assert (r.state == UNKNOWN || r.state == FLAT || r.state == GAP);
+        if (r.state == GAP)
+            return false;
+        i = r.end;
+    }
+    limit = std::min(size, bgn+max_row);
+    if (i > limit)
+        return false;
+    int row_val = r_bgn.val;
+    int row_end = i-1;
+    for (; i < limit; i++) {
+        auto& r = rng[i];
+        assert (r.state == UNKNOWN || r.state == FLAT || r.state == GAP);
+        if (r.state == GAP)
+            break;
+        if (r.end >= limit)
+            break;
+        row_end = r.end;
+        i = r.end;
+    }
+    int end = row_end;
+    make_range(ROW, bgn, row_end);
+    if (r_bgn.min > 120) {
+        for (i=r_bgn.bgn; i <= r_bgn.end; i++)
+            rng[i].val = rng[i].max;
+    }
+    return end;
+}
+void Redused::detect_rows() {
+    int height_min = int(std::round((list->row_height-list->row_gap)*scale))-3;
+    int height_max = int(std::round((list->row_height+list->row_gap)*scale))+3;
+    for (int i=0; i < size; i++) {
+        if (rng[i].state != FLAT)
+            continue;
+        maybe_row_range(i, height_min, height_max);
+        i = rng[i].end;
+    }
+}
+
+void Redused::calc_threshold() {
     int threshold;
     if (list->header > 0) {
         threshold = 70;
     } else {
-        short max_threshold = 100;
+        bool have_gaps = false;
+        uint8_t max_threshold = 100;
         // try to detect threshold from gaps
         for (int i = 0; i < size; i++) {
-            if (pix[i].state != Pixel::GAP)
+            if (rng[i].state != GAP) {
+                i = rng[i].end;
                 continue;
-            have_gaps = true;
-            if (at(i - 1).state == Pixel::ROW)
-                max_threshold = std::min(max_threshold, at(i - 1).base);
-            i = get_range_end(i);
-            if (at(i + 1).state == Pixel::ROW)
-                max_threshold = std::min(max_threshold, at(i + 1).base);
+            }
+            auto& prv = at(i-1);
+            if (prv.state == ROW && prv.min > rng[i].val+4) {
+                max_threshold = std::min(max_threshold, prv.val);
+                have_gaps = true;
+            }
+            i = at(i).end;
+            auto& nxt = at(i+1);
+            if (nxt.state == ROW && nxt.min > rng[i].val+4) {
+                max_threshold = std::min(max_threshold, nxt.val);
+                have_gaps = true;
+            }
         }
         threshold = have_gaps ? max_threshold-2 : 35;
     }
     empty_threshold = threshold;
+}
+void Redused::clear_empty() {
     int empty_start = 0;
-    if (list->row_height <= 0) {
-        // if list have no headers - find last gap/row
+    if (list->header <= 0) {
+        // no headers, ensure no empty space between rows
         for (int i=0; i < size; i++) {
-            if (pix[i].state == Pixel::GAP ||pix[i].state == Pixel::ROW) {
-                i = get_range_end(i);
-                empty_start = i+1;
+            auto& r = rng[i];
+            if (r.state == ROW && r.val > empty_threshold)
+                empty_start = r.end + 1;
+            i = r.end;
+        }
+    }
+    for (int i=empty_start; i < size; i++) {
+        auto& r = rng[i];
+        if (r.state != GAP) {
+            if (r.val <= empty_threshold) {
+                for (int j=r.bgn; j <= r.end; j++) {
+                    rng[j].state = EMPTY;
+                }
             }
         }
-    }
-    //int clear_start = -1;
-    for (int i=empty_start; i < size; i++) {
-        auto& p = pix[i];
-        if (!(p.state == Pixel::FLAT || p.state == Pixel::ROW))
-            continue;
-        if (p.base > threshold) {
-            //clear_start = -1;
-            continue;
-        }
-        //if (clear_start < 0)
-        //    clear_start = i;
-        short range_id = p.range_id;
-        for (; i < size && pix[i].range_id == range_id; i++) {
-            pix[i].range_id = 0;
-            pix[i].state = Pixel::EMPTY;
-        }
-        //if (i - clear_start > list->row_height * scale * 1.5) {
-        //    // clear the rest
-        //    for (i=clear_start; i < size; i++) {
-        //        pix[i].range_id = 0;
-        //        pix[i].state = Pixel::EMPTY;
-        //    }
-        //    return;
-        //}
-        i -= 1;
-    }
-    return;
-}
-void Redused::detect_gaps() {
-    int gap_min = 1;
-    int gap_max = int(std::round(list->row_gap*scale))+3;
-    for (int i=0; i < size; i++) {
-        if (pix.at(i).state != Pixel::UNKNOWN)
-            continue;
-        i = maybe_gap_range(i, gap_min, gap_max);
+        i = r.end;
     }
 }
 bool Redused::insert_gaps() {
     int gap_max = std::max(2, int(std::round(list->row_gap*scale))+2);
     bool added = false;
     for (int i=0; i < size; i++) {
-        if (pix.at(i).state != Pixel::ROW)
+        if (rng[i].state != ROW)
             continue;
         // ensure gap before this row
-        if (i > 0 && pix.at(i-1).state != Pixel::GAP) {
+        if (i > 0 && rng[i-1].state == UNKNOWN) {
             int g = i-1;
             for (int j=1; j <= gap_max; j++) {
                 if (i-j < 0)
                     break;
-                if (pix.at(i-j).state != Pixel::UNKNOWN)
+                if (at(i-j).state != UNKNOWN)
                     break;
                 g = i - j;
             }
             added = true;
-            short base = at(i-1).real;
-            for (int j=g; j < i; j++)
-                base = std::min(base, at(j).real);
-            range_count += 1;
-            for (int j=g; j < i; j++) {
-                pix[j].base = base;
-                pix[j].range_id = range_count;
-                pix[j].state = Pixel::GAP;
-                pix[j].artificial = true;
-            }
+            make_range(GAP, g, i-1, true);
         }
         // ensure gap after this row
-        i = get_range_end(i);
-        if (i < size-1 && pix.at(i+1).state != Pixel::GAP) {
+        i = rng[i].end;
+        if (i < size-1 && rng[i+1].state == UNKNOWN) {
             int g = i+1;
             for (int j=1; j <= gap_max; j++) {
                 if (i+j >= size)
                     break;
-                if (pix.at(i+j).state != Pixel::UNKNOWN)
+                if (rng[i+j].state != UNKNOWN)
                     break;
                 g = i + j;
             }
             added = true;
-            short base = at(i+1).real;
-            for (int j=i+1; j <= g; j++)
-                base = std::min(base, at(j).real);
-            range_count += 1;
-            for (int j=i+1; j <= g; j++) {
-                pix[j].base = base;
-                pix[j].range_id = range_count;
-                pix[j].state = Pixel::GAP;
-                pix[j].artificial = true;
-            }
+            make_range(GAP, i+1, g, true);
         }
     }
     return added;
-}
-void Redused::detect_rows() {
-    int height_min = int(std::round((list->row_height-list->row_gap)*scale))-2;
-    int height_max = int(std::round((list->row_height+list->row_gap)*scale))+2;
-    for (int i=0; i < size; i++) {
-        if (pix.at(i).state != Pixel::FLAT)
-            continue;
-        i = maybe_row_range(i, height_min, height_max);
-    }
 }
 bool Redused::insert_rows() {
     int height_min = int(std::round(list->row_height*scale))-3;
     int height_max = int(std::round(list->row_height*scale))+3;
     bool added = false;
+    int r;
     for (int i=0; i < size-2; i++) {
-        if (at(i).state != Pixel::GAP)
+        if (rng[i].state != GAP)
             continue;
-        if (at(i-1).state == Pixel::UNKNOWN || at(i-1).state == Pixel::FLAT) {
+        if (at(i-1).state == UNKNOWN || at(i-1).state == FLAT) {
+            // extend this gap left side
+            for (int x=1; x < 4 && i > 0; x++) {
+                if (at(i-1).state != UNKNOWN || at(i-1).val > empty_threshold)
+                    break;
+                make_range(GAP, i-1, rng[i].end);
+                i -= 1;
+            }
             // ensure row before this gap
-            int r = i - 1;
+            r = i - 1;
             for (int j = i - 1; j >= 0 && i - j <= height_max; j--) {
-                if (!(pix.at(j).state == Pixel::UNKNOWN || pix.at(j).state == Pixel::FLAT))
+                if (!(rng[j].state == UNKNOWN || rng[j].state == FLAT))
                     break;
                 r = j;
             }
             if (r < 0)
                 r = 0;
-            if (i - r - 1 >= height_min && i - r - 1 <= height_max) {
+            if (i - r >= height_min && i - r <= height_max) {
                 added = true;
-                short base = at(r).base;
-                for (int j = r; j < i; j++)
-                    base = std::min(base, at(r).base);
-                range_count += 1;
-                for (int j = r; j < i; j++) {
-                    pix[j].base = base;
-                    pix[j].range_id = range_count;
-                    pix[j].state = Pixel::ROW;
-                    pix[j].artificial = true;
-                }
+                make_range(ROW, r, i-1);
             }
         }
         // skip to the end of this gap
-        i = get_range_end(i);
-        if (at(i+1).state == Pixel::EMPTY)
+        i = rng[i].end;
+        if (at(i+1).state == EMPTY)
             continue;
-        if (at(i+1).state == Pixel::ROW || at(i+1).state == Pixel::GAP) {
+        if (at(i+1).state == ROW || at(i+1).state == GAP) {
             // already have row after this gap
-            i = get_range_end(i+1);
+            i = rng[i+1].end;
             continue;
         }
+        // extend this gap right side
+        for (int x=1; x < 4 && i < size-1; x++) {
+            if (rng[i+1].state != UNKNOWN || rng[i+1].val > empty_threshold)
+                break;
+            make_range(GAP, rng[i].bgn, i+1);
+            i += 1;
+        }
         // ensure row after this gap
-        int r = i + 1;
+        r = i + 1;
         for (int j = i + 1; j < size && j - i <= height_max; j++) {
-            if (!(pix.at(j).state == Pixel::UNKNOWN || pix.at(j).state == Pixel::FLAT))
+            if (!(rng[j].state == UNKNOWN || rng[j].state == FLAT))
                 break;
             r = j;
         }
         if (r >= size)
             r = size - 1;
-        if (r - i - 1 >= height_min && r - i - 1 <= height_max) {
+        if (r - i >= height_min && r - i <= height_max) {
             added = true;
-            short base = at(r).base;
-            for (int j = i + 1; j <= r; j++)
-                base = std::min(base, at(r).base);
-            range_count += 1;
-            for (int j = i + 1; j <= r; j++) {
-                pix[j].base = base;
-                pix[j].range_id = range_count;
-                pix[j].state = Pixel::ROW;
-                pix[j].artificial = true;
-            }
+            make_range(ROW, i+1, r);
         }
         i = r;
     }
@@ -637,37 +688,29 @@ bool Redused::normalize_rows() {
     bool changed = false;
     int row_norm = int(std::round(list->row_height*scale));
     for (int i=0; i < size; i++) {
-        if (pix[i].state != Pixel::ROW)
+        if (rng[i].state != ROW)
             continue;
-        int min_val = pix[i].base - 10;
+        int min_val = rng[i].val - 10;
         int row_bgn = i;
-        int row_end = get_range_end(i);
+        int row_end = rng[i].end;
         int row_size = row_end - row_bgn + 1;
         if (row_size < row_norm+1) {
             auto& prv = at(row_bgn-1);
             auto& nxt = at(row_end+1);
-            bool can_ext_before = (prv.real >= min_val && prv.state == Pixel::GAP && at(row_bgn-2).state != Pixel::ROW);
-            bool can_ext_after  = (nxt.real >= min_val && nxt.state == Pixel::GAP && at(row_end+2).state != Pixel::ROW);
+            bool can_ext_before = (prv.val >= min_val && prv.state == GAP && at(row_bgn-2).state != ROW);
+            bool can_ext_after  = (nxt.val >= min_val && nxt.state == GAP && at(row_end+2).state != ROW);
             if (can_ext_before && can_ext_after)
-                can_ext_before = (prv.real < nxt.real);
+                can_ext_before = (prv.val < nxt.val);
             if (can_ext_after) {
                 changed = true;
-                pix[row_end+1].state = Pixel::ROW;
-                pix[row_end+1].base = pix[row_end].base;
-                pix[row_end+1].range_id = pix[row_end].range_id;
+                make_range(ROW, rng[i].bgn, rng[i].end+1);
             }
             if (can_ext_before) {
                 changed = true;
-                pix[row_bgn-1].state = Pixel::ROW;
-                pix[row_bgn-1].base = pix[row_bgn].base;
-                pix[row_bgn-1].range_id = pix[row_bgn].range_id;
+                make_range(ROW, rng[i].bgn-1, rng[i].end);
             }
         }
-        else if (row_size > row_norm+1) {
-            auto& fst = at(row_bgn);
-            auto& lst = at(row_end);
-        }
-        i = get_range_end(row_end);
+        i = rng[row_end].end;
     }
     return changed;
 }
@@ -692,12 +735,21 @@ bool List::detect(DetectParams& params) {
         return true;
 
     XMat reducedImage;
-    cv::reduce(env.getGrayImage()(listCapturedRect), reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
+    cv::Rect rowTestRect = listCapturedRect;
+    if (row_test_end > row_test_bgn) {
+        rowTestRect.x += env.getScale() * row_test_bgn;
+        rowTestRect.width = env.getScale() * (row_test_end - row_test_bgn);
+    }
+    detect::HsvGrayCropFilter hsvFilter;
+    hsvFilter.rangesU.emplace_back(cv::Vec3b(10,100,30),cv::Vec3b(35,255,255));
+    XMat testImage = hsvFilter.apply(env.getColorImage()(rowTestRect), {});
+    cv::reduce(testImage, reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
     cv::Mat reducedMat = toMat(reducedImage);
-    Redused reduced(this, reducedMat.data, listCapturedRect.height, env.getScale());
+    Redused reduced(this, reducedMat.rows, reducedMat.data, env.getScale());
     reduced.detect_flat();
     reduced.detect_gaps();
     reduced.detect_rows();
+    reduced.calc_threshold();
     reduced.clear_empty();
     for (bool added = true; added;) {
         added = reduced.insert_gaps();
@@ -712,25 +764,31 @@ bool List::detect(DetectParams& params) {
              cv::Point(reduced.size, reduced.empty_threshold),
              cv::Scalar(90));
     for (int i=0; i < reduced.size; i++) {
-        auto& p = reduced.at(i);
-        if (p.state == Pixel::FLAT)
+        auto& r = reduced.at(i);
+        if (r.state == Redused::FLAT)
             histImage.at<uchar>(0, i) = 180;
-        if (p.state == Pixel::GAP)
-            histImage.at<uchar>(2, i) = p.artificial ? 120 : 180;
-        else if (p.state == Pixel::ROW)
-            histImage.at<uchar>(4, i) = p.artificial ? 120 : 255;
-        histImage.at<uchar>(p.base, i) = 128;
-        histImage.at<uchar>(p.real, i) = 255;
+        if (r.state == Redused::GAP)
+            histImage.at<uchar>(2, i) = r.artificial ? 120 : 180;
+        else if (r.state == Redused::ROW)
+            histImage.at<uchar>(4, i) = r.artificial ? 120 : 255;
+        histImage.at<uchar>(r.val, i) = 128;
+        histImage.at<uchar>(reduced.pix[i], i) = 255;
     }
 #endif
 
     bool has_rows = false;
     for (int i=0; i < reduced.size; i++) {
-        if (reduced.pix[i].state != Pixel::ROW)
+        if (reduced.rng[i].state != Redused::ROW) {
+            i = reduced.rng[i].end;
             continue;
-        int row_bgn = i;
-        int row_end = reduced.get_range_end(i);
-        int row_val = reduced.pix[i].base;
+        }
+        if (reduced.rng[i].val < reduced.empty_threshold) {
+            i = reduced.rng[i].end;
+            continue;
+        }
+        int row_bgn = reduced.rng[i].bgn;
+        int row_end = reduced.rng[i].end;
+        int row_val = reduced.rng[i].val;
         i = row_end;
         has_rows = true;
 

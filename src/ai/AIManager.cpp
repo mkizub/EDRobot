@@ -19,7 +19,6 @@
 #ifdef CPPTRACE_TRY
 # define TRY CPPTRACE_TRY
 # define CATCH(param) CPPTRACE_CATCH(param)
-# define GET_STACK_TRACE std::stacktrace::current().to_string()
 # define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
 #else
 # define TRY try
@@ -83,8 +82,8 @@ bool AIManager::active() {
 void AIManager::stop() {
     if (!activeTask)
         return;
-    LOG(INFO) << "AIManager::stop() task " << activeTask->taskName;
-    UIManager::showToast("EDRobot stop", std::format("Stop task '{}'", activeTask->taskName));
+    LOG(INFO) << "AIManager::stop() task " << activeTask->getName();
+    UIManager::showToast("EDRobot stop", std::format("Stop task '{}'", activeTask->getName()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     taskCond.notify_one();
@@ -99,8 +98,8 @@ void AIManager::stop() {
 void AIManager::interrupt() {
     if (isInterrupted || !activeTask)
         return;
-    LOG(INFO) << "AIManager::interrupt() task " << activeTask->taskName;
-    UIManager::showToast("EDRobot paused", std::format("Paused task '{}'", activeTask->taskName));
+    LOG(INFO) << "AIManager::interrupt() task " << activeTask->getName();
+    UIManager::showToast("EDRobot paused", std::format("Paused task '{}'", activeTask->getName()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     taskCond.notify_one();
@@ -119,8 +118,8 @@ void AIManager::resume() {
         UIManager::showToast("EDRobot resume", "No paused task");
         return;
     }
-    LOG(INFO) << "AIManager::resume() resuming task " << activeTask->taskName;
-    UIManager::showToast("EDRobot resume", std::format("Resuming task '{}'", activeTask->taskName));
+    LOG(INFO) << "AIManager::resume() resuming task " << activeTask->getName();
+    UIManager::showToast("EDRobot resume", std::format("Resuming task '{}'", activeTask->getName()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = false;
     taskCond.notify_one();
@@ -136,7 +135,8 @@ bool AIManager::autopilot() {
             return true;
         return false;
     }
-    return new_task(getTaskTemplate(ED_TASK_AUTOPILOT));
+    auto templ = getTaskTemplate(ED_TASK_AUTOPILOT);
+    return new_task(*templ);
 }
 
 spTask AIManager::curr_task() {
@@ -147,7 +147,7 @@ bool AIManager::new_task(spTask&& task) {
     if (!task)
         return false;
     LOG(INFO) << "AIManager::new_task()";
-    UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->taskName));
+    UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->getName()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     lastTask.reset();
@@ -156,7 +156,7 @@ bool AIManager::new_task(spTask&& task) {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
         return !isWorking || isLoopWaiting;
     });
-    LOG(INFO) << "AIManager::new_task(): activating " << task->taskName;
+    LOG(INFO) << "AIManager::new_task(): activating " << task->getName();
     activeTask.swap(task);
     isInterrupted = false;
     taskCond.notify_one();
@@ -168,32 +168,10 @@ bool AIManager::new_task(spTask&& task) {
 }
 
 bool AIManager::new_task(const TaskTemplate& templ) {
-    if (templ.name.empty())
+    if (templ.id.empty())
         return false;
-    spTask task;
-    if (templ.name == ED_TASK_CALIBRATE)
-        task.reset(new TaskCalibrate(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_DEBUG_FIND_ALL_COMMODITIES)
-        task.reset(new TaskDebugFindAllCommodities(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_DEBUG_FIND_ALL_NAV_POINTS)
-        task.reset(new TaskDebugFindAllNavPoints(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_MARKET_SELL_ALL)
-        task.reset(new TaskSellAll(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_MARKET_SELL)
-        task.reset(new TaskSell(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_MARKET_BUY)
-        task.reset(new TaskBuy(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_CONSTR_UNLOAD)
-        task.reset(new TaskConstr(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_AUTOPILOT)
-        task.reset(new Autopilot(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_TRAVEL)
-        task.reset(new TaskTravel(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_NAV_SCAN)
-        task.reset(new NavListScanTask(nullptr, *this, templ));
-    else if (templ.name == ED_TASK_DEBUG_AUTOPILOT)
-        task.reset(new TaskDebugAutopilot(nullptr, *this, templ));
-    LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.name;
+    spTask task(templ.factory(nullptr,templ));
+    LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.id;
     return new_task(std::move(task));
 }
 
@@ -242,7 +220,7 @@ void AIManager::step() {
     }
     if (activeTask) {
         master.setGameForeground();
-        LOG(INFO) << "AIManager::loop(): executing active task: " << activeTask->taskName;
+        LOG(INFO) << "AIManager::loop(): executing active task: " << activeTask->getName();
         bool ok = activeTask->safe_run();
         if (ok) {
             lastTask.reset();

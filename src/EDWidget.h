@@ -7,6 +7,8 @@
 #ifndef EDROBOT_EDWIDGET_H
 #define EDROBOT_EDWIDGET_H
 
+#include "detect/Detector.h"
+
 namespace widget {
 
 enum class WidgetType {
@@ -53,6 +55,8 @@ struct BaseButton : public Widget {
     bool detect(DetectParams& params);
     cv::Point extendLT;
     cv::Point extendRB;
+    std::string icon;
+    std::unique_ptr<detect::ImageTemplate> detector {};
 };
 
 struct Button : public BaseButton {
@@ -83,6 +87,8 @@ struct List : public Widget {
     float row_height {0};
     float row_gap {0};
     float header {0};
+    int row_test_bgn {0};
+    int row_test_end {0};
     struct Tab {
         std::string name;
         int tab_left {0};

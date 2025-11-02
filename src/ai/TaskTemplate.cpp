@@ -6,6 +6,9 @@
 
 #include "TaskTemplate.h"
 #include "AIManager.h"
+#include "TradeTasks.h"
+#include "AutopilotTasks.h"
+#include "TaskDebug.h"
 
 namespace nav {
 
@@ -135,40 +138,15 @@ std::vector<NavType*> ALL_NAV_TYPES {
 
 namespace ai {
 
-const std::string ED_STATE_VOID = "eds-void";
-const std::string ED_STATE_SPACE = "eds-space";
-const std::string ED_STATE_JUMP = "eds-jump";
-const std::string ED_STATE_CRUISE = "eds-cruise";
-const std::string ED_STATE_CRUISE_INT = "eds-cruise-int";
-const std::string ED_STATE_CRUISE_JET = "eds-cruise-jet";
-const std::string ED_STATE_DOCKED = "eds-dock";
-const std::string ED_STATE_LANDED = "eds-land";
-const std::string ED_STATE_DEPART = "eds-depart";
-
-const std::string ED_UI_MODE_NORM = "uim-n";
-const std::string ED_UI_MODE_LEFT = "uim-1";
-const std::string ED_UI_MODE_RIGHT = "uim-4";
-const std::string ED_UI_MODE_DOWN = "uim-3";
-const std::string ED_UI_MODE_CHAT = "uim-2";
-const std::string ED_UI_MODE_DOCK = "uim-dock";
-const std::string ED_UI_MODE_STATION = "uim-st";
-const std::string ED_UI_MODE_GAL_MAP = "uim-gal";
-const std::string ED_UI_MODE_SYS_MAP = "uim-sys";
-
-const std::string ED_TASK_SEQ = "tsk-seq";
-const std::string ED_TASK_LOOP = "tsk-loop";
-const std::string ED_TASK_GOTO_SERVICES = "tsk-goto-services";
-const std::string ED_TASK_GOTO_MARKET = "tsk-goto-market";
-const std::string ED_TASK_MARKET_SELL_ALL = "tsk-market-sell-all";
+const std::string ED_TASK_REPEAT = "tsk-repeat";
 const std::string ED_TASK_MARKET_SELL = "tsk-market-sell";
+const std::string ED_TASK_MARKET_SELL_ALL = "tsk-market-sell-all";
 const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
+const std::string ED_TASK_MARKET_BUY_CONSTR = "tsk-market-buy-constr";
 const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
 const std::string ED_TASK_TRAVEL = "tsk-travel";
 const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
-const std::string ED_TASK_GAL_MAP_SELECT = "tsk-star-select";
-const std::string ED_TASK_SYS_MAP_SELECT = "tsk-poi-select";
-const std::string ED_TASK_NIGH = "tsk-nigh";
 
 const std::string ED_TASK_CALIBRATE = "tsk-calibrate";
 const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES = "tsk-debug-find-all-commodities";
@@ -182,11 +160,11 @@ bool TaskTemplate::set(const string& pname, bool value) {
                 p.value = value;
                 return true;
             }
-            LOG(ERROR) << "Cannot assign bool value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            LOG(ERROR) << "Cannot assign bool value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->id;
             return false;
         }
     }
-    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->id;
     return false;
 }
 bool TaskTemplate::set(const string& pname, int64_t value) {
@@ -200,11 +178,11 @@ bool TaskTemplate::set(const string& pname, int64_t value) {
                 p.value = (double)value;
                 return true;
             }
-            LOG(ERROR) << "Cannot assign int value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            LOG(ERROR) << "Cannot assign int value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->id;
             return false;
         }
     }
-    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->id;
     return false;
 }
 bool TaskTemplate::set(const string& pname, double value) {
@@ -218,11 +196,11 @@ bool TaskTemplate::set(const string& pname, double value) {
                 p.value = value;
                 return true;
             }
-            LOG(ERROR) << "Cannot assign real value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            LOG(ERROR) << "Cannot assign real value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->id;
             return false;
         }
     }
-    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->id;
     return false;
 }
 bool TaskTemplate::set(const string& pname, const string& value) {
@@ -232,68 +210,232 @@ bool TaskTemplate::set(const string& pname, const string& value) {
                 p.value = value;
                 return true;
             }
-            LOG(ERROR) << "Cannot assign string value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->name;
+            LOG(ERROR) << "Cannot assign string value to parameter '" << p.name << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->id;
             return false;
         }
     }
-    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->name;
+    LOG(ERROR) << "Parameter '" << pname << "' not found in template " << this->id;
     return false;
 }
 
+bool TaskTemplate::validate() {
+    bool valid = true;
+    for (auto& param : params) {
+        bool ok = false;
+        std::string text;
+        try {
+            switch (param.type) {
+            case Param::Bool:
+                ok = true;
+                break;
+            case Param::Enum:
+                text = std::get<std::string>(param.value);
+                ok = (text.empty() && param.optional) || std::ranges::contains(split(param.meta, '|'), text);
+                break;
+            case Param::Int:
+                ok = std::get<int64_t>(param.value) >= 0 || param.optional;
+                break;
+            case Param::Real:
+                ok = std::isfinite(std::get<double>(param.value)) || param.optional;
+                break;
+            case Param::String:
+            case Param::System:
+            case Param::POI:
+            case Param::Dock:
+                text = std::get<std::string>(param.value);
+                ok = !text.empty() || param.optional;
+                break;
+            case Param::Commodity:
+                text = std::get<std::string>(param.value);
+                if (text.empty())
+                    ok = param.optional;
+                else
+                    ok = Cfg.getCommodityByName(text, false) != nullptr;
+                break;
+            }
+        } catch (const std::exception &ex) {
+            ok = false;
+        }
+        if (!ok)
+            valid = false;
+    }
+    return valid;
+}
 
 void AIManager::initTemplates() {
-    std::vector<TaskTemplate> templates {
-            { .name = ED_TASK_AUTOPILOT, .maxMisses = 5 },
-            { .name = ED_TASK_MARKET_SELL_ALL,
-              .params = {{Param::Int, "chunk", 0 }},
-              .maxMisses = 3 },
-            { .name = ED_TASK_MARKET_SELL,
-              .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }, {Param::Int, "chunk", 0 }},
-              .maxMisses = 3 },
-            { .name = ED_TASK_MARKET_BUY,
-              .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }},
-              .maxMisses = 3 },
-            { .name = ED_TASK_CONSTR_UNLOAD,
-              .maxMisses = 3 },
-            { .name = ED_TASK_TRAVEL,
-              .params = {{Param::System, "system", ""}, {Param::Dock, "dock", ""}},
-              .maxMisses = 5 },
-            { .name = ED_TASK_NAV_SCAN,
-              .params = {{Param::Bool, "travel", false}},
-              .maxMisses = 10 },
-            { ED_TASK_CALIBRATE },
-            { .name = ED_TASK_DEBUG_FIND_ALL_COMMODITIES,
-              .params = {{Param::Bool, "shuffle", false}, {Param::Bool, "dump_images", false}, {Param::Int, "start_index", 0 }},
-              .maxMisses = 3 },
-            { .name = ED_TASK_DEBUG_FIND_ALL_NAV_POINTS,
-              .params = {{Param::Bool, "dump_images", true}, {Param::Int, "ocr_confidence", 90 }, {Param::Int, "txt_confidence", 90 }, {Param::Bool, "resume", false}, {Param::Bool, "unfocused", false}},
-              .maxMisses = 3 },
-            { .name = ED_TASK_DEBUG_AUTOPILOT,
-              .params = {
+    AIManager& mgr = *this;
+    std::list<TaskTemplate> templates = {
+            {
+                .id = ED_TASK_AUTOPILOT,
+                .name = _("Autopilot"),
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new Autopilot(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_MARKET_SELL_ALL,
+                .name = _("Sell all cargo commodities"),
+                .params = {{Param::Int, "chunk", 0 }},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskSellAll(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_MARKET_SELL,
+                .name = _("Sell commodity"),
+                .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }, {Param::Int, "chunk", 0 }},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskSell(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_MARKET_BUY,
+                .name = _("Buy commodity"),
+                .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskBuy(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_MARKET_BUY_CONSTR,
+                .name = _("Buy all for construction"),
+                .params = {{Param::System, "system", ""}, {Param::Dock, "depot", ""}},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskBuyConstr(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_CONSTR_UNLOAD,
+                .name = _("Unload cargo at depot"),
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskConstrUnload(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_TRAVEL,
+                .name = _("Travel to dock"),
+                .params = {{Param::System, "system", ""}, {Param::Dock, "dock", ""}},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskTravel(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_REPEAT,
+                .name = _("Repeat several steps"),
+                .params = {{Param::Int, "count", 0}, {Param::Int, "duration", 300}},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskRepeat(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_DEBUG_FIND_ALL_COMMODITIES,
+                .name = _("Debug: find all commodities"),
+                .params = {{Param::Bool, "shuffle", false}, {Param::Bool, "dump_images", false}, {Param::Int, "start_index", 0 }},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskDebugFindAllCommodities(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_DEBUG_FIND_ALL_NAV_POINTS,
+                .name = _("Debug: find all nav points"),
+                .params = {{Param::Bool, "dump_images", true}, {Param::Int, "ocr_confidence", 90 }, {Param::Int, "txt_confidence", 90 }, {Param::Bool, "resume", false}, {Param::Bool, "unfocused", false}},
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskDebugFindAllNavPoints(parent, mgr, templ); }
+            },
+            {
+                .id = ED_TASK_DEBUG_AUTOPILOT,
+                .name = _("Debug: autopilot steps"),
+                .params = {
                     {Param::Enum, "test", "", "OrientTowards|OrientAway|Departure|Dock|EnterCruise|HyperJump|LeaveBody|FocusDestDock|FocusDestBody|FocusNearestBody|GalMapNavRoute|FocusTopEntry|NavDockSelect|NavBodySelect|CruiseToDist|DiveUnderPlanet|ExitCruiseToStation" },
                     {Param::String, "target", "", "", true},
                     {Param::Real, "precision", 1.0, "", true }
-                    },
-              .maxMisses = 3 },
+                },
+                .factory = [&](Step* parent, const TaskTemplate& templ) { return new TaskDebugAutopilot(parent, mgr, templ); }
+            }
     };
-    AllImplementedTasks.swap(templates);
-    AllImplementedTaskRefs.reserve(AllImplementedTasks.size());
-    for (auto& it : AllImplementedTasks) {
-        AllImplementedTaskRefs.push_back(&it);
-        AllImplementedTaskMap.insert({it.name, &it});
+
+    AllTaskTemplates.swap(templates);
+    for (auto& it : AllTaskTemplates) {
+        TaskTemplateMap.insert({it.id, &it});
+    }
+
+    loadSavedTasks();
+}
+
+TaskTemplate AIManager::loadTemplate(const json5pp::value& j_task) {
+    auto& templ_id = j_task.at("templ","").as_string();
+    auto* templ = getTaskTemplate(templ_id);
+    if (!templ) {
+        LOG(ERROR) << "Task template '" << templ_id << "' not found";
+        return {};
+    }
+    auto task = *templ;
+    if (j_task["name"].is_string()) {
+        task.name = j_task["name"].as_string();
+    }
+    bool ok = true;
+    for (auto& p : task.params) {
+        auto& jp = j_task[p.name];
+        if (jp.is_null()) {
+            if (p.optional)
+                continue;
+            ok = false;
+            LOG(ERROR) << "Missing required parameter '" << p.name << "' of task template " << task.id;
+            continue;
+        }
+        else if (jp.is_boolean()) {
+            if (!task.set(p.name, jp.as_boolean()))
+                ok = false;
+        }
+        else if (jp.is_integer()) {
+            if (!task.set(p.name, jp.as_int64()))
+                ok = false;
+        }
+        else if (jp.is_number()) {
+            if (!task.set(p.name, jp.as_number()))
+                ok = false;
+        }
+        else if (jp.is_string()) {
+            if (!task.set(p.name, jp.as_string()))
+                ok = false;
+        }
+        else {
+            LOG(ERROR) << "Expecting parameter '" << p.name << "' with type " << enum_name<Param::Type>(p.type) << " of task template " << task.id;
+            ok = false;
+        }
+    }
+    if (!ok)
+        return {};
+    if (!task.validate())
+        return {};
+    if (j_task["steps"].is_array()) {
+        for (auto& j_step : j_task["steps"].as_array()) {
+            TaskTemplate step = loadTemplate(j_step);
+            if (step.id.empty())
+                return {};
+            task.steps.push_back(step);
+        }
+    }
+    return task;
+}
+
+void AIManager::loadSavedTasks() {
+    LOG(INFO) << "Loading tasks.json5";
+    json5pp::value j_tasks;
+    try {
+        std::ifstream tasksFile("tasks.json5", std::ifstream::in);
+        if (tasksFile.fail()) {
+            LOG(ERROR) << "Cannot read file: tasks.json5";
+        } else {
+            j_tasks = json5pp::parse5(tasksFile);
+        }
+        tasksFile.close();
+    } catch (...) {
+        LOG(ERROR) << "Failed to read/parse tasks.json5";
+    }
+    if (!j_tasks || !j_tasks.is_array())
+        return;
+    for (const auto& jtt : j_tasks.as_array()) {
+        TaskTemplate task = loadTemplate(jtt);
+        if (!task.id.empty())
+            AllTasks.push_back(task);
     }
 }
 
-const std::vector<TaskTemplate*>& AIManager::getTaskTemplates() {
-    return AllImplementedTaskRefs;
+const std::list<TaskTemplate>& AIManager::getUserTasks() {
+    return AllTasks;
 }
 
-const TaskTemplate& AIManager::getTaskTemplate(const std::string& name) {
-    static TaskTemplate dummy;
-    auto it = AllImplementedTaskMap.find(name);
-    if (it == AllImplementedTaskMap.end())
-        return dummy;
-    return *(it->second);
+const std::list<TaskTemplate>& AIManager::getTemplates() {
+    return AllTaskTemplates;
+}
+
+const TaskTemplate* AIManager::getTaskTemplate(const std::string& name) {
+    auto it = TaskTemplateMap.find(name);
+    if (it == TaskTemplateMap.end())
+        return nullptr;
+    return it->second;
 }
 
 } // namespace ai
