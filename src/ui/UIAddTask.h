@@ -43,7 +43,6 @@ private:
     void add_ctrl(ai::Param& param, int& id, int &x, int &y, int w);
     bool validate(ParamCtrl& ctrl);
 
-    ai::AIManager* aiManager;
     std::vector<const ai::TaskTemplate*> templates;
 
     wl::resizer  layoutResizer;

@@ -66,6 +66,7 @@ struct StarSystem : public std::enable_shared_from_this<StarSystem> {
     std::vector<spSite> stations;
     bool saved {false};
 
+    Star* getMainStar();
     spItem getBodyById(int bodyId);
     spBody getBody(const std::string& bname);
     spSite getDock(const std::string& sname);

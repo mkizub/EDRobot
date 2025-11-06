@@ -377,7 +377,7 @@ dist_t dist_t::convertTo(dist_t::Unit u) const {
     return dist_t(u, dist*DIST_UNIT_SCALE[unit][u]);
 }
 
-double dist_t::get(Unit u) {
+double dist_t::get(Unit u) const {
     if (u == Unit::X || unit == Unit::X) return -1;
     return dist*DIST_UNIT_SCALE[unit][u];
 }
@@ -478,22 +478,22 @@ dist_t parseDist(std::wstring dist) {
     }
 }
 
-bool utc_timer::started() {
+bool utc_timer::started() const {
     return time_start.time_since_epoch() != std::chrono::utc_clock::duration::zero();
 }
-bool utc_timer::expired() {
+bool utc_timer::expired() const {
     auto now = std::chrono::utc_clock::now();
     return now >= time_limit;
 }
-int utc_timer::sec_passed() {
+int utc_timer::sec_passed() const {
     auto now = std::chrono::utc_clock::now();
     return std::chrono::duration_cast<std::chrono::seconds>(now - time_start).count();
 }
-int utc_timer::sec_left() {
+int utc_timer::sec_left() const {
     auto now = std::chrono::utc_clock::now();
     return std::chrono::duration_cast<std::chrono::seconds>(time_limit - now).count();
 }
-std::string utc_timer::passed() {
+std::string utc_timer::passed() const {
     auto now = std::chrono::utc_clock::now();
     auto dur = std::chrono::duration_cast<std::chrono::seconds>(now - time_start);
     int sec = dur.count();
@@ -503,7 +503,7 @@ std::string utc_timer::passed() {
         return std::format("{0:%M:%S}s", dur);
     return std::format("{0:%T}", dur);
 }
-std::string utc_timer::left() {
+std::string utc_timer::left() const {
     auto now = std::chrono::utc_clock::now();
     auto dur = std::chrono::duration_cast<std::chrono::seconds>(time_limit - now);
     int sec = dur.count();

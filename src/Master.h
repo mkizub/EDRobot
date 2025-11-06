@@ -50,6 +50,7 @@ struct UIState {
     std::vector<std::string> splitPath() const;
     bool valid {false};
     GuiFocus guiFocus {GuiFocus::None};
+    Timestamp timestamp;
     const widget::Screen* screen {nullptr};
     const widget::BaseDialog* widget {nullptr};
     const widget::Widget* focused {nullptr};
@@ -58,16 +59,6 @@ struct UIState {
     std::string to_string() const;
 };
 
-struct CompassInfo {
-    CompassInfo() : hemisphere(-1), has_nav_target(false) {}
-    float targetPitch;
-    float targetYaw;
-    float targetRoll;
-    float targetAngle;
-    short hemisphere; // +1: front, -1: back, 0: invalid
-    bool has_nav_target;
-    dist_t nav_target_dist;
-};
 struct DetectRequest {
     DetectLevel level;
     UIState* uiState;
@@ -101,7 +92,6 @@ public:
     const UIState& lastEDState() { return mLastUIState; }
     cv::Point cvtReferenceToDesktop(const cv::Point& point) const;
     cv::Rect resolveWidgetReferenceRect(const std::string& name) const;
-    ai::AIManager* getAIManager() const { return mAIManager; }
     int getDefaultKeyHoldTime() const { return Cfg.defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return Cfg.defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return Cfg.searchRegionExtent; }
@@ -167,7 +157,6 @@ private:
     std::deque<std::chrono::time_point<std::chrono::steady_clock>> mStreamFramePoints;
     std::chrono::milliseconds mLoopWakeup;
     std::unique_ptr<detect::CompassDetector> mCompassDetector;
-    ai::AIManager* mAIManager {nullptr};
 
     std::queue<pCommand> mCommandQueue;
     std::mutex mCommandMutex;

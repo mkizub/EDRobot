@@ -11,8 +11,7 @@
 //static const wchar_t* gWindowClass = L"AddTaskWindowClass";
 //static const wchar_t* gWindowName = L"EDRobot Add Task";
 
-UIAddTask::UIAddTask() : aiManager(nullptr) {
-    aiManager = Master::getInstance().getAIManager();
+UIAddTask::UIAddTask() {
     setup.dialogId = IDD_ADD_TASK;
 
     on_message(WM_INITDIALOG, [this](wl::params p){return initialize(p);});
@@ -32,7 +31,7 @@ UIAddTask::UIAddTask() : aiManager(nullptr) {
     });
     on_command(IDOK, [this](wl::params params) {
         if (curr_templ) {
-            aiManager->new_task(*curr_templ);
+            ai::new_task(*curr_templ);
             templ_controls.clear();
             curr_templ = nullptr;
         }
@@ -43,9 +42,9 @@ UIAddTask::UIAddTask() : aiManager(nullptr) {
 }
 
 int UIAddTask::initialize(wl::params &params) {
-    for (auto& tt : aiManager->getUserTasks())
+    for (auto& tt : ai::getUserTasks())
         templates.push_back(&tt);
-    for (auto& tt : aiManager->getTemplates())
+    for (auto& tt : ai::getTemplates())
         templates.push_back(&tt);
 
     btn_ok.assign(hwnd(), IDOK);

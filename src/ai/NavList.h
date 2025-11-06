@@ -42,42 +42,24 @@ class NavList {
 public:
 
     NavList() = default;
-    bool init(ai::Step* task, gal::spSite dock, gal::spBody body, st::NavPanelFilters filters);
-    std::vector<ClassifiedRect*> initNavList(cv::Mat& grayImage);
-    std::vector<ClassifiedRect*> recognizeWholePage(cv::Mat& grayImage);
+    bool init(st::NavPanelFilters filters);
+    std::vector<ClassifiedRect*> initNavList(cv::Mat& grayImage, int& focusIdx);
+    std::vector<ClassifiedRect*> recognizeWholePage(cv::Mat& grayImage, int& focusIdx);
     bool recognizeFocusedNavRow(nav::NavListEntry& nle);
     gal::spItem guessNavItem(NavListEntry &nle);
     bool fixupNavList();
 
     bool focusDestDock();
     bool focusDestBody();
-    bool focusNearestBody();
+    gal::spBody focusNearestBody(dist_t* dist=nullptr);
     bool focusTopEntry();
 
     bool selectFocused();
 
-    dist_t getFocusedDist();
+    dist_t getFocusedDist(int max_try);
 
-    NavListEntry* getFocusedEntry() {
-        if (focusIdx < 0 || focusIdx >= list.size())
-            return nullptr;
-        return &list[focusIdx];
-    }
-
-    st::NavPanelFilters locationFilters;
     std::vector<NavListEntry> list;
 
-    ai::Step* task;
-    gal::spBody destBody;
-    gal::spSite destDock;
-
-    int focusIdx {-1};
-    bool isDestDockFocused {};
-    bool isDestBodyFocused {};
-    bool isNearestBodyFocused {};
-    bool isTopEntryFocused {};
-
-    bool badBodyHierarchy {};
 };
 
 } // namespace nav
@@ -86,7 +68,7 @@ namespace ai {
 
 class NavListScanTask : public Task {
 public:
-    NavListScanTask(Task* parent, AIManager& mgr, const TaskTemplate& templ);
+    NavListScanTask(const TaskTemplate& templ);
     bool run() final;
     bool gotoNavPageNavigation();
 

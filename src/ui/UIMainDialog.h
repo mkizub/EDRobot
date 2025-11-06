@@ -26,8 +26,6 @@ public:
 
     void update_curr_task();
 
-    ai::AIManager* aiManager;
-
     NOTIFYICONDATA mNotifyIconData;
     wl::label lbl_curr_task;
     wl::label lbl_task_status;

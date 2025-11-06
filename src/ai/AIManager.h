@@ -14,56 +14,43 @@
 
 namespace ai {
 
-class AIManager {
-public:
+bool init();
+bool shutdown();
+bool active();
+void stop();
+void interrupt();
+void resume();
+bool autopilot();
+spTask curr_task();
+spTask last_task();
+spStep curr_step();
+bool new_task(spTask&& task);
+bool new_task(const TaskTemplate& templ);
 
-    AIManager();
-    ~AIManager();
+[[noreturn]] void throw_trouble(const char* msg);
+[[noreturn]] void throw_trouble(const std::string& msg);
+[[noreturn]] void throw_failed(const char* msg);
+[[noreturn]] void throw_failed(const std::string& msg);
 
-    bool active();
-    void stop();
-    void interrupt();
-    void resume();
-    bool autopilot();
-    spTask curr_task();
-    bool new_task(spTask&& task);
-    bool new_task(const TaskTemplate& templ);
+const std::list<TaskTemplate>& getUserTasks();
+const std::list<TaskTemplate>& getTemplates();
+const TaskTemplate* getTaskTemplate(const std::string& name);
 
-    const std::list<TaskTemplate>& getUserTasks();
-    const std::list<TaskTemplate>& getTemplates();
-    const TaskTemplate* getTaskTemplate(const std::string& name);
-
-    enum class CheckResult {
-        Failure,
-        Resume,
-        Replan,
-    };
-
-    const bool detectEDState(DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
-
-    void loop();
-    void step();
-
-    Master& master;
-    Configuration& cfg;
-
-    void initTemplates();
-    TaskTemplate loadTemplate(const json5pp::value& j_task);
-    void loadSavedTasks();
-
-    std::list<TaskTemplate> AllTasks;
-    std::list<TaskTemplate> AllTaskTemplates;
-    std::map<std::string,TaskTemplate*> TaskTemplateMap;
-
-    spTask activeTask;
-    spTask lastTask;
-    std::chrono::milliseconds nextDelay;
-    DetectLevel nextDetectLevel {DetectLevel::None};
-
-    ResolvedEnv rEnv;
-    UIState uiState;
-    CompassInfo compassInfo;
+enum class CheckResult {
+    Failure,
+    Resume,
+    Replan,
 };
+
+const bool detectEDState(DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
+
+bool gotoNavPage(const std::string &page_name, bool required=true);
+void rollBlindCompass();
+
+
+extern ResolvedEnv rEnv;
+extern UIState uiState;
+extern CompassInfo compassInfo;
 
 }
 

@@ -389,7 +389,7 @@ bool acquire_vJoy() {
 
 bool reset_vJoy() {
     unsigned rID = Cfg.getVJoyDeviceID();
-    LOG(INFO) << "Reset vJoy (device " << rID << ")";
+    //LOG(INFO) << "Reset vJoy (device " << rID << ")";
     ResetVJD(rID);
     for (auto it : vJoyAxisMap) {
         auto& ax = it.second;
@@ -511,7 +511,7 @@ bool send(const std::string& name, int delay_ms, int pause_ms, bool precise) {
         delay_ms = Cfg.getDefaultKeyHoldTime();
     if (pause_ms <= 0)
         pause_ms = Cfg.getDefaultKeyAfterTime();
-    LOG(INFO) << "send('" << name << "'," << delay_ms << "," << pause_ms << ")";
+    //LOG(INFO) << "send('" << name << "'," << delay_ms << "," << pause_ms << ")";
     const KeyBindings& keyBindings = Cfg.getGameKeyBindings(name);
     if (vJoyAcquired && keyBindings.secondary.device == GameKey::vJoy) {
         if (!post(keyBindings.secondary, delay_ms))
@@ -693,24 +693,6 @@ bool axis(const KeyBindings& bindings, double value) {
     return SetAxis(val, ax.devID, ax.axisID);
 }
 
-bool sendJoyAxis(const std::string& axis_name, double value) {
-    if (!vJoyAxisMap.contains(axis_name))
-        return false;
-    if (!Mgr.setGameForeground())
-        return false;
-    const vJoyAxisInfo& ax = vJoyAxisMap.at(axis_name);
-    LONG val;
-    if (ax.full) {
-        value = std::clamp(value, -1.0, +1.0);
-        val = std::round(std::lerp(double(ax.min), double(ax.max), (value+1.0)*0.5));
-    } else {
-        value = std::clamp(value, 0.0, +1.0);
-        val = std::round(std::lerp(double(ax.min), double(ax.max), value));
-    }
-    return SetAxis(val, ax.devID, ax.axisID);
-}
-
-
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         auto* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
@@ -871,7 +853,7 @@ unsigned addInputWait(const GameKey& gk, int hold) {
         wait.name = km.key + '+' + wait.name;
         wait.keys[i++] = addInputKey(km);
     }
-    LOG(INFO) << "addInputWait ("<<wait.inputId<<") " << wait.name << " hold " << hold;
+    //LOG(INFO) << "addInputWait ("<<wait.inputId<<") " << wait.name << " hold " << hold;
     //logInputKeys();
     return wait.inputId;
 }
@@ -962,7 +944,7 @@ void processKeyRelease() {
 unsigned post(const std::string& name, int hold_ms) {
     if (!Mgr.setGameForeground())
         return 0;
-    LOG(INFO) << "holdKeyDown('" << name << ")";
+    //LOG(INFO) << "holdKeyDown('" << name << ")";
     const KeyBindings& keyBindings = Cfg.getGameKeyBindings(name);
     if (keyBindings.primary.device != GameKey::Void) {
         return post(keyBindings.primary, hold_ms);
@@ -1044,7 +1026,7 @@ bool clearInput(unsigned inputId) {
             if (iw.inputId == inputId) {
                 iw.end = now;
                 ok = true;
-                LOG(INFO) << "clearInput " << inputId;
+                //LOG(INFO) << "clearInput " << inputId;
             }
         }
     }

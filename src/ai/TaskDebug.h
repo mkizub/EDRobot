@@ -17,8 +17,8 @@ namespace ai {
 
 class TaskDebugFindAllBase : public Task {
 protected:
-    TaskDebugFindAllBase(Step* parent, AIManager& mgr, const TaskTemplate& templ, bool market)
-        : Task(parent, mgr, templ)
+    TaskDebugFindAllBase(const TaskTemplate& templ_, bool market)
+        : Task(templ_)
         , isMarket(market)
     {}
     void checkAndFixOCRText();
@@ -28,7 +28,7 @@ protected:
 
 class TaskDebugFindAllCommodities final : public TaskDebugFindAllBase {
 public:
-    TaskDebugFindAllCommodities(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskDebugFindAllCommodities(const TaskTemplate& templ);
     bool run() final;
 private:
     bool checkCommodity(Commodity* commodity, const std::string& marketMode, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify);
@@ -42,7 +42,7 @@ private:
 
 class TaskDebugFindAllNavPoints final : public TaskDebugFindAllBase {
 public:
-    TaskDebugFindAllNavPoints(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskDebugFindAllNavPoints(const TaskTemplate& templ);
     bool run() final;
 private:
     bool checkOcrError(const ClassifiedRect& cr);

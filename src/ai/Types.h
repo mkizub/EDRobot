@@ -11,9 +11,16 @@ namespace ai {
 
 class Step;
 class Task;
-class AIManager;
 typedef std::shared_ptr<Step> spStep;
 typedef std::shared_ptr<Task> spTask;
+
+struct OrientationRequest {
+    int pitch;
+    int yaw;
+    int roll;
+
+
+};
 
 enum class FlyState {
     Void, Space, Jump, Cruise, CruiseInt, CruiseJet, Docked, Landed, Depart, BootScreen, DeathScreen
@@ -60,7 +67,7 @@ struct TaskTemplate {
     std::string name;
     std::vector<Param> params;
     std::vector<TaskTemplate> steps;
-    std::function<Task*(Step* parent, const TaskTemplate& templ)> factory;
+    std::function<Task*(const TaskTemplate& templ)> factory;
 
     bool set(const string& param, bool value);
     bool set(const string& param, int64_t value);
@@ -94,6 +101,9 @@ class interrupted_error : public std::exception {
 public:
     explicit interrupted_error() = default;
 };
+
+void check_interrupted();
+void sleep(int milliseconds, bool precise=false);
 
 } // namespace ai
 

@@ -1,6 +1,6 @@
 [
   {
-    name: "Build Giacconi Terminal",
+    name: "Build Kanu Command Point",
     templ: "tsk-repeat",
     count: 10,
     duration: 300, // at least 5 hours (300 minutes)
@@ -13,12 +13,12 @@
       {
         templ: "tsk-market-buy-constr",
         system: "Col 285 Sector XK-O d6-69",
-        depot: "Orbital Construction Site: Giacconi Terminal"
+        depot: "Planetary Construction Site: Kanu Command Point"
       },
       {
         templ: "tsk-travel",
         system: "Col 285 Sector XK-O d6-69",
-        dock: "Orbital Construction Site: Giacconi Terminal"
+        dock: "Planetary Construction Site: Kanu Command Point"
       },
       {
         templ: "tsk-constr-unload",

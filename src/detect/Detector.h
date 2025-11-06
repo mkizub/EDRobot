@@ -310,7 +310,7 @@ public:
 
     const double threshold_dot;
 
-    int lastHemisphere; // -1: back, 0: not detected, +1: front
+    int8_t lastHemisphere; // -1: back, 0: not detected, +1: front
     double lastTgtPitch;
     double lastTgtYaw;
     double lastTgtRoll;

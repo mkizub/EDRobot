@@ -4239,7 +4239,7 @@ private:
       if (log) {
         auto line = line_info(s, vis.error_s);
         log(line.first, line.second,
-            "infinite loop is detected in '" + vis.error_name + "'.", "");
+            "infinite task_loop is detected in '" + vis.error_name + "'.", "");
       }
       return true;
     }

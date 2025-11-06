@@ -13,7 +13,7 @@ namespace ai {
 
 class TaskCalibrate final : public Task {
 public:
-    TaskCalibrate(Task *parent, AIManager &mgr, const TaskTemplate &templ);
+    TaskCalibrate(const TaskTemplate &templ);
 
     bool run() final;
 

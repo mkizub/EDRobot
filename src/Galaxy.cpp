@@ -230,6 +230,9 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
             } else if (type == "SpaceConstr" || type == "SpaceConstructionDepot") {
                 typeNav = TypeNav::SpaceConstr;
                 typeSite = TypeSite::SpaceConstr;
+            } else if (type == "PlanetConstr" || type == "PlanetaryConstructionDepot") {
+                typeNav = TypeNav::PlanetConstr;
+                typeSite = TypeSite::PlanetConstr;
             }
             else if (/*type == "Planetary Outpost" &&*/ name == "Stronghold Carrier" || name == "Носитель-база") {
                 typeNav = TypeNav::MegashipDock;
@@ -450,6 +453,17 @@ void setCurrentStarSystem(spStarSystem ss) {
     gCurrentStarSystem.swap(ss);
 }
 
+Star* StarSystem::getMainStar() {
+    for (auto& b : this->bodies) {
+        if (b->typeNav == TypeNav::Star) {
+            Star* star = (Star*)b.get();
+            if (star->isMainStar)
+                return star;
+        }
+    }
+    return nullptr;
+}
+
 spItem StarSystem::getBodyById(int bodyId) {
     if (bodyId <= 0)
         return {};
@@ -520,6 +534,7 @@ void StarSystem::addDestination() {
             case TypeSite::EngineerPort:
             case TypeSite::Settlement:
             case TypeSite::SpaceConstr:
+            case TypeSite::PlanetConstr:
                 if (s->parentBodyId != st::destination.bodyId) {
                     s->parentBodyId = st::destination.bodyId;
                     this->saved = false;
@@ -556,6 +571,15 @@ void StarSystem::addDestination() {
         spSite site = std::make_shared<Site>();
         site->typeNav = gal::TypeNav::SpaceConstr;
         site->typeSite = gal::TypeSite::SpaceConstr;
+        site->name = dname;
+        site->parentBodyId = st::destination.bodyId;
+        stations.push_back(site);
+        this->saved = false;
+    }
+    else if (dname.starts_with("Planetary Construction Site:")) {
+        spSite site = std::make_shared<Site>();
+        site->typeNav = gal::TypeNav::PlanetConstr;
+        site->typeSite = gal::TypeSite::PlanetConstr;
         site->name = dname;
         site->parentBodyId = st::destination.bodyId;
         stations.push_back(site);
@@ -609,6 +633,9 @@ spSite StarSystem::addStation(int64_t marketId, const std::string& sname, const 
         } else if (type == "SpaceConstr" || type == "SpaceConstructionDepot") {
             typeNav = TypeNav::SpaceConstr;
             typeSite = TypeSite::SpaceConstr;
+        }  else if (type == "PlanetConstr" || type == "PlanetaryConstructionDepot") {
+            typeNav = TypeNav::PlanetConstr;
+            typeSite = TypeSite::PlanetConstr;
         } else if (/*type == "Planetary Outpost" &&*/ sname == "Stronghold Carrier" || sname == "Носитель-база") {
             typeNav = TypeNav::MegashipDock;
             typeSite = TypeSite::StrongholdCarrier;
@@ -627,6 +654,9 @@ spSite StarSystem::addStation(int64_t marketId, const std::string& sname, const 
         } else if (type.empty() && sname.starts_with("Orbital Construction Site:")) {
             typeNav = TypeNav::SpaceConstr;
             typeSite = TypeSite::SpaceConstr;
+        } else if (type.empty() && sname.starts_with("Planetary Construction Site:")) {
+            typeNav = TypeNav::PlanetConstr;
+            typeSite = TypeSite::PlanetConstr;
         }
     }
     if (!site) {
@@ -640,11 +670,11 @@ spSite StarSystem::addStation(int64_t marketId, const std::string& sname, const 
         site->marketId = marketId;
         saved = false;
     }
-    if (site->typeNav != typeNav) {
+    if (!type.empty() && site->typeNav != typeNav) {
         site->typeNav = typeNav;
         saved = false;
     }
-    if (site->typeSite != typeSite) {
+    if (!type.empty() && site->typeSite != typeSite) {
         site->typeSite = typeSite;
         saved = false;
     }
@@ -700,6 +730,7 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
         case TypeSite::EngineerPort:
         case TypeSite::Settlement:
         case TypeSite::SpaceConstr:
+        case TypeSite::PlanetConstr:
             continue;
         default:
             knownStations[site] = false;
@@ -796,12 +827,12 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
         checkName(site, sname, timestamp);
         checkNloc(site, snloc, timestamp);
     }
-    for (auto& it : knownStations) {
-        if (!it.second && it.first->updated < timestamp) {
-            std::erase(stations, it.first);
-            saved = false;
-        }
-    }
+    //for (auto& it : knownStations) {
+    //    if (!it.second && it.first->updated < timestamp) {
+    //        std::erase(stations, it.first);
+    //        saved = false;
+    //    }
+    //}
     if (!saved)
         saveStarSystem(this);
 }

@@ -11,24 +11,18 @@
 
 namespace ai {
 
-void check_interrupted();
-void ai_sleep(int milliseconds, bool precise=false);
-bool gotoNavPage(Step *task, const std::string &page_name, bool required=true);
-void rollBlindCompass();
-
 class Step : std::enable_shared_from_this<Step> {
 public:
-    Step(Step* parent, AIManager& mgr);
+    Step();
     virtual ~Step() = default;
 
     Task* getTask();
 
     virtual bool step() = 0;
     virtual bool run_sub_step(spStep step);
+    bool run_sub_step(Step* step) { return run_sub_step(spStep(step)); }
 
     virtual const char* getName() = 0;
-
-    void sleep(int milliseconds, bool precise=false) const { ai_sleep(milliseconds, precise); }
 
     void notifyProgress(const char* msg);
     void notifyProgress(const std::string& msg);
@@ -43,7 +37,6 @@ public:
     virtual std::string getStatus();
 
     Step * const parent;
-    AIManager& mgr;
 
     struct Message {
         std::chrono::time_point<std::chrono::steady_clock> timestamp;
@@ -56,7 +49,7 @@ public:
 
 class Task : public Step {
 public:
-    Task(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    Task(const TaskTemplate& templ);
     virtual ~Task() = default;
     virtual bool step();
     bool safe_run();
@@ -75,7 +68,7 @@ public:
 
 class TaskRepeat : public Task {
 public:
-    TaskRepeat(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskRepeat(const TaskTemplate& templ);
     virtual ~TaskRepeat() = default;
     bool run() override;
 

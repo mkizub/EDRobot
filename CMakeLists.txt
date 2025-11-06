@@ -64,6 +64,7 @@ add_executable(EDRobot
         src/ai/AutopilotTasks.h
         src/ai/NavList.cpp
         src/ai/NavList.h
+        src/ai/ShipTracker.cpp
         src/ai/TaskCalibrate.cpp
         src/ai/TaskCalibrate.h
         src/ai/TaskDebug.cpp

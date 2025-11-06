@@ -13,23 +13,21 @@ namespace ai {
 
 class BaseMarketTask : public Task {
 public:
-    BaseMarketTask(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : Task(parent, mgr, templ_)
-    {}
+    BaseMarketTask(const TaskTemplate& templ_) : Task(templ_) {}
 
     bool clickButton(const char* btn);
     bool moveToWidget(const char* widget);
     void gotoMarketScreen(bool buy);
     bool waitUiState(const std::string& state, std::chrono::seconds duration);
-    bool enterTradeDialog(Commodity* commodity, std::string state);
+    bool enterTradeDialog(Commodity* commodity, std::string state, bool force);
     bool commitTradeDialog(Commodity* commodity, std::string state);
 };
 
 class TaskSell final : public BaseMarketTask {
 public:
-    TaskSell(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskSell(const TaskTemplate& templ);
     bool run() final;
-    bool processTradeDialog();
+    bool processTradeDialog(bool force);
 
     Commodity* mCommodity;
     const int mTotal;
@@ -45,7 +43,7 @@ public:
 
 class TaskSellAll final : public BaseMarketTask {
 public:
-    TaskSellAll(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskSellAll(const TaskTemplate& templ);
     bool run() final;
 private:
     int mChunk;
@@ -60,9 +58,9 @@ private:
 
 class TaskBuy final : public BaseMarketTask {
 public:
-    TaskBuy(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskBuy(const TaskTemplate& templ);
     bool run() final;
-    bool processTradeDialog();
+    bool processTradeDialog(bool force);
 
     Commodity* mCommodity;
     const int mTotal;
@@ -77,7 +75,7 @@ public:
 
 class TaskBuyConstr final : public BaseMarketTask {
 public:
-    TaskBuyConstr(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskBuyConstr(const TaskTemplate& templ);
     bool run() final;
 
     std::string destSystemName;
@@ -94,7 +92,7 @@ public:
 
 class TaskConstrUnload final : public BaseMarketTask {
 public:
-    TaskConstrUnload(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskConstrUnload(const TaskTemplate& templ);
     bool run() final;
 
     std::string getStatus() override;

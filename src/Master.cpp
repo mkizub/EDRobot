@@ -6,7 +6,6 @@
 
 #include "ui/UIManager.h"
 #include "ai/AIManager.h"
-#include "ai/TaskTemplate.h"
 #include "detect/Detector.h"
 #include "detect/Lines.h"
 #include "Keyboard.h"
@@ -14,6 +13,7 @@
 #include "FuzzyMatch.h"
 #include "EDWidget.h"
 #include "OCR.h"
+#include "Galaxy.h"
 #include <fstream>
 #include <memory>
 #include <string>
@@ -331,7 +331,7 @@ void Master::initializeInternal(std::string ocr_dir) {
     LOG(INFO) << "Loading configuration";
     Cfg.load();
 
-    mAIManager = new ai::AIManager();
+    ai::init();
 
     if (ocr_dir.empty())
         ocr_dir = Cfg.mTesseractDataPath;
@@ -359,7 +359,7 @@ Master::Master() {
 Master::~Master() {
     kbd::stop();
     kbd::release_vJoy();
-    delete mAIManager;
+    ai::shutdown();
     if (mCapturer) {
         mCapturer->stop();
         mCapturer = nullptr;
@@ -373,7 +373,7 @@ void Master::loop() {
         LOG(INFO) << "Initializing screen capturers";
         Capturer::InitCapturers();
 
-        LOG(INFO) << "Starting EDRobot task loop";
+        LOG(INFO) << "Starting EDRobot task task_loop";
         bool shutdown = false;
         while (!shutdown) {
             pCommand cmd;
@@ -435,7 +435,7 @@ void Master::loop() {
         }
     }
     CATCH(const std::exception& e) {
-        LOG(ERROR) << "Exception in main loop: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in main task_loop: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
         //clearCurrentTask();
     }
 }
@@ -488,7 +488,7 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
         else
             self.pushCommand(cmd->second);
     } else {
-        if (Cfg.autoPause && self.mAIManager->active()) {
+        if (Cfg.autoPause && ai::active()) {
             LOG(INFO) << "Auto-pausing AI task because '"+encodeShortcut(name,flags)+"' pressed";
             self.pushCommand(Command::Pause);
         }
@@ -787,22 +787,22 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
 }
 
 bool Master::pauseAITask() {
-    mAIManager->interrupt();
+    ai::interrupt();
     return true;
 }
 
 bool Master::resumeAITask() {
-    mAIManager->resume();
+    ai::resume();
     return true;
 }
 
 bool Master::stopAITask() {
-    mAIManager->interrupt();
+    ai::interrupt();
     return true;
 }
 
 bool Master::autopilotAITask() {
-    return mAIManager->autopilot();
+    return ai::autopilot();
 }
 
 cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) const {
@@ -1288,6 +1288,8 @@ bool Master::detectEDState(DetectLevel level) {
         mLastUIState.valid = false;
         return false;
     }
+    Timestamp timestamp = std::chrono::utc_clock::now();
+    mLastUIState.timestamp = timestamp;
     mLastUIState.guiFocus = st::guiFocus;
     mLastUIState.valid = true;
     if (level == DetectLevel::None) {
@@ -1311,8 +1313,27 @@ bool Master::detectEDState(DetectLevel level) {
         // detect compass
         if (!mLastUIState.autopilot && !st::destination.name.empty()) {
             mCompassDetector->match(mClassifyEnv);
+            CompassInfo compass {};
+            compass.timestamp = timestamp;
+            compass.hemisphere = mCompassDetector->lastHemisphere;
+            compass.targetPitch = (float) mCompassDetector->lastTgtPitch;
+            compass.targetYaw = (float) mCompassDetector->lastTgtYaw;
+            compass.targetRoll = (float) mCompassDetector->lastTgtRoll;
+            compass.targetAngle = (float) mCompassDetector->lastTgtAngle;
+            compass.has_nav_target = mCompassDetector->navTargetFound;
+            if (mCompassDetector->navTargetFound)
+                compass.nav_target_dist = mCompassDetector->lastNavDist;
+            st::compass = compass;
+
+            if (mCompassDetector->navTargetFound && mCompassDetector->lastNavDist.valid()) {
+                if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name))
+                    st::autopilot.distanceToDock = mCompassDetector->lastNavDist;
+                else if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name))
+                    st::autopilot.distanceToBody = mCompassDetector->lastNavDist;
+            }
         } else {
             mCompassDetector->clear();
+            st::compass = {};
         }
     }
 
@@ -1393,6 +1414,7 @@ void Master::processDetectRequest(pCommand &cmd) {
             if (c->request.rEnv)
                 *c->request.rEnv = mClassifyEnv;
             if (c->request.compass) {
+                c->request.compass->timestamp = mLastUIState.timestamp;;
                 c->request.compass->hemisphere = mCompassDetector->lastHemisphere;
                 c->request.compass->targetPitch = (float) mCompassDetector->lastTgtPitch;
                 c->request.compass->targetYaw = (float) mCompassDetector->lastTgtYaw;

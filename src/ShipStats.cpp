@@ -128,8 +128,8 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
         min = jv["min"].as_number();
     if (jv["max"].is_number())
         max = jv["max"].as_number();
-    if (jv["step"].is_number())
-        step = jv["step"].as_number();
+    if (jv["task_step"].is_number())
+        step = jv["task_step"].as_number();
 
     default_value = DNaN;
     default_attr = nullptr;

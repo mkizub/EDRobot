@@ -126,26 +126,19 @@ bool parseFocusedNavRow(const cv::Mat& grayImage, const ResolvedEnv& rEnv, nav::
 
 namespace nav {
 
-bool NavList::init(ai::Step* task, gal::spSite dock, gal::spBody body, st::NavPanelFilters filters) {
-    this->task = task;
-    this->destDock = dock;
-    this->destBody = body;
-    this->locationFilters = filters;
-    this->focusIdx = -1;
-    this->isDestDockFocused = false;
-    this->isDestBodyFocused = false;
-    this->isNearestBodyFocused = false;
-    this->isTopEntryFocused = false;
+bool NavList::init(st::NavPanelFilters filters) {
     this->list.clear();
 
     if (filters == st::navFilters)
         return true;
 
+    st::autopilot.isDestBodyFocused = false;
+    st::autopilot.isDestDockFocused = false;
     for (int retry=0; retry < 3; retry++) {
         if (filters == st::navFilters)
             return true;
 
-        if (!gotoNavPage(task, "mod-navigation", false))
+        if (!ai::gotoNavPage("mod-navigation", false))
             continue;
 
         int delay = 300;
@@ -154,9 +147,9 @@ bool NavList::init(ai::Step* task, gal::spSite dock, gal::spBody body, st::NavPa
             kbd::send("UI_Up", 0, delay);
         kbd::send("UI_Select", 0, 1000);
 
-        task->mgr.detectEDState(DetectLevel::Buttons);
-        if (!task->mgr.uiState.match("scr-left-panel:dlg-filters")) {
-            task->throw_trouble("TaskDock expecting 'scr-left-panel:dlg-filters' but got " + task->mgr.uiState.to_string());
+        ai::detectEDState(DetectLevel::Buttons);
+        if (!ai::uiState.match("scr-left-panel:dlg-filters")) {
+            ai::throw_trouble("TaskDock expecting 'scr-left-panel:dlg-filters' but got " + ai::uiState.to_string());
         }
         // currently ED always opens filters at top position 'stars',
         // so just scroll down and select/deselect what we need
@@ -206,19 +199,19 @@ bool NavList::init(ai::Step* task, gal::spSite dock, gal::spBody body, st::NavPa
     return (filters == st::navFilters);
 }
 
-std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage) {
+std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage, int& focusIdx) {
     std::vector<ClassifiedRect*> rows;
     focusIdx = -1;
     list.clear();
     for (int retry=0; retry < 3; retry++) {
-        if (!task->mgr.uiState.match("scr-left-panel:mod-navigation"))
-            gotoNavPage(task, "mod-navigation");
-        if (task->mgr.uiState.focused_name() != "lst-bodies")
+        if (!ai::uiState.match("scr-left-panel:mod-navigation"))
+            ai::gotoNavPage("mod-navigation");
+        if (ai::uiState.focused_name() != "lst-bodies")
             kbd::send("UI_Right");
-        if (!task->mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage))
+        if (!ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage))
             continue;
         rows.clear();
-        for (auto &cr: task->mgr.rEnv.classified) {
+        for (auto &cr: ai::rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
                 continue;
             if (cr.u.lrow.ws == WState::Focused)
@@ -237,28 +230,28 @@ std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage) {
     return rows;
 }
 
-std::vector<ClassifiedRect*> NavList::recognizeWholePage(cv::Mat& grayImage) {
-    std::vector<ClassifiedRect*> rows = initNavList(grayImage);
+std::vector<ClassifiedRect*> NavList::recognizeWholePage(cv::Mat& grayImage, int& focusIdx) {
+    std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
     for (int idx=0; idx < rows.size(); idx++) {
-        parseNavRow(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+        parseNavRow(grayImage, ai::rEnv, *rows[idx], list[idx]);
         list[idx].item = guessNavItem(list[idx]);
     }
     return rows;
 }
 
 bool NavList::recognizeFocusedNavRow(nav::NavListEntry& nle) {
-    if (!task->mgr.uiState.match("scr-left-panel:mod-navigation"))
-        gotoNavPage(task, "mod-navigation");
+    if (!ai::uiState.match("scr-left-panel:mod-navigation"))
+        ai::gotoNavPage("mod-navigation");
 
     cv::Mat grayImage;
     double dist_km = 10;
     for (int cnt=0; cnt < 3; cnt++) {
-        task->mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-        if (task->mgr.uiState.focused_name() != "lst-bodies") {
+        ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+        if (ai::uiState.focused_name() != "lst-bodies") {
             kbd::send("UI_Right", 0, 500);
             continue;
         }
-        if (!parseFocusedNavRow(grayImage, task->mgr.rEnv, nle)) {
+        if (!parseFocusedNavRow(grayImage, ai::rEnv, nle)) {
             LOG(INFO) << "Failed to parse nav row";
             continue;
         }
@@ -393,37 +386,44 @@ static inline void nextIdx(int& idx, int incr, size_t size) {
         idx = 0;
 }
 bool NavList::focusDestDock() {
+    auto destBody = st::autopilot.destBody;
+    auto destDock = st::autopilot.destDock;
     if (!destDock)
         return false;
-    if (isDestDockFocused && focusIdx >= 0 && focusIdx < list.size())
+    if (st::autopilot.isDestDockFocused)
         return true;
+    int focusIdx;
     cv::Mat grayImage;
-    std::vector<ClassifiedRect*> rows = initNavList(grayImage);
+    std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
     if (rows.empty())
         return false;
 
     int startIdx = 0;
-    if (isDestBodyFocused && focusIdx >= 0)
+    if (st::autopilot.isDestBodyFocused && focusIdx >= 0)
         startIdx = focusIdx;
 
     // try current page
     int destBodyNavIdx = -1;
     int destDockNavIdx = -1;
     for (int idx=startIdx; !list[idx].parsed; nextIdx(idx, 1, list.size())) {
-        parseNavRow(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+        parseNavRow(grayImage, ai::rEnv, *rows[idx], list[idx]);
         list[idx].item = guessNavItem(list[idx]);
         if (destBody && list[idx].item.get() == destBody.get()) {
             destBodyNavIdx = idx;
-            parseNavDist(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+            parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
+            if (list[idx].dist.valid())
+                st::autopilot.distanceToBody = list[idx].dist;
         }
         if (list[idx].item.get() == destDock.get()) {
             destDockNavIdx = idx;
-            parseNavDist(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+            parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
+            if (list[idx].dist.valid())
+                st::autopilot.distanceToDock = list[idx].dist;
             break;
         }
     }
     if (destDockNavIdx == focusIdx) {
-        isDestDockFocused = true;
+        st::autopilot.isDestDockFocused = true;
         return true;
     }
 
@@ -439,17 +439,15 @@ bool NavList::focusDestDock() {
             if (list[idx].item && list[idx].item->isSite() && list[idx].item->parentBodyId > 0) {
                 gal::spItem item = gal::getCurrentStarSystem()->getBodyById(list[idx].item->parentBodyId);
                 if (item.get() != list[destBodyNavIdx].item.get()) {
-                    badBodyHierarchy = true;
+                    st::autopilot.badBodyHierarchy = true;
                     break;
                 }
             }
         }
     }
 
-    isDestDockFocused = false;
-    isDestBodyFocused = false;
-    isNearestBodyFocused = false;
-    isTopEntryFocused = false;
+    st::autopilot.isDestDockFocused = false;
+    st::autopilot.isDestBodyFocused = false;
     for (int retry=0; retry < 10; retry++) {
         startIdx = 0;
         if (destDockNavIdx >= 0) {
@@ -471,23 +469,26 @@ bool NavList::focusDestDock() {
             int hold = 300 + 8*50;
             kbd::send("UI_Down", hold);
         }
-        task->sleep(300);
+        ai::sleep(300);
         destDockNavIdx = -1;
         destBodyNavIdx = -1;
 
-        rows = initNavList(grayImage);
+        rows = initNavList(grayImage, focusIdx);
         if (rows.empty() || focusIdx < 0)
             continue;
         for (int idx = startIdx; !list[idx].parsed; nextIdx(idx, 1, list.size())) {
-            parseNavRow(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+            parseNavRow(grayImage, ai::rEnv, *rows[idx], list[idx]);
             list[idx].item = guessNavItem(list[idx]);
             if (list[idx].item.get() == destDock.get()) {
                 destDockNavIdx = idx;
+                parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
+                if (list[idx].dist.valid())
+                    st::autopilot.distanceToDock = list[idx].dist;
                 break;
             }
         }
         if (destDockNavIdx == focusIdx) {
-            isDestDockFocused = true;
+            st::autopilot.isDestDockFocused = true;
             return true;
         }
     }
@@ -495,18 +496,21 @@ bool NavList::focusDestDock() {
 }
 
 bool NavList::focusDestBody() {
-    if (!destBody)
+    auto destBody = st::autopilot.destBody;
+    auto destDock = st::autopilot.destDock;
+    if (!st::autopilot.destBody)
         return false;
-    if (isDestBodyFocused && focusIdx >= 0 && focusIdx < list.size())
+    if (st::autopilot.isDestBodyFocused)
         return true;
+    int focusIdx;
     cv::Mat grayImage;
-    std::vector<ClassifiedRect*> rows = initNavList(grayImage);
+    std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
     if (rows.empty())
         return false;
 
     int startIdx = 0;
     int incr = 1;
-    if (isDestDockFocused && focusIdx >= 0) {
+    if (st::autopilot.isDestDockFocused && focusIdx >= 0) {
         startIdx = focusIdx;
         incr = -1;
     }
@@ -515,32 +519,38 @@ bool NavList::focusDestBody() {
     int destBodyNavIdx = -1;
     int destDockNavIdx = -1;
     for (int idx=startIdx; !list[idx].parsed; nextIdx(idx, incr, list.size())) {
-        parseNavRow(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+        parseNavRow(grayImage, ai::rEnv, *rows[idx], list[idx]);
         list[idx].item = guessNavItem(list[idx]);
         if (destBody && list[idx].item.get() == destBody.get()) {
             destBodyNavIdx = idx;
-            parseNavDist(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+            parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
+            if (list[idx].dist.valid())
+                st::autopilot.distanceToBody = list[idx].dist;
             break;
         }
         if (destDock && list[idx].item.get() == destDock.get()) {
             destDockNavIdx = idx;
-            parseNavDist(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+            parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
+            if (list[idx].dist.valid())
+                st::autopilot.distanceToDock = list[idx].dist;
         }
     }
     if (destBodyNavIdx == focusIdx) {
-        isDestBodyFocused = true;
+        st::autopilot.isDestBodyFocused = true;
         return true;
     }
     if (fixupNavList()) {
         for (int idx=0; idx < list.size(); idx++) {
             if (list[idx].item.get() == destBody.get()) {
                 destBodyNavIdx = idx;
-                parseNavDist(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+                parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
+                if (list[idx].dist.valid())
+                    st::autopilot.distanceToBody = list[idx].dist;
                 break;
             }
         }
         if (destBodyNavIdx == focusIdx) {
-            isDestBodyFocused = true;
+            st::autopilot.isDestBodyFocused = true;
             return true;
         }
     }
@@ -557,17 +567,15 @@ bool NavList::focusDestBody() {
             if (list[idx].item && list[idx].item->isSite() && list[idx].item->parentBodyId > 0) {
                 gal::spItem item = gal::getCurrentStarSystem()->getBodyById(list[idx].item->parentBodyId);
                 if (item.get() != list[destBodyNavIdx].item.get()) {
-                    badBodyHierarchy = true;
+                    st::autopilot.badBodyHierarchy = true;
                     break;
                 }
             }
         }
     }
 
-    isDestDockFocused = false;
-    isDestBodyFocused = false;
-    isNearestBodyFocused = false;
-    isTopEntryFocused = false;
+    st::autopilot.isDestDockFocused = false;
+    st::autopilot.isDestBodyFocused = false;
     for (int retry=0; retry < 10; retry++) {
         startIdx = 0;
         if (destBodyNavIdx >= 0) {
@@ -589,22 +597,22 @@ bool NavList::focusDestBody() {
             int hold = 300 + 8*50;
             kbd::send("UI_Down", hold);
         }
-        task->sleep(300);
+        ai::sleep(300);
         destDockNavIdx = -1;
         destBodyNavIdx = -1;
 
-        rows = initNavList(grayImage);
+        rows = initNavList(grayImage, focusIdx);
         if (rows.empty() || focusIdx < 0)
             continue;
         for (int idx = startIdx; !list[idx].parsed; nextIdx(idx, 1, list.size())) {
-            parseNavRow(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+            parseNavRow(grayImage, ai::rEnv, *rows[idx], list[idx]);
             list[idx].item = guessNavItem(list[idx]);
             if (list[idx].item.get() == destBody.get()) {
                 destBodyNavIdx = idx;
-                parseNavDist(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+                parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
             }
             if (destBodyNavIdx == focusIdx) {
-                isDestBodyFocused = true;
+                st::autopilot.isDestBodyFocused = true;
                 return true;
             }
         }
@@ -612,12 +620,14 @@ bool NavList::focusDestBody() {
             for (int idx=0; idx < list.size(); idx++) {
                 if (list[idx].item.get() == destBody.get()) {
                     destBodyNavIdx = idx;
-                    parseNavDist(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+                    parseNavDist(grayImage, ai::rEnv, *rows[idx], list[idx]);
+                    if (list[idx].dist.valid())
+                        st::autopilot.distanceToBody = list[idx].dist;
                     break;
                 }
             }
             if (destBodyNavIdx == focusIdx) {
-                isDestBodyFocused = true;
+                st::autopilot.isDestBodyFocused = true;
                 return true;
             }
         }
@@ -625,22 +635,20 @@ bool NavList::focusDestBody() {
     return false;
 }
 
-bool NavList::focusNearestBody() {
-    if (isNearestBodyFocused && focusIdx == 0 && focusIdx < list.size())
-        return true;
-
+gal::spBody NavList::focusNearestBody(dist_t* dist) {
     if (!focusTopEntry())
-        return false;
+        return {};
 
     for (int retry=0; retry < 3; retry++) {
+        int focusIdx;
         cv::Mat grayImage;
-        std::vector<ClassifiedRect*> rows = initNavList(grayImage);
+        std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
         if (rows.empty())
             continue;
 
         int nearestIdx = -1;
         for (int idx=0; idx < list.size(); idx++) {
-            parseNavRow(grayImage, task->mgr.rEnv, *rows[idx], list[idx]);
+            parseNavRow(grayImage, ai::rEnv, *rows[idx], list[idx]);
             list[idx].item = guessNavItem(list[idx]);
             gal::spBody body = std::dynamic_pointer_cast<gal::Body>(list[idx].item);
             if (body || list[idx].icon == nav::STAR.charOCR ||
@@ -676,31 +684,33 @@ bool NavList::focusNearestBody() {
             }
         }
         if (focusIdx >= 0 && nearestIdx == focusIdx) {
-            parseNavDist(grayImage, task->mgr.rEnv, *rows[nearestIdx], list[nearestIdx]);
-            isNearestBodyFocused = true;
-            return true;
+            parseNavDist(grayImage, ai::rEnv, *rows[nearestIdx], list[nearestIdx]);
+            if (list[nearestIdx].item.get() == st::autopilot.destBody.get()) {
+                st::autopilot.isDestBodyFocused = true;
+                if (list[nearestIdx].dist.valid())
+                    st::autopilot.distanceToBody = list[nearestIdx].dist;
+            }
+            if (dist)
+                *dist = list[nearestIdx].dist;
+            return std::dynamic_pointer_cast<gal::Body>(list[nearestIdx].item);
         }
         if (nearestIdx > 0) {
             int count = nearestIdx - focusIdx;
             for (int i = 0; i < count; i++)
                 kbd::send("UI_Down");
-            task->sleep(300);
+            ai::sleep(300);
         }
     }
-    return false;
+    return {};
 }
 
 bool NavList::focusTopEntry() {
-    if (isTopEntryFocused && focusIdx == 0 && focusIdx < list.size())
-        return true;
-
-    isDestDockFocused = false;
-    isDestBodyFocused = false;
-    isNearestBodyFocused = false;
-    isTopEntryFocused = false;
+    st::autopilot.isDestDockFocused = false;
+    st::autopilot.isDestBodyFocused = false;
     for (int retry=0; retry < 3; retry++) {
+        int focusIdx;
         cv::Mat grayImage;
-        std::vector<ClassifiedRect*> rows = initNavList(grayImage);
+        std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
         if (rows.empty())
             continue;
 
@@ -709,17 +719,17 @@ bool NavList::focusTopEntry() {
         unsigned handle = kbd::post("UI_Up", 10000);
         if (!handle)
             return false;
-        task->sleep(300);
+        ai::sleep(300);
         gal::Item* topItem = nullptr;
         utc_timer timer(10s);
         while (!timer.expired()) {
-            task->sleep(100);
-            rows = initNavList(grayImage);
+            ai::sleep(100);
+            rows = initNavList(grayImage, focusIdx);
             if (rows.empty())
                 continue;
             if (focusIdx != 0)
                 continue;
-            if (!parseNavRow(grayImage, task->mgr.rEnv, *rows[0], list[0]))
+            if (!parseNavRow(grayImage, ai::rEnv, *rows[0], list[0]))
                 continue;
             list[0].item = guessNavItem(list[0]);
             if (!list[0].item)
@@ -729,7 +739,6 @@ bool NavList::focusTopEntry() {
                 continue;
             }
             kbd::clearInput(handle);
-            isTopEntryFocused = true;
             return true;
         }
         kbd::clearInput(handle);
@@ -739,12 +748,13 @@ bool NavList::focusTopEntry() {
 
 bool NavList::selectFocused() {
     for (int retry=0; retry < 3; retry++) {
+        int focusIdx;
         cv::Mat grayImage;
-        std::vector<ClassifiedRect *> rows = initNavList(grayImage);
-        if (rows.empty())
+        std::vector<ClassifiedRect *> rows = initNavList(grayImage, focusIdx);
+        if (rows.empty() || focusIdx < 0)
             continue;
 
-        if (!parseNavRow(grayImage, task->mgr.rEnv, *rows[focusIdx], list[focusIdx]))
+        if (!parseNavRow(grayImage, ai::rEnv, *rows[focusIdx], list[focusIdx]))
             continue;
         if (list[focusIdx].isTarget)
             return true;
@@ -756,15 +766,23 @@ bool NavList::selectFocused() {
     return false;
 }
 
-dist_t NavList::getFocusedDist() {
-    for (int retry=0; retry < 3; retry++) {
+dist_t NavList::getFocusedDist(int max_try) {
+    for (int retry=0; retry < max_try; retry++) {
+        int focusIdx;
         cv::Mat grayImage;
-        std::vector<ClassifiedRect *> rows = initNavList(grayImage);
-        if (rows.empty())
+        std::vector<ClassifiedRect *> rows = initNavList(grayImage, focusIdx);
+        if (rows.empty() || focusIdx < 0)
             continue;
 
-        if (parseNavDist(grayImage, task->mgr.rEnv, *rows[focusIdx], list[focusIdx]))
+        if (parseNavDist(grayImage, ai::rEnv, *rows[focusIdx], list[focusIdx])) {
+            if (list[focusIdx].dist.valid()) {
+                if (st::autopilot.isDestBodyFocused)
+                    st::autopilot.distanceToBody = list[focusIdx].dist;
+                if (st::autopilot.isDestDockFocused)
+                    st::autopilot.distanceToDock = list[focusIdx].dist;
+            }
             return list[focusIdx].dist;
+        }
     }
     return {};
 }
@@ -773,8 +791,8 @@ dist_t NavList::getFocusedDist() {
 
 namespace ai {
 
-NavListScanTask::NavListScanTask(Task* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : Task(parent, mgr, templ_)
+NavListScanTask::NavListScanTask(const TaskTemplate& templ_)
+        : Task(templ_)
 {
     assert (templ.id == ED_TASK_NAV_SCAN);
     for (auto& p : templ.params) {
@@ -794,7 +812,7 @@ bool NavListScanTask::run() {
     //filters.pointOfInterest = true;
     //filters.settlement = true;
 
-    if (!nl.init(this, nullptr, nullptr, filters))
+    if (!nl.init(filters))
         return false;
 
     if (!gotoNavPageNavigation())
@@ -808,13 +826,14 @@ bool NavListScanTask::run() {
     std::vector<gal::spBody> scannedBodies;
     std::vector<gal::spSite> scannedSites;
     for (;;) {
+        int focusIdx;
         cv::Mat grayImage;
-        std::vector<ClassifiedRect *> rows = nl.recognizeWholePage(grayImage);
+        std::vector<ClassifiedRect *> rows = nl.recognizeWholePage(grayImage, focusIdx);
         for (int idx = 0; idx < nl.list.size(); idx++) {
             auto &nle = nl.list[idx];
             if (nle.item || !(nle.item->isBody() || nle.item->isSite())) {
                 if (!nle.focused) {
-                    int count = idx - nl.focusIdx;
+                    int count = idx - focusIdx;
                     if (count > 0) {
                         for (int i = 0; i < count; i++)
                             kbd::send("UI_Down");
@@ -840,9 +859,9 @@ bool NavListScanTask::run() {
 bool NavListScanTask::gotoNavPageNavigation() {
     bool ok = false;
     for (int retry=0; retry < 3; retry++) {
-        if (!mgr.uiState.match("scr-left-panel:mod-navigation"))
-            gotoNavPage(this, "mod-navigation");
-        if (mgr.uiState.focused_name() != "lst-bodies")
+        if (!ai::uiState.match("scr-left-panel:mod-navigation"))
+            gotoNavPage("mod-navigation");
+        if (ai::uiState.focused_name() != "lst-bodies")
             kbd::send("UI_Right");
         ok = true;
     }

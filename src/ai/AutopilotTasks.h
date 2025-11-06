@@ -23,12 +23,16 @@ typedef std::shared_ptr<Site> spSite;
 
 namespace ai {
 
+bool setSpeed(int percents, bool force=false);
+void disableAutoTurn();
+void requestPitchRoll(double pitch, bool without_roll);
+
 class BaseAutopilotTask : public Task {
 public:
-    BaseAutopilotTask(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    BaseAutopilotTask(const TaskTemplate& templ_) : Task(templ_) {}
+
     void relogin();
 
-    bool setSpeed(int percents);
     void orientRollStep(double delta, int max_time_ms=5000);
     void orientPitchStep(double delta, int max_time_ms=5000);
     void orientYawStep(double delta, int max_time_ms=5000);
@@ -36,29 +40,23 @@ public:
     bool orientTowardTarget(double precision);
     bool orientAwayFromTargetStep(double precision, int max_time_ms=5000);
     bool orientAwayFromTarget(double precision);
+    bool orientRollByTarget(double roll, double precision, int max_time_ms=5000);
     int getNavRoutePosition();
     void initNavFilter();
-
-    gal::spBody destBody;
-    gal::spSite destDock;
-
-    int speed_set_to {0};
-    dist_t distanceToBody; // distance to the body
-    dist_t distanceToDock; // distance to the dock
 
     nav::NavList nl;
 };
 
 class BaseAutopilotStep : public Step {
 protected:
-    BaseAutopilotStep(Step* parent);
+    BaseAutopilotStep();
     BaseAutopilotTask* task;
     utc_timer timer;
 };
 
 class TaskDebugAutopilot : public BaseAutopilotTask {
 public:
-    TaskDebugAutopilot(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskDebugAutopilot(const TaskTemplate& templ);
     bool run() final;
 
     std::string test;
@@ -69,20 +67,20 @@ public:
 
 class DepartureStep : public BaseAutopilotStep {
 public:
-    explicit DepartureStep(Step* parent);
+    explicit DepartureStep() = default;
     bool step() final;
     const char* getName() override { return "Departure"; }
 
     std::string getStatus() override;
     enum {
-        READY, GOING_TO_DOCK, REFUEL, TAKEOFF, WAIT_AUTOPILOT, AUTOPILOT, MASSLOCKED, FLYAWAY, RELOGIN
+        READY, GOING_TO_DOCK, REFUEL, TAKEOFF, WAIT_AUTOPILOT, AUTOPILOT, ORIENT_AWAY, LEAVE_DEPOT, MASSLOCKED, FLYAWAY, RELOGIN
     } status {READY};
     int notAutoPilotCounter {};
 };
 
 class EnterCruiseStep : public BaseAutopilotStep {
 public:
-    explicit EnterCruiseStep(Step* parent) : BaseAutopilotStep(parent) {}
+    explicit EnterCruiseStep() = default;
     bool step() final;
     const char* getName() override { return "EnterCruise"; }
 
@@ -94,7 +92,7 @@ public:
 
 class HyperJumpStep : public BaseAutopilotStep {
 public:
-    explicit HyperJumpStep(Step* parent) : BaseAutopilotStep(parent) {}
+    explicit HyperJumpStep() = default;
     bool step() final;
     const char* getName() override { return "HyperJump"; }
 
@@ -106,7 +104,7 @@ public:
 
 class LeaveBodyStep : public BaseAutopilotStep {
 public:
-    explicit LeaveBodyStep(Step* parent) : BaseAutopilotStep(parent) {}
+    explicit LeaveBodyStep() = default;
     bool step() final;
     const char* getName() override { return "LeaveBodyStep"; }
 
@@ -116,19 +114,12 @@ public:
     } status {READY};
 };
 
-class DockStep : public BaseAutopilotStep {
+class BaseDockStep : public BaseAutopilotStep {
 public:
-    DockStep(Step* parent) : BaseAutopilotStep(parent) {}
-    bool step() final;
-    const char* getName() override { return "DockStep"; }
+    BaseDockStep() = default;
 
     spGameEvent requestDockingPermit();
-    bool getDockDistance();
-    bool flyTowardsTarget();
-    bool flyTowardsStep();
-
-    const double dock_req_dist {7500};
-    double safe_dist {dock_req_dist-200};
+    bool autopilot();
 
     std::string getStatus() override;
     enum {
@@ -136,9 +127,35 @@ public:
     } status {READY};
 };
 
+class DockSpaceStation : public BaseDockStep {
+public:
+    DockSpaceStation() = default;
+    bool step() final;
+    const char* getName() override { return "DockSpaceStation"; }
+
+    bool getDockDistance();
+    bool flyTowardsTarget();
+    bool flyTowardsStep();
+
+    const double dock_req_dist {7500};
+    double safe_dist {dock_req_dist-200};
+
+};
+
+class DockPlanetPort : public BaseDockStep {
+public:
+    DockPlanetPort() = default;
+    bool step() final;
+    const char* getName() override { return "DockPlanetPort"; }
+
+    bool getDockDistance();
+    bool flyTowardsTarget();
+    bool checkYaw();
+};
+
 class NavDockSelect : public BaseAutopilotStep {
 public:
-    NavDockSelect(Step* parent, gal::spSite dock) : BaseAutopilotStep(parent), dock(dock) {}
+    NavDockSelect(gal::spSite dock={}) : dock(dock) {}
     const char* getName() override { return "NavDockSelect"; }
     bool step() override;
 
@@ -147,7 +164,7 @@ public:
 
 class NavBodySelect : public BaseAutopilotStep {
 public:
-    NavBodySelect(Step* parent, gal::spBody body) : BaseAutopilotStep(parent), body(body) {}
+    NavBodySelect(gal::spBody body={}) : body(body) {}
     const char* getName() override { return "NavBodySelect"; }
     bool step() override;
 
@@ -156,35 +173,41 @@ public:
 
 class CruiseToDistStep : public BaseAutopilotStep {
 public:
-    CruiseToDistStep(Step* parent, double dist_km)
-            : BaseAutopilotStep(parent)
-            , requiredDist_km(dist_t::KM,dist_km)
-            , currentDist_km(dist_t::X,0)
+    CruiseToDistStep(dist_t min_dist, dist_t max_dist, std::optional<bool> away={})
+            : minDist(min_dist)
+            , maxDist(max_dist)
+            , flyAway(away.has_value() && away.value())
     {}
-    const char* getName() override { return "CruiseToDistStep"; }
+    const char* getName() override { return "CruiseToDist"; }
     bool step() override;
+    bool gotDistance(dist_t dist);
 
     std::string getStatus() override;
     enum {
-        READY, BAD_ROW, BAD_COMPASS, DIST_FAR, DIST_NEAR, DIST_STOP,
+        READY, DIST_BAD, DIST_FAR, DIST_NEAR, DIST_STOP,
     } status {READY};
 
-    dist_t requiredDist_km;
-    dist_t currentDist_km;
+    dist_t minDist;
+    dist_t maxDist;
+    dist_t currentDist;
+    bool useNavList {};
+    bool flyAway {};
+    int failCount {};
 };
 
 class DiveUnderPlanetStep : public BaseAutopilotStep {
 public:
-    DiveUnderPlanetStep(Step* parent)
-            : BaseAutopilotStep(parent)
-    {}
+    DiveUnderPlanetStep() = default;
     const char* getName() override { return "DiveUnderPlanet"; }
     bool step() override;
+    bool isPortVisible();
     bool get_dist_body();
     bool get_dist_dock();
     bool orient_roll(float requiredRoll);
     bool orient_pitch(int pitchGoal);
     bool fly_dive(int pitchGoal);
+
+    bool toPort {};
 
     std::string getStatus() override;
     enum {
@@ -192,12 +215,10 @@ public:
     } status {READY};
 };
 
-class ExitCruiseToStationStep : public BaseAutopilotStep {
+class ExitCruiseToSpace : public BaseAutopilotStep {
 public:
-    ExitCruiseToStationStep(Step* parent)
-            : BaseAutopilotStep(parent)
-    {}
-    const char* getName() override { return "ExitCruiseToStation"; }
+    ExitCruiseToSpace() = default;
+    const char* getName() override { return "ExitCruiseToSpace"; }
     bool step() override;
 
     std::string getStatus() override;
@@ -209,11 +230,23 @@ public:
     int exit_confirm {};
 };
 
+class ExitCruiseToPlanet : public BaseAutopilotStep {
+public:
+    ExitCruiseToPlanet() = default;
+    const char* getName() override { return "ExitCruiseToPlanet"; }
+    bool step() override;
+
+    std::string getStatus() override;
+    enum {
+        READY, ORIENT, FLY_TO_BODY, APPROACH, EXITING, CONFIRM,
+    } status {READY};
+    int dist_fails {};
+    int exit_confirm {};
+};
+
 class CompleteNavRoute : public BaseAutopilotStep {
 public:
-    CompleteNavRoute(Step* parent)
-            : BaseAutopilotStep(parent)
-    {}
+    CompleteNavRoute() = default;
     const char* getName() override { return "CompleteNavRoute"; }
     bool step() override;
 
@@ -225,9 +258,7 @@ public:
 
 class CruiseAndDock : public BaseAutopilotStep {
 public:
-    CruiseAndDock(Step* parent)
-            : BaseAutopilotStep(parent)
-    {}
+    CruiseAndDock() = default;
     const char* getName() override { return "CruiseAndDock"; }
     bool step() override;
 
@@ -239,7 +270,7 @@ public:
 
 class TaskTravel : public BaseAutopilotTask {
 public:
-    TaskTravel(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    TaskTravel(const TaskTemplate& templ);
     bool run() final;
 
     std::string destSystemName;
@@ -248,7 +279,7 @@ public:
 
 class Autopilot : public BaseAutopilotTask {
 public:
-    Autopilot(Step* parent, AIManager& mgr, const TaskTemplate& templ);
+    Autopilot(const TaskTemplate& templ);
     bool run() final;
 };
 

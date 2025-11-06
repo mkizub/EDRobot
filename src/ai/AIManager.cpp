@@ -5,9 +5,6 @@
 #include "../pch.h"
 
 #include "AIManager.h"
-#include "TaskCalibrate.h"
-#include "TradeTasks.h"
-#include "TaskDebug.h"
 #include "../ui/UIManager.h"
 #include "../Keyboard.h"
 
@@ -31,14 +28,31 @@ using namespace std::chrono_literals;
 
 namespace ai {
 
-static std::thread taskThread;
-static std::mutex taskMutex;
-static std::condition_variable taskCond;
+namespace {
+    spTask activeTask;
+    spTask lastTask;
+    std::chrono::milliseconds nextDelay;
+    DetectLevel nextDetectLevel{DetectLevel::None};
 
-static std::atomic_bool isWorking;
-static std::atomic_bool isLoopWaiting;
-static std::atomic_bool isDebugPaused;
-static std::atomic_bool isInterrupted;
+    std::thread taskThread;
+    std::mutex taskMutex;
+    std::condition_variable taskCond;
+
+    std::atomic_bool isWorking;
+    std::atomic_bool isLoopWaiting;
+    std::atomic_bool isDebugPaused;
+    std::atomic_bool isInterrupted;
+}
+
+void task_loop();
+void task_step();
+
+void initTemplates();
+
+ResolvedEnv rEnv;
+UIState uiState;
+CompassInfo compassInfo;
+
 
 void check_interrupted() {
     assert (taskThread.get_id() == std::this_thread::get_id());
@@ -57,37 +71,42 @@ void check_interrupted() {
 void toggleDebugPause() {
     isDebugPaused = !isDebugPaused;
 }
+bool isDebugPause() {
+    return isDebugPaused;
+}
 
-
-AIManager::AIManager()
-    : master(Master::getInstance())
-    , cfg(Cfg)
-{
+extern void init_ship_tracker();
+extern void shutdown_ship_tracker();
+bool init() {
     initTemplates();
     isWorking = true;
-    taskThread = std::thread(&AIManager::loop, this);
+    taskThread = std::thread(&task_loop);
+    init_ship_tracker();
+    return true;
 }
 
-AIManager::~AIManager() {
+bool shutdown() {
     isWorking = false;
     interrupt();
+    shutdown_ship_tracker();
     taskCond.notify_all();
     taskThread.join();
+    return true;
 }
 
-bool AIManager::active() {
+bool active() {
     return !isInterrupted && activeTask;
 }
 
-void AIManager::stop() {
+void stop() {
     if (!activeTask)
         return;
-    LOG(INFO) << "AIManager::stop() task " << activeTask->getName();
+    LOG(INFO) << "ai::stop() task " << activeTask->getName();
     UIManager::showToast("EDRobot stop", std::format("Stop task '{}'", activeTask->getName()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     taskCond.notify_one();
-    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || isLoopWaiting;
     });
     spTask oldTask;
@@ -95,7 +114,7 @@ void AIManager::stop() {
     taskCond.notify_one();
 }
 
-void AIManager::interrupt() {
+void interrupt() {
     if (isInterrupted || !activeTask)
         return;
     LOG(INFO) << "AIManager::interrupt() task " << activeTask->getName();
@@ -103,12 +122,12 @@ void AIManager::interrupt() {
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     taskCond.notify_one();
-    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || isLoopWaiting;
     });
 }
 
-void AIManager::resume() {
+void resume() {
     if (!isInterrupted) {
         LOG(INFO) << "AIManager::resume() - not interrupted";
         return;
@@ -123,13 +142,13 @@ void AIManager::resume() {
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = false;
     taskCond.notify_one();
-    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || !isLoopWaiting;
     });
-    master.setGameForeground();
+    Mgr.setGameForeground();
 }
 
-bool AIManager::autopilot() {
+bool autopilot() {
     if (activeTask) {
         if (dynamic_cast<Autopilot*>(activeTask.get()))
             return true;
@@ -139,11 +158,46 @@ bool AIManager::autopilot() {
     return new_task(*templ);
 }
 
-spTask AIManager::curr_task() {
+spTask curr_task() {
     return activeTask;
 }
 
-bool AIManager::new_task(spTask&& task) {
+spTask last_task() {
+    return lastTask;
+}
+
+spStep curr_step() {
+    spStep curr = activeTask;
+    if (!curr)
+        return {};
+    while (curr->currentSubStep)
+        curr = curr->currentSubStep;
+    return curr;
+}
+
+void throw_trouble(const char* msg) {
+    spStep curr = curr_step();
+    if (curr)
+        curr->throw_trouble(msg);
+}
+void throw_trouble(const std::string& msg) {
+    spStep curr = curr_step();
+    if (curr)
+        curr->throw_trouble(msg);
+}
+void throw_failed(const char* msg) {
+    spStep curr = curr_step();
+    if (curr)
+        curr->throw_failed(msg);
+}
+void throw_failed(const std::string& msg) {
+    spStep curr = curr_step();
+    if (curr)
+        curr->throw_failed(msg);
+}
+
+
+bool new_task(spTask&& task) {
     if (!task)
         return false;
     LOG(INFO) << "AIManager::new_task()";
@@ -153,85 +207,91 @@ bool AIManager::new_task(spTask&& task) {
     lastTask.reset();
     activeTask.reset();
     taskCond.notify_one();
-    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || isLoopWaiting;
     });
     LOG(INFO) << "AIManager::new_task(): activating " << task->getName();
     activeTask.swap(task);
     isInterrupted = false;
     taskCond.notify_one();
-    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, [this]() {
+    taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || !isLoopWaiting;
     });
-    master.setGameForeground();
+    Mgr.setGameForeground();
     return true;
 }
 
-bool AIManager::new_task(const TaskTemplate& templ) {
+bool new_task(const TaskTemplate& templ) {
     if (templ.id.empty())
         return false;
-    spTask task(templ.factory(nullptr,templ));
+    spTask task(templ.factory(templ));
+    if (task->parent)
+        const_cast<Step*&>(task->parent) = nullptr;
     LOG_IF(!task,ERROR) << "Task not known or not implemented: " << templ.id;
     return new_task(std::move(task));
 }
 
 
-void AIManager::loop() {
-    SetThreadDescription(GetCurrentThread(), L"AIManager task loop");
+void task_loop() {
+    SetThreadDescription(GetCurrentThread(), L"AIManager task task_loop");
 
-    LOG(INFO) << "Starting AIManager task loop";
+    LOG(INFO) << "Starting ai task task_loop";
     while (isWorking) {
         {
             std::unique_lock<std::mutex> lock(taskMutex);
             isLoopWaiting = true;
             // TODO: auto-resume after 30 seconds, need UI check-box and keyboard watchdog
-            taskCond.wait_for(lock, std::chrono::milliseconds(30000)/*::max()*/, [this]() {
+            taskCond.wait_for(lock, 30s, []() {
                 return !isWorking || (activeTask && !isInterrupted);
             });
             isLoopWaiting = false;
             if (!isWorking)
                 break;
             if (isInterrupted) {
-                LOG(INFO) << "AIManager::loop(): steel interrupted";
+                LOG(INFO) << "ai::task_loop(): steel interrupted";
                 continue;
             }
         }
         TRY {
-            step();
+            task_step();
         } CATCH(const std::exception& ex) {
-            kbd::reset_vJoy();
             if (auto ir = dynamic_cast<const interrupted_error*>(&ex)) {
                 //mark_interrupted();
             } else {
-                LOG(ERROR) << "Exception in ai loop: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+                LOG(ERROR) << "Exception in ai task_loop: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
                 //mark_miss();
             }
         }
+        kbd::reset_vJoy();
+        disableAutoTurn();
+        st::autopilot = {};
     }
-    LOG(INFO) << "Exiting AIManager task loop";
+    LOG(INFO) << "Exiting ai task task_loop";
 }
 
 
-void AIManager::step() {
+void task_step() {
     if (!activeTask) {
-        LOG(INFO) << "AIManager::loop(): no active task";
+        LOG(INFO) << "ai::task_loop(): no active task";
         //detectEDState(DetectLevel::Screen);
         return;
     }
     if (activeTask) {
-        master.setGameForeground();
-        LOG(INFO) << "AIManager::loop(): executing active task: " << activeTask->getName();
+        Mgr.setGameForeground();
+        LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getName();
+        st::autopilot = {};
+        disableAutoTurn();
         bool ok = activeTask->safe_run();
         if (ok) {
             lastTask.reset();
             lastTask.swap(activeTask);
         }
-        LOG(INFO) << "AIManager::loop(): active task: " << (ok ? "passed" : "not complete");
+        LOG(INFO) << "ai::task_loop(): active task: " << (ok ? "passed" : "not complete");
         return;
     }
 }
 
-const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
+const bool detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
     check_interrupted();
 #ifdef NDEBUG
     std::chrono::milliseconds timeout = 2000ms;
@@ -244,7 +304,7 @@ const bool AIManager::detectEDState(DetectLevel level, cv::Mat* colorImage, cv::
     DetectRequest request { level, &uiState, &rEnv, &compassInfo, colorImage, grayImage };
     std::promise<bool> promise;
     std::future<bool> future = promise.get_future();
-    master.pushDetectRequest(std::move(promise), std::move(request));
+    Mgr.pushDetectRequest(std::move(promise), std::move(request));
     while (now < until) {
         check_interrupted();
         auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);

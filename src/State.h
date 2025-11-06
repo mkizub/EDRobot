@@ -11,6 +11,11 @@ struct Market;
 struct ShipCargo;
 struct NavRoute;
 
+namespace gal {
+class Body;
+class Site;
+}
+
 namespace st {
 
 extern Lang lng;
@@ -189,6 +194,27 @@ extern struct ShipAtBody {
 extern std::shared_ptr<Market> currentMarket;
 extern std::shared_ptr<ShipCargo> currentCargo;
 extern std::shared_ptr<NavRoute> currentNavRoute;
+
+extern CompassInfo compass;
+
+extern struct Autopilot {
+    std::optional<int> speed_set_to;
+    dist_t distanceToBody; // distance to the body
+    dist_t distanceToDock; // distance to the dock
+
+    std::shared_ptr<gal::Body> destBody;
+    std::shared_ptr<gal::Site> destDock;
+
+    bool isDestDockFocused;
+    bool isDestBodyFocused;
+
+    bool badBodyHierarchy;
+
+    void setDestBody(std::shared_ptr<gal::Body> body);
+    void setDestDock(std::shared_ptr<gal::Site> dock);
+} autopilot;
+
+
 
 }
 

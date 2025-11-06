@@ -113,7 +113,7 @@
     name: 'scr-constr',
     status: { gui: 'Services', docked: true },
     detect: [
-      { img: "at_constr_lbl-*.png", t: [0.6, 0.8], rect:[254, 136, 226, 42] },
+      { img: "at_constr_lbl-*.png", t: [0.6, 0.8], rect:[254, 136, 226, 42], ext: [20,30] },
       { img: "at_constr.png", t: 0.7, rect:[180, 110, 58, 66] },
     ],
     have: [
@@ -232,7 +232,7 @@
     status: { gui: 'None', docked: false },
     vars: {
       compass: [
-        { size: [62,58], rect: [679,803,72,68], key: ['type9'] },
+        { size: [61,57], rect: [679,803,72,68], key: ['type9'] },
         { size: [61,58], rect: [679,803,71,71] }
       ],
       undistort: [ // for fov [54,60]

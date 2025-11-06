@@ -49,6 +49,7 @@ enum class TypeSite {
     Settlement, // odyssey settlements
     NavBeacon,
     SpaceConstr,
+    PlanetConstr,
 };
 
 } // namespace gal
@@ -56,6 +57,7 @@ enum class TypeSite {
 namespace ai {
 
 void toggleDebugPause();
+bool isDebugPause();
 
 }
 
@@ -65,16 +67,56 @@ struct dist_t {
     } unit;
     double dist;
 
-    dist_t() : unit(X), dist(0) {}
-    dist_t(Unit u, double d) : unit(u), dist(d) {}
+    constexpr dist_t() : unit(X), dist(0) {}
+    constexpr dist_t(Unit u, double d) : unit(u), dist(d) {}
 
     bool valid() const { return unit != X; }
     dist_t convertTo(Unit u) const;
-    double get(Unit u);
+    double get(Unit u) const;
     std::string to_string() const;
-
-    friend std::ostream& operator<<(std::ostream& os, const dist_t& obj);
 };
+std::ostream& operator<<(std::ostream& os, const dist_t& obj);
+
+constexpr inline dist_t operator""_m(uint64_t val) noexcept { return dist_t(dist_t::M, val); }
+constexpr inline dist_t operator""_m(long double val) noexcept { return dist_t(dist_t::M, val); }
+constexpr inline dist_t operator""_km(uint64_t val) noexcept { return dist_t(dist_t::KM, val); }
+constexpr inline dist_t operator""_km(long double val) noexcept { return dist_t(dist_t::KM, val); }
+constexpr inline dist_t operator""_Mm(uint64_t val) noexcept { return dist_t(dist_t::MM, val); }
+constexpr inline dist_t operator""_Mm(long double val) noexcept { return dist_t(dist_t::MM, val); }
+constexpr inline dist_t operator""_ls(uint64_t val) noexcept { return dist_t(dist_t::LS, val); }
+constexpr inline dist_t operator""_ls(long double val) noexcept { return dist_t(dist_t::LS, val); }
+constexpr inline dist_t operator""_ly(uint64_t val) noexcept { return dist_t(dist_t::LY, val); }
+constexpr inline dist_t operator""_ly(long double val) noexcept { return dist_t(dist_t::LY, val); }
+
+inline bool operator ==(const dist_t d1, const dist_t d2) {
+    return d1.valid() && d2.valid() && d1.get(dist_t::M) == d2.get(dist_t::M);
+}
+inline bool operator <(const dist_t d1, const dist_t d2) {
+    return d1.valid() && d2.valid() && d1.get(dist_t::M) < d2.get(dist_t::M);
+}
+inline bool operator >(const dist_t d1, const dist_t d2) {
+    return d1.valid() && d2.valid() && d1.get(dist_t::M) > d2.get(dist_t::M);
+}
+inline bool operator <=(const dist_t d1, const dist_t d2) {
+    return d1.valid() && d2.valid() && d1.get(dist_t::M) <= d2.get(dist_t::M);
+}
+inline bool operator >=(const dist_t d1, const dist_t d2) {
+    return d1.valid() && d2.valid() && d1.get(dist_t::M) >= d2.get(dist_t::M);
+}
+inline dist_t operator +(const dist_t d1, const dist_t d2) {
+    dist_t::Unit u = d1.unit < d2.unit ? d1.unit : d2.unit;
+    return {u, d1.get(u) + d2.get(u)};
+}
+inline dist_t operator -(const dist_t d1, const dist_t d2) {
+    dist_t::Unit u = d1.unit < d2.unit ? d1.unit : d2.unit;
+    return {u, d1.get(u) + d2.get(u)};
+}
+inline dist_t operator *(const dist_t d, double scale) {
+    return {d.unit, d.dist * scale};
+}
+inline dist_t operator /(const dist_t d, double scale) {
+    return {d.unit, d.dist * scale};
+}
 
 struct utc_timer {
     std::chrono::time_point<std::chrono::utc_clock> time_start;
@@ -84,12 +126,23 @@ struct utc_timer {
         time_start = std::chrono::utc_clock::now();
         time_limit = time_start + seconds;
     }
-    bool started();
-    bool expired();
-    int sec_passed();
-    int sec_left();
-    std::string passed();
-    std::string left();
+    bool started() const;
+    bool expired() const;
+    int sec_passed() const;
+    int sec_left() const;
+    std::string passed() const;
+    std::string left() const;
+};
+
+struct CompassInfo {
+    Timestamp timestamp;
+    float targetPitch;
+    float targetYaw;
+    float targetRoll;
+    float targetAngle;
+    int8_t hemisphere; // +1: front, -1: back, 0: invalid
+    bool has_nav_target;
+    dist_t nav_target_dist;
 };
 
 #endif //EDROBOT_TYPES_H

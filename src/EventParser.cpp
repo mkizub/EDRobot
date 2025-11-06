@@ -27,6 +27,19 @@ ShipAtBody shipAtBody {};
 spMarket currentMarket;
 spShipCargo currentCargo;
 spNavRoute currentNavRoute;
+CompassInfo compass;
+Autopilot autopilot;
+
+void Autopilot::setDestBody(std::shared_ptr<gal::Body> body) {
+    destBody = body;
+    isDestDockFocused = false;
+    isDestBodyFocused = false;
+}
+void Autopilot::setDestDock(std::shared_ptr<gal::Site> dock) {
+    destDock = dock;
+    isDestDockFocused = false;
+    isDestBodyFocused = false;
+}
 }
 
 static int64_t fssSignalSystemAddress;
@@ -69,6 +82,7 @@ void parseEvent_Docking(spGameEvent& ge);
 void parseEvent_StartJump(spGameEvent& ge);
 void parseEvent_FSDJump(spGameEvent& ge);
 void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge);
+void parseEvent_ApproachSettlement(spGameEvent& ge);
 void parseEvent_SupercruiseExit(spGameEvent& ge);
 void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
 void parseEvent_ApproachBody(spGameEvent& ge);
@@ -98,6 +112,7 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"StartJump", parseEvent_StartJump},
         {"FSDJump", parseEvent_FSDJump},
         {"SupercruiseDestinationDrop", parseEvent_SupercruiseDestinationDrop},
+        {"ApproachSettlement", parseEvent_ApproachSettlement},
         {"SupercruiseExit", parseEvent_SupercruiseExit},
         {"FSSSignalDiscovered", parseEvent_FSSSignalDiscovered},
         {"ApproachBody", parseEvent_ApproachBody},
@@ -459,25 +474,51 @@ void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
     st::space.marketId = je.at("MarketID",0).as_int64();
     st::space.stationName = je.at("Type","").as_string();
     st::space.stationType.clear();
+    if (st::space.stationType.empty() && st::space.stationName.starts_with("Orbital Construction Site"))
+        st::space.stationType = "SpaceConstructionDepot";
     gal::spStarSystem starSystem = gal::getCurrentStarSystem();
     if (!starSystem)
         return;
-    if (st::space.marketId) {
-        gal::spSite dock = starSystem->getDock(st::space.marketId);
-        if (!dock)
-            dock = starSystem->addStation(st::space.marketId, st::space.stationName, st::space.stationType);
-        switch (dock->typeSite) {
-        case gal::TypeSite::FleetCarrier:
-            st::space.stationType = "FleetCarrier";
-            break;
-        case gal::TypeSite::SpaceConstr:
-            st::space.stationType = "SpaceConstructionDepot";
-            break;
-        default:
-            break;
-        }
-        if (st::space.stationType.empty() && st::space.stationName.starts_with("Orbital Construction Site"))
-            st::space.stationType = "SpaceConstructionDepot";
+    if (!st::space.marketId)
+        return;
+    gal::spSite dock = starSystem->addStation(st::space.marketId, st::space.stationName, st::space.stationType);
+    switch (dock->typeSite) {
+    case gal::TypeSite::FleetCarrier:
+        st::space.stationType = "FleetCarrier";
+        break;
+    case gal::TypeSite::SpaceConstr:
+        st::space.stationType = "SpaceConstructionDepot";
+        break;
+    default:
+        break;
+    }
+}
+
+void parseEvent_ApproachSettlement(spGameEvent& ge) {
+    // "Name":"Planetary Construction Site: Long Defence Enterprise", "MarketID":4304174851,
+    // "SystemAddress":2381282543995, "BodyID":3, "BodyName":"Col 285 Sector XK-O d6-69 A 1", "Latitude":48.513012, "Longitude":119.000992 }
+    auto& je = ge->data;
+
+    st::dockedAt = {};
+    st::space.marketId = je.at("MarketID",0).as_int64();
+    set(st::space.stationName, je.at("Name",""));
+    st::space.stationType.clear();
+    st::space.bodyId = je.at("BodyID",0).as_integer();
+    set(st::space.bodyName, je.at("BodyName",""));
+    set(st::space.bodyType, "Planet");
+
+    if (st::space.stationType.empty() && st::space.stationName.starts_with("Planetary Construction Site"))
+        st::space.stationType = "PlanetaryConstructionDepot";
+    gal::spStarSystem starSystem = gal::getCurrentStarSystem();
+    if (!starSystem)
+        return;
+    gal::spSite dock = starSystem->addStation(st::space.marketId, st::space.stationName, st::space.stationType);
+    switch (dock->typeSite) {
+    case gal::TypeSite::PlanetConstr:
+        st::space.stationType = "PlanetaryConstructionDepot";
+        break;
+    default:
+        break;
     }
 }
 
@@ -552,25 +593,32 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             .stationType = "",
             .starSystem = starSystem->systemName,
     });
-    auto& resources = je.at("ResourcesRequired").as_array();
-    for (auto& jr : resources) {
-        if (!jr["Name"].is_string())
-            continue;
-        std::string name = jr["Name"].as_string();
-        // "$aluminium_name;"
-        if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
-            continue;
-        name = name.substr(1,name.size()-7);
-        Commodity* commodity = Cfg.getCommodityById(name);
-        if (!commodity)
-            continue;
-        MarketLine ml {};
-        ml.sellPrice = jr.at("Payment",0).as_int32();
-        ml.stock = jr.at("ProvidedAmount",0).as_int32();
-        ml.demand = jr.at("RequiredAmount",0).as_int32();
-        ml.isConsumer = true;
-        ml.isProducer = false;
-        market->items.emplace(commodity, ml);
+    bool complete = je["ConstructionComplete"].as_boolean();
+    float progress = je["ConstructionProgress"].as_number();
+    if (!complete) {
+        auto &resources = je.at("ResourcesRequired").as_array();
+        for (auto &jr: resources) {
+            if (!jr["Name"].is_string())
+                continue;
+            std::string name = jr["Name"].as_string();
+            // "$aluminium_name;"
+            if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
+                continue;
+            name = name.substr(1, name.size() - 7);
+            Commodity *commodity = Cfg.getCommodityById(name);
+            if (!commodity)
+                continue;
+            MarketLine ml{};
+            ml.sellPrice = jr.at("Payment", 0).as_int32();
+            ml.stock = jr.at("ProvidedAmount", 0).as_int32();
+            ml.demand = jr.at("RequiredAmount", 0).as_int32();
+            ml.isConsumer = true;
+            ml.isProducer = false;
+            market->items.emplace(commodity, ml);
+        }
+        //LOG(INFO) << "Construction " << dock->name << std::format(" progress: {:.1f}%", progress);
+    } else {
+        LOG(INFO) << "Construction " << dock->name << " COMPLETE!";
     }
 
     st::currentMarket.swap(market);

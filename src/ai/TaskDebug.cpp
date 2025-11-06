@@ -78,8 +78,8 @@ void TaskDebugFindAllBase::checkAndFixOCRText() {
         LOG(INFO) << "Fixed " << errorCount << " OCR text errors";
 }
 
-TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : TaskDebugFindAllBase(parent, mgr, templ_, true)
+TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(const TaskTemplate& templ_)
+        : TaskDebugFindAllBase(templ_, true)
         , shuffle(false)
         , dump_images(false)
         , start_index(0)
@@ -97,15 +97,15 @@ TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(Step* parent, AIManager
 
 bool TaskDebugFindAllCommodities::run() {
     checkAndFixOCRText();
-    mgr.detectEDState(DetectLevel::Screen);
-    if (!mgr.uiState.match("scr-market:*"))
+    ai::detectEDState(DetectLevel::Screen);
+    if (!ai::uiState.match("scr-market:*"))
         throw_failed("Not in market?");
-    std::string marketMode = mgr.uiState.path().substr(11);
+    std::string marketMode = ai::uiState.path().substr(11);
     std::vector<Commodity*> table;
     if (marketMode == "mod-sell")
-        table = mgr.cfg.getMarketInSellOrder();
+        table = Cfg.getMarketInSellOrder();
     else if (marketMode == "mod-buy")
-        table = mgr.cfg.getMarketInBuyOrder();
+        table = Cfg.getMarketInBuyOrder();
     else
         throw_failed("Unknown market mode "+marketMode);
     if (table.empty())
@@ -208,29 +208,28 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
     for (;;) {
         sleep(500);
         cv::Mat grayImage;
-        mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-        if (!mgr.uiState.match("scr-market:"+marketMode)) {
-            if (mgr.uiState.match("scr-market:"+marketMode+":dlg-trade:*")) {
+        ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+        if (!ai::uiState.match("scr-market:"+marketMode)) {
+            if (ai::uiState.match("scr-market:"+marketMode+":dlg-trade:*")) {
                 kbd::send("UI_Back", 50, 1000);
                 continue;
             }
             notifyProgress("Not at market?");
             return false;
         }
-        if (!mgr.master.approximateListOfCommodities(mgr.rEnv, grayImage, "lst-goods", table, verify)) {
+        if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", table, verify)) {
             notifyProgress("Cannot detect commodities in 'lst-goods', aborting");
             return false;
         }
-        mgr.rEnv.classified = mgr.rEnv.classified;
         const ClassifiedRect* focusedRow = nullptr;
         const Commodity* focusedCommodity = nullptr;
         bool isOnScreen = false;
-        for (auto &cr: mgr.rEnv.classified) {
+        for (auto &cr: ai::rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                 continue;
             const Commodity* rowCommodity = cr.u.lrow.commodity;
             if (!rowCommodity)
-                rowCommodity = mgr.cfg.getCommodityByName(cr.text, true);
+                rowCommodity = Cfg.getCommodityByName(cr.text, true);
             if (cr.u.lrow.ws == WState::Focused) {
                 focusedRow = &cr;
                 LOG(INFO) << "Focused row text: " << focusedRow->text;
@@ -247,7 +246,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
         }
         if (!focusedRow) {
             LOG(INFO) << "No focused row found, moving mouse to the list area";
-            cv::Rect rect = mgr.master.resolveWidgetReferenceRect("lst-goods");
+            cv::Rect rect = Mgr.resolveWidgetReferenceRect("lst-goods");
             int x = rect.x+rect.width/2;
             int y = rect.y - 20;
             kbd::sendMouseClick({x, y}, 0, 500);
@@ -266,13 +265,13 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
                           "{wait: 'scr-market:"+marketMode+":dlg-trade:*', during: 3000},"
                           "{sleep: 1000}]",
                           DetectLevel::Buttons, nullptr, &grayImage);
-            const Commodity* dlgCommodity = Master::getLabelCommodity(mgr.rEnv, grayImage, "lbl-commodity");
+            const Commodity* dlgCommodity = Master::getLabelCommodity(ai::rEnv, grayImage, "lbl-commodity");
             if (dlgCommodity != currCommodity) {
                 notifyProgress("Dialog commodity mismatch");
                 Sleep(1000);
             }
             {
-                for (auto& cr : mgr.rEnv.classified) {
+                for (auto& cr : ai::rEnv.classified) {
                     if (cr.cdt == ClsDetType::Widget && cr.text == "lbl-commodity" && cr.u.widg.widget->tp == widget::WidgetType::Label) {
                         saveOcrMarketLbl(grayImage, cr, currCommodity);
                         break;
@@ -341,7 +340,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
 
     std::string text;
     cv::Mat rowDumpImage;
-    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, mgr.rEnv, cr, 1, text, rowDumpImage);
+    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, 1, text, rowDumpImage);
 
     filename = std::format("testset-edr/{}-row-gray.png", commodity->nameId);
     cv::imwrite(filename, rowDumpImage);
@@ -380,7 +379,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketLbl(const cv::Mat& grayImage, con
 
     std::vector<std::string> texts;
     std::vector<cv::Mat> lblDumpImages;
-    int conf = ocr::ocrMarketLblTextForTraining(grayImage, mgr.rEnv, cr, texts, lblDumpImages);
+    int conf = ocr::ocrMarketLblTextForTraining(grayImage, ai::rEnv, cr, texts, lblDumpImages);
 
     assert (texts.size() == lblDumpImages.size());
 
@@ -443,8 +442,8 @@ void TaskDebugFindAllCommodities::saveOcrMarketLbl(const cv::Mat& grayImage, con
     }
 }
 
-TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Step *parent, AIManager &mgr, const TaskTemplate &templ)
-    : TaskDebugFindAllBase(parent, mgr, templ, false)
+TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(const TaskTemplate &templ)
+    : TaskDebugFindAllBase(templ, false)
     , dump_images(false)
     , resume(false)
     , ocr_confidence(90)
@@ -488,8 +487,8 @@ TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(Step *parent, AIManager &mg
 
 bool TaskDebugFindAllNavPoints::run() {
     checkAndFixOCRText();
-    mgr.detectEDState(DetectLevel::Screen);
-    if (!mgr.uiState.match("scr-left-panel:mod-navigation"))
+    ai::detectEDState(DetectLevel::Screen);
+    if (!ai::uiState.match("scr-left-panel:mod-navigation"))
         throw_failed("Not in mod-navigation?");
 
     if (!getSpanishInfo())
@@ -505,11 +504,11 @@ bool TaskDebugFindAllNavPoints::run() {
     int failCount=0;
     if (unfocused) {
         cv::Mat grayImage;
-        mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-        for (auto &cr: mgr.rEnv.classified) {
+        ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+        for (auto &cr: ai::rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
                 continue;
-            int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, mgr.rEnv, cr, 0, cr.text);
+            int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, ai::rEnv, cr, 0, cr.text);
             cr.u.lrow.text_confidence = conf;
             if (conf <= ocr_confidence || checkOcrError(cr)) {
                 LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << conf << "%";
@@ -524,15 +523,15 @@ bool TaskDebugFindAllNavPoints::run() {
             std::vector<int> rows_with_error;
             ClassifiedRect *focused = nullptr;
             cv::Mat grayImage;
-            mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-            for (auto &cr: mgr.rEnv.classified) {
+            ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+            for (auto &cr: ai::rEnv.classified) {
                 if (cr.cdt != ClsDetType::ListRow)
                     continue;
                 if (!focused && cr.u.lrow.ws == WState::Focused) {
                     focused = &cr;
                     focused_row = row;
                 }
-                int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, mgr.rEnv, cr, 0, cr.text);
+                int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, ai::rEnv, cr, 0, cr.text);
                 cr.u.lrow.text_confidence = conf;
                 if (conf <= ocr_confidence && checkOcrError(cr))
                     rows_with_error.push_back(row);
@@ -775,8 +774,8 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
     const nav::NavType* navType = nullptr;
     cv::Mat grayImage;
     kbd::send("UI_Select", 0, 1500);
-    mgr.detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
-    for (auto& cr : mgr.rEnv.classified) {
+    ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
+    for (auto& cr : ai::rEnv.classified) {
         if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
             lbl_anchor = cr.text.substr(7);
             navType = guessNavType(lbl_text, lbl_anchor);
@@ -788,8 +787,8 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
 
     kbd::send("UI_Back", 50, 1000);
 
-    mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-    for (auto& cr : mgr.rEnv.classified) {
+    ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+    for (auto& cr : ai::rEnv.classified) {
         if (cr.cdt != ClsDetType::ListRow)
             continue;
         if (cr.u.lrow.ws == WState::Focused) {
@@ -903,7 +902,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationLbl(const cv::Mat &grayImage, c
 
     std::string text;
     cv::Mat dumpImage;
-    int conf = ocr::ocrNavigationLblTextForTraining(grayImage, mgr.rEnv, cr, text, dumpImage);
+    int conf = ocr::ocrNavigationLblTextForTraining(grayImage, ai::rEnv, cr, text, dumpImage);
     if (conf < 50) {
         LOG(ERROR) << "Bad ocr for label, conf: " << conf << ", text: "<< text;
         text.clear();
@@ -1010,7 +1009,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, c
     StationRowInfo rowInfo {};
     std::string text;
     cv::Mat dumpImage;
-    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, mgr.rEnv, cr, 0, text, dumpImage);
+    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, 0, text, dumpImage);
     if (conf < 50) {
         LOG(ERROR) << "Bad ocr for nav row, conf: " << conf << ", text: "<< text;
         text.clear();
@@ -1026,7 +1025,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, c
 
     std::string distText;
     cv::Mat distImage;
-    conf = ocr::ocrRowTextForTraining(ocr::DISTANCE, grayImage, mgr.rEnv, cr, 1, distText, distImage);
+    conf = ocr::ocrRowTextForTraining(ocr::DISTANCE, grayImage, ai::rEnv, cr, 1, distText, distImage);
     if (conf < 50) {
         LOG(ERROR) << "Bad ocr for nav dist, conf: " << conf << ", text: "<< distText;
         distText.clear();

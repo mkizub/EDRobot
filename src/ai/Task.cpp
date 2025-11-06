@@ -29,11 +29,9 @@
 
 namespace ai {
 
-Step::Step(Step* parent, AIManager& mgr)
-    : parent(parent)
-    , mgr(mgr)
-{
-}
+Step::Step()
+    : parent(ai::curr_step().get())
+{}
 
 Task* Step::getTask() {
     for (Step* s = this; s; s = (Step*)s->parent) {
@@ -61,7 +59,7 @@ bool Step::run_sub_step(spStep step) {
             throw;
         }
         else {
-            LOG(ERROR) << "Exception during task step execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+            LOG(ERROR) << "Exception during task task_step execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
             return false;
         }
     }
@@ -69,9 +67,8 @@ bool Step::run_sub_step(spStep step) {
     return ok;
 }
 
-Task::Task(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-    : Step(parent, mgr)
-    , templ(templ_)
+Task::Task(const TaskTemplate& templ_)
+    : templ(templ_)
 {
 }
 
@@ -105,7 +102,7 @@ bool Task::safe_run() {
     return result;
 }
 
-void ai_sleep(int milliseconds, bool precise) {
+void sleep(int milliseconds, bool precise) {
     check_interrupted();
     if (milliseconds <= 0)
         return;
@@ -154,7 +151,7 @@ static int get_int(const json5pp::value& val, const json5pp::value& args, int df
 
 bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const {
     if (pos.is_string()) {
-        cv::Rect rect = mgr.master.resolveWidgetReferenceRect(pos.as_string());
+        cv::Rect rect = Mgr.resolveWidgetReferenceRect(pos.as_string());
         if (rect.empty()) {
             LOG(ERROR) << "Widget '" << pos << "' not found in current state";
             return false;
@@ -177,7 +174,7 @@ bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const jso
 }
 
 bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
-    LOG(DEBUG) << "action step wait: " << step;
+    LOG(DEBUG) << "action task_step wait: " << step;
     const json5pp::value& state = step.at("wait");
     const json5pp::value& focus = step.at("focus");
     const json5pp::value& disabled = step.at("disabled");
@@ -193,12 +190,12 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
     LOG(INFO) << "Step 'wait' #0 duration " << during << " left " << std::chrono::duration_cast<std::chrono::milliseconds>(until - now).count();
     bool ok;
     for (int counter=1; now < until; counter++) {
-        ok = mgr.detectEDState(DetectLevel::Buttons);
-        if (ok && mgr.uiState.match(state.as_string())) {
+        ok = ai::detectEDState(DetectLevel::Buttons);
+        if (ok && ai::uiState.match(state.as_string())) {
             bool ok_focus = true;
             if (focus.is_string()) {
                 ok_focus = false;
-                for (auto& cr : mgr.rEnv.classified) {
+                for (auto& cr : ai::rEnv.classified) {
                     if (cr.cdt == ClsDetType::Widget && cr.u.widg.ws == WState::Focused && cr.u.widg.widget->name == focus.as_string()) {
                         ok_focus = true;
                         break;
@@ -208,7 +205,7 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
             bool ok_disabled = true;
             if (disabled.is_string()) {
                 ok_disabled = false;
-                for (auto& cr : mgr.rEnv.classified) {
+                for (auto& cr : ai::rEnv.classified) {
                     if (cr.cdt == ClsDetType::Widget && cr.u.widg.ws == WState::Disabled && cr.u.widg.widget->name == disabled.as_string()) {
                         ok_disabled = true;
                         break;
@@ -223,7 +220,7 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
         now = std::chrono::system_clock::now();
         LOG_IF(!ok,INFO) << "Step 'wait' #"<<counter<<" duration " << during << " left " << std::chrono::duration_cast<std::chrono::milliseconds>(until - now).count();
     }
-    LOG_IF(!ok,ERROR) << "Step " << step << " failed - wait time expired, current state is " << mgr.uiState;
+    LOG_IF(!ok,ERROR) << "Step " << step << " failed - wait time expired, current state is " << ai::uiState;
     LOG_IF(ok,INFO) << "Step " << step << " successful, waited " << std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
     return ok;
 }
@@ -238,13 +235,13 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         return true;
     }
     if (step.is_object()) {
-        if (step.as_object().contains("loop")) {
-            LOG(DEBUG) << "action step loop: " << step;
-            const json5pp::value& loop = step.at("loop");
+        if (step.as_object().contains("task_loop")) {
+            LOG(DEBUG) << "action task_step task_loop: " << step;
+            const json5pp::value& loop = step.at("task_loop");
             const json5pp::value& action = step.at("action");
             int count = get_int(loop, args);
             if (count < 0) {
-                LOG(ERROR) << "bad loop counter value: " << step << " with args: " << args;
+                LOG(ERROR) << "bad task_loop counter value: " << step << " with args: " << args;
                 LOG(ERROR) << "Step " << step << " failed";
                 return false;
             }
@@ -260,28 +257,28 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
             return executeWait(step, args);
         }
         if (step.as_object().contains("check")) {
-            LOG(DEBUG) << "action step check: " << step;
+            LOG(DEBUG) << "action task_step check: " << step;
             const json5pp::value& state = step.at("check");
-            mgr.detectEDState(DetectLevel::Buttons);
-            bool ok = mgr.uiState.match(state.as_string());
+            ai::detectEDState(DetectLevel::Buttons);
+            bool ok = ai::uiState.match(state.as_string());
             if (ok) {
                 const json5pp::value &focus = step.at("focus");
                 if (focus) {
-                    const widget::Widget* fw = mgr.uiState.focused;
+                    const widget::Widget* fw = ai::uiState.focused;
                     std::string fn = fw ? fw->name : "";
                     ok = focus.is_string() && fn == focus.as_string();
                     LOG_IF(!ok,ERROR) << "Step failed, current focus at '" << fn << "', but '" << focus << "' required";
                 }
             }
-            LOG_IF(!ok,ERROR) << "Step " << step << " failed, current state is " << mgr.uiState;
+            LOG_IF(!ok,ERROR) << "Step " << step << " failed, current state is " << ai::uiState;
             return ok;
         }
         if (step.as_object().contains("key")) {
-            LOG(DEBUG) << "action step key: " << step;
+            LOG(DEBUG) << "action task_step key: " << step;
             const json5pp::value& key = step.at("key");
             bool ok;
             if (step.at("hold").is_object() || step.at("hold").is_array()) {
-                const KeyBindings& keyBindings = mgr.cfg.getGameKeyBindings(key.as_string());
+                const KeyBindings& keyBindings = Cfg.getGameKeyBindings(key.as_string());
                 const GameKey* gk = nullptr;
                 if (keyBindings.primary.device != GameKey::Void)
                     gk = &keyBindings.primary;
@@ -295,12 +292,12 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
                 ok = executeStep(step.at("hold"), args);
                 kbd::clearInput(inputId);
                 if (ok) {
-                    int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
+                    int after = get_int(step.at("after"), args, Cfg.getDefaultKeyAfterTime());
                     sleep(after);
                 }
             } else {
-                int hold = get_int(step.at("hold"), args, mgr.cfg.getDefaultKeyHoldTime());
-                int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
+                int hold = get_int(step.at("hold"), args, Cfg.getDefaultKeyHoldTime());
+                int after = get_int(step.at("after"), args, Cfg.getDefaultKeyAfterTime());
                 ok = kbd::send(key.as_string(), hold, after);
             }
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
@@ -314,7 +311,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
                 LOG(ERROR) << "Step " << step << " failed";
                 return false;
             }
-            int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
+            int after = get_int(step.at("after"), args, Cfg.getDefaultKeyAfterTime());
             bool ok = kbd::sendMouseMove(pos, after);
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
@@ -327,21 +324,21 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
                 LOG(ERROR) << "Step " << step << " failed";
                 return false;
             }
-            int hold = get_int(step.at("hold"), args, mgr.cfg.getDefaultKeyHoldTime());
-            int after = get_int(step.at("after"), args, mgr.cfg.getDefaultKeyAfterTime());
+            int hold = get_int(step.at("hold"), args, Cfg.getDefaultKeyHoldTime());
+            int after = get_int(step.at("after"), args, Cfg.getDefaultKeyAfterTime());
             bool ok = kbd::sendMouseClick(pos, hold, after);
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }
         if (step.as_object().contains("sleep")) {
-            LOG(DEBUG) << "action step sleep: " << step;
+            LOG(DEBUG) << "action task_step sleep: " << step;
             int duration = get_int(step.at("sleep"), args);
             sleep(duration);
             return true;
         }
         // fall through
     }
-    LOG(ERROR) << "Unknown action step: " << step;
+    LOG(ERROR) << "Unknown action task_step: " << step;
     return false;
 }
 
@@ -352,13 +349,13 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* co
         in >> json5pp::rule::json5() >> parsed;
     } catch (...) {
         LOG(ERROR) << "Failed to parse json " << step;
-        throw nonlocal_return(true, "hardcoded step parse failed");
+        throw nonlocal_return(true, "hardcoded task_step parse failed");
     }
     if (!executeStep(parsed, args)) {
         LOG(ERROR) << "Failed to execute " << step;
-        throw nonlocal_return(false, "hardcoded step failed");
+        throw nonlocal_return(false, "hardcoded task_step failed");
     }
-    mgr.detectEDState(level, colorImage, grayImage);
+    ai::detectEDState(level, colorImage, grayImage);
 }
 
 void Step::addMessage(const char* msg) {
@@ -424,8 +421,8 @@ void Step::throw_failed(const std::string& msg) {
 }
 
 
-TaskRepeat::TaskRepeat(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-    : Task(parent, mgr, templ_)
+TaskRepeat::TaskRepeat(const TaskTemplate& templ_)
+    : Task(templ_)
 {
     assert (templ.id == ED_TASK_REPEAT);
     for (auto& p : templ.params) {
@@ -475,9 +472,9 @@ bool TaskRepeat::run() {
                     return false;
             } else {
                 TaskTemplate &step_templ = templ.steps[mStepIdx];
-                auto step = spStep(step_templ.factory(this, step_templ));
+                auto step = spStep(step_templ.factory(step_templ));
                 if (!step)
-                    throw_failed("Cannot create task for next step");
+                    throw_failed("Cannot create task for next task_step");
                 if (!run_sub_step(step))
                     return false;
             }

@@ -27,7 +27,7 @@ using namespace std::chrono_literals;
 namespace ai {
 
 bool BaseMarketTask::clickButton(const char* btn) {
-    cv::Rect rect = mgr.master.resolveWidgetReferenceRect(btn);
+    cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn);
     if (rect.empty())
         return false;
     cv::Point pos = (rect.tl() + rect.br()) * 0.5;
@@ -35,7 +35,7 @@ bool BaseMarketTask::clickButton(const char* btn) {
 }
 
 bool BaseMarketTask::moveToWidget(const char* widget) {
-    cv::Rect rect = mgr.master.resolveWidgetReferenceRect(widget);
+    cv::Rect rect = Mgr.resolveWidgetReferenceRect(widget);
     if (rect.empty())
         return false;
     cv::Point pos = (rect.tl() + rect.br()) * 0.5;
@@ -46,7 +46,7 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
     if (!st::ship.flags.docked)
         throw_failed("Not docked");
     for (int step=0; step < 20; step++) {
-        mgr.detectEDState(DetectLevel::Buttons);
+        ai::detectEDState(DetectLevel::Buttons);
         if (st::guiFocus == GuiFocus::None) {
             for (int i = 0; i < 4; i++)
                 kbd::send("UI_Up");
@@ -58,15 +58,15 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
                 waitUiState("scr-services", 6s);
             continue;
         }
-        if (mgr.uiState.match("scr-services")) {
+        if (ai::uiState.match("scr-services")) {
             clickButton("til-market");
             waitUiState("scr-market:*", 5s);
             continue;
         }
-        if (mgr.uiState.match("scr-constr")) {
+        if (ai::uiState.match("scr-constr")) {
             return;
         }
-        if (mgr.uiState.match("scr-market:mod-buy")) {
+        if (ai::uiState.match("scr-market:mod-buy")) {
             if (buy) {
                 moveToWidget("lst-goods");
                 return;
@@ -77,7 +77,7 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
                 kbd::send("UI_Right", 0, 300);
             continue;
         }
-        if (mgr.uiState.match("scr-market:mod-sell")) {
+        if (ai::uiState.match("scr-market:mod-sell")) {
             if (!buy) {
                 moveToWidget("lst-goods");
                 return;
@@ -96,40 +96,42 @@ void BaseMarketTask::gotoMarketScreen(bool buy) {
 bool BaseMarketTask::waitUiState(const std::string& state, std::chrono::seconds duration) {
     utc_timer timer(duration);
     do {
-        mgr.detectEDState(DetectLevel::Buttons);
-        if (mgr.uiState.match(state))
+        ai::detectEDState(DetectLevel::Buttons);
+        if (ai::uiState.match(state))
             return true;
         sleep(250);
     } while (!timer.expired());
-    mgr.detectEDState(DetectLevel::Buttons);
-    return mgr.uiState.match(state);
+    ai::detectEDState(DetectLevel::Buttons);
+    return ai::uiState.match(state);
 }
 
-bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state) {
+bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, bool force) {
     if (!commodity)
         return false;
     std::string dlg_mod = state + ":dlg-trade:*";
     // wait for trade dialog
     if (!waitUiState(dlg_mod, 4s))
         return false;
-    // check we trade required commodity
-    cv::Mat grayImage;
-    mgr.detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
-    auto lblCommodity = Master::getLabelCommodity(mgr.rEnv, grayImage, "lbl-commodity");
-    if (lblCommodity != commodity) {
-        kbd::send("UI_Back");
-        waitUiState(state, 2s);
-        return false;
+    if(!force) {
+        // check we trade required commodity
+        cv::Mat grayImage;
+        ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
+        auto lblCommodity = Master::getLabelCommodity(ai::rEnv, grayImage, "lbl-commodity");
+        if (lblCommodity != commodity) {
+            kbd::send("UI_Back");
+            waitUiState(state, 2s);
+            return false;
+        }
     }
     return true;
 }
 
 bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) {
     std::string dlg_mod = state + ":dlg-trade:*";
-    mgr.detectEDState(DetectLevel::Buttons);
-    if (!mgr.uiState.match(dlg_mod))
+    ai::detectEDState(DetectLevel::Buttons);
+    if (!ai::uiState.match(dlg_mod))
         return false;
-    if (mgr.uiState.focused_name() != "btn-commit")
+    if (ai::uiState.focused_name() != "btn-commit")
         return false;
     kbd::send("UI_Select");
     // wait for market screem
@@ -141,8 +143,8 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
     return true;
 }
 
-TaskSellAll::TaskSellAll(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : BaseMarketTask(parent, mgr, templ_)
+TaskSellAll::TaskSellAll(const TaskTemplate& templ_)
+        : BaseMarketTask(templ_)
         , mChunk(1000)
 {
     assert (templ.id == ED_TASK_MARKET_SELL_ALL);
@@ -167,14 +169,14 @@ bool TaskSellAll::run() {
             }
             if (complete)
                 continue;
-            const TaskTemplate* templ = mgr.getTaskTemplate(ED_TASK_MARKET_SELL);
+            const TaskTemplate* templ = ai::getTaskTemplate(ED_TASK_MARKET_SELL);
             if (!templ)
                 throw_failed("Cannot find task template");
             TaskTemplate impl = *templ;
             impl.set("commodity", commodity->nameId);
             impl.set("amount", 0);
             impl.set("chunk", mChunk);
-            auto task = std::make_shared<TaskSell>(this, mgr, impl);
+            auto task = std::make_shared<TaskSell>(impl);
             sell_queue.emplace_back(commodity, task, false, false);
         }
     }
@@ -223,8 +225,8 @@ bool TaskSellAll::run() {
     throw_trouble("Not complete");
 }
 
-TaskSell::TaskSell(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : BaseMarketTask(parent, mgr, templ_)
+TaskSell::TaskSell(const TaskTemplate& templ_)
+        : BaseMarketTask(templ_)
         , mCommodity(nullptr)
         , mTotal(0)
         , mChunk(0)
@@ -234,7 +236,7 @@ TaskSell::TaskSell(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
     assert (templ.id == ED_TASK_MARKET_SELL);
     for (auto& p : templ.params) {
         if (p.name == "commodity")
-            mCommodity = mgr.cfg.getCommodityById(std::get<std::string>(p.value));
+            mCommodity = Cfg.getCommodityById(std::get<std::string>(p.value));
         if (p.name == "amount")
             const_cast<int&>(mTotal) = std::get<int64_t>(p.value);
         if (p.name == "chunk")
@@ -252,9 +254,9 @@ bool TaskSell::run() {
     gotoMarketScreen(false);
 
     if (mTotal <= 0)
-        mLeft = mgr.master.canSell(mCommodity);
+        mLeft = Mgr.canSell(mCommodity);
     else
-        mLeft = std::min(mTotal-mSold, mgr.master.canSell(mCommodity));
+        mLeft = std::min(mTotal-mSold, Mgr.canSell(mCommodity));
     if (mLeft <= 0)
         return true;
 
@@ -262,22 +264,26 @@ bool TaskSell::run() {
         notifyProgress(std_format(_("Start selling {} by {} item(s)"), mLeft, mChunk));
     else
         notifyProgress(std_format(_("Start selling {} item(s)"), mLeft));
+    int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
         cv::Mat grayImage;
-        mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-        if (mgr.uiState.match("scr-market:mod-sell")) {
-            if (!mgr.master.approximateListOfCommodities(mgr.rEnv, grayImage, "lst-goods", mgr.cfg.getMarketInSellOrder()))
+        ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+        if (ai::uiState.match("scr-market:mod-sell")) {
+            if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInSellOrder()))
                 throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
-            for (auto &cr: mgr.rEnv.classified) {
+            bool forceTrade = false;
+            int rowIdx = -1;
+            for (auto &cr: ai::rEnv.classified) {
                 if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                     continue;
+                rowIdx += 1;
                 const Commodity* rowCommodity = cr.u.lrow.commodity;
                 if (!rowCommodity)
-                    rowCommodity = mgr.cfg.getCommodityByName(cr.text, true);
+                    rowCommodity = Cfg.getCommodityByName(cr.text, true);
                 if (cr.u.lrow.ws == WState::Focused) {
                     focusedRow = &cr;
                     LOG(INFO) << "Focused row text: " << focusedRow->text;
@@ -288,9 +294,13 @@ bool TaskSell::run() {
                 if (rowCommodity == mCommodity) {
                     LOG(INFO) << "Row with required commodity found";
                     if (cr.u.lrow.ws == WState::Focused) {
+                        if (prevFocusedIdx == rowIdx)
+                            forceTrade = true;
+                        prevFocusedIdx = rowIdx;
                         LOG(INFO) << "Pressing 'space'";
                         kbd::send("UI_Select", 0, 500);
                     } else {
+                        prevFocusedIdx = -1;
                         LOG(INFO) << "Not focused, using mouse click";
                         cv::Rect rect = cr.detectedRect;
                         kbd::sendMouseClick((rect.tl() + rect.br()) / 2, 100, 500);
@@ -300,7 +310,7 @@ bool TaskSell::run() {
                 }
             }
             if (canTrade) {
-                if (processTradeDialog())
+                if (processTradeDialog(forceTrade))
                     missCount = 0;
                 else
                     missCount += 1;
@@ -308,9 +318,10 @@ bool TaskSell::run() {
                     throw_failed("Too many fails");
                 continue;
             }
+            prevFocusedIdx = -1;
             if (!focusedRow) {
                 LOG(INFO) << "No focused row found, moving mouse to the list area";
-                cv::Rect rect = mgr.master.resolveWidgetReferenceRect("lst-goods");
+                cv::Rect rect = Mgr.resolveWidgetReferenceRect("lst-goods");
                 int x = rect.x+rect.width/2;
                 int y = rect.y - 20;
                 kbd::sendMouseClick({x, y}, 0, 500);
@@ -323,7 +334,7 @@ bool TaskSell::run() {
 
             int focusedIdx = -1;
             int needIdx = -1;
-            std::vector<Commodity *> sellTable = mgr.cfg.getMarketInSellOrder();
+            std::vector<Commodity *> sellTable = Cfg.getMarketInSellOrder();
             for (int idx = 0; idx < sellTable.size(); idx++) {
                 auto &c = sellTable[idx];
                 if (c == focusedCommodity)
@@ -343,7 +354,7 @@ bool TaskSell::run() {
                 continue;
             }
             throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
-        } else if (mgr.uiState.match("scr-market:mod-sell:dlg-trade:*")) {
+        } else if (ai::uiState.match("scr-market:mod-sell:dlg-trade:*")) {
             kbd::send("UI_Back");
             waitUiState("scr-market:mod-sell", 2s);
             continue;
@@ -355,18 +366,18 @@ bool TaskSell::run() {
     return true;
 }
 
-bool TaskSell::processTradeDialog() {
+bool TaskSell::processTradeDialog(bool force) {
     status = TRADING;
-    if (!enterTradeDialog(mCommodity, "scr-market:mod-sell"))
+    if (!enterTradeDialog(mCommodity, "scr-market:mod-sell", force))
         return false;
     for (int i=0; i < 4; i++)
         kbd::send("UI_Up");
-    mgr.detectEDState(DetectLevel::Buttons);
-    if (!mgr.uiState.match("scr-market:mod-sell:dlg-trade:*"))
+    ai::detectEDState(DetectLevel::Buttons);
+    if (!ai::uiState.match("scr-market:mod-sell:dlg-trade:*"))
         return false;
-    if (mgr.uiState.focused_name() != "spn-amount")
+    if (ai::uiState.focused_name() != "spn-amount")
         return false;
-    int canSell = mgr.master.canSell(mCommodity);
+    int canSell = Mgr.canSell(mCommodity);
     if (canSell <= 0)
         return false;
     int chunk = mLeft;
@@ -407,8 +418,8 @@ std::string TaskSell::getStatus() {
     return st;
 }
 
-TaskBuy::TaskBuy(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : BaseMarketTask(parent, mgr, templ_)
+TaskBuy::TaskBuy(const TaskTemplate& templ_)
+        : BaseMarketTask(templ_)
         , mCommodity(nullptr)
         , mTotal(0)
         , mBought(0)
@@ -417,7 +428,7 @@ TaskBuy::TaskBuy(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
     assert (templ.id == ED_TASK_MARKET_BUY);
     for (auto& p : templ.params) {
         if (p.name == "commodity")
-            mCommodity = mgr.cfg.getCommodityById(std::get<std::string>(p.value));
+            mCommodity = Cfg.getCommodityById(std::get<std::string>(p.value));
         if (p.name == "amount")
             const_cast<int&>(mTotal) = std::get<int64_t>(p.value);
     }
@@ -433,29 +444,33 @@ bool TaskBuy::run() {
     gotoMarketScreen(true);
 
     if (mTotal <= 0)
-        mLeft = mgr.master.canBuy(mCommodity);
+        mLeft = Mgr.canBuy(mCommodity);
     else
-        mLeft = std::min(mTotal-mBought, mgr.master.canBuy(mCommodity));
+        mLeft = std::min(mTotal-mBought, Mgr.canBuy(mCommodity));
     if (mLeft <= 0)
         return true;
 
     notifyProgress(std_format(_("Start purchasing {} item(s)"), mLeft));
+    int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
         cv::Mat grayImage;
-        mgr.detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
-        if (mgr.uiState.match("scr-market:mod-buy")) {
-            if (!mgr.master.approximateListOfCommodities(mgr.rEnv, grayImage, "lst-goods", mgr.cfg.getMarketInBuyOrder()))
+        ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+        if (ai::uiState.match("scr-market:mod-buy")) {
+            if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInBuyOrder()))
                 throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
-            for (auto &cr: mgr.rEnv.classified) {
+            bool forceTrade = false;
+            int rowIdx = -1;
+            for (auto &cr: ai::rEnv.classified) {
                 if (cr.cdt != ClsDetType::ListRow || cr.u.lrow.list->name != "lst-goods")
                     continue;
+                rowIdx += 1;
                 const Commodity* rowCommodity = cr.u.lrow.commodity;
                 if (!rowCommodity)
-                    rowCommodity = mgr.cfg.getCommodityByName(cr.text, true);
+                    rowCommodity = Cfg.getCommodityByName(cr.text, true);
                 if (cr.u.lrow.ws == WState::Focused) {
                     focusedRow = &cr;
                     LOG(INFO) << "Focused row text: " << focusedRow->text;
@@ -466,9 +481,13 @@ bool TaskBuy::run() {
                 if (rowCommodity == mCommodity) {
                     LOG(INFO) << "Row with required commodity found";
                     if (cr.u.lrow.ws == WState::Focused) {
+                        if (prevFocusedIdx == rowIdx)
+                            forceTrade = true;
+                        prevFocusedIdx = rowIdx;
                         LOG(INFO) << "Pressing 'space'";
                         kbd::send("UI_Select", 100, 500);
                     } else {
+                        prevFocusedIdx = -1;
                         LOG(INFO) << "Not focused, using mouse click";
                         cv::Rect rect = cr.detectedRect;
                         kbd::sendMouseClick((rect.tl() + rect.br()) / 2, 100, 500);
@@ -478,7 +497,7 @@ bool TaskBuy::run() {
                 }
             }
             if (canTrade) {
-                if (processTradeDialog())
+                if (processTradeDialog(forceTrade))
                     missCount = 0;
                 else
                     missCount += 1;
@@ -486,9 +505,10 @@ bool TaskBuy::run() {
                     throw_failed("Too many fails");
                 continue;
             }
+            prevFocusedIdx = -1;
             if (!focusedRow) {
                 LOG(INFO) << "No focused row found, moving mouse to the list area";
-                cv::Rect rect = mgr.master.resolveWidgetReferenceRect("lst-goods");
+                cv::Rect rect = Mgr.resolveWidgetReferenceRect("lst-goods");
                 int x = rect.x+rect.width/2;
                 int y = rect.y - 20;
                 kbd::sendMouseClick({x, y}, 0, 500);
@@ -501,7 +521,7 @@ bool TaskBuy::run() {
 
             int focusedIdx = -1;
             int needIdx = -1;
-            std::vector<Commodity *> buyTable = mgr.cfg.getMarketInBuyOrder();
+            std::vector<Commodity *> buyTable = Cfg.getMarketInBuyOrder();
             for (int idx = 0; idx < buyTable.size(); idx++) {
                 auto &c = buyTable[idx];
                 if (c == focusedCommodity)
@@ -521,7 +541,7 @@ bool TaskBuy::run() {
                 continue;
             }
             throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
-        } else if (mgr.uiState.match("scr-market:mod-buy:dlg-trade:*")) {
+        } else if (ai::uiState.match("scr-market:mod-buy:dlg-trade:*")) {
             kbd::send("UI_Back");
             waitUiState("scr-market:mod-buy", 2s);
             continue;
@@ -533,18 +553,18 @@ bool TaskBuy::run() {
     return true;
 }
 
-bool TaskBuy::processTradeDialog() {
+bool TaskBuy::processTradeDialog(bool force) {
     status = TRADING;
-    if (!enterTradeDialog(mCommodity, "scr-market:mod-buy"))
+    if (!enterTradeDialog(mCommodity, "scr-market:mod-buy", force))
         return false;
     for (int i=0; i < 4; i++)
         kbd::send("UI_Up");
-    mgr.detectEDState(DetectLevel::Buttons);
-    if (!mgr.uiState.match("scr-market:mod-buy:dlg-trade:*"))
+    ai::detectEDState(DetectLevel::Buttons);
+    if (!ai::uiState.match("scr-market:mod-buy:dlg-trade:*"))
         return false;
-    if (mgr.uiState.focused_name() != "spn-amount")
+    if (ai::uiState.focused_name() != "spn-amount")
         return false;
-    int canBuy = mgr.master.canBuy(mCommodity);
+    int canBuy = Mgr.canBuy(mCommodity);
     if (canBuy <= 0)
         return false;
     if (mLeft >= canBuy) {
@@ -577,8 +597,8 @@ std::string TaskBuy::getStatus() {
     return st;
 }
 
-TaskBuyConstr::TaskBuyConstr(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : BaseMarketTask(parent, mgr, templ_)
+TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
+        : BaseMarketTask(templ_)
 {
     assert (templ.id == ED_TASK_MARKET_BUY_CONSTR);
     for (auto& p : templ.params) {
@@ -615,7 +635,7 @@ bool TaskBuyConstr::run() {
             int demand = ml.demand - ml.stock - commodity->ship.count;
             if (demand <= 0)
                 continue;
-            int buy = mgr.master.canBuy(commodity);
+            int buy = Mgr.canBuy(commodity);
             buy = std::min(buy, demand);
             if (buy <= 0)
                 continue;
@@ -630,13 +650,13 @@ bool TaskBuyConstr::run() {
             if (complete)
                 continue;
             triedToBuy = true;
-            const TaskTemplate* templ = mgr.getTaskTemplate(ED_TASK_MARKET_BUY);
+            const TaskTemplate* templ = ai::getTaskTemplate(ED_TASK_MARKET_BUY);
             if (!templ)
                 throw_failed("Cannot find task template");
             TaskTemplate impl = *templ;
             impl.set("commodity", commodity->nameId);
             impl.set("amount", buy);
-            auto task = std::make_shared<TaskBuy>(this, mgr, impl);
+            auto task = std::make_shared<TaskBuy>(impl);
             buy_queue.emplace_back(commodity, task, false, false);
         }
         std::sort(buy_queue.begin(), buy_queue.end(), [](const SubTask& a, const SubTask& b) {
@@ -693,8 +713,8 @@ bool TaskBuyConstr::run() {
     throw_trouble("Not complete");
 }
 
-TaskConstrUnload::TaskConstrUnload(Step* parent, AIManager& mgr, const TaskTemplate& templ_)
-        : BaseMarketTask(parent, mgr, templ_)
+TaskConstrUnload::TaskConstrUnload(const TaskTemplate& templ_)
+        : BaseMarketTask(templ_)
 {
     assert (templ.id == ED_TASK_CONSTR_UNLOAD);
 }
@@ -703,14 +723,15 @@ bool TaskConstrUnload::run() {
     status = TO_MARKET;
     gotoMarketScreen(false);
 
-    mgr.detectEDState(DetectLevel::Buttons);
-    if (!mgr.uiState.match("scr-constr"))
+    ai::detectEDState(DetectLevel::Buttons);
+    if (!ai::uiState.match("scr-constr"))
         throw_failed("Cannot enter unload screen");
 
     status = UNLOAD;
     clickButton("btn-all");
     sleep(1000);
     clickButton("btn-commit");
+    sleep(2000);
     return true;
 }
 

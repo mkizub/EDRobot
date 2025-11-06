@@ -79,8 +79,6 @@ UIMainDialog::UIMainDialog()
 
 
 int UIMainDialog::initialize(wl::params &params) {
-    aiManager = Master::getInstance().getAIManager();
-
     HINSTANCE hInstance = GetModuleHandle(nullptr);
     mNotifyIconData.cbSize = sizeof(NOTIFYICONDATA);
     mNotifyIconData.hWnd = hwnd();
@@ -120,7 +118,7 @@ bool UIMainDialog::hide() {
 
 int UIMainDialog::on_command_stop_new(wl::params &params) {
     try {
-        ai::spTask task = aiManager->activeTask;
+        ai::spTask task = ai::curr_task();
         if (!task) {
             //hide();
             UIAddTask addTaskDlg;
@@ -129,7 +127,7 @@ int UIMainDialog::on_command_stop_new(wl::params &params) {
                 return TRUE;
             //show();
         } else {
-            aiManager->stop();
+            ai::stop();
         }
         update_curr_task();
     } catch (const std::system_error& ex) {
@@ -142,7 +140,7 @@ int UIMainDialog::on_command_stop_new(wl::params &params) {
 
 int UIMainDialog::on_command_pause_resume(wl::params &params) {
     try {
-        ai::spTask task = aiManager->activeTask;
+        ai::spTask task = ai::curr_task();
         if (!task) {
             hide();
             UIAddTask addTaskDlg;
@@ -151,10 +149,10 @@ int UIMainDialog::on_command_pause_resume(wl::params &params) {
             if (res == IDOK)
                 return TRUE;
         } else {
-            if (aiManager->active())
-                aiManager->interrupt();
+            if (ai::active())
+                ai::interrupt();
             else
-                aiManager->resume();
+                ai::resume();
         }
         update_curr_task();
     } catch (const std::system_error& ex) {
@@ -166,21 +164,21 @@ int UIMainDialog::on_command_pause_resume(wl::params &params) {
 }
 
 void UIMainDialog::update_curr_task() {
-    ai::spTask task = aiManager->curr_task();
-    if (!task)
-        task = aiManager->lastTask;
+    ai::spTask task = ai::curr_task();
     if (!task) {
         lbl_curr_task.set_text(L"No active task");
         btn_stop_new.set_text(L"New");
         btn_pause_resume.set_text(L"Repeat");
     } else {
-        lbl_curr_task.set_text(toUtf16(task->templ.id).c_str());
+        lbl_curr_task.set_text(toUtf16(task->getName()).c_str());
         btn_stop_new.set_text(L"Stop");
-        if (aiManager->active())
+        if (ai::active())
             btn_pause_resume.set_text(L"Pause");
         else
             btn_pause_resume.set_text(L"Resume");
     }
+    if (!task)
+        task = ai::last_task();
     std::string status;
     int indent = 0;
     for (ai::spStep step=task; step; step = step->currentSubStep) {

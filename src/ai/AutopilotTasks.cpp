@@ -16,15 +16,37 @@ using namespace std::chrono_literals;
 
 namespace ai {
 
+// TODO: departure from planet - orient away before mass-locked
+// TODO: complete nav route - leave body first
+// TODO: autopilot to planet port - dive, check direct visibility before going far from planet
+// TODO: autopilot to planet port - orient roll to planet center before flying to port
+// TODO: restart frame capturing if many fails
+
+static enum BlindMode {
+    ROLL_BLIND_ROLL,
+    ROLL_BLIND_NONE,
+} blindMode {ROLL_BLIND_ROLL};
+struct BlindLock {
+    BlindLock(BlindMode mode) : saved(blindMode) {
+        blindMode = mode;
+    }
+    ~BlindLock() {
+        blindMode = saved;
+    }
+    BlindMode saved;
+};
+
 void rollBlindCompass() {
+    if (blindMode != ROLL_BLIND_ROLL)
+        return;
     const KeyBindings& bind = Cfg.getGameKeyBindings("RollAxisRaw");
     if ((bind.mode == KeyBindings::Axis || bind.mode == KeyBindings::AxisInv) && bind.primary.device == GameKey::vJoy) {
         kbd::axis(bind, 1);
-        ai_sleep(800);
+        ai::sleep(1000);
         kbd::axis(bind, 0);
-        ai_sleep(500);
+        ai::sleep(500);
     } else {
-        kbd::send("RollRightButton", 800, 500);
+        kbd::send("RollRightButton", 1000, 500);
     }
 }
 
@@ -45,42 +67,42 @@ int getNavPageIndex(const std::string &page_name) {
     return pageIndex;
 }
 
-bool gotoNavPage(Step *task, const std::string &page_name, bool required) {
+bool gotoNavPage(const std::string &page_name, bool required) {
     int targetPageIndex = getNavPageIndex(page_name);
     if (targetPageIndex < 0)
-        task->throw_failed("Bad page: "+page_name);
+        ai::throw_failed("Bad page: "+page_name);
 
-    for (int i = 0; i < 6 && !task->mgr.uiState.match("scr-left-panel:" + page_name); i++) {
-        task->mgr.detectEDState(DetectLevel::Screen);
+    for (int i = 0; i < 6 && !ai::uiState.match("scr-left-panel:" + page_name); i++) {
+        ai::detectEDState(DetectLevel::Screen);
         LOG(DEBUG) << "Goto '" << page_name << "'...";
 
-        if (task->mgr.uiState.guiFocus == GuiFocus::None) {
+        if (ai::uiState.guiFocus == GuiFocus::None) {
             LOG(DEBUG) << "FocusLeftPanel...";
             kbd::send("FocusLeftPanel", 0, 1500);
             continue;
         }
-        if (task->mgr.uiState.guiFocus == GuiFocus::Left && !task->mgr.uiState.screen) {
+        if (ai::uiState.guiFocus == GuiFocus::Left && !ai::uiState.screen) {
             rollBlindCompass();
             continue;
         }
-        if (!task->mgr.uiState.match("scr-left-panel:*")) {
+        if (!ai::uiState.match("scr-left-panel:*")) {
             LOG(DEBUG) << "FocusLeftPanel...";
             kbd::send("FocusLeftPanel", 0, 1500);
             continue;
         }
-        if (task->mgr.uiState.match("scr-left-panel:dlg-nav-select") ||
-            task->mgr.uiState.match("scr-left-panel:dlg-filters")) {
+        if (ai::uiState.match("scr-left-panel:dlg-nav-select") ||
+            ai::uiState.match("scr-left-panel:dlg-filters")) {
             kbd::send("UI_Back", 0, 500);
             continue;
         }
-        std::vector<std::string> segments = task->mgr.uiState.splitPath();
+        std::vector<std::string> segments = ai::uiState.splitPath();
         if (segments.size() < 2) {
-            LOG(ERROR) << "Expecting 2 segments in " << task->mgr.uiState;
-            task->throw_failed("Expecting 2 segments in " + task->mgr.uiState.to_string());
+            LOG(ERROR) << "Expecting 2 segments in " << ai::uiState;
+            ai::throw_failed("Expecting 2 segments in " + ai::uiState.to_string());
         }
         int currentPageIndex = getNavPageIndex(segments[1]);
         if (currentPageIndex < 0)
-            task->throw_failed("Bad page: "+segments[1]);
+            ai::throw_failed("Bad page: "+segments[1]);
         int dist = currentPageIndex - targetPageIndex;
         if (dist >= 0) {
             for (int j = 0; j < dist; j++)
@@ -90,15 +112,15 @@ bool gotoNavPage(Step *task, const std::string &page_name, bool required) {
                 kbd::send("CyclePreviousPanel", 0, 250);
         }
     }
-    if (!task->mgr.uiState.match("scr-left-panel:" + page_name)) {
+    if (!ai::uiState.match("scr-left-panel:" + page_name)) {
         if (required)
-            task->throw_trouble("Unexpected: " + task->mgr.uiState.to_string());
+            ai::throw_trouble("Unexpected: " + ai::uiState.to_string());
         return false;
     }
     return true;
 }
 
-bool clickWidget(Step *task, const char* btn, int delay_ms, int pause_ms) {
+bool clickWidget(const char* btn, int delay_ms, int pause_ms) {
     cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn);
     if (rect.empty())
         return false;
@@ -106,31 +128,31 @@ bool clickWidget(Step *task, const char* btn, int delay_ms, int pause_ms) {
     return kbd::sendMouseClick(pos, delay_ms, pause_ms);
 }
 
-bool selectOnGalaxyMap(Step *task, const std::string& systemName) {
-    task->mgr.detectEDState(DetectLevel::Buttons);
-    if (task->mgr.uiState.guiFocus != GuiFocus::GalaxyMap || !task->mgr.uiState.match("scr-galaxy")) {
+bool selectOnGalaxyMap(const std::string& systemName) {
+    ai::detectEDState(DetectLevel::Buttons);
+    if (ai::uiState.guiFocus != GuiFocus::GalaxyMap || !ai::uiState.match("scr-galaxy")) {
         kbd::send("GalaxyMapOpen", 100, 1000);
         utc_timer timer(10s);
         do {
-            ai_sleep(1000);
-            task->mgr.detectEDState(DetectLevel::Buttons);
-            if (task->mgr.uiState.guiFocus == GuiFocus::GalaxyMap && task->mgr.uiState.match("scr-galaxy"))
+            ai::sleep(1000);
+            ai::detectEDState(DetectLevel::Buttons);
+            if (ai::uiState.guiFocus == GuiFocus::GalaxyMap && ai::uiState.match("scr-galaxy"))
                 break;
         } while (!timer.expired());
-        if (task->mgr.uiState.guiFocus != GuiFocus::GalaxyMap || !task->mgr.uiState.match("scr-galaxy"))
+        if (ai::uiState.guiFocus != GuiFocus::GalaxyMap || !ai::uiState.match("scr-galaxy"))
             return false;
     }
-    if (!clickWidget(task,"lbl-search",100,500))
+    if (!clickWidget("lbl-search",100,500))
         return false;
     kbd::send("BackSpace", 100, 500);
 
     pasteToClipboard(systemName);
 
     int handle = kbd::post("CtrlLeft", 500);
-    ai_sleep(100);
+    ai::sleep(100);
     kbd::send("v", 100, 300);
     kbd::clearInput(handle);
-    ai_sleep(1000);
+    ai::sleep(1000);
 
     for (int entry=0; entry < 20; entry++) {
         cv::Rect dd_rect = Mgr.resolveWidgetReferenceRect("lbl-drop-down");
@@ -138,13 +160,13 @@ bool selectOnGalaxyMap(Step *task, const std::string& systemName) {
         pos.x = dd_rect.x + dd_rect.width / 2;
         pos.y = dd_rect.y + (entry+0.5)*28.65;
         kbd::sendMouseClick(pos, 300, 100);
-        ai_sleep(3000);
+        ai::sleep(3000);
 
-        clickWidget(task,"btn-tgt-copy",300,500);
+        clickWidget("btn-tgt-copy",300,500);
         auto name = textFromClipboard();
         if (name == systemName) {
-            clickWidget(task, "btn-tgt-nav-to", 300, 1000);
-            clickWidget(task, "btn-exit", 300, 500);
+            clickWidget("btn-tgt-nav-to", 300, 1000);
+            clickWidget("btn-exit", 300, 500);
             return true;
         }
 
@@ -155,12 +177,8 @@ bool selectOnGalaxyMap(Step *task, const std::string& systemName) {
     return false;
 }
 
-BaseAutopilotTask::BaseAutopilotTask(Step* parent, AIManager& mgr, const TaskTemplate& templ)
-    : Task(parent, mgr, templ)
-{}
 
-BaseAutopilotStep::BaseAutopilotStep(Step* parent)
-    : Step(parent, parent->mgr)
+BaseAutopilotStep::BaseAutopilotStep()
 {
     task = dynamic_cast<BaseAutopilotTask*>(getTask());
     if (!task) {
@@ -185,44 +203,46 @@ void BaseAutopilotTask::relogin() {
     throw_trouble("Finished re-login");
 }
 
-bool BaseAutopilotTask::setSpeed(int percents) {
+bool setSpeed(int percents, bool force) {
     percents = std::clamp(percents, -100, +100);
+    if (st::autopilot.speed_set_to.has_value() && percents == st::autopilot.speed_set_to.value() && !force)
+        return true;
     switch (percents / 25) {
     case 4:
         kbd::send("SetSpeed100", 50);
-        speed_set_to = 100;
+        st::autopilot.speed_set_to = 100;
         break;
     case 3:
         kbd::send("SetSpeed75", 50);
-        speed_set_to = 75;
+        st::autopilot.speed_set_to = 75;
         break;
     case 2:
         kbd::send("SetSpeed50", 50);
-        speed_set_to = 50;
+        st::autopilot.speed_set_to = 50;
         break;
     case 1:
         kbd::send("SetSpeed25", 50);
-        speed_set_to = 25;
+        st::autopilot.speed_set_to = 25;
         break;
     case 0:
         kbd::send("SetSpeedZero", 50);
-        speed_set_to = 0;
+        st::autopilot.speed_set_to = 0;
         break;
     case -1:
         kbd::send("SetSpeedMinus25", 50);
-        speed_set_to = -25;
+        st::autopilot.speed_set_to = -25;
         break;
     case -2:
         kbd::send("SetSpeedMinus50", 50);
-        speed_set_to = -50;
+        st::autopilot.speed_set_to = -50;
         break;
     case -3:
         kbd::send("SetSpeedMinus75", 50);
-        speed_set_to = -75;
+        st::autopilot.speed_set_to = -75;
         break;
     case -4:
         kbd::send("SetSpeedMinus100", 50);
-        speed_set_to = -100;
+        st::autopilot.speed_set_to = -100;
         break;
     }
     return true;
@@ -238,38 +258,46 @@ static int getDuration(double angle, double speed) {
     return duration;
 }
 
+static void sendOrientAxis(const KeyBindings& bind, double speed, double delta, int max_time_ms) {
+    double seconds = delta / speed;
+    double value = std::copysign(1.0, seconds);
+    int duration = (int) std::abs(1000*seconds);
+    if (max_time_ms >= 1000 && duration >= 1000) {
+        duration = std::min(duration, max_time_ms);
+    } else {
+        if (duration < 1000)
+            value *= duration / 1000.0;
+        duration = 1000;
+    }
+    int pause = int(std::abs(10*value*speed));
+    kbd::axis(bind, value);
+    ai::sleep(duration);
+    kbd::axis(bind, 0);
+    ai::sleep(pause);
+}
+
+static void sendOrientKeys(const char* pos, const char* neg, double speed, double delta, int max_time_ms) {
+    if (std::abs(delta) < 0.1)
+        return;
+    int duration = std::min(max_time_ms, getDuration(delta, speed));
+    int pause = duration < max_time_ms ? duration : 1000;
+    kbd::send(delta > 0 ? pos : neg, duration, pause);
+}
+
 void BaseAutopilotTask::orientRollStep(double delta, int max_time_ms) {
     if (delta > 180) delta = 360-delta;
     if (delta < -180) delta = 360+delta;
     auto shipStats = eddb::getShipStats();
     if (!shipStats)
         throw_failed("Unsupported or unknown ship");
-    double speed = shipStats->getRollSpeed(speed_set_to);
+    if (!st::autopilot.speed_set_to.has_value())
+        setSpeed(0, true);
+    double speed = shipStats->getRollSpeed(st::autopilot.speed_set_to.value());
     const KeyBindings& bind = Cfg.getGameKeyBindings("RollAxisRaw");
     if ((bind.mode == KeyBindings::Axis || bind.mode == KeyBindings::AxisInv) && bind.primary.device == GameKey::vJoy) {
-        double value = delta / speed;
-        int duration, pause;
-        if (std::abs(value) >= 1) {
-            duration = std::min(max_time_ms, int(1000 * std::abs(value)));
-            pause = 10*speed;
-            value = value > 0 ? +1.0 : -1.0;
-        } else {
-            duration = 1000;
-            pause = 1000 / (25+std::abs(value));
-        }
-        notifyProgress(std::format("Orientation: fix roll {:.1f} (joystick) hold {}ms", delta, duration));
-        kbd::axis(bind, value);
-        sleep(duration);
-        kbd::axis(bind, 0);
-        sleep(pause);
+        sendOrientAxis(bind, speed, delta, max_time_ms);
     } else {
-        int duration = std::min(max_time_ms, getDuration(delta, speed));
-        int pause = duration < 1000 ? duration : 1000;
-        notifyProgress(std::format("Orientation: fix roll {:.1f} (button) hold {}ms", delta, duration));
-        if (delta > 0)
-            kbd::send("RollRightButton", duration, pause);
-        else
-            kbd::send("RollLeftButton", duration, pause);
+        sendOrientKeys("RollRightButton", "RollLeftButton", speed, delta, max_time_ms);
     }
 }
 
@@ -279,32 +307,14 @@ void BaseAutopilotTask::orientPitchStep(double delta, int max_time_ms) {
     auto shipStats = eddb::getShipStats();
     if (!shipStats)
         throw_failed("Unsupported or unknown ship");
-    double speed = shipStats->getPitchSpeed(speed_set_to);
+    if (!st::autopilot.speed_set_to.has_value())
+        setSpeed(0, true);
+    double speed = shipStats->getPitchSpeed(st::autopilot.speed_set_to.value());
     const KeyBindings& bind = Cfg.getGameKeyBindings("PitchAxisRaw");
     if ((bind.mode == KeyBindings::Axis || bind.mode == KeyBindings::AxisInv) && bind.primary.device == GameKey::vJoy) {
-        double value = -delta / speed;
-        int duration, pause;
-        if (std::abs(value) >= 1) {
-            duration = std::min(max_time_ms, int(1000 * std::abs(value)));
-            pause = 10*speed;
-            value = value > 0 ? +1.0 : -1.0;
-        } else {
-            duration = 1000;
-            pause = 1000 / (25+std::abs(value));
-        }
-        notifyProgress(std::format("Orientation: fix pitch {:.1f} (joystick) hold {}ms", delta, duration));
-        kbd::axis(bind, value);
-        sleep(duration);
-        kbd::axis(bind, 0);
-        sleep(pause);
+        sendOrientAxis(bind, speed, -delta, max_time_ms);
     } else {
-        int duration = std::min(max_time_ms, getDuration(delta, speed));
-        int pause = duration < 1000 ? duration : 1000;
-        notifyProgress(std::format("Orientation: fix pitch {:.1f} (button) hold {}ms", delta, duration));
-        if (delta > 0)
-            kbd::send("PitchUpButton", duration, pause);
-        else
-            kbd::send("PitchDownButton", duration, pause);
+        sendOrientKeys("PitchUpButton", "PitchDownButton", speed, delta, max_time_ms);
     }
 }
 
@@ -314,41 +324,23 @@ void BaseAutopilotTask::orientYawStep(double delta, int max_time_ms) {
     auto shipStats = eddb::getShipStats();
     if (!shipStats)
         throw_failed("Unsupported or unknown ship");
-    double speed = shipStats->getYawSpeed(speed_set_to);
+    if (!st::autopilot.speed_set_to.has_value())
+        setSpeed(0, true);
+    double speed = shipStats->getYawSpeed(st::autopilot.speed_set_to.value());
     const KeyBindings& bind = Cfg.getGameKeyBindings("YawAxisRaw");
     if ((bind.mode == KeyBindings::Axis || bind.mode == KeyBindings::AxisInv) && bind.primary.device == GameKey::vJoy) {
-        double value = delta / speed;
-        int duration, pause;
-        if (std::abs(value) >= 1) {
-            duration = std::min(max_time_ms, int(1000 * std::abs(value)));
-            pause = 10*speed;
-            value = value > 0 ? +1.0 : -1.0;
-        } else {
-            duration = 1000;
-            pause = 1000 / (25+std::abs(value));
-        }
-        notifyProgress(std::format("Orientation: fix yaw {:.1f} (joystick)", delta, duration));
-        kbd::axis(bind, value);
-        sleep(duration);
-        kbd::axis(bind, 0);
-        sleep(pause);
+        sendOrientAxis(bind, speed, delta, max_time_ms);
     } else {
-        int duration = std::min(max_time_ms, getDuration(delta, speed));
-        int pause = duration < 1000 ? duration : 1000;
-        notifyProgress(std::format("Orientation: fix yaw {:.1f} (button) hold {}ms", delta, duration));
-        if (delta > 0)
-            kbd::send("YawRightButton", duration, pause);
-        else
-            kbd::send("YawLeftButton", duration, pause);
+        sendOrientKeys("YawRightButton", "YawLeftButton", speed, delta, max_time_ms);
     }
 }
 
 bool BaseAutopilotTask::orientTowardTargetStep(double precision, int max_time_ms) {
     check_interrupted();
-    if (!mgr.compassInfo.has_nav_target)
+    if (!ai::compassInfo.has_nav_target)
         precision = std::max(3.0, precision);
-    bool front = mgr.compassInfo.hemisphere > 0;
-    int hemiYaw = mgr.compassInfo.targetYaw;
+    bool front = ai::compassInfo.hemisphere > 0;
+    int hemiYaw = ai::compassInfo.targetYaw;
     if (!front) {
         if (hemiYaw > 0)
             hemiYaw = 180 - hemiYaw;
@@ -356,7 +348,7 @@ bool BaseAutopilotTask::orientTowardTargetStep(double precision, int max_time_ms
             hemiYaw = -180 - hemiYaw;
     }
     if (std::abs(hemiYaw) > 20) {
-        float roll = mgr.compassInfo.targetRoll;
+        float roll = ai::compassInfo.targetRoll;
         if (std::abs(roll) <= 90)
             orientRollStep(roll, max_time_ms);
         else
@@ -364,8 +356,8 @@ bool BaseAutopilotTask::orientTowardTargetStep(double precision, int max_time_ms
         return false;
     }
 
-    float pitch = mgr.compassInfo.targetPitch;
-    float yaw = mgr.compassInfo.targetYaw;
+    float pitch = ai::compassInfo.targetPitch;
+    float yaw = ai::compassInfo.targetYaw;
 
     if (std::abs(pitch) > precision) {
         orientPitchStep(pitch, max_time_ms);
@@ -380,24 +372,22 @@ bool BaseAutopilotTask::orientTowardTargetStep(double precision, int max_time_ms
 }
 
 bool BaseAutopilotTask::orientTowardTarget(double precision) {
-    if (mgr.uiState.guiFocus != GuiFocus::None) {
+    if (ai::uiState.guiFocus != GuiFocus::None) {
         notifyProgress("Orientation: goto compass");
         kbd::send("UI_Back", 0, 1500);
     }
     for (int fails=0; fails < 10; fails++) {
         check_interrupted();
-        if (fails > 2) {
+        if (fails > 2)
             setSpeed(0);
-            continue;
-        }
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
-            notifyProgress(std::format("Unexpected ui mode {}", mgr.uiState.to_string()));
-            LOG(WARNING) << "Unexpected ui mode " << mgr.uiState;
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            notifyProgress(std::format("Unexpected ui mode {}", ai::uiState.to_string()));
+            LOG(WARNING) << "Unexpected ui mode " << ai::uiState;
             kbd::send("UI_Back", 0, 1500);
             continue;
         }
-        if (!mgr.compassInfo.hemisphere) {
+        if (!ai::compassInfo.hemisphere) {
             notifyProgress(std::format("Compass not detected, fails {}", fails));
             LOG(WARNING) << "Compass not detected";
             rollBlindCompass();
@@ -414,8 +404,8 @@ bool BaseAutopilotTask::orientTowardTarget(double precision) {
 bool BaseAutopilotTask::orientAwayFromTargetStep(double precision, int max_time_ms) {
     check_interrupted();
     precision = std::max(5.0, precision);
-    bool front = mgr.compassInfo.hemisphere > 0;
-    int hemiYaw = mgr.compassInfo.targetYaw;
+    bool front = ai::compassInfo.hemisphere > 0;
+    int hemiYaw = ai::compassInfo.targetYaw;
     if (!front) {
         if (hemiYaw > 0)
             hemiYaw = 180 - hemiYaw;
@@ -423,7 +413,7 @@ bool BaseAutopilotTask::orientAwayFromTargetStep(double precision, int max_time_
             hemiYaw = -180 - hemiYaw;
     }
     if (std::abs(hemiYaw) > 20) {
-        float roll = mgr.compassInfo.targetRoll;
+        float roll = ai::compassInfo.targetRoll;
         if (std::abs(roll) <= 90)
             orientRollStep(roll, max_time_ms);
         else
@@ -431,12 +421,8 @@ bool BaseAutopilotTask::orientAwayFromTargetStep(double precision, int max_time_
         return false;
     }
 
-    auto shipStats = eddb::getShipStats();
-    if (!shipStats)
-        throw_failed("Unsupported or unknown ship");
-
-    float pitch = mgr.compassInfo.targetPitch;
-    float yaw = mgr.compassInfo.targetYaw;
+    float pitch = ai::compassInfo.targetPitch;
+    float yaw = ai::compassInfo.targetYaw;
 
     if (180-std::abs(pitch) > precision) {
         orientPitchStep(pitch-180);
@@ -451,7 +437,7 @@ bool BaseAutopilotTask::orientAwayFromTargetStep(double precision, int max_time_
 }
 
 bool BaseAutopilotTask::orientAwayFromTarget(double precision) {
-    if (mgr.uiState.guiFocus != GuiFocus::None) {
+    if (ai::uiState.guiFocus != GuiFocus::None) {
         notifyProgress("Orientation: goto compass");
         kbd::send("UI_Back", 0, 1500);
     }
@@ -462,14 +448,14 @@ bool BaseAutopilotTask::orientAwayFromTarget(double precision) {
             setSpeed(0);
             continue;
         }
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
-            notifyProgress(std::format("Unexpected ui mode {}", mgr.uiState.to_string()));
-            LOG(WARNING) << "Unexpected ui mode " << mgr.uiState;
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            notifyProgress(std::format("Unexpected ui mode {}", ai::uiState.to_string()));
+            LOG(WARNING) << "Unexpected ui mode " << ai::uiState;
             kbd::send("UI_Back", 0, 1500);
             continue;
         }
-        if (!mgr.compassInfo.hemisphere) {
+        if (!ai::compassInfo.hemisphere) {
             notifyProgress(std::format("Compass not detected, fails {}", fails));
             LOG(WARNING) << "Compass not detected";
             kbd::send("RollRightButton", 800, 500);
@@ -478,6 +464,43 @@ bool BaseAutopilotTask::orientAwayFromTarget(double precision) {
         fails = 0;
         if (orientAwayFromTargetStep(precision))
             return true;
+    }
+    LOG(ERROR) << "Compass not detected";
+    return false;
+}
+
+bool BaseAutopilotTask::orientRollByTarget(double reqRoll, double precision, int max_time_ms) {
+    if (ai::uiState.guiFocus != GuiFocus::None) {
+        notifyProgress("Orientation: goto compass");
+        kbd::send("UI_Back", 0, 1500);
+    }
+    for (int fails=0; fails < 10; fails++) {
+        check_interrupted();
+        if (fails > 2) {
+            setSpeed(0);
+            continue;
+        }
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            notifyProgress(std::format("Unexpected ui mode {}", ai::uiState.to_string()));
+            LOG(WARNING) << "Unexpected ui mode " << ai::uiState;
+            kbd::send("UI_Back", 0, 1500);
+            continue;
+        }
+        if (!ai::compassInfo.hemisphere) {
+            notifyProgress(std::format("Compass not detected, fails {}", fails));
+            LOG(WARNING) << "Compass not detected";
+            kbd::send("RollRightButton", 800, 500);
+            continue;
+        }
+        fails = 0;
+        if (ai::compassInfo.targetAngle < 3)
+            return true;
+        float roll = ai::compassInfo.targetRoll;
+        double delta = roll - reqRoll;
+        if (std::abs(delta) <= precision)
+            return true;
+        orientRollStep(delta, max_time_ms);
     }
     LOG(ERROR) << "Compass not detected";
     return false;
@@ -511,26 +534,47 @@ void BaseAutopilotTask::initNavFilter() {
     filters.planetOrMoon = true;
     filters.landablePlanetOrMoon = true;
     filters.station = true;
-    if (destDock) {
-        if (destDock->typeNav == gal::TypeNav::SpacePort)
+    gal::TypeNav nt = gal::TypeNav::Other;
+    if (st::autopilot.destDock)
+        nt = st::autopilot.destDock->typeNav;
+    else if (st::autopilot.destBody)
+        nt = st::autopilot.destBody->typeNav;
+    switch (nt) {
+    case gal::TypeNav::SpacePort:
+        filters.station = true;
+        break;
+    case gal::TypeNav::SpaceInst:
+    case gal::TypeNav::MegashipInst:
+        filters.pointOfInterest = true;
+        break;
+    case gal::TypeNav::Carrier:
+        if (st::autopilot.destDock->marketId != st::cmdr.carrierId)
+            filters.fleetCarrier = true;
+        break;
+    case gal::TypeNav::MegashipDock:
+        if (st::autopilot.destDock->typeSite == gal::TypeSite::TrailblazerDream)
+            filters.pointOfInterest = true;
+        else
             filters.station = true;
-        if (destDock->typeNav == gal::TypeNav::Carrier) {
-            if (destDock->marketId != st::cmdr.carrierId)
-                filters.fleetCarrier = true;
-        }
-        if (destDock->typeNav == gal::TypeNav::MegashipDock) {
-            if (destDock->typeSite == gal::TypeSite::TrailblazerDream)
-                filters.pointOfInterest = true;
-            else
-                filters.station = true;
-        }
+        break;
+    case gal::TypeNav::PlanetPort:
+    case gal::TypeNav::PlanetInst:
+        filters.settlement = true;
+        break;
+    case gal::TypeNav::SpaceConstr:
+    case gal::TypeNav::PlanetConstr:
+        break;
+    case gal::TypeNav::Other:
+    case gal::TypeNav::Star:
+    case gal::TypeNav::Planet:
+        break;
     }
-    nl.init(this, destDock, destBody, filters);
+    nl.init(filters);
 }
 
 
-TaskDebugAutopilot::TaskDebugAutopilot(ai::Step *parent, ai::AIManager &mgr, const ai::TaskTemplate &templ)
-        : BaseAutopilotTask(parent, mgr, templ)
+TaskDebugAutopilot::TaskDebugAutopilot(const ai::TaskTemplate &templ)
+        : BaseAutopilotTask(templ)
 {
     assert (templ.id == ED_TASK_DEBUG_AUTOPILOT);
     for (auto& p : templ.params) {
@@ -548,17 +592,17 @@ bool TaskDebugAutopilot::run() {
     auto starSystem = gal::getCurrentStarSystem();
     if (target.empty())
         target = st::destination.name;
-    destDock = starSystem->getDock(target);
-    if (destDock) {
-        auto body = starSystem->getBodyById(destDock->parentBodyId);
-        destBody = std::dynamic_pointer_cast<gal::Body>(body);
+    st::autopilot.setDestDock(starSystem->getDock(target));
+    if (st::autopilot.destDock) {
+        auto body = starSystem->getBodyById(st::autopilot.destDock->parentBodyId);
+        st::autopilot.setDestBody(std::dynamic_pointer_cast<gal::Body>(body));
     } else {
-        destBody = starSystem->getBody(target);
+        st::autopilot.setDestBody(starSystem->getBody(target));
     }
 
     initNavFilter();
-
     setSpeed(0);
+    kbd::send("UI_Back");
 
     if (test == "OrientTowards") {
         setSpeed(0);
@@ -570,20 +614,30 @@ bool TaskDebugAutopilot::run() {
         orientAwayFromTarget(orient_precision);
         setSpeed(0);
     }
-    else if (test == "Departure") {
-        run_sub_step(spStep(new DepartureStep(this)));
+    else if (test == "KeepCourse") {
+        setSpeed(50);
+        requestPitchRoll(0, true);
+        for (;;) {
+            sleep(10000);
+        }
     }
-    else if (test == "Dock") {
-        run_sub_step(spStep(new DockStep(this)));
+    else if (test == "Departure") {
+        run_sub_step(new DepartureStep);
+    }
+    else if (test == "DockSpaceStation") {
+        run_sub_step(new DockSpaceStation);
+    }
+    else if (test == "DockPlanetPort") {
+        run_sub_step(new DockPlanetPort);
     }
     else if (test == "EnterCruise") {
-        run_sub_step(spStep(new EnterCruiseStep(this)));
+        run_sub_step(new EnterCruiseStep);
     }
     else if (test == "HyperJump") {
-        run_sub_step(spStep(new HyperJumpStep(this)));
+        run_sub_step(new HyperJumpStep);
     }
     else if (test == "LeaveBody") {
-        run_sub_step(spStep(new LeaveBodyStep(this)));
+        run_sub_step(new LeaveBodyStep);
     }
     else if (test == "FocusDestDock") {
         nl.focusDestDock();
@@ -598,34 +652,35 @@ bool TaskDebugAutopilot::run() {
         nl.focusTopEntry();
     }
     else if (test == "GalMapNavRoute") {
-        selectOnGalaxyMap(this, target);
+        selectOnGalaxyMap(target);
     }
     else if (test == "NavDockSelect") {
-        run_sub_step(spStep(new NavDockSelect(this, destDock)));
+        run_sub_step(new NavDockSelect);
     }
     else if (test == "NavBodySelect") {
-        run_sub_step(spStep(new NavBodySelect(this, destBody)));
+        run_sub_step(new NavBodySelect);
     }
     else if (test == "CruiseToDist") {
-        double dist_km = 15000;
-        if (destBody && destBody->radius > 0)
-            dist_km = destBody->radius * 50;
-        run_sub_step(spStep(new CruiseToDistStep(this, dist_km)));
+        dist_t min_dist(dist_t::MM, 20);
+        dist_t max_dist(dist_t::MM, 50);
+        if (st::autopilot.destBody && st::autopilot.destBody->radius > 0) {
+            min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 20);
+            max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 50);
+        }
+        run_sub_step(new CruiseToDistStep(min_dist, max_dist));
     }
     else if (test == "DiveUnderPlanet") {
-        run_sub_step(spStep(new DiveUnderPlanetStep(this)));
+        run_sub_step(new DiveUnderPlanetStep);
     }
-    else if (test == "ExitCruiseToStation") {
-        run_sub_step(spStep(new ExitCruiseToStationStep(this)));
+    else if (test == "ExitCruiseToSpace") {
+        run_sub_step(new ExitCruiseToSpace);
+    }
+    else if (test == "ExitCruiseToPlanet") {
+        run_sub_step(new ExitCruiseToPlanet);
     }
     return true;
 }
 
-
-DepartureStep::DepartureStep(ai::Step *parent)
-    : BaseAutopilotStep(parent)
-{
-}
 
 bool DepartureStep::step() {
     bool fromSpaceConstruction = false; // need UpThrustButton
@@ -639,10 +694,10 @@ bool DepartureStep::step() {
             status = GOING_TO_DOCK;
             for (int i = 0; i < 10 && st::guiFocus != GuiFocus::None; i++) {
                 kbd::send("UI_Back", 0, 1000);
-                mgr.detectEDState(DetectLevel::Screen);
+                ai::detectEDState(DetectLevel::Screen);
             }
         }
-        mgr.detectEDState(DetectLevel::Screen);
+        ai::detectEDState(DetectLevel::Screen);
         if (st::guiFocus != GuiFocus::None)
             return false;
 
@@ -666,22 +721,22 @@ bool DepartureStep::step() {
         status = TAKEOFF;
         while (st::ship.flags.docked && !timer.expired()) {
             sleep(1000);
-            mgr.detectEDState(DetectLevel::Screen);
-            if (mgr.uiState.autopilot)
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::uiState.autopilot)
                 break;
         }
-        if (st::ship.flags.docked && !mgr.uiState.autopilot)
+        if (st::ship.flags.docked && !ai::uiState.autopilot)
             return false;
     }
-    if (!mgr.uiState.autopilot) {
+    if (!ai::uiState.autopilot) {
         LOG(INFO) << "Departure autopilot waiting...";
         // 15 seconds wait autopilot
         timer = utc_timer(15s);
         status = WAIT_AUTOPILOT;
         // wait at least 15 seconds for autopilot to departure
-        while (!mgr.uiState.autopilot && !timer.expired()) {
+        while (!ai::uiState.autopilot && !timer.expired()) {
             sleep(250);
-            mgr.detectEDState(DetectLevel::Screen);
+            ai::detectEDState(DetectLevel::Screen);
         }
     }
     // 4 minutes for departure
@@ -697,8 +752,8 @@ bool DepartureStep::step() {
             return false;
         }
         sleep(250);
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.autopilot) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.autopilot) {
             LOG(INFO) << "Still in auto-pilot...";
             notAutoPilotCounter = 0;
             continue;
@@ -711,22 +766,32 @@ bool DepartureStep::step() {
         }
     }
 
-    timer = utc_timer(1min);
-    status = MASSLOCKED;
-    if (fromSpaceConstruction) {
-        task->setSpeed(0);
+    if (st::shipAtBody.nearBody) {
+        status = ORIENT_AWAY;
+        task->orientPitchStep(90, 7000);
+    }
+    else if (fromSpaceConstruction) {
+        timer = utc_timer(15s);
+        status = LEAVE_DEPOT;
+        setSpeed(0);
         kbd::send("UpThrustButton", 15000);
     }
-    task->setSpeed(100);
-    while (st::ship.flags.fsd_masslocked) {
+    if (st::ship.flags.fsd_masslocked) {
+        timer = utc_timer(1min);
+        status = MASSLOCKED;
         LOG(INFO) << "Mass-locked, flying away";
-        sleep(1000);
+        setSpeed(100);
+        while (st::ship.flags.fsd_masslocked) {
+            sleep(1000);
+        }
     }
     LOG(INFO) << "Ready to jump, flying away";
     timer = utc_timer(15s);
     status = FLYAWAY;
-    sleep(10000);
-    task->setSpeed(50);
+    while (!timer.expired()) {
+        sleep(1000);
+    }
+    setSpeed(50);
     return true;
 }
 
@@ -747,10 +812,14 @@ std::string DepartureStep::getStatus() {
             return std::format("Autopilot exiting: {}", notAutoPilotCounter);
         else
             return std::format("Autopilot: {}", timer.left());
+    case ORIENT_AWAY:
+        return "Orient away from planet";
+    case LEAVE_DEPOT:
+        return std::format("Leaving depot: {}s", timer.left());
     case MASSLOCKED:
         return std::format("Mass-locked: {}", timer.passed());
     case FLYAWAY:
-        return std::format("Fly away: {}", timer.passed());
+        return std::format("Fly away: {}", timer.left());
     case RELOGIN:
         return "Re-login";
     default:
@@ -764,21 +833,23 @@ bool EnterCruiseStep::step() {
         return true;
 
     status = LOCK_BODY;
-    if (task->nl.focusNearestBody()) {
-        auto nle = task->nl.getFocusedEntry();
-        gal::spBody body = std::dynamic_pointer_cast<gal::Body>(nle->item);
-        if (body && body->radius > 0 && nle->dist.valid()) {
-            if (nle->dist.get(dist_t::KM) / body->radius < 4) {
-                task->nl.selectFocused();
-                status = ORIENT;
-                kbd::send("UI_Back", 0, 500);
-                task->orientAwayFromTarget(10);
+    for (int retry=0; retry < 3; retry++) {
+        dist_t distanceToNearestBody;
+        if (gal::spBody body = task->nl.focusNearestBody(&distanceToNearestBody)) {
+            if (body->radius > 0 && distanceToNearestBody.valid()) {
+                if (distanceToNearestBody.get(dist_t::KM) / body->radius < 4) {
+                    task->nl.selectFocused();
+                    status = ORIENT;
+                    kbd::send("UI_Back", 0, 500);
+                    task->orientAwayFromTarget(10);
+                    break;
+                }
             }
         }
     }
     kbd::send("UI_Back");
 
-    task->setSpeed(100);
+    setSpeed(100);
     sleep(500);
     while (st::ship.flags.fsd_masslocked) {
         timer = utc_timer(60s);
@@ -812,12 +883,12 @@ bool EnterCruiseStep::step() {
     }
 
     while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump) && !timer.expired()) {
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
             kbd::send("UI_Back", 0, 1500);
             continue;
         }
-        if (mgr.compassInfo.hemisphere > 0) {
+        if (ai::compassInfo.hemisphere > 0) {
             if (task->orientTowardTargetStep(3))
                 sleep(500);
         }
@@ -869,19 +940,21 @@ bool HyperJumpStep::step() {
     // select next jump system and jump
     timer = utc_timer(15s);
     status = CHARGE;
-    kbd::send("HyperSuperCombination", 100, 1000);
     if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
-        parent->notifyProgress("Entering jump failed");
-        return false;
+        kbd::send("HyperSuperCombination", 100, 1000);
+        if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+            parent->notifyProgress("Entering jump failed");
+            return false;
+        }
     }
-    task->setSpeed(50);
-    task->orientTowardTarget(5);
-    while (timer.expired())
-        sleep(500);
-    task->setSpeed(100);
-    for (;;) {
-        if (st::ship.flags.fsd_jump)
-            break;
+    setSpeed(50);
+    task->orientTowardTarget(6);
+    while (timer.sec_passed() < 12) {
+        setSpeed(25);
+        sleep(1000);
+    }
+    setSpeed(100);
+    while (!st::ship.flags.fsd_jump) {
         if (!st::ship.flags.fsd_charging || timer.sec_passed() > 60) {
             parent->notifyProgress("Jump failed");
             if (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging)
@@ -905,13 +978,43 @@ bool HyperJumpStep::step() {
 
     // avoid star
     status = AVOID_STAR;
-    task->setSpeed(25);
+    int rotate_speed = 25;
+    auto fly_away_time = 10s;
+    if (auto ss = gal::getCurrentStarSystem()) {
+        auto star = ss->getMainStar();
+        if (star && !star->spectralClass.empty()) {
+            switch (star->spectralClass[0]) {
+            case 'L': case 'T': case 'Y': // Brown Dwarfs
+            case 'D': case 'H': case 'X': // White Dwarfs, Neutron, Black Hole
+            //case 'C': case 'M': case 'S': // Carbon Stars
+                rotate_speed = 0;
+                fly_away_time = 15s;
+                break;
+            }
+        }
+    }
+    setSpeed(rotate_speed);
     task->orientPitchStep(100, 20000);
 
     status = FLY_AWAY;
-    task->setSpeed(100);
-    timer = utc_timer(10s);
+    setSpeed(100);
+    timer = utc_timer(fly_away_time);
     while (!timer.expired()) {
+        if (timer.sec_passed() > 2) {
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::compassInfo.hemisphere) {
+                int roll = ai::compassInfo.targetRoll;
+                int delta = roll;
+                if (roll > +90)
+                    delta = -180+roll;
+                else if (roll < -90)
+                    delta = 180+roll;
+                if (std::abs(delta > 10)) {
+                    task->orientRollStep(delta, 1000);
+                    continue;
+                }
+            }
+        }
         sleep(1000);
     }
     return true;
@@ -950,7 +1053,7 @@ bool LeaveBodyStep::step() {
     task->orientAwayFromTarget(10);
     kbd::send("UI_Back");
 
-    task->setSpeed(100);
+    setSpeed(100);
     sleep(500);
     if (!st::ship.flags.cruise) {
         while (st::ship.flags.fsd_masslocked) {
@@ -969,10 +1072,11 @@ bool LeaveBodyStep::step() {
             sleep(1000);
         }
 
-        while (st::ship.flags.fsd_cooldown) {
-            timer = utc_timer(20s);
+        if (st::ship.flags.fsd_cooldown) {
+            timer = utc_timer(30s);
             status = FSD_COOLDOWN;
-            sleep(1000);
+            while (st::ship.flags.fsd_cooldown && !timer.expired())
+                sleep(1000);
         }
 
         timer = utc_timer(20s);
@@ -985,12 +1089,12 @@ bool LeaveBodyStep::step() {
     }
 
     while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump) && !timer.expired()) {
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
             kbd::send("UI_Back", 0, 1500);
             continue;
         }
-        if (mgr.compassInfo.hemisphere > 0) {
+        if (ai::compassInfo.hemisphere > 0) {
             if (task->orientTowardTargetStep(3))
                 sleep(500);
         }
@@ -1002,10 +1106,10 @@ bool LeaveBodyStep::step() {
     }
 
     timer = utc_timer(60s);
-    while (st::shipAtBody.approachBody || st::shipAtBody.nearBody && !timer.expired()) {
+    while ((st::shipAtBody.approachBody || st::shipAtBody.nearBody) && !timer.expired()) {
         status = LEAVING_BODY;
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
             kbd::send("UI_Back", 0, 1500);
             continue;
         }
@@ -1042,18 +1146,119 @@ std::string LeaveBodyStep::getStatus() {
     }
 }
 
-bool DockStep::step() {
+spGameEvent BaseDockStep::requestDockingPermit() {
+    status = REQUEST;
+    for (int retry=0; retry < 3; retry++) {
+        setSpeed(0);
+        gotoNavPage("mod-contacts");
+
+        if (ai::uiState.focused_name() != "btn-landing") {
+            bool have_btn_landing = false;
+            for (auto& cr : ai::rEnv.classified) {
+                if (cr.cdt == ClsDetType::Widget && cr.text == "btn-landing") {
+                    have_btn_landing = true;
+                    break;
+                }
+            }
+            if (!have_btn_landing) {
+                kbd::send("UI_Down");
+                kbd::send("UI_Up", 1500);
+            }
+            kbd::send("UI_Right");
+        }
+
+        LOG(INFO) << "TaskDock requesting landing permission";
+        Cfg.dockingEvent.reset();
+        // poll for docking event
+        timer = utc_timer(5s);
+        kbd::send("UI_Right");
+        kbd::send("UI_Select");
+        kbd::send("UI_Select");
+        while (!timer.expired()) {
+            auto de = Cfg.dockingEvent;
+            if (!de) {
+                sleep(250);
+                continue;
+            }
+            if (de->event == "DockingRequested") {
+                sleep(250);
+                continue;
+            }
+            return de;
+        }
+    }
+    return {};
+}
+
+bool BaseDockStep::autopilot() {
+    // 8 minutes for docking
+    timer = utc_timer(8min);
+    status = AUTOPILOT;
+    setSpeed(0); // set speed to 0 to start autopilot
+    kbd::send("UI_Back", 0, 1500);
+
+    // wait at least 5 seconds for autopilot to start docking
+    for (int i=0; i < 40; i++) {
+        sleep(250);
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.autopilot) {
+            LOG(INFO) << "Docking autopilot started";
+            break;
+        }
+        LOG(INFO) << "Docking autopilot waiting...";
+    }
+    int notAutoPilotCounter = 0;
+    for (;;) {
+        if (timer.expired()) {
+            LOG(ERROR) << "Autopilot time expired";
+            task->relogin();
+        }
+        sleep(250);
+        ai::detectEDState(DetectLevel::Screen);
+        if (st::ship.flags.docked) {
+            LOG(INFO) << "Docking complete, status docked: " << st::ship.flags.docked
+                      << ", docking event: " << (Cfg.dockingEvent ? Cfg.dockingEvent->event : "null");
+            break;
+        }
+        auto de = Cfg.dockingEvent;
+        if (!de || !(de->event == "DockingGranted" || de->event == "Docked")) {
+            LOG(ERROR) << "Docking permission revoked, docking event: " << (Cfg.dockingEvent ? Cfg.dockingEvent->event : "null");
+            return false;
+        }
+    }
+
+    if (st::ship.flags.docked) {
+        status = REFUEL;
+        sleep(2000);
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus == GuiFocus::None) {
+            LOG(INFO) << "Refuel...";
+            for (int i = 0; i < 4; i++)
+                kbd::send("UI_Up");
+            kbd::send("UI_Select", 0, 500); // refuel
+            kbd::send("UI_Right");
+            kbd::send("UI_Select", 0, 500); // repair
+            kbd::send("UI_Right");
+            kbd::send("UI_Select", 0, 500); // rearm
+        }
+    }
+
+    status = READY;
+    return true;
+}
+
+bool DockSpaceStation::step() {
     if (st::ship.flags.cruise)
         throw_trouble("Docking not possible in super-cruise mode");
     if (st::ship.flags.docked) {
         notifyProgress("Docking - already docked");
         return true;
     }
-    mgr.detectEDState(DetectLevel::Screen);
-    if (mgr.uiState.autopilot)
+    ai::detectEDState(DetectLevel::Screen);
+    if (ai::uiState.autopilot)
         throw_trouble("Docking request while autopilot is active");
 
-    task->setSpeed(0);
+    setSpeed(0);
 
     if (st::space.stationType == "SpaceConstructionDepot" || st::space.stationType == "FleetCarrier")
         safe_dist = 6500;
@@ -1065,37 +1270,33 @@ bool DockStep::step() {
             if (st::guiFocus == GuiFocus::None)
                 break;
             kbd::send("UI_Back", 0, 1500);
-            mgr.detectEDState(DetectLevel::Screen);
+            ai::detectEDState(DetectLevel::Screen);
         }
         if (st::guiFocus != GuiFocus::None)
             throw_trouble("Cannot enter cockpit mode");
     }
 
-    if (!task->nl.focusDestDock())
-        throw_trouble("Cannot focus destination dock");
-    else
-        task->distanceToDock = task->nl.getFocusedEntry()->dist;
-    if (!task->nl.selectFocused())
-        throw_trouble("Cannot select focused destination dock");
+    if (!run_sub_step(new NavDockSelect))
+        throw_trouble("Cannot target destination dock");
     if (!task->orientTowardTarget(5))
         throw_trouble("Cannot orient ship towards dock");
 
     // clear expired docking event
-    auto de = mgr.cfg.dockingEvent;
+    auto de = Cfg.dockingEvent;
     if (de) {
         if ((de->timestamp - std::chrono::utc_clock::now()) > 15min) {
-            mgr.cfg.dockingEvent.reset();
+            Cfg.dockingEvent.reset();
             de.reset();
         }
     }
     // try to dock, retry if something goes wrong
     for (int cnt=0; cnt < 10; cnt++) {
-        de = mgr.cfg.dockingEvent;
+        de = Cfg.dockingEvent;
         // end loop if we granted to tock
         if (de && (de->event == "DockingGranted" || de->event == "Docked"))
             break;
         // if we are close enough (or don't know the distance) - request docking permit
-        if (!task->distanceToDock.valid() || task->distanceToDock.get(dist_t::M) >= dock_req_dist) {
+        if (!st::autopilot.distanceToDock.valid() || st::autopilot.distanceToDock.get(dist_t::M) >= dock_req_dist) {
             flyTowardsTarget();
             continue;
         }
@@ -1150,107 +1351,15 @@ bool DockStep::step() {
         return false;
     }
 
-    // 8 minutes for docking
-    timer = utc_timer(8min);
-    status = AUTOPILOT;
-    task->setSpeed(0); // set speed to 0 to start autopilot
-    kbd::send("UI_Back", 0, 1500);
-
-    // wait at least 5 seconds for autopilot to start docking
-    for (int i=0; i < 40; i++) {
-        sleep(250);
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.autopilot) {
-            LOG(INFO) << "Docking autopilot started";
-            break;
-        }
-        LOG(INFO) << "Docking autopilot waiting...";
-    }
-    int notAutoPilotCounter = 0;
-    for (;;) {
-        if (timer.expired()) {
-            LOG(ERROR) << "Autopilot time expired";
-            task->relogin();
-        }
-        sleep(250);
-        mgr.detectEDState(DetectLevel::Screen);
-        if (st::ship.flags.docked) {
-            LOG(INFO) << "Docking complete, status docked: " << st::ship.flags.docked
-                      << ", docking event: " << (mgr.cfg.dockingEvent ? mgr.cfg.dockingEvent->event : "null");
-            break;
-        }
-        auto de = mgr.cfg.dockingEvent;
-        if (!de || !(de->event == "DockingGranted" || de->event == "Docked")) {
-            LOG(ERROR) << "Docking permission revoked, docking event: " << (mgr.cfg.dockingEvent ? mgr.cfg.dockingEvent->event : "null");
-            return false;
-        }
-    }
-
-    if (st::ship.flags.docked) {
-        status = REFUEL;
-        sleep(2000);
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus == GuiFocus::None) {
-            LOG(INFO) << "Refuel...";
-            for (int i = 0; i < 4; i++)
-                kbd::send("UI_Up");
-            kbd::send("UI_Select", 0, 500); // refuel
-            kbd::send("UI_Right");
-            kbd::send("UI_Select", 0, 500); // repair
-            kbd::send("UI_Right");
-            kbd::send("UI_Select", 0, 500); // rearm
-        }
-    }
-
-    status = READY;
-    return true;
+    return autopilot();
 }
 
-spGameEvent DockStep::requestDockingPermit() {
-    status = REQUEST;
-    for (int retry=0; retry < 3; retry++) {
-        task->setSpeed(0);
-        gotoNavPage(this, "mod-contacts");
-
-        if (mgr.uiState.focused_name() != "btn-landing") {
-            bool have_btn_landing = false;
-            for (auto& cr : mgr.rEnv.classified) {
-                if (cr.cdt == ClsDetType::Widget && cr.text == "btn-landing") {
-                    have_btn_landing = true;
-                    break;
-                }
-            }
-            if (!have_btn_landing) {
-                kbd::send("UI_Down");
-                kbd::send("UI_Up", 1500);
-            }
-            kbd::send("UI_Right");
-        }
-
-        LOG(INFO) << "TaskDock requesting landing permission";
-        mgr.cfg.dockingEvent.reset();
-        // poll for docking event
-        timer = utc_timer(5s);
-        kbd::send("UI_Right");
-        kbd::send("UI_Select");
-        kbd::send("UI_Select");
-        while (!timer.expired()) {
-            auto de = mgr.cfg.dockingEvent;
-            if (!de) {
-                sleep(250);
-                continue;
-            }
-            if (de->event == "DockingRequested") {
-                sleep(250);
-                continue;
-            }
-            return de;
-        }
+bool DockSpaceStation::getDockDistance() {
+    if (st::autopilot.distanceToDock.valid()) {
+        auto d = st::autopilot.distanceToDock.get(dist_t::M);
+        if (d > 6000 && d < 10000)
+            return true;
     }
-    return {};
-}
-
-bool DockStep::getDockDistance() {
     std::array<dist_t,4> dist;
     int di = 0;
     for (int fails=0; fails < 10; fails++) {
@@ -1261,29 +1370,49 @@ bool DockStep::getDockDistance() {
         }
         if (st::guiFocus == GuiFocus::None) {
             if (!dist[di].valid() || dist[di].get(dist_t::M) < 1) {
-                mgr.detectEDState(DetectLevel::Screen);
-                dist_t d = mgr.compassInfo.nav_target_dist;
-                if (d.valid() && d.get(dist_t::M) > 100)
+                ai::detectEDState(DetectLevel::Screen);
+                dist_t d = ai::compassInfo.nav_target_dist;
+                if (d.valid() && d.get(dist_t::M) > 100) {
+                    if (d.get(dist_t::M) > 6000 && d.get(dist_t::M) < 10000) {
+                        st::autopilot.distanceToDock = d;
+                        return true;
+                    }
                     dist[di++] = d;
+                }
             }
             if (!dist[di].valid() || dist[di].get(dist_t::M) < 1) {
-                dist_t d = task->nl.getFocusedDist();
+                dist_t d = task->nl.getFocusedDist(2);
                 kbd::send("UI_Back", 100, 1000);
-                if (d.valid() && d.get(dist_t::M) > 100)
+                if (d.valid() && d.get(dist_t::M) > 100) {
+                    if (d.get(dist_t::M) > 6000 && d.get(dist_t::M) < 10000) {
+                        st::autopilot.distanceToDock = d;
+                        return true;
+                    }
                     dist[di++] = d;
+                }
             }
         } else {
             if (!dist[di].valid() || dist[di].get(dist_t::M) < 1) {
-                dist_t d = task->nl.getFocusedDist();
+                dist_t d = task->nl.getFocusedDist(2);
                 kbd::send("UI_Back", 100, 1000);
-                if (d.valid() && d.get(dist_t::M) > 100)
+                if (d.valid() && d.get(dist_t::M) > 100) {
+                    if (d.get(dist_t::M) > 6000 && d.get(dist_t::M) < 10000) {
+                        st::autopilot.distanceToDock = d;
+                        return true;
+                    }
                     dist[di++] = d;
+                }
             }
             if (!dist[di].valid() || dist[di].get(dist_t::M) < 1) {
-                mgr.detectEDState(DetectLevel::Screen);
-                dist_t d = mgr.compassInfo.nav_target_dist;
-                if (d.valid() && d.get(dist_t::M) > 100)
+                ai::detectEDState(DetectLevel::Screen);
+                dist_t d = ai::compassInfo.nav_target_dist;
+                if (d.valid() && d.get(dist_t::M) > 100) {
+                    if (d.get(dist_t::M) > 6000 && d.get(dist_t::M) < 10000) {
+                        st::autopilot.distanceToDock = d;
+                        return true;
+                    }
                     dist[di++] = d;
+                }
             }
         }
         if (di >= 2) {
@@ -1297,39 +1426,41 @@ bool DockStep::getDockDistance() {
         }
         if (di < 2)
             continue;
-        task->distanceToDock = dist[0];
+        st::autopilot.distanceToDock = dist[0];
         return true;
     }
     return false;
 }
-bool DockStep::flyTowardsTarget() {
+
+bool DockSpaceStation::flyTowardsTarget() {
     status = APPROACH;
-    task->setSpeed(0);
+    setSpeed(0);
     for (int fails=0; fails < 10; fails++) {
+        st::autopilot.distanceToDock = {};
         if (!getDockDistance())
             return false;
-        if (task->distanceToDock.get(dist_t::M) < dock_req_dist) {
-            task->setSpeed(0);
+        if (st::autopilot.distanceToDock.get(dist_t::M) < dock_req_dist) {
+            setSpeed(0);
             return true;
         }
 
         flyTowardsStep();
-        if (mgr.uiState.guiFocus == GuiFocus::None)
+        if (ai::uiState.guiFocus == GuiFocus::None)
             task->orientTowardTargetStep(7, 1000);
 
         fails = 0;
     }
-    task->setSpeed(0);
+    setSpeed(0);
     return false;
 }
 
-bool DockStep::flyTowardsStep() {
-    if (task->distanceToDock.get(dist_t::M) < dock_req_dist) {
-        task->setSpeed(0);
+bool DockSpaceStation::flyTowardsStep() {
+    if (st::autopilot.distanceToDock.get(dist_t::M) < dock_req_dist) {
+        setSpeed(0);
         return true;
     }
     // distance to fly for auto-docking
-    double dist = task->distanceToDock.get(dist_t::M) - safe_dist;
+    double dist = st::autopilot.distanceToDock.get(dist_t::M) - safe_dist;
     auto ship = eddb::getShipStats();
     double fwdacc = ship->getForwardAccel();
     double revacc = ship->getReverseAccel();
@@ -1356,9 +1487,9 @@ bool DockStep::flyTowardsStep() {
     if (accel_time < topspd/fwdacc) {
         // acceleration time is not long enough to reach top speed,
         // so just accelerate and break immediately
-        task->setSpeed(max_speed_percent);
+        setSpeed(max_speed_percent);
         sleep(accel_time*1000);
-        task->setSpeed(max_speed_percent);
+        setSpeed(max_speed_percent);
         sleep(break_time*1000 + 500);
         return true;
     }
@@ -1371,22 +1502,22 @@ bool DockStep::flyTowardsStep() {
     double fly_time = fly_dist / topspd;
     if (fly_time > 10)
         fly_time = 10; // limit time for one step
-    task->setSpeed(max_speed_percent);
+    setSpeed(max_speed_percent);
     sleep(accel_time*1000);
     sleep(fly_time*1000);
-    task->setSpeed(0);
+    setSpeed(0);
     sleep(break_time*1000 + 500);
     return true;
 }
 
-std::string DockStep::getStatus() {
+std::string BaseDockStep::getStatus() {
     switch (status) {
     default:
         return "----";
     case PREPARE:
         return "Prepare docking";
     case APPROACH:
-        return std::format("Approach\n  dist {}", task->distanceToDock.to_string());
+        return std::format("Approach\n  dist {}", st::autopilot.distanceToDock.to_string());
     case REQUEST:
         return "Requesting permit";
     case AUTOPILOT:
@@ -1396,10 +1527,217 @@ std::string DockStep::getStatus() {
     }
 }
 
-bool NavDockSelect::step() {
-    task->setSpeed(0);
-    if (!dock)
+bool DockPlanetPort::step() {
+    if (st::ship.flags.cruise)
+        throw_trouble("Docking not possible in super-cruise mode");
+    if (st::ship.flags.docked) {
+        notifyProgress("Docking - already docked");
+        return true;
+    }
+    ai::detectEDState(DetectLevel::Screen);
+    if (ai::uiState.autopilot)
+        throw_trouble("Docking request while autopilot is active");
+
+
+    BlindLock blindLock(ROLL_BLIND_NONE);
+
+    // clear expired docking event
+    auto de = Cfg.dockingEvent;
+    if (de) {
+        if ((de->timestamp - std::chrono::utc_clock::now()) > 15min) {
+            Cfg.dockingEvent.reset();
+            de.reset();
+        }
+    }
+    // try to dock, retry if something goes wrong
+    for (int cnt=0; cnt < 10; cnt++) {
+        de = Cfg.dockingEvent;
+        // end loop if we granted to tock
+        if (de && (de->event == "DockingGranted" || de->event == "Docked"))
+            break;
+        // if we are close enough (or don't know the distance) - request docking permit
+        if (!getDockDistance())
+            continue;
+        if (!st::autopilot.distanceToDock.valid() || st::autopilot.distanceToDock.get(dist_t::M) >= 7500) {
+            flyTowardsTarget();
+            continue;
+        }
+        de = requestDockingPermit();
+        LOG(INFO) << "Docking status: " << (de ? de->event : "null");
+        if (de && (de->event == "DockingGranted" || de->event == "Docked"))
+            break;
+        if (!de || de->event == "DockingRequested") {
+            // need to wait a bit
+            sleep(2000);
+            continue;
+        }
+        if (de->event == "DockingCancelled") {
+            // oops, we canceled docking, try again
+            sleep(2000);
+            continue;
+        }
+        if (de->event == "DockingTimeout") {
+            // have not completed docking in time, try docking again
+            continue;
+        }
+        // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
+        if (de->event == "DockingDenied") {
+            auto reason = de->data["Reason"].as_string();
+            if (reason == "NoSpace") {
+                LOG(ERROR) << "DockingDenied reason: NoSpace, waiting...";
+                sleep(5000);
+                cnt = 0;
+                continue;
+            }
+            if (reason == "Distance") {
+                LOG(ERROR) << "DockingDenied reason: Distance, flying towards station...";
+                // need to get close
+                flyTowardsTarget();
+                continue;
+            }
+        }
+        // all others are fatal
+        LOG(ERROR) << "Unknown docking event: " << de->data;
+        throw_failed("Unknown docking event: "+de->event);
+    }
+    if (st::ship.flags.docked || (de && de->event == "Docked")) {
+        LOG(ERROR) << "Docking - already docked";
+        return true;
+    }
+    if (!de || de->event != "DockingGranted") {
+        LOG(ERROR) << "Docking not granted";
         return false;
+    }
+
+    return autopilot();
+}
+
+bool DockPlanetPort::getDockDistance() {
+    dist_t d = task->nl.getFocusedDist(3);
+    if (!d.valid())
+        return false;
+    st::autopilot.distanceToDock = d;
+    return true;
+}
+
+bool DockPlanetPort::checkYaw() {
+    task->orientPitchStep(35, 5000);
+    for (int i=0; i < 5; i++) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (!ai::compassInfo.hemisphere) {
+            LOG(WARNING) << "Compass not detected";
+            continue;
+        }
+        float yaw = ai::compassInfo.targetYaw;
+        if (std::abs(yaw) < 5)
+            break;
+        task->orientYawStep(yaw, 5000);
+    }
+    task->orientPitchStep(-35, 5000);
+    for (int i=0; i < 5; i++) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (!ai::compassInfo.hemisphere) {
+            LOG(WARNING) << "Compass not detected";
+            continue;
+        }
+        float roll = ai::compassInfo.targetRoll;
+        if (std::abs(roll) > 170)
+            break;
+        task->orientRollStep(roll-180, 5000);
+    }
+    return true;
+}
+
+bool DockPlanetPort::flyTowardsTarget() {
+    setSpeed(0, true);
+
+    status = PREPARE;
+    if (!run_sub_step(new NavBodySelect))
+        return false;
+    for (;;) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            kbd::send("UI_Back", 0, 1500);
+            continue;
+        }
+        if (!ai::compassInfo.hemisphere) {
+            LOG(WARNING) << "Compass not detected";
+            continue;
+        }
+        float roll = ai::compassInfo.targetRoll;
+        float pitch = ai::compassInfo.targetPitch;
+        if (std::abs(roll) < 180-15) {
+            task->orientRollStep(roll-180, 5000);
+            continue;
+        }
+        if (std::abs(pitch+90) > 5) {
+            task->orientPitchStep(pitch+90, 5000);
+            continue;
+        }
+        break;
+    }
+    if (!run_sub_step(new NavDockSelect))
+        return false;
+    status = APPROACH;
+    for (int step=0;;step++) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            kbd::send("UI_Back", 0, 1500);
+            step = 0;
+            continue;
+        }
+        if (!ai::compassInfo.hemisphere) {
+            LOG(WARNING) << "Compass not detected";
+            step -= 1;
+            continue;
+        }
+        if ((step % 10) == 0) {
+            if (getDockDistance()) {
+                if (st::autopilot.distanceToDock.valid() && st::autopilot.distanceToDock.get(dist_t::M) >= 7500)
+                    return true;
+            }
+            checkYaw();
+            step = 0;
+            continue;
+        }
+        float yaw = ai::compassInfo.targetYaw;
+        float pitch = ai::compassInfo.targetPitch;
+        if ((pitch > -60 || pitch < -120) && std::abs(yaw) > 5) {
+            task->orientYawStep(yaw, 5000);
+            continue;
+        }
+        if (pitch > -70) {
+            setSpeed(75);
+            sleep(5000);
+            setSpeed(0);
+            continue;
+        }
+        if (pitch < -110) {
+            setSpeed(-25);
+            sleep(5000);
+            setSpeed(0);
+            continue;
+        }
+        if (st::shipAtBody.altitude < 1000) {
+            kbd::send("UpThrustButton", 3000, 500);
+            continue;
+        }
+        if (st::shipAtBody.altitude > 6500) {
+            kbd::send("DownThrustButton", 1000, 500);
+            continue;
+        }
+        return true;
+    }
+}
+
+
+bool NavDockSelect::step() {
+    setSpeed(0);
+    if (!dock) {
+        dock = st::autopilot.destDock;
+        if (!dock)
+            return false;
+    }
 
     for (int retry=0; retry < 3; retry++) {
         if (!task->nl.focusDestDock())
@@ -1414,9 +1752,12 @@ bool NavDockSelect::step() {
 }
 
 bool NavBodySelect::step() {
-    task->setSpeed(0);
-    if (!body)
-        return false;
+    setSpeed(0);
+    if (!body) {
+        body = st::autopilot.destBody;
+        if (!body)
+            return false;
+    }
 
     for (int retry=0; retry < 3; retry++) {
         if (!task->nl.focusDestBody())
@@ -1430,96 +1771,200 @@ bool NavBodySelect::step() {
     return false;
 }
 
+bool CruiseToDistStep::gotDistance(dist_t dist) {
+    if (dist.valid()) {
+        failCount = 0;
+        currentDist = dist;
+        return true;
+    }
+    failCount += 1;
+    if (useNavList && failCount >= 3)
+        status = DIST_BAD;
+    else if (!useNavList && failCount >= 5)
+        status = DIST_BAD;
+    return false;
+}
 bool CruiseToDistStep::step() {
     // select destination dock or body
-    if (!task->destDock && !task->destBody)
+    if (!st::autopilot.destDock && !st::autopilot.destBody)
         return false;
-    if (!(task->nl.isDestDockFocused || task->nl.isDestBodyFocused)) {
-        if (task->destDock) {
-            run_sub_step(spStep(new NavDockSelect(this, task->destDock)));
-        }
-        else if (task->destBody) {
-            run_sub_step(spStep(new NavBodySelect(this, task->destBody)));
-        }
+    if (!minDist.valid() || !maxDist.valid() || minDist >= maxDist)
+        return false;
+    bool destIsDock;
+    if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name)) {
+        destIsDock = true;
+        if (!task->nl.focusDestDock())
+            return false;
     }
-    if (!(task->nl.isDestDockFocused || task->nl.isDestBodyFocused))
+    else if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name)) {
+        destIsDock = false;
+        if (!task->nl.focusDestBody())
+            return false;
+    }
+    else if (st::autopilot.destBody) {
+        destIsDock = false;
+        if (!run_sub_step(new NavBodySelect))
+            return false;
+        if (!task->nl.focusDestBody())
+            return false;
+    }
+    else if (st::autopilot.destDock) {
+        destIsDock = true;
+        if (!run_sub_step(new NavDockSelect))
+            return false;
+        if (!task->nl.focusDestDock())
+            return false;
+    }
+    else
         return false;
-    // wait until we get to required distance
-    int compassTry = 5;
-    for (;;) {
-        if (!st::ship.flags.cruise) {
-            task->setSpeed(0);
-            throw_trouble("Unexpected cruise exit");
-        }
-        if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
-            task->setSpeed(0);
-            throw_trouble("Unexpected close to body: " + st::shipAtBody.bodyName);
-        }
-        if (compassTry <= 0) {
-            compassTry += 1;
-            dist_t focused_dist = task->nl.getFocusedDist();
-            if (!focused_dist.valid()) {
-                status = BAD_ROW;
-                if (!currentDist_km.valid())
-                    task->setSpeed(0);
-                else if (task->speed_set_to > 25 && currentDist_km.get(dist_t::LS) < 10)
-                    task->setSpeed(25);
-                rollBlindCompass();
-                continue;
-            }
-            currentDist_km = focused_dist.convertTo(dist_t::KM);
-            kbd::send("UI_Back", 100, 1000);
-            mgr.detectEDState(DetectLevel::Screen);
-        } else {
-            mgr.detectEDState(DetectLevel::Screen);
-            if (mgr.uiState.guiFocus != GuiFocus::None) {
-                kbd::send("UI_Back", 100, 1000);
-                continue;
-            }
-            if (!mgr.compassInfo.nav_target_dist.valid()) {
-                status = BAD_COMPASS;
-                if (!currentDist_km.valid())
-                    task->setSpeed(0);
-                else if (task->speed_set_to > 25 && currentDist_km.get(dist_t::LS) < 10)
-                    task->setSpeed(25);
-                if (mgr.compassInfo.has_nav_target) {
-                    rollBlindCompass();
-                } else {
-                    if (mgr.compassInfo.hemisphere < 0 || std::abs(mgr.compassInfo.targetYaw) > 7 || std::abs(mgr.compassInfo.targetPitch) > 7) {
-                        task->setSpeed(0);
-                        task->orientTowardTargetStep(7);
-                    }
-                }
-                compassTry -= 1;
-                if (compassTry <= 0)
-                    compassTry = -2;
-                continue;
-            }
-            currentDist_km = mgr.compassInfo.nav_target_dist.convertTo(dist_t::KM);
-        }
-        if (currentDist_km.dist <= requiredDist_km.dist) {
+
+    if (!(st::autopilot.isDestDockFocused || st::autopilot.isDestBodyFocused))
+        return false;
+
+    failCount = 0;
+    if (ai::uiState.guiFocus == GuiFocus::None) {
+        ai::detectEDState(DetectLevel::Screen);
+        gotDistance(ai::compassInfo.nav_target_dist);
+    } else {
+        dist_t dist = task->nl.getFocusedDist(3);
+        gotDistance(dist);
+    }
+
+    if (currentDist.valid()) {
+        if (currentDist >= minDist && currentDist <= maxDist) {
             status = DIST_STOP;
-            task->setSpeed(0);
+            setSpeed(0, true);
+            if (useNavList)
+                kbd::send("UI_Back", 100);
             sleep(5000);
             return true;
         }
-        else if (currentDist_km.dist <= requiredDist_km.dist * 1.5) {
-            status = DIST_NEAR;
-            task->setSpeed(25);
+        flyAway = currentDist < minDist;
+    }
+
+    setSpeed(50, true);
+    if (flyAway) {
+        useNavList = true;
+        task->orientAwayFromTarget(5);
+    } else {
+        useNavList = false;
+        task->orientTowardTarget(2);
+    }
+    failCount = 0;
+
+    // wait until we get to required distance
+    for (;;) {
+        if (!st::ship.flags.cruise) {
+            setSpeed(0);
+            throw_trouble("Unexpected cruise exit");
+        }
+        if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
+            setSpeed(0);
+            throw_trouble("Unexpected close to body: " + st::shipAtBody.bodyName);
+        }
+        if (useNavList) {
+            dist_t focused_dist = task->nl.getFocusedDist(1);
+            if (!gotDistance(focused_dist)) {
+                if (!flyAway && failCount >= 3) {
+                    useNavList = false;
+                    failCount = 0;
+                } else if (failCount & 1) {
+                    rollBlindCompass();
+                }
+                continue;
+            }
+            if (!flyAway) {
+                useNavList = false;
+                failCount = 0;
+                kbd::send("UI_Back", 100, 1000);
+            }
         } else {
-            status = DIST_FAR;
-            task->setSpeed(75);
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::uiState.guiFocus != GuiFocus::None) {
+                kbd::send("UI_Back", 100, 1000);
+                continue;
+            }
+            if (!gotDistance(ai::compassInfo.nav_target_dist)) {
+                if (ai::compassInfo.has_nav_target) {
+                    if (failCount >= 15) {
+                        useNavList = true;
+                        failCount = 0;
+                    } else if (failCount % 5 == 0) {
+                        rollBlindCompass();
+                    }
+                }
+                else if (!flyAway) {
+                    if (ai::compassInfo.hemisphere < 0 || std::abs(ai::compassInfo.targetAngle) > 5) {
+                        setSpeed(0);
+                        task->orientTowardTarget(2);
+                    }
+                }
+                else {
+                    useNavList = true;
+                    failCount = 0;
+                }
+                continue;
+            }
+        }
+        if (currentDist >= minDist && currentDist <= maxDist) {
+            status = DIST_STOP;
+            setSpeed(0);
+            if (useNavList)
+                kbd::send("UI_Back", 100);
+            sleep(5000);
+            return true;
+        }
+        else if (currentDist < minDist) {
+            if (!flyAway) {
+                if (ai::uiState.guiFocus != GuiFocus::None) {
+                    setSpeed(0);
+                    kbd::send("UI_Back", 100, 1000);
+                    continue;
+                }
+                flyAway = true;
+                setSpeed(50);
+                task->orientAwayFromTarget(5);
+                continue;
+            }
+            if (currentDist < minDist * 0.75) {
+                status = DIST_NEAR;
+                setSpeed(25);
+            }
+            else {
+                status = DIST_FAR;
+                setSpeed(100);
+            }
+        } else {
+            if (flyAway) {
+                if (ai::uiState.guiFocus != GuiFocus::None) {
+                    setSpeed(0);
+                    kbd::send("UI_Back", 100, 1000);
+                    continue;
+                }
+                flyAway = false;
+                continue;
+            }
+            if (currentDist <= maxDist * 1.5) {
+                status = DIST_NEAR;
+                setSpeed(25);
+            }
+            else if (currentDist <= maxDist * 5) {
+                status = DIST_FAR;
+                setSpeed(50);
+            }
+            else if (currentDist <= 300_ls) {
+                status = DIST_FAR;
+                setSpeed(75);
+            }
+            else {
+                status = DIST_FAR;
+                setSpeed(100);
+            }
         }
 
-        compassTry = 5;
-
-        if (!mgr.compassInfo.hemisphere) {
-            rollBlindCompass();
-            continue;
-        }
-
-        if (mgr.uiState.guiFocus == GuiFocus::None) {
-            task->orientTowardTargetStep(0.5);
+        if (!flyAway && ai::uiState.guiFocus == GuiFocus::None) {
+            if (task->orientTowardTargetStep(1, 1000))
+                sleep(500);
         }
     }
 
@@ -1527,210 +1972,259 @@ bool CruiseToDistStep::step() {
 }
 
 std::string CruiseToDistStep::getStatus() {
-    dist_t curr_mm = currentDist_km.convertTo(dist_t::MM);
-    dist_t curr_ls = currentDist_km.convertTo(dist_t::LS);
-    dist_t curr = (curr_ls.dist >= 0.1) ? curr_ls : curr_mm;
+    dist_t cur_mm = currentDist.convertTo(dist_t::MM);
+    dist_t cur_ls = currentDist.convertTo(dist_t::LS);
+    dist_t cur = (cur_ls.dist >= 0.1) ? cur_ls : cur_mm;
 
-    dist_t reqr_mm = requiredDist_km.convertTo(dist_t::MM);
-    dist_t reqr_ls = requiredDist_km.convertTo(dist_t::LS);
-    dist_t reqr = (reqr_ls.dist >= 0.1) ? reqr_ls : reqr_mm;
+    dist_t req = flyAway ? minDist : maxDist;
+    dist_t req_mm = req.convertTo(dist_t::MM);
+    dist_t req_ls = req.convertTo(dist_t::LS);
+    req = (req_ls.dist >= 0.1) ? req_ls : req_mm;
 
     const char* st = "----";
     switch (status) {
     case READY: st="----"; break;
-    case BAD_ROW: st="Bad row"; break;
-    case BAD_COMPASS: st="Bad compass"; break;
+    case DIST_BAD: st="Dist bad"; break;
     case DIST_FAR: st="Dist far"; break;
     case DIST_NEAR: st="Dist near"; break;
     case DIST_STOP: st="Reached"; break;
     }
-    return std::format("{}: {} / {}", st, curr.to_string(), reqr.to_string());
+    return std::format("{}: {} / {}\nspeeed: {}%", st,
+                       cur.to_string(), req.to_string(),
+                       st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
 }
 
 bool DiveUnderPlanetStep::step() {
     bool ok = true;
 
-    task->setSpeed(0);
-    if (!task->destBody || !task->destDock)
+    setSpeed(0);
+    if (!st::autopilot.destBody || !st::autopilot.destDock)
         return false;
     gal::spStarSystem ss = gal::getCurrentStarSystem();
     if (!ss) {
         LOG(ERROR) << "Current system not known";
         return false;
     }
-    task->distanceToDock = {};
-    task->distanceToBody = {};
 
+    toPort = st::autopilot.destDock->typeNav == gal::TypeNav::PlanetPort ||
+            st::autopilot.destDock->typeNav == gal::TypeNav::PlanetInst ||
+            st::autopilot.destDock->typeNav == gal::TypeNav::PlanetConstr;
+    if (isPortVisible())
+        return true;
 
-    for (;;) {
-        double angleDockToBody;
-        if (task->nl.isDestBodyFocused) {
-            status = ORIENT_BODY;
-            if (st::destination.name != task->destBody->name) {
-                if (!task->nl.selectFocused())
+    st::autopilot.distanceToDock = {};
+    st::autopilot.distanceToBody = {};
+
+    for (int fails=0; fails < 15; fails++) {
+        if ((fails % 5) == 4) {
+            status = FLY_DIVE;
+            setSpeed(50);
+            task->orientPitchStep(70);
+            timer = utc_timer(20s);
+            setSpeed(100);
+            while (!timer.expired()) {
+                if (!st::ship.flags.cruise) {
+                    setSpeed(0);
+                    throw_trouble("Unexpected cruise exit");
+                }
+                if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
+                    setSpeed(0);
                     return false;
+                }
+                sleep(250);
             }
-            if (!task->orientTowardTarget(2))
-                return false;
+            setSpeed(50);
+            sleep(3000);
+            task->orientPitchStep(-70);
+            setSpeed(0);
+            fails = 0;
+            continue;
+        }
+        double angleDockToBody;
+        if (st::autopilot.isDestBodyFocused) {
+            status = ORIENT_BODY;
+            if (!run_sub_step(new NavBodySelect))
+                continue;
+            if (!task->orientTowardTarget(1))
+                continue;
             if (!get_dist_body())
-                return false;
-            if (!task->nl.focusDestDock())
-                return false;
-            if (!task->nl.selectFocused())
-                return false;
+                continue;
+            if (!run_sub_step(new NavDockSelect))
+                continue;
             kbd::send("UI_Back", 0, 1000);
-            if (!orient_roll(180))
+            if (isPortVisible())
+                break;
+            continue;
                 return false;
-            angleDockToBody = mgr.compassInfo.targetAngle;
+            angleDockToBody = ai::compassInfo.targetAngle;
             if (angleDockToBody >= 90)
                 break;
             if (!get_dist_dock())
-                return false;
+                continue;
         } else {
             status = ORIENT_DOCK;
+            if (isPortVisible())
+                break;
             if (!task->nl.focusDestDock())
                 return false;
-            if (st::destination.name != task->destDock->name) {
-                if (!task->nl.selectFocused())
-                    return false;
+            if (st::destination.name != st::autopilot.destDock->name) {
+                if (!run_sub_step(new NavDockSelect))
+                    continue;
             }
-            if (!task->orientTowardTarget(2))
-                return false;
+            if (!task->orientTowardTarget(1))
+                continue;
+            if (isPortVisible())
+                break;
             if (!get_dist_dock())
-                return false;
-            if (!task->nl.focusDestBody())
-                return false;
-            if (!task->nl.selectFocused())
-                return false;
+                continue;
+            if (!run_sub_step(new NavBodySelect))
+                continue;
             kbd::send("UI_Back", 0, 1000);
             if (!orient_roll(0))
-                return false;
-            angleDockToBody = mgr.compassInfo.targetAngle;
+                continue;
+            angleDockToBody = ai::compassInfo.targetAngle;
             if (angleDockToBody >= 90)
                 break;
             if (!get_dist_body())
-                return false;
+                continue;
         }
         // having distance to dock and body and angle between, calc nearest distance
         // between ship-dock line and body center, compare it with body radius
-        double dist_dock = task->distanceToDock.get(dist_t::KM);
-        double dist_body = task->distanceToBody.get(dist_t::KM);
+        double dist_dock = st::autopilot.distanceToDock.get(dist_t::KM);
+        double dist_body = st::autopilot.distanceToBody.get(dist_t::KM);
         double dist_min = dist_body * std::cos(angleDockToBody*M_PI/180);
         if (dist_min > dist_dock)
             break;
-        double dist_surf = dist_body * std::sin(angleDockToBody*M_PI/180) - task->destBody->radius;
-        if (dist_surf > task->destBody->radius * 0.2)
+        double dist_surf = dist_body * std::sin(angleDockToBody*M_PI/180) - st::autopilot.destBody->radius;
+        if (dist_surf > st::autopilot.destBody->radius * 0.2)
             break;
+        int pitch_angle = toPort ? 40 : 50;
+        int fly_dive_angle = toPort ? 110 : 90;
         // if we are close to body - dive targeting dock, otherwise it does not matter
-        if (dist_body < 5*task->destBody->radius) {
-            if (st::destination.name != task->destDock->name) {
-                if (!task->nl.focusDestDock())
-                    return false;
-                if (!task->nl.selectFocused())
-                    return false;
-            }
+        if (dist_body < 2*st::autopilot.destBody->radius) {
+            pitch_angle = 90;
+            fly_dive_angle = 140;
+        }
+        else if (dist_body < 5*st::autopilot.destBody->radius) {
+            pitch_angle = 90 - std::asin(1.5*st::autopilot.destBody->radius / dist_body) * 180 / M_PI;
+            if (pitch_angle < 60)
+                pitch_angle = 60;
+            fly_dive_angle = 120;
         }
 
         // compass dot 50 degree above center
-        if (!orient_pitch(50))
+        if (!orient_pitch(pitch_angle))
             return false;
 
         // fly till compass dot 90 degree above center
-        if (!fly_dive(90))
+        if (!fly_dive(fly_dive_angle))
             return false;
     }
 
     status = ORIENT_DOCK;
-    if (st::destination.name != task->destDock->name) {
-        if (!task->nl.focusDestDock())
-            return false;
-        if (!task->nl.selectFocused())
+    if (st::destination.name != st::autopilot.destDock->name) {
+        if (!run_sub_step(new NavDockSelect))
             return false;
     }
-    task->orientTowardTarget(5);
+    task->orientTowardTarget(1);
 
     return true;
 }
 
+bool DiveUnderPlanetStep::isPortVisible() {
+    if (!toPort)
+        return false;
+    if (st::destination.name != st::autopilot.destDock->name)
+        return false;
+    ai::detectEDState(DetectLevel::Screen);
+    return ai::compassInfo.has_nav_target;
+}
+
 bool DiveUnderPlanetStep::get_dist_body() {
+    if (st::autopilot.distanceToBody.valid())
+        return true;
     status = DIST_BODY;
-    task->distanceToBody = {};
-    for (int i=0; i < 5 && !task->distanceToBody.valid(); i++) {
+    st::autopilot.distanceToBody = {};
+    for (int i=0; i < 5 && !st::autopilot.distanceToBody.valid(); i++) {
         if (!task->nl.focusDestBody())
             continue;
         nav::NavListEntry nle;
         if (task->nl.recognizeFocusedNavRow(nle)) {
             if (nle.dist.valid()) {
-                task->distanceToBody = nle.dist;
+                st::autopilot.distanceToBody = nle.dist;
                 break;
             }
         }
-        if (mgr.uiState.guiFocus != GuiFocus::None)
+        if (ai::uiState.guiFocus != GuiFocus::None)
             kbd::send("UI_Back", 0, 1500);
-        mgr.detectEDState(DetectLevel::Screen);
-        if (!mgr.compassInfo.has_nav_target || mgr.compassInfo.nav_target_dist.valid())
+        ai::detectEDState(DetectLevel::Screen);
+        if (!ai::compassInfo.has_nav_target || ai::compassInfo.nav_target_dist.valid())
             task->orientTowardTarget(5);
-        if (mgr.compassInfo.has_nav_target && mgr.compassInfo.nav_target_dist.valid()) {
-            task->distanceToBody = mgr.compassInfo.nav_target_dist;
+        if (ai::compassInfo.has_nav_target && ai::compassInfo.nav_target_dist.valid()) {
+            st::autopilot.distanceToBody = ai::compassInfo.nav_target_dist;
             break;
         }
     }
-    return task->distanceToBody.valid();
+    return st::autopilot.distanceToBody.valid();
 }
 
 bool DiveUnderPlanetStep::get_dist_dock() {
+    if (st::autopilot.distanceToDock.valid())
+        return true;
     status = DIST_DOCK;
-    task->distanceToDock = {};
-    for (int i=0; i < 5 && !task->distanceToDock.valid(); i++) {
+    st::autopilot.distanceToDock = {};
+    for (int i=0; i < 5 && !st::autopilot.distanceToDock.valid(); i++) {
         status = DIST_DOCK;
         if (!task->nl.focusDestDock())
             continue;
         nav::NavListEntry nle;
         if (task->nl.recognizeFocusedNavRow(nle)) {
             if (nle.dist.valid()) {
-                task->distanceToDock = nle.dist;
+                st::autopilot.distanceToDock = nle.dist;
                 break;
             }
         }
-        if (mgr.uiState.guiFocus != GuiFocus::None)
+        if (ai::uiState.guiFocus != GuiFocus::None)
             kbd::send("UI_Back", 0, 1500);
-        mgr.detectEDState(DetectLevel::Screen);
-        if (!mgr.compassInfo.has_nav_target || mgr.compassInfo.nav_target_dist.valid())
+        ai::detectEDState(DetectLevel::Screen);
+        if (!ai::compassInfo.has_nav_target || ai::compassInfo.nav_target_dist.valid())
             task->orientTowardTarget(5);
-        if (mgr.compassInfo.has_nav_target && mgr.compassInfo.nav_target_dist.valid()) {
-            task->distanceToDock = mgr.compassInfo.nav_target_dist;
+        if (ai::compassInfo.has_nav_target && ai::compassInfo.nav_target_dist.valid()) {
+            st::autopilot.distanceToDock = ai::compassInfo.nav_target_dist;
             break;
         }
     }
-    return task->distanceToDock.valid();
+    return st::autopilot.distanceToDock.valid();
 }
 
 bool DiveUnderPlanetStep::orient_roll(float requiredRoll) {
-    if (mgr.uiState.guiFocus != GuiFocus::None) {
+    if (ai::uiState.guiFocus != GuiFocus::None) {
         notifyProgress("Orientation: goto compass");
         kbd::send("UI_Back", 0, 1500);
     }
     const int rollPrecision = 5;
 
-    for (int fails=0; fails < 10; fails++) {
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
-            notifyProgress(std::format("Unexpected ui mode {}", mgr.uiState.to_string()));
-            LOG(WARNING) << "Unexpected ui mode " << mgr.uiState;
+    for (int fails=0; fails < 5; fails++) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            notifyProgress(std::format("Unexpected ui mode {}", ai::uiState.to_string()));
+            LOG(WARNING) << "Unexpected ui mode " << ai::uiState;
             kbd::send("UI_Back", 0, 1500);
             continue;
         }
-        if (!mgr.compassInfo.hemisphere) {
+        if (!ai::compassInfo.hemisphere) {
             notifyProgress(std::format("Compass not detected, fails {}", fails));
             LOG(WARNING) << "Compass not detected";
             continue;
         }
         fails = 0;
 
-        float delta = mgr.compassInfo.targetRoll - requiredRoll;
+        if (!ai::compassInfo.has_nav_target && ai::compassInfo.targetAngle < 5)
+            return true;
+        float delta = ai::compassInfo.targetRoll - requiredRoll;
         if (delta > 180) delta = 360-delta;
         if (delta < -180) delta = 360+delta;
-        if (delta < rollPrecision)
+        if (std::abs(delta) < rollPrecision)
             return true;
         task->orientRollStep(delta, 10000);
     }
@@ -1739,35 +2233,35 @@ bool DiveUnderPlanetStep::orient_roll(float requiredRoll) {
 
 bool DiveUnderPlanetStep::orient_pitch(int pitchGoal) {
     status = ORIENT_DIVE;
-    task->setSpeed(0);
-    if (mgr.uiState.guiFocus != GuiFocus::None) {
+    setSpeed(0);
+    if (ai::uiState.guiFocus != GuiFocus::None) {
         notifyProgress("Orientation: goto compass");
         kbd::send("UI_Back", 0, 1500);
     }
     const int rollPrecision = 5;
     const int pitchPrecision = 5;
 
-    for (int fails=0; fails < 10; fails++) {
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
-            notifyProgress(std::format("Unexpected ui mode {}", mgr.uiState.to_string()));
-            LOG(WARNING) << "Unexpected ui mode " << mgr.uiState;
+    for (int fails=0; fails < 5; fails++) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            notifyProgress(std::format("Unexpected ui mode {}", ai::uiState.to_string()));
+            LOG(WARNING) << "Unexpected ui mode " << ai::uiState;
             kbd::send("UI_Back", 0, 1500);
             continue;
         }
-        if (!mgr.compassInfo.hemisphere) {
+        if (!ai::compassInfo.hemisphere) {
             notifyProgress(std::format("Compass not detected, fails {}", fails));
             LOG(WARNING) << "Compass not detected";
             continue;
         }
         fails = 0;
 
-        float delta = mgr.compassInfo.targetPitch - pitchGoal;
+        float delta = ai::compassInfo.targetPitch - pitchGoal;
         if (std::abs(delta) < pitchPrecision)
             break;
         task->orientPitchStep(delta);
     }
-    if (std::abs(mgr.compassInfo.targetPitch - pitchGoal) > rollPrecision)
+    if (std::abs(ai::compassInfo.targetPitch - pitchGoal) > rollPrecision)
         return false;
 
     return true;
@@ -1776,30 +2270,30 @@ bool DiveUnderPlanetStep::orient_pitch(int pitchGoal) {
 bool DiveUnderPlanetStep::fly_dive(int pitchGoal) {
     status = FLY_DIVE;
 
-    if (mgr.uiState.guiFocus != GuiFocus::None) {
+    if (ai::uiState.guiFocus != GuiFocus::None) {
         notifyProgress("Orientation: goto compass");
         kbd::send("UI_Back", 0, 1500);
     }
-    task->setSpeed(75);
+    setSpeed(75);
     for (;;) {
         if (!st::ship.flags.cruise) {
-            task->setSpeed(0);
+            setSpeed(0);
             throw_trouble("Unexpected cruise exit");
         }
         if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
-            task->setSpeed(0);
+            setSpeed(0);
             throw_trouble("Unexpected close to body: " + st::shipAtBody.bodyName);
         }
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
             kbd::send("UI_Back", 100, 1000);
             continue;
         }
-        if (mgr.compassInfo.hemisphere && mgr.compassInfo.targetPitch >= pitchGoal) {
-            task->setSpeed(0);
+        if (ai::compassInfo.hemisphere && std::abs(ai::compassInfo.targetPitch) >= pitchGoal) {
+            setSpeed(0);
             return true;
         }
-        task->sleep(1000);
+        ai::sleep(1000);
     }
 }
 
@@ -1823,7 +2317,7 @@ std::string DiveUnderPlanetStep::getStatus() {
     return "----";
 }
 
-bool ExitCruiseToStationStep::step() {
+bool ExitCruiseToSpace::step() {
     if (!st::ship.flags.cruise)
         throw_trouble("Unexpected cruise exit");
 
@@ -1838,33 +2332,31 @@ bool ExitCruiseToStationStep::step() {
     status = APPROACH;
     // wait until we get to 1mm
     for (;;) {
-        if (!st::ship.flags.cruise) {
-            LOG(ERROR) << "Unexpected cruise exit";
+        if (!st::ship.flags.cruise)
             throw_trouble("Unexpected cruise exit");
-        }
         if (use_nav_panel) {
             if (dist_fails > 3) {
                 use_nav_panel = false;
                 kbd::send("UI_Back", 0, 1000);
                 continue;
             }
-            dist_t focused_dist = task->nl.getFocusedDist();
+            dist_t focused_dist = task->nl.getFocusedDist(2);
             if (focused_dist.valid())
-                task->distanceToDock = focused_dist.convertTo(dist_t::KM);
+                st::autopilot.distanceToDock = focused_dist;
         } else {
-            mgr.detectEDState(DetectLevel::Screen);
-            if (mgr.uiState.guiFocus != GuiFocus::None) {
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::uiState.guiFocus != GuiFocus::None) {
                 kbd::send("UI_Back", 0, 1000);
                 continue;
             }
-            if (mgr.compassInfo.nav_target_dist.valid())
-                task->distanceToDock = mgr.compassInfo.nav_target_dist.convertTo(dist_t::KM);
+            if (ai::compassInfo.nav_target_dist.valid())
+                st::autopilot.distanceToDock = ai::compassInfo.nav_target_dist;
         }
 
-        if (!task->distanceToDock.valid()) {
+        if (!st::autopilot.distanceToDock.valid()) {
             dist_fails += 1;
-            if (dist_km < 5000 && (task->speed_set_to > 0 || dist_fails >= 5))
-                task->setSpeed(0);
+            if (dist_km < 5000 && dist_fails >= 5)
+                setSpeed(0);
             if (!use_nav_panel) {
                 if (dist_fails >= 15) {
                     use_nav_panel = true;
@@ -1880,7 +2372,7 @@ bool ExitCruiseToStationStep::step() {
             }
             continue;
         }
-        dist_km = task->distanceToDock.get(dist_t::KM);
+        dist_km = st::autopilot.distanceToDock.get(dist_t::KM);
         if (dist_km < 1000)
             exit_confirm += 1;
         else
@@ -1888,40 +2380,40 @@ bool ExitCruiseToStationStep::step() {
         if (exit_confirm >= 2)
             break;
         if (dist_km < 3000)
-            task->setSpeed(25);
+            setSpeed(25);
         else if (dist_km < 5000)
-            task->setSpeed(50);
+            setSpeed(50);
         else
-            task->setSpeed(75);
-        if (!exit_confirm && !use_nav_panel && mgr.uiState.guiFocus == GuiFocus::None)
+            setSpeed(75);
+        if (!exit_confirm && !use_nav_panel && ai::uiState.guiFocus == GuiFocus::None)
             task->orientTowardTargetStep(1, 1000);
     }
 
     // wait until we exit super-cruise
     timer = utc_timer(10s);
     status = EXITING;
-    task->setSpeed(25);
+    setSpeed(25);
     while (st::ship.flags.cruise && !timer.expired()) {
         kbd::send("HyperSuperCombination", 100, 1000);
         sleep(1000);
-        if (mgr.uiState.guiFocus != GuiFocus::None)
+        if (ai::uiState.guiFocus != GuiFocus::None)
             kbd::send("UI_Back", 0, 1000);
         task->orientTowardTargetStep(10, 1000);
     }
 
     notifyProgress("Arrived, speed zero");
-    task->setSpeed(0);
+    setSpeed(0);
     sleep(500);
 
     for (dist_fails=0; dist_fails < 15; dist_fails++) {
-        mgr.detectEDState(DetectLevel::Screen);
-        if (mgr.uiState.guiFocus != GuiFocus::None) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
             kbd::send("UI_Back", 0, 1000);
-            mgr.detectEDState(DetectLevel::Screen);
+            ai::detectEDState(DetectLevel::Screen);
         }
-        if (mgr.compassInfo.nav_target_dist.valid()) {
-            if (mgr.compassInfo.nav_target_dist.get(dist_t::KM) > 25) {
-                throw_trouble("Unexpected distance after cruise exit: " + mgr.compassInfo.nav_target_dist.to_string());
+        if (ai::compassInfo.nav_target_dist.valid()) {
+            if (ai::compassInfo.nav_target_dist.get(dist_t::KM) > 25) {
+                throw_trouble("Unexpected distance after cruise exit: " + ai::compassInfo.nav_target_dist.to_string());
             }
             return true;
         }
@@ -1933,17 +2425,143 @@ bool ExitCruiseToStationStep::step() {
     return true;
 }
 
-std::string ExitCruiseToStationStep::getStatus() {
+std::string ExitCruiseToSpace::getStatus() {
     if (status == ORIENT) {
         return "Orienting towards target";
     }
     if (status == APPROACH) {
         if (dist_fails)
-            return std::format("Approaching:\ndist {} (fails {})\nspeeed {}%", task->distanceToDock.to_string(), dist_fails, task->speed_set_to);
+            return std::format("Approaching:\ndist {} (fails {})\nspeeed {}%", st::autopilot.distanceToDock.to_string(), dist_fails,
+                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
         else if (exit_confirm)
-            return std::format("Approaching:\ndist {} (confirm {})\nspeeed {}%", task->distanceToDock.to_string(), exit_confirm, task->speed_set_to);
+            return std::format("Approaching:\ndist {} (confirm {})\nspeeed {}%", st::autopilot.distanceToDock.to_string(), exit_confirm,
+                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
         else
-            return std::format("Approaching:\ndist {}\nspeeed {}%", task->distanceToDock.to_string(), task->speed_set_to);
+            return std::format("Approaching:\ndist {}\nspeeed {}%", st::autopilot.distanceToDock.to_string(),
+                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+    }
+    if (status == EXITING) {
+        return std::format("Exiting cruise {}", timer.left());
+    }
+    if (status == CONFIRM) {
+        return std::format("Checking distance\nfails {}", dist_fails);
+    }
+    return "----";
+}
+
+bool ExitCruiseToPlanet::step() {
+    if (!st::ship.flags.cruise)
+        throw_trouble("Unexpected cruise exit");
+
+    setSpeed(0, true);
+    status = ORIENT;
+    if (!run_sub_step(new NavDockSelect))
+        return false;
+    if (!task->orientTowardTarget(2))
+        return false;
+    setSpeed(50, true);
+    status = FLY_TO_BODY;
+    for (;;) {
+        if (!st::ship.flags.cruise) {
+            if (st::shipAtBody.approachBody || st::shipAtBody.nearBody)
+                break;
+            throw_trouble("Unexpected cruise exit");
+        }
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            kbd::send("UI_Back", 0, 1000);
+            continue;
+        }
+        if (ai::compassInfo.nav_target_dist.valid())
+            st::autopilot.distanceToDock = ai::compassInfo.nav_target_dist;
+
+        if (!st::autopilot.distanceToDock.valid()) {
+            dist_fails += 1;
+            if (dist_fails > 5) {
+                rollBlindCompass();
+                dist_fails = 0;
+            }
+            continue;
+        }
+        if (st::shipAtBody.approachBody || st::shipAtBody.nearBody)
+            break;
+        if (task->orientTowardTargetStep(1, 1000))
+            sleep(250);
+    }
+
+    if (st::ship.flags.cruise && st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
+        status = ORIENT;
+        setSpeed(0, true);
+        if (!run_sub_step(new NavBodySelect))
+            return false;
+        task->orientRollByTarget(180, 7);
+        if (!run_sub_step(new NavDockSelect))
+            return false;
+        kbd::send("UI_Back", 0, 1000);
+        setSpeed(25);
+    }
+    timer = utc_timer(4min);
+    status = APPROACH;
+    while (st::ship.flags.cruise && !timer.expired()) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            kbd::send("UI_Back", 0, 1000);
+            continue;
+        }
+        if (ai::compassInfo.nav_target_dist.valid())
+            st::autopilot.distanceToDock = ai::compassInfo.nav_target_dist;
+        setSpeed(25);
+        if (task->orientTowardTargetStep(1, 1000))
+            sleep(250);
+    }
+
+    if (st::ship.flags.cruise)
+        throw_trouble("Cannot reach planetary port");
+
+    notifyProgress("Arrived, speed zero");
+    setSpeed(0);
+    sleep(2000);
+
+    for (dist_fails=0; dist_fails < 15; dist_fails++) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::uiState.guiFocus != GuiFocus::None) {
+            kbd::send("UI_Back", 0, 1000);
+            ai::detectEDState(DetectLevel::Screen);
+        }
+        if (ai::compassInfo.nav_target_dist.valid()) {
+            if (ai::compassInfo.nav_target_dist.get(dist_t::KM) > 50) {
+                throw_trouble("Unexpected distance after cruise exit: " + ai::compassInfo.nav_target_dist.to_string());
+            }
+            return true;
+        }
+    }
+
+    LOG(WARNING) << "Cannot confirm distance after cruise exit";
+    return true;
+}
+
+std::string ExitCruiseToPlanet::getStatus() {
+    if (status == ORIENT) {
+        return "Orienting towards target";
+    }
+    if (status == FLY_TO_BODY) {
+        return std::format("Fly to body: {}\ndist {}\nspeeed {}%", timer.passed(),
+                           st::autopilot.distanceToDock.to_string(),
+                           st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+    }
+    if (status == APPROACH) {
+        if (dist_fails)
+            return std::format("Approaching {}:\ndist {} (fails {})\nspeeed {}%", timer.passed(),
+                               st::autopilot.distanceToDock.to_string(), dist_fails,
+                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+        else if (exit_confirm)
+            return std::format("Approaching {}:\ndist {} (confirm {})\nspeeed {}%", timer.passed(),
+                               st::autopilot.distanceToDock.to_string(), exit_confirm,
+                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+        else
+            return std::format("Approaching {}:\ndist {}\nspeeed {}%", timer.passed(),
+                               st::autopilot.distanceToDock.to_string(),
+                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
     }
     if (status == EXITING) {
         return std::format("Exiting cruise {}", timer.left());
@@ -1960,54 +2578,63 @@ bool CompleteNavRoute::step() {
         return true;
 
     if (st::ship.flags.docked) {
-        if (!run_sub_step(spStep(new DepartureStep(this))))
+        if (!run_sub_step(new DepartureStep))
             throw_trouble("Cannot departure from dock");
     }
+    if (st::shipAtBody.nearBody) {
+        status = LEAVE_BODY;
+        if (!run_sub_step(new LeaveBodyStep))
+            return false;
+    }
 
+    int orientAvoid = 60;
     while ((routeIdx = task->getNavRoutePosition()) >= 0) {
         kbd::send("TargetNextRouteSystem", 0, 300);
         for (int retry=0; retry < 5; retry++) {
             status = ORIENT;
-            task->setSpeed(50);
-            if (!task->orientTowardTarget(3))
+            setSpeed(50);
+            if (!task->orientTowardTarget(6))
                 return false;
-            if (mgr.compassInfo.has_nav_target)
+            if (ai::compassInfo.has_nav_target)
                 break;
-            mgr.detectEDState(DetectLevel::Screen);
-            if (mgr.compassInfo.has_nav_target)
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::compassInfo.has_nav_target)
                 break;
             bool leave_body = st::shipAtBody.approachBody || st::shipAtBody.nearBody;
             if (!st::ship.flags.cruise) {
                 leave_body = true;
                 status = ENTER_CRUISE;
-                if (!run_sub_step(spStep(new EnterCruiseStep(this))))
+                if (!run_sub_step(new EnterCruiseStep))
                     return false;
+                kbd::send("TargetNextRouteSystem", 0, 300);
             }
             if (leave_body) {
                 status = LEAVE_BODY;
-                if (!run_sub_step(spStep(new LeaveBodyStep(this))))
+                if (!run_sub_step(new LeaveBodyStep))
                     return false;
+                kbd::send("TargetNextRouteSystem", 0, 300);
             }
             status = ORIENT;
-            task->setSpeed(50);
-            task->orientPitchStep(60, 10000);
+            setSpeed(50);
+            task->orientPitchStep(orientAvoid, 10000);
+            orientAvoid = -orientAvoid;
             timer = utc_timer(10s);
-            task->setSpeed(100);
+            setSpeed(100);
             status = FLY_AWAY;
             while (!timer.expired()) {
                 if (!st::ship.flags.cruise) {
-                    task->setSpeed(0);
+                    setSpeed(0);
                     throw_trouble("Unexpected cruise exit");
                 }
                 if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
-                    task->setSpeed(50);
+                    setSpeed(50);
                     break;
                 }
                 sleep(250);
             }
         }
         status = JUMP;
-        if (!run_sub_step(spStep(new HyperJumpStep(this))))
+        if (!run_sub_step(new HyperJumpStep))
             return false;
     }
     return true;
@@ -2032,73 +2659,97 @@ std::string CompleteNavRoute::getStatus() {
 }
 
 bool CruiseAndDock::step() {
-    if (!task->destDock)
+    if (!st::autopilot.destDock)
         throw_failed("No destination dock");
+    bool toPort =
+            st::autopilot.destDock->typeNav == gal::TypeNav::PlanetPort ||
+            st::autopilot.destDock->typeNav == gal::TypeNav::PlanetInst ||
+            st::autopilot.destDock->typeNav == gal::TypeNav::PlanetConstr;
 
     if (st::ship.flags.docked) {
-        if (!st::dockedAt.stationName.empty() && task->destDock->nameEq(st::dockedAt.stationName))
+        if (!st::dockedAt.stationName.empty() && st::autopilot.destDock->nameEq(st::dockedAt.stationName))
             return true;
         status = DEPARTURE;
-        if (!run_sub_step(spStep(new DepartureStep(this))))
+        if (!run_sub_step(new DepartureStep))
             throw_trouble("Cannot departure from dock");
     }
 
     bool at_dock = false;
     if (!st::ship.flags.cruise) {
-        if (!st::space.stationName.empty() && task->destDock->nameEq(st::space.stationName))
+        if (!st::space.stationName.empty() && st::autopilot.destDock->nameEq(st::space.stationName))
             at_dock = true;
-        else if (!st::space.bodyName.empty() && task->destDock->nameEq(st::space.bodyName))
+        else if (!st::space.bodyName.empty() && st::autopilot.destDock->nameEq(st::space.bodyName))
             at_dock = true;
     }
     if (!at_dock && !st::ship.flags.cruise) {
         status = ENTER_CRUISE;
-        if (!run_sub_step(spStep(new EnterCruiseStep(this))))
+        if (!run_sub_step(new EnterCruiseStep))
             throw_trouble("Cannot enter cruise");
     }
     else if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
         LOG(ERROR) << "Unexpected close to body: " << st::shipAtBody.bodyName;
-        task->setSpeed(0);
+        setSpeed(0);
         status = LEAVE_BODY;
-        if (!run_sub_step(spStep(new LeaveBodyStep(this))))
+        if (!run_sub_step(new LeaveBodyStep))
             throw_trouble("Cannot leave body");
     }
 
 
-    if (!at_dock) {
+    while (!at_dock) {
         // a few degrees visible angle to stop and avoid planet
-        const double min_dist = 15000;
-        const double max_dist = dist_t(dist_t::LS, 3).get(dist_t::KM);
-        double distToCorrect = min_dist;
-        if (task->destBody) {
-            if (task->destBody->typeNav == gal::TypeNav::Planet)
-                distToCorrect = task->destBody->radius * 40;
-            else if (task->destBody->typeNav == gal::TypeNav::Star)
-                distToCorrect = task->destBody->radius * 10;
+        dist_t min_dist = 0.5_ls;
+        dist_t max_dist = 2.0_ls;
+        if (st::autopilot.destBody) {
+            if (toPort) {
+                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 5);
+                max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 10);
+            }
+            else if (st::autopilot.destBody->typeNav == gal::TypeNav::Planet) {
+                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 20);
+                max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 40);
+            }
+            else if (st::autopilot.destBody->typeNav == gal::TypeNav::Star) {
+                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 10);
+                max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 20);
+            }
         }
-        distToCorrect = std::clamp(distToCorrect, min_dist, max_dist);
         status = APPROACH;
-        if (!run_sub_step(spStep(new CruiseToDistStep(this, distToCorrect))))
+        if (!run_sub_step(new CruiseToDistStep(min_dist, max_dist)))
             throw_trouble("Cannot cruise to dock/body");
 
-        if (task->destBody && task->destDock) {
-            for (int i = 0; i < 5; i++) {
-                task->setSpeed(0);
-                check_interrupted();
-                status = DIVE;
-                if (!run_sub_step(spStep(new DiveUnderPlanetStep(this))))
-                    throw_trouble("Failed to fly around body");
-                break;
-            }
+        if (st::autopilot.destBody && st::autopilot.destDock) {
+            setSpeed(0);
+            check_interrupted();
+            status = DIVE;
+            if (!run_sub_step(new DiveUnderPlanetStep))
+                continue;
         }
 
         status = LEAVE_CRUISE;
-        if (!run_sub_step(spStep(new ExitCruiseToStationStep(this))))
-            throw_trouble("Failed to exit cruise");
+        if (!toPort) {
+            if (!run_sub_step(new ExitCruiseToSpace))
+                throw_trouble("Failed to exit cruise");
+        } else {
+            if (!run_sub_step(new ExitCruiseToPlanet))
+                throw_trouble("Failed to exit cruise");
+        }
+
+        if (!st::ship.flags.cruise) {
+            if (!st::space.stationName.empty() && st::autopilot.destDock->nameEq(st::space.stationName))
+                at_dock = true;
+            else if (!st::space.bodyName.empty() && st::autopilot.destDock->nameEq(st::space.bodyName))
+                at_dock = true;
+        }
     }
 
     status = DOCK;
-    if (!run_sub_step(spStep(new DockStep(this))))
-        throw_trouble("Failed to dock");
+    if (!toPort) {
+        if (!run_sub_step(new DockSpaceStation))
+            throw_trouble("Failed to dock at space station");
+    } else {
+        if (!run_sub_step(new DockPlanetPort))
+            throw_trouble("Failed to dock at planet port");
+    }
 
     return true;
 }
@@ -2125,8 +2776,8 @@ std::string CruiseAndDock::getStatus() {
     return "----";
 }
 
-TaskTravel::TaskTravel(Step *parent, AIManager &mgr, const TaskTemplate &templ_)
-    : BaseAutopilotTask(parent, mgr, templ_)
+TaskTravel::TaskTravel(const TaskTemplate &templ_)
+    : BaseAutopilotTask(templ_)
 {
     assert(templ.id == ED_TASK_TRAVEL);
     for (auto& p : templ.params) {
@@ -2149,87 +2800,87 @@ bool TaskTravel::run() {
         else if (navRoute->route.back().starSystem != destSystemName)
             change_route = true;
         if (change_route) {
-            if (!selectOnGalaxyMap(this, destSystemName))
+            if (!selectOnGalaxyMap(destSystemName))
                 throw_trouble("Cannot name route to destination system: " + destSystemName);
         }
-        nl.init(this, nullptr, nullptr, st::navFilters);
-        if (!run_sub_step(spStep(new CompleteNavRoute(this))))
+        nl.init(st::navFilters);
+        if (!run_sub_step(new CompleteNavRoute))
             throw_trouble("Cannot reach destination system");
         if (gal::getCurrentStarSystem()->systemName != destSystemName)
             throw_trouble("Cannot reach destination system");
     }
 
     auto starSystem = gal::getCurrentStarSystem();
-    destDock = starSystem->getDock(destDockName);
-    if (!destDock)
+    st::autopilot.setDestDock(starSystem->getDock(destDockName));
+    if (!st::autopilot.destDock)
         throw_failed("Cannot find destination dock: " + destDockName + " in system " + starSystem->systemName);
 
-    if (destDock->parentBodyId < 0) {
+    if (st::autopilot.destDock->parentBodyId < 0) {
         initNavFilter();
-        if (!run_sub_step(spStep(new NavDockSelect(this, destDock))))
+        if (!run_sub_step(new NavDockSelect))
             throw_trouble("Cannot select destination dock");
         sleep(500);
     }
 
-    int bodyId = destDock->parentBodyId;
+    int bodyId = st::autopilot.destDock->parentBodyId;
     if (bodyId > 0) {
         auto body = starSystem->getBodyById(bodyId);
         if (!body)
             throw_failed("Cannot find body id: " + std::to_string(bodyId) + " in system " + starSystem->systemName);
-        destBody = std::dynamic_pointer_cast<gal::Body>(body);
-        if (!destBody)
+        st::autopilot.setDestBody(std::dynamic_pointer_cast<gal::Body>(body));
+        if (!st::autopilot.destBody)
             throw_failed("Not a body: " + body->name);
     }
 
     initNavFilter();
 
-    if (!run_sub_step(spStep(new CruiseAndDock(this))))
+    if (!run_sub_step(new CruiseAndDock))
         throw_trouble("Cannot cruise and dock");
 
     return true;
 }
 
-Autopilot::Autopilot(Step *parent, AIManager &mgr, const TaskTemplate &templ)
-        : BaseAutopilotTask(parent, mgr, templ)
+Autopilot::Autopilot(const TaskTemplate &templ_)
+        : BaseAutopilotTask(templ_)
 {
 }
 
 bool Autopilot::run() {
     if (getNavRoutePosition() >= 0) {
-        nl.init(this, nullptr, nullptr, st::navFilters);
-        if (!run_sub_step(spStep(new CompleteNavRoute(this))))
+        nl.init(st::navFilters);
+        if (!run_sub_step(new CompleteNavRoute))
             throw_trouble("Cannot reach destination system");
     }
 
     auto starSystem = gal::getCurrentStarSystem();
-    destDock = starSystem->getDock(st::destination.name);
-    if (!destDock) {
+    st::autopilot.setDestDock(starSystem->getDock(st::destination.name));
+    if (!st::autopilot.destDock) {
         if (st::destination.name.empty())
             throw_failed("No destination dock selected");
         throw_failed("Cannot find destination dock: " + st::destination.name + " in system " + starSystem->systemName);
     }
 
     int bodyId = st::destination.bodyId;
-    if (destDock->typeNav == gal::TypeNav::SpacePort) {
-        if (!destDock->bodyId.has_value()) {
-            destDock->bodyId = bodyId;
+    if (st::autopilot.destDock->typeNav == gal::TypeNav::SpacePort) {
+        if (!st::autopilot.destDock->bodyId.has_value()) {
+            st::autopilot.destDock->bodyId = bodyId;
             starSystem->saved = false;
             gal::saveStarSystem(starSystem.get());
         }
-        bodyId = destDock->parentBodyId;
+        bodyId = st::autopilot.destDock->parentBodyId;
     }
     if (bodyId > 0) {
         auto body = starSystem->getBodyById(bodyId);
         if (!body)
             throw_failed("Cannot find body id: " + std::to_string(bodyId) + " in system " + starSystem->systemName);
-        destBody = std::dynamic_pointer_cast<gal::Body>(body);
-        if (!destBody)
+        st::autopilot.setDestBody(std::dynamic_pointer_cast<gal::Body>(body));
+        if (!st::autopilot.destBody)
             throw_failed("Not a body: " + body->name);
     }
 
     initNavFilter();
 
-    if (!run_sub_step(spStep(new CruiseAndDock(this))))
+    if (!run_sub_step(new CruiseAndDock))
         throw_trouble("Cannot cruise and dock");
 
     return true;
