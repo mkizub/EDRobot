@@ -16,23 +16,14 @@ public:
     Step();
     virtual ~Step() = default;
 
-    Task* getTask();
-
-    virtual bool step() = 0;
+    virtual bool run() = 0;
     virtual bool run_sub_step(spStep step);
     bool run_sub_step(Step* step) { return run_sub_step(spStep(step)); }
 
-    virtual const char* getName() = 0;
+    virtual std::string getTitle() = 0;
 
-    void notifyProgress(const char* msg);
-    void notifyProgress(const std::string& msg);
-    [[noreturn]] void throw_trouble(const char* msg);
-    [[noreturn]] void throw_trouble(const std::string& msg);
-    [[noreturn]] void throw_failed(const char* msg);
-    [[noreturn]] void throw_failed(const std::string& msg);
-
-    void addMessage(const char* msg);
-    void addMessage(const std::string& msg);
+    void addMessage(MessageSeverity severity, const char* msg);
+    void addMessage(MessageSeverity severity, const std::string& msg);
     std::vector<std::string> getMessages();
     virtual std::string getStatus();
 
@@ -40,21 +31,21 @@ public:
 
     struct Message {
         std::chrono::time_point<std::chrono::steady_clock> timestamp;
+        MessageSeverity severity;
         std::string message;
+        bool expired();
     };
     std::deque<Message> messages;
-    spStep currentSubStep;
     std::mutex messagesMutex;
+    spStep currSubStep;
+    spStep prevSubStep;
 };
 
 class Task : public Step {
 public:
     Task(const TaskTemplate& templ);
     virtual ~Task() = default;
-    virtual bool step();
-    bool safe_run();
-    virtual bool run() = 0;
-    virtual const char* getName();
+    virtual std::string getTitle();
 
     TaskTemplate templ;
 
@@ -72,9 +63,12 @@ public:
     virtual ~TaskRepeat() = default;
     bool run() override;
 
-    int mTotal {};
-    std::chrono::minutes mDuration;
+    std::string getTitle() override;
 
+    int mTotal {};
+    int mDuration;
+
+    bool mStarted {};
     int mCompleted {};
     utc_timer timer;
     int mStepIdx {};

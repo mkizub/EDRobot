@@ -27,6 +27,8 @@ spStep curr_step();
 bool new_task(spTask&& task);
 bool new_task(const TaskTemplate& templ);
 
+void notify_progress(MessageSeverity severity, const char* msg);
+void notify_progress(MessageSeverity severity, const std::string& msg);
 [[noreturn]] void throw_trouble(const char* msg);
 [[noreturn]] void throw_trouble(const std::string& msg);
 [[noreturn]] void throw_failed(const char* msg);

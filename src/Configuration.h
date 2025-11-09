@@ -183,6 +183,7 @@ public:
     unsigned getVJoyDeviceID() { return vJoyDeviceID; }
 
     spGameEvent dockingEvent;
+    spGameEvent marketEvent;
 
 private:
     friend class Master;

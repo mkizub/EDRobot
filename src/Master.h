@@ -148,8 +148,6 @@ private:
 
     cv::UMat mCapturedED;
     Capturer* mCapturer {nullptr};
-    //cv::Rect mCaptureRect; // in captured image coordinated
-    //cv::Rect mMonitorRect; // in virtual desktop coordinated
     UIState mLastUIState;
     ClassifyEnv mClassifyEnv;
     bool mDuplicateToDebugWindow {false};

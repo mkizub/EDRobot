@@ -19,8 +19,11 @@ public:
     bool moveToWidget(const char* widget);
     void gotoMarketScreen(bool buy);
     bool waitUiState(const std::string& state, std::chrono::seconds duration);
+    bool waitMarketEvent(std::chrono::seconds duration);
     bool enterTradeDialog(Commodity* commodity, std::string state, bool force);
     bool commitTradeDialog(Commodity* commodity, std::string state);
+
+    int lastCommitCount {};
 };
 
 class TaskSell final : public BaseMarketTask {
@@ -35,9 +38,10 @@ public:
     int mSold;
     int mLeft;
 
+    std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, TO_MARKET, TO_COMMODITY, TRADING
+        READY, TO_MARKET, TO_COMMODITY, TRADING, DONE
     } status {READY};
 };
 
@@ -67,9 +71,10 @@ public:
     int mBought;
     int mLeft;
 
+    std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, TO_MARKET, TO_COMMODITY, TRADING
+        READY, TO_MARKET, TO_COMMODITY, TRADING, DONE
     } status {READY};
 };
 
@@ -95,9 +100,11 @@ public:
     TaskConstrUnload(const TaskTemplate& templ);
     bool run() final;
 
+    int contributed {};
+
     std::string getStatus() override;
     enum {
-        READY, TO_MARKET, UNLOAD
+        READY, TO_MARKET, UNLOAD, DONE, DONE_NOTHING
     } status {READY};
 };
 

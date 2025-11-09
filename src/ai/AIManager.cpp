@@ -31,8 +31,6 @@ namespace ai {
 namespace {
     spTask activeTask;
     spTask lastTask;
-    std::chrono::milliseconds nextDelay;
-    DetectLevel nextDetectLevel{DetectLevel::None};
 
     std::thread taskThread;
     std::mutex taskMutex;
@@ -101,8 +99,8 @@ bool active() {
 void stop() {
     if (!activeTask)
         return;
-    LOG(INFO) << "ai::stop() task " << activeTask->getName();
-    UIManager::showToast("EDRobot stop", std::format("Stop task '{}'", activeTask->getName()));
+    LOG(INFO) << "ai::stop() task " << activeTask->getTitle();
+    UIManager::showToast("EDRobot stop", std::format("Stop task '{}'", activeTask->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     taskCond.notify_one();
@@ -117,8 +115,8 @@ void stop() {
 void interrupt() {
     if (isInterrupted || !activeTask)
         return;
-    LOG(INFO) << "AIManager::interrupt() task " << activeTask->getName();
-    UIManager::showToast("EDRobot paused", std::format("Paused task '{}'", activeTask->getName()));
+    LOG(INFO) << "AIManager::interrupt() task " << activeTask->getTitle();
+    UIManager::showToast("EDRobot paused", std::format("Paused task '{}'", activeTask->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     taskCond.notify_one();
@@ -137,8 +135,8 @@ void resume() {
         UIManager::showToast("EDRobot resume", "No paused task");
         return;
     }
-    LOG(INFO) << "AIManager::resume() resuming task " << activeTask->getName();
-    UIManager::showToast("EDRobot resume", std::format("Resuming task '{}'", activeTask->getName()));
+    LOG(INFO) << "AIManager::resume() resuming task " << activeTask->getTitle();
+    UIManager::showToast("EDRobot resume", std::format("Resuming task '{}'", activeTask->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = false;
     taskCond.notify_one();
@@ -170,30 +168,73 @@ spStep curr_step() {
     spStep curr = activeTask;
     if (!curr)
         return {};
-    while (curr->currentSubStep)
-        curr = curr->currentSubStep;
+    while (curr->currSubStep)
+        curr = curr->currSubStep;
     return curr;
 }
 
-void throw_trouble(const char* msg) {
+void notify_progress(MessageSeverity severity, const char* msg) {
+    if (!msg || !*msg)
+        return;
+    notify_progress(severity, std::string(msg));
+}
+void notify_progress(MessageSeverity severity, const std::string& msg) {
+    if (msg.empty())
+        return;
     spStep curr = curr_step();
     if (curr)
-        curr->throw_trouble(msg);
+        curr->addMessage(severity, msg);
+    switch (severity) {
+    case MSG_INFO:
+        LOG(INFO) << msg;
+        break;
+    case MSG_WARN:
+        LOG(WARNING) << msg;
+        break;
+    case MSG_ERROR:
+        LOG(ERROR) << msg;
+        break;
+    }
+}
+void throw_trouble(const char* msg) {
+    assert (taskThread.get_id() == std::this_thread::get_id());
+    if (msg && *msg) {
+        spStep curr = curr_step();
+        if (curr)
+            curr->addMessage(MSG_WARN, msg);
+        LOG(WARNING) << msg;
+    }
+    throw nonlocal_return(false, msg);
 }
 void throw_trouble(const std::string& msg) {
-    spStep curr = curr_step();
-    if (curr)
-        curr->throw_trouble(msg);
+    assert (taskThread.get_id() == std::this_thread::get_id());
+    if (!msg.empty()) {
+        spStep curr = curr_step();
+        if (curr)
+            curr->addMessage(MSG_WARN, msg);
+        LOG(WARNING) << msg;
+    }
+    throw nonlocal_return(false, msg);
 }
 void throw_failed(const char* msg) {
-    spStep curr = curr_step();
-    if (curr)
-        curr->throw_failed(msg);
+    assert (taskThread.get_id() == std::this_thread::get_id());
+    if (msg && *msg) {
+        spStep curr = curr_step();
+        if (curr)
+            curr->addMessage(MSG_ERROR, msg);
+        LOG(ERROR) << msg;
+    }
+    throw nonlocal_return(true, msg);
 }
 void throw_failed(const std::string& msg) {
-    spStep curr = curr_step();
-    if (curr)
-        curr->throw_failed(msg);
+    assert (taskThread.get_id() == std::this_thread::get_id());
+    if (!msg.empty()) {
+        spStep curr = curr_step();
+        if (curr)
+            curr->addMessage(MSG_ERROR, msg);
+        LOG(ERROR) << msg;
+    }
+    throw nonlocal_return(true, msg);
 }
 
 
@@ -201,7 +242,7 @@ bool new_task(spTask&& task) {
     if (!task)
         return false;
     LOG(INFO) << "AIManager::new_task()";
-    UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->getName()));
+    UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
     lastTask.reset();
@@ -210,7 +251,7 @@ bool new_task(spTask&& task) {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || isLoopWaiting;
     });
-    LOG(INFO) << "AIManager::new_task(): activating " << task->getName();
+    LOG(INFO) << "AIManager::new_task(): activating " << task->getTitle();
     activeTask.swap(task);
     isInterrupted = false;
     taskCond.notify_one();
@@ -252,16 +293,7 @@ void task_loop() {
                 continue;
             }
         }
-        TRY {
-            task_step();
-        } CATCH(const std::exception& ex) {
-            if (auto ir = dynamic_cast<const interrupted_error*>(&ex)) {
-                //mark_interrupted();
-            } else {
-                LOG(ERROR) << "Exception in ai task_loop: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
-                //mark_miss();
-            }
-        }
+        task_step();
         kbd::reset_vJoy();
         disableAutoTurn();
         st::autopilot = {};
@@ -271,22 +303,34 @@ void task_loop() {
 
 
 void task_step() {
+    st::autopilot = {};
+    disableAutoTurn();
     if (!activeTask) {
         LOG(INFO) << "ai::task_loop(): no active task";
-        //detectEDState(DetectLevel::Screen);
         return;
     }
     if (activeTask) {
         Mgr.setGameForeground();
-        LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getName();
-        st::autopilot = {};
-        disableAutoTurn();
-        bool ok = activeTask->safe_run();
+        LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getTitle();
+        bool ok = false;
+        TRY {
+            activeTask->prevSubStep.reset();
+            activeTask->currSubStep.reset();
+            ok = activeTask->run();
+        } CATCH (const std::exception& ex) {
+            kbd::reset_vJoy();
+            if (dynamic_cast<const nonlocal_return*>(&ex))
+                ;
+            else if (dynamic_cast<const interrupted_error*>(&ex))
+                ;
+            else
+                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+        }
         if (ok) {
             lastTask.reset();
             lastTask.swap(activeTask);
         }
-        LOG(INFO) << "ai::task_loop(): active task: " << (ok ? "passed" : "not complete");
+        LOG(INFO) << "ai::task_loop(): active task: " << (isInterrupted ? "interrupted" : ok ? "passed" : "not complete");
         return;
     }
 }
@@ -310,9 +354,7 @@ const bool detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayIm
         auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
         if (left.count() < 5)
             break;
-        auto duration = std::min(std::chrono::milliseconds(250), left);
-        auto status = future.wait_for(duration);
-        std::this_thread::sleep_for(duration);
+        auto status = future.wait_for(250ms);
         if (status == std::future_status::ready)
             break;
         now = std::chrono::system_clock::now();

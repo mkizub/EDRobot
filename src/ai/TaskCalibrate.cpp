@@ -156,7 +156,7 @@ bool TaskCalibrate::run() {
     if (!ai::uiState.match("scr-market:*"))
         throw_failed(_("Not at market, calibration fails"));
 
-    notifyProgress(_("Calibration started"));
+    notify_progress(MSG_INFO, _("Calibration started"));
 
     //
     // Detect normal, focused, activated colors using buttons
@@ -357,7 +357,7 @@ bool TaskCalibrate::run() {
     LOG(INFO) << "State " << ai::uiState;
 
     if (calculateAverage(false)) {
-        notifyProgress(_("Calibration completed successfully!"));
+        notify_progress(MSG_INFO, _("Calibration completed successfully!"));
         Cfg.saveCalibration();
     } else {
         throw_failed(_("Failed to calibrate button state detector"));

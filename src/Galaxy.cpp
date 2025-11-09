@@ -416,9 +416,13 @@ static spStarSystem loadStarSystem(const std::string& name) {
     if (!std::filesystem::exists(fp))
         return loadStarSystemFromNetwork(name);
 
-    std::ifstream ifs(fp);
-    auto jsystem = json5pp::parse5(ifs);
-    return fromEDDN(jsystem, true);
+    try {
+        std::ifstream ifs(fp);
+        auto jsystem = json5pp::parse5(ifs);
+        return fromEDDN(jsystem, true);
+    } catch (...) {
+        return loadStarSystemFromNetwork(name);
+    }
 }
 
 spStarSystem getStarSystem(const std::string& name) {

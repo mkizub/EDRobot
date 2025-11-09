@@ -93,6 +93,7 @@ int UIMainDialog::initialize(wl::params &params) {
 
     lbl_curr_task.assign(hwnd(), IDC_CURRENT_TASK);
     lbl_task_status.assign(hwnd(), IDC_TASK_STATUS);
+    lbl_status.assign(hwnd(), IDC_STATUS);
     btn_stop_new.assign(hwnd(), IDC_BUTTON_STOP_NEW);
     btn_pause_resume.assign(hwnd(), IDC_BUTTON_PAUSE_RESUME);
     btn_watch.assign(hwnd(), IDC_BUTTON_WATCH);
@@ -163,6 +164,29 @@ int UIMainDialog::on_command_pause_resume(wl::params &params) {
     return TRUE;
 }
 
+void addStepStatus(std::string& status, int indent, ai::spStep step) {
+    if (!step)
+        return;
+    status += std::string(indent, ' ');
+    status += step->getTitle();
+    status += ":\n";
+    indent += 4;
+    for (auto& msg : step->getMessages()) {
+        if (msg.empty())
+            continue;
+        status += std::string(indent, ' ');
+        status += msg;
+        status += "\n";
+    }
+    for (auto& msg : split(step->getStatus(), '\n')) {
+        if (msg.empty())
+            continue;
+        status += std::string(indent, ' ');
+        status += msg;
+        status += "\n";
+    }
+}
+
 void UIMainDialog::update_curr_task() {
     ai::spTask task = ai::curr_task();
     if (!task) {
@@ -170,33 +194,88 @@ void UIMainDialog::update_curr_task() {
         btn_stop_new.set_text(L"New");
         btn_pause_resume.set_text(L"Repeat");
     } else {
-        lbl_curr_task.set_text(toUtf16(task->getName()).c_str());
+        lbl_curr_task.set_text(toUtf16(task->getTitle()).c_str());
         btn_stop_new.set_text(L"Stop");
         if (ai::active())
             btn_pause_resume.set_text(L"Pause");
         else
             btn_pause_resume.set_text(L"Resume");
     }
-    if (!task)
+    bool completed = false;
+    if (!task) {
         task = ai::last_task();
+        completed = true;
+    }
     std::string status;
     int indent = 0;
-    for (ai::spStep step=task; step; step = step->currentSubStep) {
+    for (ai::spStep step=task; step; step = step->currSubStep) {
         status += std::string(indent, ' ');
-        status += step->getName();
+        status += step->getTitle();
         status += ":\n";
         indent += 4;
-        for (auto& msg : step->getMessages()) {
+        if (step->prevSubStep) {
             status += std::string(indent, ' ');
-            status += msg;
+            status += step->prevSubStep->getTitle();
             status += "\n";
+            for (auto& msg : step->prevSubStep->getMessages()) {
+                if (msg.empty())
+                    continue;
+                status += std::string(indent+4, ' ');
+                status += msg;
+                status += "\n";
+            }
         }
-        for (auto& msg : split(step->getStatus(), '\n')) {
-            status += std::string(indent, ' ');
-            status += msg;
-            status += "\n";
+        if (!step->currSubStep) {
+            for (auto& msg : step->getMessages()) {
+                if (msg.empty())
+                    continue;
+                status += std::string(indent, ' ');
+                status += msg;
+                status += "\n";
+            }
+            for (auto& msg : split(step->getStatus(), '\n')) {
+                if (msg.empty())
+                    continue;
+                status += std::string(indent, ' ');
+                status += msg;
+                status += "\n";
+            }
         }
     }
     lbl_task_status.set_text(toUtf16(status));
+
+    if (!task) {
+        lbl_status.set_text(L"");
+    }
+    else if (completed) {
+        lbl_status.set_text(L"Finished");
+    }
+    else if (!ai::active()) {
+        lbl_status.set_text(L"Paused (inactive)");
+    }
+    else if (ai::isDebugPause()) {
+        lbl_status.set_text(L"Paused (active)");
+    }
+    else if (st::ship.flags.docked) {
+        lbl_status.set_text(L"Docked");
+    }
+    else if (st::ship.flags.landed) {
+        lbl_status.set_text(L"Landed");
+    }
+    else if (st::ship.flags.fsd_jump) {
+        lbl_status.set_text(L"Hyperspace");
+    }
+    else {
+        std::string space = st::ship.flags.cruise ? "Cruise" : "Space";
+        std::string spd = "??";
+        if (st::autopilot.speed_set_to.has_value())
+            spd = std::to_string(st::autopilot.speed_set_to.value());
+        std::string dist = "??";
+        if (st::autopilot.isDestBodyTargeted && st::autopilot.distanceToBody.valid())
+            dist = st::autopilot.distanceToBody.to_string();
+        if (st::autopilot.isDestDockTargeted && st::autopilot.distanceToDock.valid())
+            dist = st::autopilot.distanceToDock.to_string();
+        lbl_status.set_text(toUtf16(std::format("{}: spd {}%, dist {}", space, spd, dist)));
+    }
     mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
 }

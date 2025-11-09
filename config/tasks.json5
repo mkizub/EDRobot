@@ -1,9 +1,9 @@
 [
   {
-    name: "Build Kanu Command Point",
+    name: "Build Richards Watch",
     templ: "tsk-repeat",
-    count: 10,
-    duration: 300, // at least 5 hours (300 minutes)
+    //count: 10,
+    //duration: 300, // at least 5 hours (300 minutes)
     steps: [
       {
         templ: "tsk-travel",
@@ -13,12 +13,12 @@
       {
         templ: "tsk-market-buy-constr",
         system: "Col 285 Sector XK-O d6-69",
-        depot: "Planetary Construction Site: Kanu Command Point"
+        depot: "Planetary Construction Site: Richards Watch"
       },
       {
         templ: "tsk-travel",
         system: "Col 285 Sector XK-O d6-69",
-        dock: "Planetary Construction Site: Kanu Command Point"
+        dock: "Planetary Construction Site: Richards Watch"
       },
       {
         templ: "tsk-constr-unload",

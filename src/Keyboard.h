@@ -55,7 +55,7 @@ bool sendMouseWheel(int count); // positive - forward, away from the user; negat
 unsigned post(const std::string& name, int hold_ms);
 unsigned post(const GameKey& gk, int hold_ms);
 bool clearInput(unsigned inputId);
-bool axis(const KeyBindings& gk, double value); // value -1..1 for full-range axes, or 0..1 for others
+bool axis(const KeyBindings& gk, double value, bool background=false); // value -1..1 for full-range axes, or 0..1 for others
 
 }
 

@@ -34,11 +34,23 @@ void Autopilot::setDestBody(std::shared_ptr<gal::Body> body) {
     destBody = body;
     isDestDockFocused = false;
     isDestBodyFocused = false;
+    if (destBody && destBody->nameEq(st::destination.name)) {
+        isDestBodyTargeted = true;
+        isDestDockTargeted = false;
+    } else {
+        isDestBodyTargeted = false;
+    }
 }
 void Autopilot::setDestDock(std::shared_ptr<gal::Site> dock) {
     destDock = dock;
     isDestDockFocused = false;
     isDestBodyFocused = false;
+    if (destDock && destDock->nameEq(st::destination.name)) {
+        isDestBodyTargeted = false;
+        isDestDockTargeted = true;
+    } else {
+        isDestDockTargeted = false;
+    }
 }
 }
 
@@ -75,6 +87,9 @@ void parseEvent_Market(spGameEvent& ge);
 void parseEvent_NavRoute(spGameEvent& ge);
 void parseEvent_NavRouteClear(spGameEvent& ge);
 void parseEvent_ColonisationConstructionDepot(spGameEvent& ge);
+void parseEvent_ColonisationContribution(spGameEvent& ge);
+void parseEvent_MarketBuy(spGameEvent& ge);
+void parseEvent_MarketSell(spGameEvent& ge);
 void parseEvent_ShipyardSwap(spGameEvent& ge);
 void parseEvent_Docked(spGameEvent& ge);
 void parseEvent_Undocked(spGameEvent& ge);
@@ -100,6 +115,9 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"NavRoute", parseEvent_NavRoute},
         {"NavRouteClear", parseEvent_NavRouteClear},
         {"ColonisationConstructionDepot", parseEvent_ColonisationConstructionDepot},
+        {"ColonisationContribution", parseEvent_ColonisationContribution},
+        {"MarketBuy", parseEvent_MarketBuy},
+        {"MarketSell", parseEvent_MarketSell},
         {"ShipyardSwap", parseEvent_ShipyardSwap},
         {"Docked", parseEvent_Docked},
         {"Undocked", parseEvent_Undocked},
@@ -152,7 +170,7 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
 
 bool Configuration::loadGameStatus() {
     static std::ifstream ifs;
-    LOG(INFO) << "Loading Status.json";
+    LOG(DEBUG) << "Loading Status.json";
     if (!ifs.is_open()) {
         std::wstring filename = mEDLogsPath + L"\\Status.json";
         ifs.open(filename);
@@ -239,8 +257,22 @@ bool Configuration::loadGameStatus() {
             if (ss)
                 ss->addDestination();
         }
+        if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name)) {
+            st::autopilot.isDestBodyTargeted = true;
+            st::autopilot.isDestDockTargeted = false;
+        }
+        else if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name)) {
+            st::autopilot.isDestBodyTargeted = false;
+            st::autopilot.isDestDockTargeted = true;
+        }
+        else {
+            st::autopilot.isDestBodyTargeted = false;
+            st::autopilot.isDestDockTargeted = false;
+        }
     } else {
         st::destination = {};
+        st::autopilot.isDestBodyTargeted = false;
+        st::autopilot.isDestDockTargeted = false;
     }
 
     //LOG(INFO) << "Ship status: " << st::ship;
@@ -438,6 +470,8 @@ void parseEvent_Docking(spGameEvent& ge) {
 void parseEvent_StartJump(spGameEvent& ge) {
     auto& je = ge->data;
 
+    st::shipAtBody.approachBody = false;
+    st::shipAtBody.nearBody = false;
     st::dockedAt = {};
     st::space = {};
     auto& jjt = je["JumpType"]; // "Hyperspace" or "Supercruise"
@@ -452,6 +486,8 @@ void parseEvent_StartJump(spGameEvent& ge) {
 void parseEvent_FSDJump(spGameEvent& ge) {
     auto& je = ge->data;
 
+    st::shipAtBody.approachBody = false;
+    st::shipAtBody.nearBody = false;
     st::dockedAt = {};
     st::space = {};
     st::currentStarSystem = je["StarSystem"].as_string();
@@ -623,4 +659,14 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
 
     st::currentMarket.swap(market);
     gal::setMarketData(st::currentMarket);
+}
+
+void parseEvent_ColonisationContribution(spGameEvent& ge) {
+    Cfg.marketEvent = ge;
+}
+void parseEvent_MarketBuy(spGameEvent& ge) {
+    Cfg.marketEvent = ge;
+}
+void parseEvent_MarketSell(spGameEvent& ge) {
+    Cfg.marketEvent = ge;
 }

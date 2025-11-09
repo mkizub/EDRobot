@@ -205,7 +205,8 @@ std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage, int& focus
     list.clear();
     for (int retry=0; retry < 3; retry++) {
         if (!ai::uiState.match("scr-left-panel:mod-navigation"))
-            ai::gotoNavPage("mod-navigation");
+            if (!ai::gotoNavPage("mod-navigation", false))
+                continue;
         if (ai::uiState.focused_name() != "lst-bodies")
             kbd::send("UI_Right");
         if (!ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage))

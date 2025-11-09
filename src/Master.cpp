@@ -1294,7 +1294,7 @@ bool Master::detectEDState(DetectLevel level) {
     mLastUIState.valid = true;
     if (level == DetectLevel::None) {
         auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-        LOG(INFO) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
+        LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
         debugWindowUpdate();
         return true;
     }
@@ -1338,7 +1338,7 @@ bool Master::detectEDState(DetectLevel level) {
     }
 
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-    LOG(INFO) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
+    LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
     debugWindowUpdate();
     return true;
 }

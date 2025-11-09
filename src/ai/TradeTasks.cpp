@@ -105,6 +105,14 @@ bool BaseMarketTask::waitUiState(const std::string& state, std::chrono::seconds 
     return ai::uiState.match(state);
 }
 
+bool BaseMarketTask::waitMarketEvent(std::chrono::seconds duration) {
+    utc_timer timer(duration);
+    while (!Cfg.marketEvent && !timer.expired()) {
+        sleep(250);
+    }
+    return bool(Cfg.marketEvent);
+}
+
 bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, bool force) {
     if (!commodity)
         return false;
@@ -127,6 +135,8 @@ bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, b
 }
 
 bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) {
+    Cfg.marketEvent.reset();
+    lastCommitCount = 0;
     std::string dlg_mod = state + ":dlg-trade:*";
     ai::detectEDState(DetectLevel::Buttons);
     if (!ai::uiState.match(dlg_mod))
@@ -134,13 +144,16 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
     if (ai::uiState.focused_name() != "btn-commit")
         return false;
     kbd::send("UI_Select");
+    if (waitMarketEvent(4s)) {
+        lastCommitCount = Cfg.marketEvent->data.at("Count",0).as_integer();
+    }
     // wait for market screem
     if (!waitUiState(state, 4s)) {
         kbd::send("UI_Back");
         waitUiState(state, 2s);
         return false;
     }
-    return true;
+    return lastCommitCount > 0;
 }
 
 TaskSellAll::TaskSellAll(const TaskTemplate& templ_)
@@ -183,11 +196,14 @@ bool TaskSellAll::run() {
     for (auto& st : sell_queue) {
         if (st.complete || st.failed)
             continue;
-        currentSubStep = st.task;
+        prevSubStep.reset();
+        currSubStep = st.task;
         TRY {
             check_interrupted();
             st.complete = st.task->run();
         } CATCH (const std::exception& ex) {
+            prevSubStep = currSubStep;
+            currSubStep.reset();
             if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
                 if (nlr->failed) {
                     st.failed = true;
@@ -257,13 +273,15 @@ bool TaskSell::run() {
         mLeft = Mgr.canSell(mCommodity);
     else
         mLeft = std::min(mTotal-mSold, Mgr.canSell(mCommodity));
-    if (mLeft <= 0)
+    if (mLeft <= 0) {
+        status = DONE;
         return true;
+    }
 
     if (mChunk > 0)
-        notifyProgress(std_format(_("Start selling {} by {} item(s)"), mLeft, mChunk));
+        notify_progress(MSG_INFO, std_format(_("Start selling {} by {} item(s)"), mLeft, mChunk));
     else
-        notifyProgress(std_format(_("Start selling {} item(s)"), mLeft));
+        notify_progress(MSG_INFO, std_format(_("Start selling {} item(s)"), mLeft));
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
@@ -363,6 +381,7 @@ bool TaskSell::run() {
             gotoMarketScreen(false);
         }
     }
+    status = DONE;
     return true;
 }
 
@@ -397,25 +416,32 @@ bool TaskSell::processTradeDialog(bool force) {
     kbd::send("UI_Down", 0, 300);
     if (!commitTradeDialog(mCommodity, "scr-market:mod-sell"))
         return false;
-    mSold += chunk;
-    mLeft -= chunk;
+    mSold += lastCommitCount;
+    mLeft -= lastCommitCount;
     return true;
 }
 
+std::string TaskSell::getTitle() {
+    std::string name = mCommodity ? mCommodity->name : "???";
+    if (status == DONE)
+        return std::format("Sold {} {}", mSold, name);
+    return std_format("Selling  {} {} ", mTotal, name);
+}
+
 std::string TaskSell::getStatus() {
-    std::string st;
+    std::string name = mCommodity ? mCommodity->name : "???";
     switch (status) {
+    case DONE:
     case READY:
-        st = "----"; break;
+        return {};
     case TO_MARKET:
-        st = "Going to market"; break;
+        return "Going to market";
     case TO_COMMODITY:
-        st = "Selecting commodity"; break;
+        return std::format("Selecting {}", name);
     case TRADING:
-        st = "Trading"; break;
+        return std::format("Selling {} {}\n  sold: {}\n  left: {}", (mSold+mLeft), name, mSold, mLeft);
     }
-    st += std::format("\n  sold: {}\n  left: {}", mSold, mLeft);
-    return st;
+    return {};
 }
 
 TaskBuy::TaskBuy(const TaskTemplate& templ_)
@@ -450,7 +476,7 @@ bool TaskBuy::run() {
     if (mLeft <= 0)
         return true;
 
-    notifyProgress(std_format(_("Start purchasing {} item(s)"), mLeft));
+    notify_progress(MSG_INFO, std_format(_("Start purchasing {} item(s)"), mLeft));
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
@@ -576,25 +602,32 @@ bool TaskBuy::processTradeDialog(bool force) {
     kbd::send("UI_Down", 0, 300);
     if (!commitTradeDialog(mCommodity, "scr-market:mod-buy"))
         return false;
-    mBought += mLeft;
-    mLeft -= mLeft;
+    mBought += lastCommitCount;
+    mLeft -= lastCommitCount;
     return true;
 }
 
+std::string TaskBuy::getTitle() {
+    std::string name = mCommodity ? mCommodity->name : "???";
+    if (status == DONE)
+        return std::format("Bought {} {}", mBought, name);
+    return std_format("Buying  {} {} ", mTotal, name);
+}
+
 std::string TaskBuy::getStatus() {
-    std::string st;
+    std::string name = mCommodity ? mCommodity->name : "???";
     switch (status) {
+    case DONE:
     case READY:
-        st = "----"; break;
+        return {};
     case TO_MARKET:
-        st = "Going to market"; break;
+        return "Going to market";
     case TO_COMMODITY:
-        st = "Selecting commodity"; break;
+        return std::format("Selecting {}", name);
     case TRADING:
-        st = "Trading"; break;
+        return std::format("Buying {} {}\n  bought: {}\n  left: {}", (mBought+mLeft), name, mBought, mLeft);
     }
-    st += std::format("\n  bought: {}\n  left: {}", mBought, mLeft);
-    return st;
+    return {};
 }
 
 TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
@@ -671,11 +704,14 @@ bool TaskBuyConstr::run() {
             continue;
         if (st::shipStats.cargo >= st::shipStats.cargoCapacity)
             break;
-        currentSubStep = st.task;
+        prevSubStep.reset();
+        currSubStep = st.task;
         TRY {
             check_interrupted();
             st.complete = st.task->run();
         } CATCH (const std::exception& ex) {
+            prevSubStep = currSubStep;
+            currSubStep.reset();
             if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
                 if (nlr->failed) {
                     st.failed = true;
@@ -697,6 +733,8 @@ bool TaskBuyConstr::run() {
                 st.complete = true;
             }
         }
+        prevSubStep = currSubStep;
+        currSubStep.reset();
     }
     int boughtTotal = 0;
     bool complete = true;
@@ -720,6 +758,11 @@ TaskConstrUnload::TaskConstrUnload(const TaskTemplate& templ_)
 }
 
 bool TaskConstrUnload::run() {
+    Cfg.marketEvent.reset();
+    if (st::shipStats.cargo <= 0 && (!st::currentCargo || st::currentCargo->count <= 0)) {
+        status = DONE_NOTHING;
+        return true;
+    }
     status = TO_MARKET;
     gotoMarketScreen(false);
 
@@ -732,19 +775,30 @@ bool TaskConstrUnload::run() {
     sleep(1000);
     clickButton("btn-commit");
     sleep(2000);
+    waitMarketEvent(4s);
+    if (Cfg.marketEvent && Cfg.marketEvent->event == "ColonisationContribution") {
+        for (auto& item : Cfg.marketEvent->data["Contributions"].as_array()) {
+            contributed += item.at("Amount",0).as_integer();
+        }
+    }
+    status = DONE;
     return true;
 }
 
 std::string TaskConstrUnload::getStatus() {
     switch (status) {
     case READY:
-        return "----";
+        return {};
     case TO_MARKET:
         return "Going to market";
     case UNLOAD:
         return "Unloading";
+    case DONE:
+        return std::format("Unloaded {} items", contributed);
+    case DONE_NOTHING:
+        return "Nothing to unload";
     }
-    return "----";
+    return {};
 }
 
 

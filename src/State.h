@@ -207,6 +207,8 @@ extern struct Autopilot {
 
     bool isDestDockFocused;
     bool isDestBodyFocused;
+    bool isDestDockTargeted;
+    bool isDestBodyTargeted;
 
     bool badBodyHierarchy;
 

@@ -153,7 +153,7 @@ bool TaskDebugFindAllCommodities::run() {
             passed += 1;
         left -= 1;
         offset += 1;
-        notifyProgress("Test for commodity '"+commodity->name+"' "+(ok?" PASSED\n":" FAILED\n")+
+        notify_progress(MSG_INFO, "Test for commodity '"+commodity->name+"' "+(ok?" PASSED\n":" FAILED\n")+
                        "Progress: "+std::to_string(passed)+" passed and "+std::to_string(failed)+" failed\n"+
                        "left "+std::to_string(left)+" out of "+std::to_string(table.size()-start_index));
         std::erase(checkCommoditiesTable, commodity);
@@ -187,8 +187,9 @@ bool TaskDebugFindAllCommodities::run() {
 
     Sleep(1000);
     if (!checkCommoditiesTable.empty())
-        notifyProgress("Cannot verify all commodities");
-    notifyProgress("All commodities verified");
+        notify_progress(MSG_WARN, "Cannot verify all commodities");
+    else
+        notify_progress(MSG_INFO, "All commodities verified");
     return true;
 }
 
@@ -214,11 +215,11 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
                 kbd::send("UI_Back", 50, 1000);
                 continue;
             }
-            notifyProgress("Not at market?");
+            notify_progress(MSG_ERROR, "Not at market?");
             return false;
         }
         if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", table, verify)) {
-            notifyProgress("Cannot detect commodities in 'lst-goods', aborting");
+            notify_progress(MSG_ERROR, "Cannot detect commodities in 'lst-goods', aborting");
             return false;
         }
         const ClassifiedRect* focusedRow = nullptr;
@@ -255,7 +256,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
             continue;
         }
         if (!focusedCommodity) {
-            notifyProgress("Cannot detect commodities in 'lst-goods', aborting");
+            notify_progress(MSG_ERROR, "Cannot detect commodities in 'lst-goods', aborting");
             return false;
         }
         if (focusedCommodity == currCommodity) {
@@ -267,7 +268,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
                           DetectLevel::Buttons, nullptr, &grayImage);
             const Commodity* dlgCommodity = Master::getLabelCommodity(ai::rEnv, grayImage, "lbl-commodity");
             if (dlgCommodity != currCommodity) {
-                notifyProgress("Dialog commodity mismatch");
+                notify_progress(MSG_WARN, "Dialog commodity mismatch");
                 Sleep(1000);
             }
             {
@@ -320,7 +321,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
             }
             continue;
         }
-        notifyProgress("Cannot detect commodities in 'lst-goods', aborting");
+        notify_progress(MSG_ERROR, "Cannot detect commodities in 'lst-goods', aborting");
         return false;
     }
 }

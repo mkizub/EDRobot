@@ -5,6 +5,7 @@
 #include "../pch.h"
 
 #include "Types.h"
+#include "AutopilotTasks.h"
 #include "../Keyboard.h"
 #include "../ShipStats.h"
 
@@ -12,7 +13,11 @@ using namespace std::chrono_literals;
 
 namespace ai {
 
-namespace {
+namespace trk {
+    struct Axis {
+        KeyBindings bindings;
+        double value;
+    };
     std::thread turnThread;
     std::mutex turnMutex;
     std::condition_variable turnCond;
@@ -23,13 +28,49 @@ namespace {
 
     double requestedPitch;
     bool disableRoll;
+
+    Axis pitchAxis;
+    Axis yawAxis;
+    Axis rollAxis;
 }
+
+using namespace trk;
 
 void turn_loop();
 void turn_step();
+void resetTurnAxis();
+void request_pitch_roll(double pitch, bool without_roll);
+
+CourseLocker::CourseLocker(double pitch, bool without_roll) {
+    request_pitch_roll(pitch, without_roll);
+}
+CourseLocker::~CourseLocker() {
+    disableAutoTurn();
+}
+void CourseLocker::requestPitchRoll(double pitch, bool without_roll) {
+    request_pitch_roll(pitch, without_roll);
+}
+
+
+void setAxisBindings(Axis& axis, const char* name, bool invert) {
+    const KeyBindings& orig = Cfg.getGameKeyBindings(name);
+    axis.bindings = orig;
+    if (!(orig.mode == KeyBindings::Axis || orig.mode == KeyBindings::AxisInv))
+        throw std::domain_error(std::format("Bad bindings for {}, vJoy axis required", name));
+    if (invert) {
+        if (axis.bindings.mode == KeyBindings::Axis)
+            axis.bindings.mode = KeyBindings::AxisInv;
+        else
+            axis.bindings.mode = KeyBindings::Axis;
+    }
+}
 
 void init_ship_tracker() {
     isWorking = true;
+    setAxisBindings(pitchAxis, "PitchAxisRaw", true);
+    setAxisBindings(yawAxis, "YawAxisRaw", false);
+    setAxisBindings(rollAxis, "RollAxisRaw", false);
+    resetTurnAxis();
     turnThread = std::thread(&turn_loop);
 }
 void shutdown_ship_tracker() {
@@ -40,27 +81,21 @@ void shutdown_ship_tracker() {
 }
 
 void resetTurnAxis() {
-    const KeyBindings& bind_pitch = Cfg.getGameKeyBindings("PitchAxisRaw");
-    const KeyBindings& bind_yaw = Cfg.getGameKeyBindings("YawAxisRaw");
-    const KeyBindings& bind_roll = Cfg.getGameKeyBindings("RollAxisRaw");
-    kbd::axis(bind_pitch, 0);
-    kbd::axis(bind_yaw, 0);
-    kbd::axis(bind_roll, 0);
+    kbd::axis(pitchAxis.bindings, 0, true);
+    pitchAxis.value = 0;
+    kbd::axis(yawAxis.bindings, 0, true);
+    yawAxis.value = 0;
+    kbd::axis(rollAxis.bindings, 0, true);
+    rollAxis.value = 0;
 }
 
 void disableAutoTurn() {
-    std::unique_lock<std::mutex> lock(turnMutex);
-    if (!isActive)
-        return;
     isActive = false;
-    turnCond.notify_one();
-    turnCond.wait_for(lock, 1s, []() {
-        return !isWorking || isLoopWaiting;
-    });
     resetTurnAxis();
+    turnCond.notify_one();
 }
 
-void requestPitchRoll(double pitch, bool without_roll) {
+void request_pitch_roll(double pitch, bool without_roll) {
     std::unique_lock<std::mutex> lock(turnMutex);
     if (pitch <= -180)
         requestedPitch = 360 + pitch;
@@ -73,13 +108,13 @@ void requestPitchRoll(double pitch, bool without_roll) {
     turnCond.notify_one();
 }
 
-void set_axis(double speed, double delta, const char* name) {
+void set_axis(double speed, double delta, Axis& axis) {
     double value = 0;
     double seconds = std::abs(delta / speed);
-    if (seconds > 0.05)
-        value = std::copysign(seconds >= 0.5 ? 1.0 : seconds / 0.5, delta);
-    const KeyBindings& bind = Cfg.getGameKeyBindings(name);
-    kbd::axis(bind, value);
+    if (seconds > 0.03125)
+        value = std::copysign(std::min(1.0, seconds), delta);
+    kbd::axis(axis.bindings, value, axis.value == 0);
+    axis.value = value;
 }
 
 void turn_loop() {
@@ -90,22 +125,24 @@ void turn_loop() {
         {
             std::unique_lock<std::mutex> lock(turnMutex);
             isLoopWaiting = true;
-            turnCond.wait_for(lock, isActive ? 500ms : 1min);
+            turnCond.wait_for(lock, isActive ? 650ms : 1min);
             isLoopWaiting = false;
             if (!isWorking)
                 break;
-            if (!isActive)
+            if (!isActive) {
+                resetTurnAxis();
                 continue;
+            }
         }
         try {
             turn_step();
         } catch(const std::exception& ex) {
             kbd::reset_vJoy();
-            if (auto ir = dynamic_cast<const interrupted_error*>(&ex)) {
-                LOG(ERROR) << "Ship tracker interrupted: " << ex.what() << std::endl;
+            if (dynamic_cast<const interrupted_error*>(&ex)) {
+                LOG(ERROR) << "Ship tracker interrupted";
                 isActive = false;
             } else {
-                LOG(ERROR) << "Exception in ship tracker: " << ex.what() << std::endl;
+                LOG(ERROR) << "Exception in ship tracker: " << ex.what();
             }
         }
     }
@@ -117,35 +154,71 @@ void turn_step() {
         resetTurnAxis();
         return;
     }
-    if (st::guiFocus != GuiFocus::None)
-        return;
-
-    CompassInfo compass = st::compass;
-    if (!compass.hemisphere)
-        return;
-
-    double precision = 1.0;
-    if (!compass.has_nav_target)
-        precision = 3.0;
 
     auto shipStats = eddb::getShipStats();
     if (!shipStats) {
         LOG(ERROR) << "Unsupported or unknown ship";
+        resetTurnAxis();
         isActive = false;
         return;
     }
 
-    double delta_pitch = compass.targetPitch - requestedPitch;
-    if (delta_pitch > 180) delta_pitch = 360-delta_pitch;
-    if (delta_pitch < -180) delta_pitch = 360+delta_pitch;
-    double delta_yaw = compass.targetYaw;
+    if (st::guiFocus != GuiFocus::None) {
+        resetTurnAxis();
+        return;
+    }
+
+    if (st::compass.timestamp < std::chrono::utc_clock::now() - 150ms) {
+        std::promise<bool> promise;
+        std::future<bool> future = promise.get_future();
+        Mgr.pushDetectRequest(std::move(promise), { DetectLevel::Screen });
+        auto status = future.wait_for(250ms);
+        if (status != std::future_status::ready) {
+            resetTurnAxis();
+            return;
+        }
+    }
+    CompassInfo compass = st::compass;
+    auto compassElapsed = std::chrono::utc_clock::now() - compass.timestamp;
+    if (!compass.hemisphere || compassElapsed > 500ms) {
+        resetTurnAxis();
+        return;
+    }
 
     int speed_set_to = st::autopilot.speed_set_to.has_value() ? st::autopilot.speed_set_to.value() : 50;
-    double speed_pitch = shipStats->getPitchSpeed(speed_set_to);
-    double speed_yaw = shipStats->getYawSpeed(speed_set_to);
+    double pitchSpeed = shipStats->getPitchSpeed(speed_set_to);
+    double yawSpeed = shipStats->getYawSpeed(speed_set_to);
+    double rollSpeed = shipStats->getRollSpeed(speed_set_to);
 
-    set_axis(speed_pitch, -delta_pitch, "PitchAxisRaw");
-    set_axis(speed_yaw, delta_yaw, "YawAxisRaw");
+    double expectedPitch;
+    double expectedYaw;
+    double expectedRoll;
+    double timeDelta = std::chrono::duration_cast<std::chrono::duration<double>>(compassElapsed).count();
+    {
+        expectedPitch = compass.targetPitch - timeDelta * pitchSpeed * pitchAxis.value;
+        expectedYaw = compass.targetYaw - timeDelta * yawSpeed * yawAxis.value;
+        expectedRoll = compass.targetRoll - timeDelta * rollSpeed * rollAxis.value;
+    }
+
+    double delta_pitch = expectedPitch - requestedPitch;
+    if (delta_pitch > 180) delta_pitch = 360-delta_pitch;
+    if (delta_pitch < -180) delta_pitch = 360+delta_pitch;
+    double delta_yaw = expectedYaw;
+
+    if (!compass.has_nav_target) {
+        if (std::abs(delta_pitch) < 5)
+            delta_pitch = 0;
+        if (std::abs(delta_yaw) < 5)
+            delta_yaw = 0;
+    }
+
+//    LOG(INFO) << std::format("KeepCourse: time delta: {}ms", int(timeDelta*1000));
+//    LOG(INFO) << std::format("KeepCourse: pitch from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
+//                             compass.targetPitch, expectedPitch, pitchSpeed, pitchAxis.value);
+
+    set_axis(pitchSpeed, delta_pitch, pitchAxis);
+    set_axis(yawSpeed, delta_yaw, yawAxis);
+    set_axis(rollSpeed, 0, rollAxis);
 }
 
 } //namespace ai

@@ -216,11 +216,16 @@ double CompassDetector::match(ClassifyEnv &env) {
                     std::clamp((dr.loc.x + dotSize.width * 0.5 - matchRect.width * 0.5) / radiusX, -1.0, +1.0),
                     std::clamp(-(dr.loc.y + dotSize.height * 0.5 - matchRect.height * 0.5) / radiusY, -1.0, +1.0),
             };
+            double normSpherePosition = cv::norm(dotSpherePosition);
+            if (normSpherePosition > 1)
+                dotSpherePosition /= normSpherePosition;
 
             double pitch = std::asin(dotSpherePosition.y) * 90 / M_PI_2;
             double yaw = std::asin(dotSpherePosition.x) * 90 / M_PI_2;
-            double roll = std::atan2(dotSpherePosition.x, dotSpherePosition.y) * 90 / M_PI_2;
             double angle = std::asin(norm(dotSpherePosition)) * 90 / M_PI_2;
+            double roll = 0;
+            if (angle >= 3)
+                roll = std::atan2(dotSpherePosition.x, dotSpherePosition.y) * 90 / M_PI_2;
 
             if (lastHemisphere < 0) {
                 if (pitch > 0)
@@ -234,9 +239,8 @@ double CompassDetector::match(ClassifyEnv &env) {
                 else
                     yaw = -180 - yaw;
             }
-            if (lastHemisphere < 0) {
+            if (lastHemisphere < 0)
                 angle = 180 - angle;
-            }
             lastTgtPitch = pitch;
             lastTgtYaw = yaw;
             lastTgtRoll = roll;
@@ -285,8 +289,12 @@ double CompassDetector::match(ClassifyEnv &env) {
             double d = env.ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
             double yaw = std::atan(lastNavTargetOffset.x / d) * 180 / M_PI;
             double pitch = -std::atan(lastNavTargetOffset.y / d) * 180 / M_PI;
-            double roll = std::atan2(lastNavTargetOffset.x, -lastNavTargetOffset.y) * 90 / M_PI_2;
-            double angle = std::asin(norm(lastNavTargetOffset) / d) * 90 / M_PI_2;
+            double angle = std::asin(std::min(1.0,cv::norm(lastNavTargetOffset) / d)) * 90 / M_PI_2;
+            double roll = 0;
+            if (angle > 1)
+                roll = std::atan2(lastNavTargetOffset.x, -lastNavTargetOffset.y) * 90 / M_PI_2;
+            if (lastHemisphere < 0)
+                angle = 180 - angle;
             LOG(DEBUG) << "Update compass from nav target: "
                 << std::format("pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f} (delta: {:+.1f}; {:+.1f}; {:+.1f})",
                                pitch, yaw, roll, pitch-lastTgtPitch, yaw-lastTgtYaw, roll-lastTgtRoll);
@@ -296,7 +304,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             lastTgtAngle = angle;
         }
 
-        if (navTargetFound && lastTgtAngle <= 10) {
+        if (navTargetFound && lastTgtPitch >= -10 && lastTgtPitch <= +20 && lastTgtYaw >= -25 && lastTgtYaw <= +25) {
             //startTime = std::chrono::high_resolution_clock::now();
 
 //            float cx = env.ReferenceScreenCenter.x;

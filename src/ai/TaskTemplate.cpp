@@ -315,8 +315,8 @@ void initTemplates() {
             },
             {
                 .id = ED_TASK_REPEAT,
-                .name = _("Repeat several steps"),
-                .params = {{Param::Int, "count", 0}, {Param::Int, "duration", 300}},
+                .name = _("Repeat"),
+                .params = {{Param::Int, "count", 0, "", true}, {Param::Int, "duration", 0, "", true}},
                 .factory = [](const TaskTemplate& templ) { return new TaskRepeat(templ); }
             },
             {

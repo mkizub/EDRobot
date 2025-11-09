@@ -669,10 +669,10 @@ bool sendMouseWheel(int count) {
 }
 
 // value -1..1 for full-range axes, or 0..1 for others
-bool axis(const KeyBindings& bindings, double value) {
+bool axis(const KeyBindings& bindings, double value, bool background) {
     if (!(bindings.mode == KeyBindings::Axis || bindings.mode == KeyBindings::AxisInv))
         return false;
-    if (!Mgr.setGameForeground())
+    if (!background && !Mgr.setGameForeground())
         return false;
     const GameKey& gk = bindings.primary;
     if (gk.device != GameKey::vJoy)

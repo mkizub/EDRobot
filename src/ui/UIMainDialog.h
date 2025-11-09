@@ -29,6 +29,7 @@ public:
     NOTIFYICONDATA mNotifyIconData;
     wl::label lbl_curr_task;
     wl::label lbl_task_status;
+    wl::label lbl_status;
     wl::button btn_stop_new;
     wl::button btn_pause_resume;
     wl::button btn_watch;

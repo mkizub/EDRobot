@@ -31,27 +31,21 @@ namespace ai {
 
 Step::Step()
     : parent(ai::curr_step().get())
-{}
-
-Task* Step::getTask() {
-    for (Step* s = this; s; s = (Step*)s->parent) {
-        auto t = dynamic_cast<Task*>(s);
-        if (t)
-            return t;
-    }
-    LOG(ERROR) << "Step needs parent Task";
-    throw std::runtime_error("Step needs parent Task");
+{
 }
 
-
 bool Step::run_sub_step(spStep step) {
-    currentSubStep = step;
+    assert (!currSubStep);
+    assert (!step->currSubStep);
+    currSubStep = step;
     bool ok = false;
     TRY {
         check_interrupted();
-        ok = step->step();
+        ok = step->run();
     } CATCH (const std::exception& ex) {
         kbd::reset_vJoy();
+        prevSubStep = currSubStep;
+        currSubStep.reset();
         if (dynamic_cast<const nonlocal_return*>(&ex)) {
             throw;
         }
@@ -63,7 +57,8 @@ bool Step::run_sub_step(spStep step) {
             return false;
         }
     }
-    currentSubStep.reset();
+    prevSubStep = currSubStep;
+    currSubStep.reset();
     return ok;
 }
 
@@ -72,34 +67,8 @@ Task::Task(const TaskTemplate& templ_)
 {
 }
 
-const char* Task::getName() {
+std::string Task::getTitle() {
     return templ.name.c_str();
-}
-
-bool Task::step() {
-    return safe_run();
-}
-
-bool Task::safe_run() {
-    bool result;
-    TRY {
-        currentSubStep.reset();
-        check_interrupted();
-        result = this->run();
-    } CATCH (const std::exception& ex) {
-        kbd::reset_vJoy();
-        if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
-            result = false;
-        }
-        else if (dynamic_cast<const interrupted_error*>(&ex)) {
-            throw;
-        }
-        else {
-            LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
-            result = false;
-        }
-    }
-    return result;
 }
 
 void sleep(int milliseconds, bool precise) {
@@ -358,66 +327,41 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* co
     ai::detectEDState(level, colorImage, grayImage);
 }
 
-void Step::addMessage(const char* msg) {
-    if (msg)
-        addMessage(std::string(msg));
-}
-void Step::addMessage(const std::string& msg) {
-    std::scoped_lock<std::mutex> lock(messagesMutex);
+bool Step::Message::expired() {
     auto now = std::chrono::steady_clock::now();
-    auto expired = now - std::chrono::seconds(5);
-    while (!messages.empty() && messages.front().timestamp < expired || messages.size() > 4)
+    switch (severity) {
+    default:
+    case MSG_INFO:
+        return timestamp < now + std::chrono::seconds(5);
+    case MSG_WARN:
+        return timestamp < now + std::chrono::seconds(10);
+    case MSG_ERROR:
+        return timestamp < now + std::chrono::seconds(60);
+    }
+}
+
+void Step::addMessage(MessageSeverity severity, const char* msg) {
+    if (msg)
+        addMessage(severity, std::string(msg));
+}
+void Step::addMessage(MessageSeverity severity, const std::string& msg) {
+    std::scoped_lock<std::mutex> lock(messagesMutex);
+    while (!messages.empty() && messages.front().expired() || messages.size() > 4)
         messages.pop_front();
-    messages.emplace_back(now, msg);
+    messages.emplace_back(std::chrono::steady_clock::now(), severity, msg);
 }
 
 std::vector<std::string> Step::getMessages() {
     std::scoped_lock<std::mutex> lock(messagesMutex);
-    auto expired = std::chrono::steady_clock::now() - std::chrono::seconds(60);
     std::vector<std::string> out;
     for (auto& msg : messages)
-        if (msg.timestamp > expired)
+        if (!msg.expired())
             out.push_back(msg.message);
     return out;
 }
 
 std::string Step::getStatus() {
-    return "----";
-}
-
-void Step::notifyProgress(const char* msg) {
-    addMessage(msg);
-    LOG(INFO) << msg;
-    UIManager::showToast(getName(), msg);
-}
-void Step::notifyProgress(const std::string& msg) {
-    addMessage(msg);
-    LOG(INFO) << msg;
-    UIManager::showToast(getName(), msg);
-}
-void Step::throw_trouble(const char* msg) {
-    addMessage(msg);
-    LOG(ERROR) << msg;
-    UIManager::showToast(getName(), msg);
-    throw nonlocal_return(false, msg);
-}
-void Step::throw_trouble(const std::string& msg) {
-    addMessage(msg);
-    LOG(ERROR) << msg;
-    UIManager::showToast(getName(), msg);
-    throw nonlocal_return(false, msg);
-}
-void Step::throw_failed(const char* msg) {
-    addMessage(msg);
-    LOG(ERROR) << msg;
-    UIManager::showToast(getName(), msg);
-    throw nonlocal_return(true, msg);
-}
-void Step::throw_failed(const std::string& msg) {
-    addMessage(msg);
-    LOG(ERROR) << msg;
-    UIManager::showToast(getName(), msg);
-    throw nonlocal_return(true, msg);
+    return {};
 }
 
 
@@ -429,24 +373,28 @@ TaskRepeat::TaskRepeat(const TaskTemplate& templ_)
         if (p.name == "count")
             mTotal = std::get<int64_t>(p.value);
         else if (p.name == "duration")
-            mDuration = std::chrono::minutes(std::get<int64_t>(p.value));
+            mDuration = std::get<int64_t>(p.value);
     }
 }
 
+std::string TaskRepeat::getTitle() {
+    if (mTotal)
+        return std_format("{}: {} of {} ", templ.name, mCompleted+1, mTotal);
+    return std_format("{}: {} ", templ.name, mCompleted+1);
+}
+
 bool TaskRepeat::run() {
-    if (mTotal - mCompleted <= 0)
-        return true;
-    if (mDuration.count() <= 0)
+    if (mTotal && mTotal - mCompleted <= 0)
         return true;
     if (templ.steps.empty())
         return true;
 
-    if (!timer.started())
-        timer = utc_timer(mDuration);
+    if (mDuration && !timer.started())
+        timer = utc_timer(std::chrono::minutes(mDuration));
 
-    if (timer.expired() || mCompleted >= mTotal)
+    if (mDuration && timer.expired() || mTotal && mCompleted >= mTotal)
         return true;
-    if (!currentSubStep && mStepIdx==0) {
+    if (!mStarted) {
         // skip to travel entry if we are docked
         for (int i=0; i < templ.steps.size(); i++) {
             TaskTemplate &step_templ = templ.steps[i];
@@ -463,21 +411,20 @@ bool TaskRepeat::run() {
             }
         }
     }
+    mStarted = true;
 
-    while (!timer.expired() && mTotal > mCompleted) {
+    for (;;) {
+        if (mTotal && mCompleted >= mTotal)
+            return true;
         for (; mStepIdx < templ.steps.size(); mStepIdx++) {
-            if (currentSubStep) {
-                // resume
-                if (!run_sub_step(currentSubStep))
-                    return false;
-            } else {
-                TaskTemplate &step_templ = templ.steps[mStepIdx];
-                auto step = spStep(step_templ.factory(step_templ));
-                if (!step)
-                    throw_failed("Cannot create task for next task_step");
-                if (!run_sub_step(step))
-                    return false;
-            }
+            if (mDuration && timer.expired())
+                return true;
+            TaskTemplate &step_templ = templ.steps[mStepIdx];
+            auto step = spStep(step_templ.factory(step_templ));
+            if (!step)
+                throw_failed("Cannot create task for next task_step");
+            if (!run_sub_step(step))
+                return false;
         }
         mCompleted += 1;
         mStepIdx = 0;

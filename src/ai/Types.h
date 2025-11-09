@@ -102,6 +102,8 @@ public:
     explicit interrupted_error() = default;
 };
 
+enum MessageSeverity { MSG_INFO, MSG_WARN, MSG_ERROR };
+
 void check_interrupted();
 void sleep(int milliseconds, bool precise=false);
 

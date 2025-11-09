@@ -588,6 +588,7 @@ bool Configuration::loadInputBindings() {
             parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");               // vJoy_4
             parseKeyBindings(rootNode, mKeyBindingsMap, "ToggleCargoScoop");
             parseKeyBindings(rootNode, mKeyBindingsMap, "DeployHardpointToggle");
+            parseKeyBindings(rootNode, mKeyBindingsMap, "LandingGearToggle");
             parseKeyBindings(rootNode, mKeyBindingsMap, "TargetNextRouteSystem");       // vJoy_5
             parseKeyBindings(rootNode, mKeyBindingsMap, "MouseReset");                  // vJoy_6
             parseKeyBindings(rootNode, mKeyBindingsMap, "YawAxisRaw");
