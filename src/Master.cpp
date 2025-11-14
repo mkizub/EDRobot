@@ -1311,7 +1311,7 @@ bool Master::detectEDState(DetectLevel level) {
             }
         }
         // detect compass
-        if (!mLastUIState.autopilot && !st::destination.name.empty()) {
+        if (!st::destination.name.empty()) {
             mCompassDetector->match(mClassifyEnv);
             CompassInfo compass {};
             compass.timestamp = timestamp;

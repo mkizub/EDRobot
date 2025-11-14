@@ -49,8 +49,11 @@ class TaskSellAll final : public BaseMarketTask {
 public:
     TaskSellAll(const TaskTemplate& templ);
     bool run() final;
+    std::string getTitle() override;
 private:
     int mChunk;
+    int mSold;
+    std::string mExcept;
     struct SubTask {
         Commodity* commodity {};
         std::shared_ptr<TaskSell> task;

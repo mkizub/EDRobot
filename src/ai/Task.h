@@ -33,7 +33,7 @@ public:
         std::chrono::time_point<std::chrono::steady_clock> timestamp;
         MessageSeverity severity;
         std::string message;
-        bool expired();
+        bool expired() const;
     };
     std::deque<Message> messages;
     std::mutex messagesMutex;
@@ -54,7 +54,8 @@ public:
     bool executeWait(const json5pp::value& step, const json5pp::value& args);
     void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
 
-    short missCount { 0 };
+    int missCount {};
+    bool failed {};
 };
 
 class TaskRepeat : public Task {

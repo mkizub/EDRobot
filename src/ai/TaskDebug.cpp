@@ -586,8 +586,8 @@ bool TaskDebugFindAllNavPoints::checkOcrError(const ClassifiedRect& cr) {
     StationRowInfo rowInfo {};
     if (!parseRowInfo(wide, rowInfo))
         return true;
-    nav::NavType* nav_type = nullptr;
-    for (auto nt : nav::ALL_NAV_TYPES) {
+    gal::NavType* nav_type = nullptr;
+    for (auto nt : gal::ALL_NAV_TYPES) {
         if (nt->charOCR == rowInfo.type) {
             nav_type = nt;
             break;
@@ -772,7 +772,7 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
 bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
     std::string lbl_text;
     std::string lbl_anchor;
-    const nav::NavType* navType = nullptr;
+    const gal::NavType* navType = nullptr;
     cv::Mat grayImage;
     kbd::send("UI_Select", 0, 1500);
     ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
@@ -800,8 +800,8 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
     return true;
 }
 
-const nav::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& lbl_name, const std::string& lbl_anchor) const {
-    for (auto nt : nav::ALL_NAV_TYPES) {
+const gal::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& lbl_name, const std::string& lbl_anchor) const {
+    for (auto nt : gal::ALL_NAV_TYPES) {
         if (contains(nt->navIcons, lbl_anchor)) {
             LOG(INFO) << "Guessed type from label '" << lbl_anchor << "'";
             return nt;
@@ -810,75 +810,87 @@ const nav::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& l
     return nullptr;
 }
 
-int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const nav::NavType* nav_type) const {
+int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::NavType* nav_type) const {
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     // find best station name
     std::string best_name;
     double best_rate = 0;
     FuzzyMatch fm;
     std::wstring text_ocr = fm.toOCR(toUtf16(text));
-    POIType poiType = nav_type ? nav_type->poiType : POIType::None;
-//    if (poiType == POIType::Station || poiType == POIType::FleetCarrier || poiType == POIType::Place || poiType == POIType::Signal) {
-//        if (ss && !ss->fssSignalDiscovered.empty()) {
-//            for (auto &it: ss->fssSignalDiscovered) {
-//                std::string name = it.first;
-//                if (it.second->data.contains("SignalName_Localised"))
-//                    name = it.second->data.at("SignalName_Localised").as_string();
-//                if (it.second->data.contains("SignalType") &&
-//                    !contains(nav_type->typeAliases, it.second->data.at("SignalType").as_string()))
-//                    continue;
-//                std::wstring name_ocr = fm.toOCR(toUtf16(name));
-//                double rate = fm.ratio(text_ocr, name_ocr);
-//                if (rate > best_rate) {
-//                    best_rate = rate;
-//                    best_name = name;
-//                    if (best_rate >= 100) {
-//                        text = best_name;
-//                        LOG(INFO) << "Guessed station name: '" << text << "' with conf rate: " << best_rate;
-//                        return best_rate;
-//                    }
-//                }
-//            }
-//        }
-//    }
-    if ((poiType == POIType::Star || poiType == POIType::Planet) && spanishSystemInfo["bodies"].is_array()) {
-        for (auto &js: spanishSystemInfo.at("bodies").as_array()) {
-            if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
-                continue;
-            std::string name = js.at("name").as_string();
-            std::wstring name_ocr = fm.toOCR(toUtf16(name));
-            double rate = fm.ratio(text_ocr, name_ocr);
-            if (rate > best_rate) {
-                best_rate = rate;
-                best_name = name;
+    TypeNav typeNav = nav_type ? nav_type->type : TypeNav::Other;
+    switch (typeNav) {
+    case TypeNav::Other:
+        break;
+    case TypeNav::Body:
+    case TypeNav::Star:
+    case TypeNav::Planet:
+    case TypeNav::Barycenter:
+    case TypeNav::Ring:
+    case TypeNav::AsteroidCluster:
+        if (spanishSystemInfo["bodies"].is_array()) {
+            for (auto &js: spanishSystemInfo.at("bodies").as_array()) {
+                if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
+                    continue;
+                std::string name = js.at("name").as_string();
+                std::wstring name_ocr = fm.toOCR(toUtf16(name));
+                double rate = fm.ratio(text_ocr, name_ocr);
+                if (rate > best_rate) {
+                    best_rate = rate;
+                    best_name = name;
+                }
             }
         }
-    }
-    else if ((poiType == POIType::Station || poiType == POIType::Port || poiType == POIType::Place || poiType == POIType::FleetCarrier) && spanishSystemInfo["stations"].is_array()) {
-        for (auto &js: spanishSystemInfo.at("stations").as_array()) {
-            if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
-                continue;
-            std::string name = js.at("name").as_string();
-            while (name.ends_with("+"))
-                name = trim(name.substr(0, name.size() - 1));
-            std::wstring name_ocr = fm.toOCR(toUtf16(name));
-            double rate = fm.ratio(text_ocr, name_ocr);
-            if (rate > best_rate) {
-                best_rate = rate;
-                best_name = name;
+        break;
+    case TypeNav::StarSystem:
+        if (spanishNearSystems.is_array()) {
+            for (auto &js: spanishNearSystems.as_array()) {
+                std::string name = js.at("name").as_string();
+                std::wstring name_ocr = fm.toOCR(toUtf16(name));
+                double rate = fm.ratio(text_ocr, name_ocr);
+                if (rate > best_rate) {
+                    best_rate = rate;
+                    best_name = name;
+                }
             }
         }
-    }
-    else if (poiType == POIType::System && spanishNearSystems.is_array()) {
-        for (auto &js: spanishNearSystems.as_array()) {
-            std::string name = js.at("name").as_string();
-            std::wstring name_ocr = fm.toOCR(toUtf16(name));
-            double rate = fm.ratio(text_ocr, name_ocr);
-            if (rate > best_rate) {
-                best_rate = rate;
-                best_name = name;
+        break;
+    case TypeNav::SpaceStation:
+    case TypeNav::Orbis:
+    case TypeNav::Ocellus:
+    case TypeNav::Coriolis:
+    case TypeNav::AsteroidBase:
+    case TypeNav::SpaceInstallation:
+    case TypeNav::SpaceConstrDepot:
+    case TypeNav::Megaship:
+    case TypeNav::StationMegaShip:
+    case TypeNav::FleetCarrier:
+    case TypeNav::SquadronCarrier:
+    case TypeNav::StrongholdCarrier:
+    case TypeNav::ColonisationShip:
+    case TypeNav::TrailblazerDream:
+    case TypeNav::PlanetaryThing:
+    case TypeNav::PlanetaryStation:
+    case TypeNav::PlanetaryPort:
+    case TypeNav::EngineerPort:
+    case TypeNav::Settlement:
+    case TypeNav::PlanetaryInstallation:
+    case TypeNav::PlanetaryConstrDepot:
+        if (spanishSystemInfo["stations"].is_array()) {
+            for (auto &js: spanishSystemInfo.at("stations").as_array()) {
+                if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
+                    continue;
+                std::string name = js.at("name").as_string();
+                while (name.ends_with("+"))
+                    name = trim(name.substr(0, name.size() - 1));
+                std::wstring name_ocr = fm.toOCR(toUtf16(name));
+                double rate = fm.ratio(text_ocr, name_ocr);
+                if (rate > best_rate) {
+                    best_rate = rate;
+                    best_name = name;
+                }
             }
         }
+        break;
     }
     if (best_name.empty())
         best_rate = 0;
@@ -892,7 +904,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const nav::Na
 }
 
 void TaskDebugFindAllNavPoints::saveOcrNavigationLbl(const cv::Mat &grayImage, const ClassifiedRect& cr,
-                                                     int offset, std::string& lbl_text, const nav::NavType* navType)
+                                                     int offset, std::string& lbl_text, const gal::NavType* navType)
 {
     lbl_text.clear();
     offset += offset_append;
@@ -959,9 +971,9 @@ bool TaskDebugFindAllNavPoints::parseRowInfo(std::wstring text, StationRowInfo& 
     ch = text.back();
     wchar_t ch1 = text[text.size()-2];
     wchar_t ch2 = text[text.size()-3];
-    if (ch == nav::LOCATION.charOCR ||
-        (ch1 == nav::SHIELD1.charOCR || ch1 == nav::SHIELD2.charOCR || ch1 == nav::SHIELD3.charOCR) ||
-        (ch1 == L' ' && (ch2 == nav::SHIELD1.charOCR || ch2 == nav::SHIELD2.charOCR || ch2 == nav::SHIELD3.charOCR))
+    if (ch == gal::LOCATION_MARK ||
+        (ch1 == gal::SHIELD1_MARK || ch1 == gal::SHIELD2_MARK || ch1 == gal::SHIELD3_MARK) ||
+        (ch1 == L' ' && (ch2 == gal::SHIELD1_MARK || ch2 == gal::SHIELD2_MARK || ch2 == gal::SHIELD3_MARK))
     ) {
         rowInfo.isLocation = true;
         text.pop_back();
@@ -970,7 +982,7 @@ bool TaskDebugFindAllNavPoints::parseRowInfo(std::wstring text, StationRowInfo& 
             return false;
     }
     ch = text.back();
-    if (ch == nav::SHIELD1.charOCR || ch == nav::SHIELD2.charOCR || ch == nav::SHIELD3.charOCR) {
+    if (ch == gal::SHIELD1_MARK || ch == gal::SHIELD2_MARK || ch == gal::SHIELD3_MARK) {
         rowInfo.danger = ch;
         text.pop_back();
         text = trim(text);
@@ -999,7 +1011,7 @@ bool TaskDebugFindAllNavPoints::parseRowInfo(std::wstring text, StationRowInfo& 
 }
 
 void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, const ClassifiedRect& cr, int offset,
-                                                     const std::string& lbl_text, const nav::NavType* navType)
+                                                     const std::string& lbl_text, const gal::NavType* navType)
 {
     offset += offset_append;
 
@@ -1054,7 +1066,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, c
     if (rowInfo.danger)
         nameOCR += rowInfo.danger;
     if (rowInfo.isLocation)
-        nameOCR += nav::LOCATION.charOCR;
+        nameOCR += gal::LOCATION_MARK;
     if (navType)
         nameOCR = navType->charOCR + (L" " + nameOCR);
 

@@ -202,9 +202,11 @@ void UIMainDialog::update_curr_task() {
             btn_pause_resume.set_text(L"Resume");
     }
     bool completed = false;
+    bool failed = false;
     if (!task) {
         task = ai::last_task();
         completed = true;
+        failed = task && task->failed;
     }
     std::string status;
     int indent = 0;
@@ -225,7 +227,7 @@ void UIMainDialog::update_curr_task() {
                 status += "\n";
             }
         }
-        if (!step->currSubStep) {
+        if (!step->currSubStep || failed) {
             for (auto& msg : step->getMessages()) {
                 if (msg.empty())
                     continue;
@@ -241,6 +243,8 @@ void UIMainDialog::update_curr_task() {
                 status += "\n";
             }
         }
+        if (failed)
+            break;
     }
     lbl_task_status.set_text(toUtf16(status));
 
@@ -248,7 +252,10 @@ void UIMainDialog::update_curr_task() {
         lbl_status.set_text(L"");
     }
     else if (completed) {
-        lbl_status.set_text(L"Finished");
+        if (task->failed)
+            lbl_status.set_text(L"Finished (failed)");
+        else
+            lbl_status.set_text(L"Finished");
     }
     else if (!ai::active()) {
         lbl_status.set_text(L"Paused (inactive)");

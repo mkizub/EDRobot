@@ -7,14 +7,11 @@
 #ifndef EDROBOT_STATE_H
 #define EDROBOT_STATE_H
 
+#include "Types.h"
+
 struct Market;
 struct ShipCargo;
 struct NavRoute;
-
-namespace gal {
-class Body;
-class Site;
-}
 
 namespace st {
 
@@ -202,8 +199,8 @@ extern struct Autopilot {
     dist_t distanceToBody; // distance to the body
     dist_t distanceToDock; // distance to the dock
 
-    std::shared_ptr<gal::Body> destBody;
-    std::shared_ptr<gal::Site> destDock;
+    gal::spEntity destBody;
+    gal::spEntity destDock;
 
     bool isDestDockFocused;
     bool isDestBodyFocused;
@@ -212,8 +209,8 @@ extern struct Autopilot {
 
     bool badBodyHierarchy;
 
-    void setDestBody(std::shared_ptr<gal::Body> body);
-    void setDestDock(std::shared_ptr<gal::Site> dock);
+    void setDestBody(gal::spEntity body);
+    void setDestDock(gal::spEntity dock);
 } autopilot;
 
 

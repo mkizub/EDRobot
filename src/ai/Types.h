@@ -30,23 +30,6 @@ enum class ViewMode {
     Norm, Left, Right, Down, Chat, Dock, Station, GalMap, SysMap
 };
 
-enum class POIType {
-    Star, // star in current star system
-    AsteroidBelt,
-    Planet, // planets and moons
-    Port, // ports, settlements
-    Station,
-    FleetCarrier,
-    Place, // interesting places
-    Signal, // signal source
-    System, // system to jump to
-    Ship, // player/NPC ship
-    Equipment, // turret, power plant, etc.
-    Asteroid,
-    Salvage,
-    None,
-};
-
 struct Param {
     enum Type { Bool, Enum, Int, Real, String, System, POI, Dock, Commodity };
 
@@ -102,55 +85,13 @@ public:
     explicit interrupted_error() = default;
 };
 
-enum MessageSeverity { MSG_INFO, MSG_WARN, MSG_ERROR };
+enum MessageSeverity { MSG_INFO, MSG_WARN, MSG_ERROR, MSG_FATAL };
 
 void check_interrupted();
 void sleep(int milliseconds, bool precise=false);
 
 } // namespace ai
 
-
-namespace nav {
-
-struct NavType {
-    wchar_t charOCR;
-    ai::POIType poiType;
-    std::vector<std::string> navIcons;
-    std::vector<std::string> typeAliases;
-};
-
-extern NavType STAR;
-extern NavType BEACON;
-extern NavType TOURIST_BEACON;
-extern NavType BODY;
-extern NavType LAND;
-extern NavType BELT;
-extern NavType ORBIS;
-extern NavType CORIOLIS;
-extern NavType MINER_BASE;
-extern NavType SPACE_OUTPOST;
-extern NavType SPACE_INSTALLATION;
-extern NavType PLANETARY_PORT;
-extern NavType PLANETARY_INSTALLATION;
-extern NavType ODYSSEY_SETTLEMENT;
-extern NavType FLEET_CARRIER;
-extern NavType SQUADRON_CARRIER;
-extern NavType STATION_MEGASHIP;
-extern NavType MEGASHIP;
-extern NavType ENGINEER;
-extern NavType SIGNAL;
-extern NavType WAR_ZONE;
-extern NavType RES_SITE;
-extern NavType STAR_SYSTEM;
-extern NavType ERROR;
-extern NavType LOCATION;
-extern NavType SHIELD1;
-extern NavType SHIELD2;
-extern NavType SHIELD3;
-
-extern std::vector<NavType*> ALL_NAV_TYPES;
-
-} // namespace nav
 
 
 #endif //EDROBOT_AI_TYPES_H

@@ -12,15 +12,6 @@
 #include "Task.h"
 #include "NavList.h"
 
-namespace gal {
-class Item;
-class Body;
-class Site;
-typedef std::shared_ptr<Item> spItem;
-typedef std::shared_ptr<Body> spBody;
-typedef std::shared_ptr<Site> spSite;
-}
-
 namespace ai {
 
 bool setSpeed(int percents, bool force=false);
@@ -50,7 +41,7 @@ public:
     bool orientRollByTarget(double roll, double precision, int max_time_ms=5000);
     void initNavFilter();
 
-    nav::NavList nl;
+    NavList nl;
 };
 
 class BaseAutopilotStep : public Step {
@@ -65,9 +56,12 @@ public:
     TaskDebugAutopilot(const TaskTemplate& templ);
     bool run() final;
 
+    bool accelForward(double seconds);
+    bool accelReverse(double seconds);
+
     std::string test;
     std::string target;
-    double orient_precision {0.5};
+    double value {1};
 };
 
 
@@ -95,7 +89,7 @@ public:
     std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, LOCK_BODY, LOCK_TARGET, ORIENT, MASSLOCKED, PREPARE, FSD_COOLDOWN, ENTER_CRUISE, DONE
+        READY, LOCK_BODY, LOCK_TARGET, ORIENT, MASSLOCKED, PREPARE, FSD_COOLDOWN, ENTER_CRUISE, FLY_AWAY, DONE
     } status {READY};
 };
 
@@ -121,7 +115,7 @@ public:
     std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, LOCK_BODY, ORIENT, MASSLOCKED, PREPARE, FSD_COOLDOWN, ENTER_CRUISE, LEAVING_BODY, DONE
+        READY, LOCK_BODY, ORIENT, MASSLOCKED, PREPARE, FSD_COOLDOWN, ENTER_CRUISE, LEAVING_BODY, FLY_AWAY, DONE
     } status {READY};
 
     std::string fromBody;
@@ -131,6 +125,7 @@ class BaseDockStep : public BaseAutopilotStep {
 public:
     BaseDockStep() = default;
 
+    bool canDock();
     spGameEvent requestDockingPermit();
     bool autopilot();
 
@@ -174,36 +169,32 @@ public:
 
 class NavDockSelect : public BaseAutopilotStep {
 public:
-    NavDockSelect(gal::spSite dock={}) : dock(dock) {}
+    NavDockSelect(gal::spEntity dock={}) : dock(dock) {}
     bool run() override;
     std::string getTitle() override;
 
     enum {
         READY, SELECTING, FAILED, DONE
     } status {READY};
-    gal::spSite dock;
+    gal::spEntity dock;
 };
 
 class NavBodySelect : public BaseAutopilotStep {
 public:
-    NavBodySelect(gal::spBody body={}) : body(body) {}
+    NavBodySelect(gal::spEntity body={}) : body(body) {}
     std::string getTitle() override;
     bool run() override;
 
     enum {
         READY, SELECTING, FAILED, DONE
     } status {READY};
-    gal::spBody body;
+    gal::spEntity body;
 };
 
-class CruiseToDistStep : public BaseAutopilotStep {
+class BaseCruiseStep : public BaseAutopilotStep {
 public:
-    CruiseToDistStep(dist_t min_dist, dist_t max_dist, std::optional<bool> away={})
-            : minDist(min_dist)
-            , maxDist(max_dist)
-            , flyAway(away.has_value() && away.value())
-    {}
-    bool run() override;
+    BaseCruiseStep() = default;
+
     bool gotDistance(dist_t dist);
 
     std::string getTitle() override;
@@ -213,20 +204,38 @@ public:
     } status {READY};
 
     std::string destName;
-    dist_t minDist;
-    dist_t maxDist;
+    dist_t requiredDist;
     dist_t currentDist;
     bool useNavList {};
     bool flyAway {};
     int failCount {};
 };
 
+
+class CruiseToSignal : public BaseCruiseStep {
+public:
+    CruiseToSignal(dist_t req_dist) {
+        requiredDist = req_dist;
+    }
+    bool run() override;
+};
+
+class CruiseToDistStep : public BaseCruiseStep {
+public:
+    CruiseToDistStep(dist_t min_dist, dist_t max_dist)
+            : minDist(min_dist)
+            , maxDist(max_dist)
+    {}
+    bool run() override;
+
+    dist_t minDist;
+    dist_t maxDist;
+};
+
 class DiveUnderPlanetStep : public BaseAutopilotStep {
 public:
     DiveUnderPlanetStep() = default;
     bool run() override;
-    bool get_dist_body();
-    bool get_dist_dock();
     bool orient_roll(float requiredRoll);
     bool orient_pitch(int pitchGoal);
     bool fly_dive(int pitchGoal);

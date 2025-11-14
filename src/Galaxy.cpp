@@ -5,11 +5,13 @@
 #include "pch.h"
 
 #include "Galaxy.h"
+#include "ai/Types.h"
 
 #include <curl_easy.h>
 
 namespace gal {
 
+static std::unordered_map<int64_t,spMarket > gMarketById;
 static std::unordered_map<std::string,spStarSystem> gSystemsByNameCache;
 static spStarSystem gCurrentStarSystem;
 
@@ -18,9 +20,9 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
     return size * nmemb;
 }
 
-json5pp::value exportMarketData(Market* market) {
-    if (!market || market->items.empty())
-        return {};
+void saveMarket(Market* market) {
+    if (!market || !market->marketId)
+        return;
 
     json5pp::value jm = json5pp::object({
         {"timestamp", formatTimestampString(market->timestamp)},
@@ -49,12 +51,25 @@ json5pp::value exportMarketData(Market* market) {
         if (ml.demand)
             jo.emplace("Demand", ml.demand);
     }
-    return jm;
+
+    std::filesystem::path fp("cache/markets/"+std::to_string(market->marketId)+".json");
+    std::ofstream ofs(fp);
+    ofs << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jm;
+    ofs.close();
 }
 
-spMarket importMarketData(const json5pp::value& jm) {
-    if (jm.is_null())
+spMarket loadMarket(int64_t marketId) {
+    if (!marketId)
         return {};
+
+    json5pp::value jm;
+    try {
+        std::filesystem::path fp("cache/markets/"+std::to_string(marketId)+".json");
+        std::ifstream ifs(fp);
+        jm = json5pp::parse5(ifs);
+    } catch (...) {
+        return {};
+    }
 
     spMarket market = std::make_shared<Market>();
     if (!parseTimestamp(jm["timestamp"], market->timestamp))
@@ -82,6 +97,7 @@ spMarket importMarketData(const json5pp::value& jm) {
             ml.isProducer = it["Producer"].as_boolean();
         market->items.emplace(commodity, ml);
     }
+
     return market;
 }
 
@@ -129,6 +145,36 @@ static json5pp::value curlRequestEDSM(std::string url, std::string systemName) {
     return result;
 }
 
+static void parseUpdated(spEntity& entity, const json5pp::value& j) {
+    auto& upd = j["updateTime"];
+    if (upd.is_integer()) {
+        std::chrono::seconds sec_duration(upd.as_int64());
+        std::chrono::sys_time<std::chrono::seconds> sys_time(sec_duration);
+        entity->updated = std::chrono::utc_clock::from_sys(sys_time);
+    }
+    else if (upd.is_string()) {
+        parseTimestampString(upd.as_string(), entity->updated);
+    }
+}
+static void parseBodyId(StarSystem* ss, spEntity& entity, const json5pp::value& j) {
+    if (j.at("bodyId").is_integer())
+        entity->bodyId = j.at("bodyId").as_integer();
+    if (j["parentBodyId"].is_integer())
+        entity->parentBodyId = j["parentBodyId"].as_integer();
+    else if (j["parents"].is_array() && !j["parents"].as_array().empty()) {
+        auto& jp = j["parents"][0].as_object();
+        entity->parentBodyId = jp.begin()->second.as_integer();
+    }
+    else if (j["body"].is_object() && j["body"]["name"].is_string()) {
+        std::string body = j["body"]["name"].as_string();
+        for (auto& b : ss->bodies) {
+            if (b->name == body && b->bodyId >= 0) {
+                entity->parentBodyId = b->bodyId;
+                break;
+            }
+        }
+    }
+}
 static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
     StarSystem* ss = new StarSystem();
     ss->systemName = jsystem["name"].as_string();
@@ -141,57 +187,29 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
     ss->starPos.z = jsystem["coords"]["z"].as_number();
 
     for (auto& jb : jsystem["bodies"].as_array()) {
-        spBody body;
-        TypeNav typeNav = TypeNav::Other;
-        if (jb["typeNav"]) {
-            typeNav = enum_cast<TypeNav>(jb["typeNav"].as_string()).value();
-        } else {
-            std::string type;
-            if (jb["type"].is_string())
-                type = jb["type"].as_string();
-            if (type == "Star")
-                typeNav = TypeNav::Star;
-            else if (type == "Planet")
-                typeNav = TypeNav::Planet;
+        spEntity body(new Entity);
+        if (jb["type"].is_string()) {
+            std::string type = jb["type"].as_string();
+            if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value())
+                body->type = typeNav.value();
         }
-        if (typeNav == TypeNav::Star)
-            body.reset(new Star());
-        else if (typeNav == TypeNav::Planet)
-            body.reset(new Planet());
-        else
-            body.reset(new Body());
-        body->typeNav = typeNav;
+        parseUpdated(body, jb);
+        parseBodyId(ss, body, jb);
 
-        body->name = jb["name"].as_string();
-        if (jb.at("bodyId").is_integer())
-            body->bodyId = jb.at("bodyId").as_integer();
-        body->parentBodyId = -1;
-        if (jb["distance"].is_number())
-            body->distance = dist_t(dist_t::LS, jb["distance"].as_number());
-        else if (jb["distanceToArrival"].is_number())
-            body->distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_number());
-        body->radius = 0;
-        if (body->typeNav == TypeNav::Star) {
-            Star* star = (Star*) body.get();
-            star->radius = jb["solarRadius"].as_number() * 6.957e5; // KM
+        body->setName(jb["name"].as_string());
+        if (jb["distanceToArrival"].is_number())
+            body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_number());
+        if (body->type == TypeNav::Star) {
+            body->radius = jb["solarRadius"].as_number() * 6.957e5; // KM
             if (jb["spectralClass"].is_string())
-                star->spectralClass = jb["spectralClass"].as_string();
+                body->code = jb["spectralClass"].as_string();
             if (jb["isMainStar"].is_boolean())
-                star->isMainStar = jb["isMainStar"].as_boolean();
-            if (jb["isScoopable"].is_boolean())
-                star->isScoopable = jb["isScoopable"].as_boolean();
+                body->special = jb["isMainStar"].as_boolean();
         }
-        else if (body->typeNav == TypeNav::Planet) {
-            Planet* planet = (Planet*) body.get();
-            planet->radius = jb["radius"].as_number(); // KM
+        else if (body->type == TypeNav::Planet) {
+            body->radius = jb["radius"].as_number(); // KM
             if (jb["isLandable"].is_boolean())
-                planet->isLandable = jb["isLandable"].as_boolean();
-        }
-        if (jb["parentBodyId"].is_integer())
-            body->parentBodyId = jb["parentBodyId"].as_integer();
-        else if (jb["parents"].is_array() && !jb["parents"].as_array().empty()) {
-            auto& jp = jb["parents"][0].as_object();
-            body->parentBodyId = jp.begin()->second.as_integer();
+                body->special = jb["isLandable"].as_boolean();
         }
         ss->bodies.push_back(body);
     }
@@ -199,103 +217,41 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
     //std::string lng = toLower(std::string(enum_name<Lang>(Cfg.lng)));
     for (auto& jb : jsystem["stations"].as_array()) {
         std::string name = jb["name"].as_string();
-        TypeNav typeNav = TypeNav::Other;
-        TypeSite typeSite = TypeSite::Other;
-        if (jb["typeNav"]) {
-            typeNav = enum_cast<TypeNav>(jb["typeNav"].as_string()).value();
-            if (jb["typeSite"])
-                typeSite = enum_cast<TypeSite>(jb["typeSite"].as_string()).value();
+        spEntity site(new Entity);
+        std::string type;
+        if (jb["type"].is_string())
+             type = jb["type"].as_string();
+        if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value()) {
+            site->type = typeNav.value();
         } else {
-            std::string type;
-            if (jb["type"].is_string())
-                type = jb["type"].as_string();
-            if (type == "Drake-Class Carrier" || type == "Fleet Carrier") {
-                typeNav = TypeNav::Carrier;
-                typeSite = TypeSite::FleetCarrier;
-            } else if (type == "Squadron Carrier") {
-                typeNav = TypeNav::Carrier;
-                typeSite = TypeSite::SquadronCarrier;
-            } else if (type == "Orbis" || type == "Orbis Starport") {
-                typeNav = TypeNav::SpacePort;
-                typeSite = TypeSite::Orbis;
-            } else if (type == "Ocellus" || type == "Ocellus Starport") {
-                typeNav = TypeNav::SpacePort;
-                typeSite = TypeSite::Ocellus;
-            } else if (type == "Coriolis" || type == "Coriolis Starport") {
-                typeNav = TypeNav::SpacePort;
-                typeSite = TypeSite::Coriolis;
-            } else if (type == "Outpost" || type == "Outpost Starport") {
-                typeNav = TypeNav::SpacePort;
-                typeSite = TypeSite::SpaceOutpost;
-            } else if (type == "SpaceConstr" || type == "SpaceConstructionDepot") {
-                typeNav = TypeNav::SpaceConstr;
-                typeSite = TypeSite::SpaceConstr;
-            } else if (type == "PlanetConstr" || type == "PlanetaryConstructionDepot") {
-                typeNav = TypeNav::PlanetConstr;
-                typeSite = TypeSite::PlanetConstr;
+            for (auto nt: ALL_NAV_TYPES) {
+                if (nt->match_name(name)) {
+                    site->type = nt->type;
+                    break;
+                }
             }
-            else if (/*type == "Planetary Outpost" &&*/ name == "Stronghold Carrier" || name == "Носитель-база") {
-                typeNav = TypeNav::MegashipDock;
-                typeSite = TypeSite::StrongholdCarrier;
-            } else if (/*type == "Planetary Outpost" &&*/ name == "Trailblazer Dream") {
-                typeNav = TypeNav::MegashipDock;
-                typeSite = TypeSite::TrailblazerDream;
-            } else if (/*type == "Planetary Outpost" &&*/ name.starts_with("$EXT_PANEL_ColonisationShip;")) {
-                typeNav = TypeNav::MegashipDock;
-                typeSite = TypeSite::ColonisationShip;
-            } else if (type == "Planetary Outpost") {
-                typeNav = TypeNav::PlanetInst;
-                typeSite = TypeSite::Other;
-            } else if (type == "Settlement" || type == "Odyssey Settlement") {
-                typeNav = TypeNav::PlanetPort;
-                typeSite = TypeSite::Settlement;
+            if (site->type == TypeNav::Other) {
+                TypeNav tp = TypeNav::Other;
+                for (auto nt: ALL_NAV_TYPES) {
+                    if (nt->match_type(type)) {
+                        site->type = nt->type;
+                        break;
+                    }
+                }
             }
+            //if (typeNav == TypeNav::PlanetaryPort) {
+            //    if (jb["government"].is_string() && jb["government"].as_string() == "$government_Engineer;")
+            //        site->type = TypeNav::EngineerPort;
+            //}
         }
-        spSite site;
-        site.reset(new Site());
-        site->typeNav = typeNav;
-        site->typeSite = typeSite;
-        if (auto& upd = jb.at("updated")) {
-            if (upd.is_integer()) {
-                std::chrono::seconds sec_duration(jb.at("updated").as_int64());
-                std::chrono::sys_time<std::chrono::seconds> sys_time(sec_duration);
-                site->updated = std::chrono::utc_clock::from_sys(sys_time);
-            }
-            else if (upd.is_string()) {
-                parseTimestampString(upd.as_string(), site->updated);
-            }
-        }
-        if (jb.at("bodyId").is_integer())
-            site->bodyId = jb.at("bodyId").as_integer();
-        site->name = name;
-        if (typeSite == TypeSite::StrongholdCarrier && st::lng == Lang::RU)
-            site->nloc = "Носитель-база";
-        if (typeSite == TypeSite::NavBeacon && st::lng == Lang::RU)
-            site->nloc = "Нав. маяк";
-        site->parentBodyId = -1;
+        parseUpdated(site, jb);
+        parseBodyId(ss, site, jb);
+        site->setName(name);
+
         if (jb["marketId"].is_integer())
             site->marketId = jb.at("marketId",0).as_int64();
         else if (jb["id64"].is_integer())
             site->marketId = jb.at("id64",0).as_int64();
-        if (jb["marketData"].is_object())
-            site->marketData = importMarketData(jb["marketData"]);
-        //if (jb["nloc"] && jb["nloc"][lng])
-        //    st->nloc = jb["nloc"][lng];
-        if (jb["parentBodyId"].is_integer())
-            site->parentBodyId = jb["parentBodyId"].as_integer();
-        else if (jb["parents"].is_array() && !jb["parents"].as_array().empty()) {
-            auto& jp = jb["parents"][0].as_object();
-            site->parentBodyId = jp.begin()->second.as_integer();
-        }
-        else if (jb["body"].is_object() && jb["body"]["name"].is_string()) {
-            std::string body = jb["body"]["name"].as_string();
-            for (auto& b : ss->bodies) {
-                if (b->name == body && b->bodyId.has_value()) {
-                    site->parentBodyId = b->bodyId.value();
-                    break;
-                }
-            }
-        }
         ss->stations.push_back(site);
     }
 
@@ -310,60 +266,61 @@ void saveStarSystem(StarSystem* ss) {
     json5pp::value jstations = json5pp::array({});
     for (auto& body : ss->bodies) {
         json5pp::value jb {
+                {"type", std::string(enum_name<TypeNav>(body->type))},
                 {"name", body->name},
-                {"distance", body->distance.dist},
         };
         auto& jbo = jb.as_object();
+        if (body->bodyId >= 0)
+            jbo.emplace("bodyId", body->bodyId);
         if (body->parentBodyId >= 0)
             jbo.emplace("parentBodyId", body->parentBodyId);
-        if (body->bodyId.has_value())
-            jbo.emplace("bodyId", body->bodyId.value());
-        jbo.emplace("typeNav", std::string(enum_name<TypeNav>(body->typeNav)));
-        if (body->typeNav == TypeNav::Star) {
-            Star* s = (Star*)body.get();
-            if (s->radius)
-                jbo.emplace("solarRadius", s->radius / 6.957e5);
-            if (s->isMainStar)
-                jbo.emplace("isMainStar", s->isMainStar);
-            if (s->isScoopable)
-                jbo.emplace("isScoopable", s->isScoopable);
-            if (!s->spectralClass.empty())
-                jbo.emplace("spectralClass", s->spectralClass);
+        if (body->main_star_distance.valid())
+            jbo.emplace("distanceToArrival", body->main_star_distance.get(dist_t::LS));
+        if (body->type == TypeNav::Star) {
+            if (body->radius)
+                jbo.emplace("solarRadius", body->radius / 6.957e5);
+            if (body->special)
+                jbo.emplace("isMainStar", true);
+            if (!body->code.empty())
+                jbo.emplace("spectralClass", body->code);
         }
-        else if (body->typeNav == TypeNav::Planet) {
-            Planet* p = (Planet*)body.get();
-            if (p->radius)
-                jbo.emplace("radius", p->radius);
-            if (p->isLandable)
-                jbo.emplace("isLandable", p->isLandable);
+        else if (body->type == TypeNav::Planet) {
+            if (body->radius)
+                jbo.emplace("radius", body->radius);
+            if (body->special)
+                jbo.emplace("isLandable", true);
+            if (!body->code.empty())
+                jbo.emplace("spectralClass", body->code);
+        }
+
+        {
+            auto ts = std::chrono::floor<std::chrono::seconds>(body->updated);
+            auto seconds = ts.time_since_epoch().count();
+            if (seconds)
+                jbo.emplace("updateTime", seconds);
         }
         jbodies.as_array().push_back(jb);
     }
     for (auto& st : ss->stations) {
         json5pp::value jst {
+                {"type", std::string(enum_name<TypeNav>(st->type))},
                 {"name", st->name},
         };
         auto& jsto = jst.as_object();
-        jsto.emplace("typeNav", std::string(enum_name<TypeNav>(st->typeNav)));
-        if (st->typeSite != TypeSite::Other)
-            jsto.emplace("typeSite", std::string(enum_name<TypeSite>(st->typeSite)));
-        if (st->bodyId.has_value())
-            jsto.emplace("bodyId", st->bodyId.value());
+        if (st->bodyId >= 0)
+            jsto.emplace("bodyId", st->bodyId);
         if (st->parentBodyId >= 0)
             jsto.emplace("parentBodyId", st->parentBodyId);
+        if (st->main_star_distance.valid())
+            jsto.emplace("distanceToArrival", st->main_star_distance.get(dist_t::LS));
         if (st->marketId)
             jsto.emplace("marketId", st->marketId);
-        if (st->marketData && !st->marketData->items.empty())
-            jsto.emplace("marketData", exportMarketData(st->marketData.get()));
-        //if (!st->nloc.empty())
-        //    jsto.emplace("nloc", st->nloc);
         {
             auto ts = std::chrono::floor<std::chrono::seconds>(st->updated);
             auto seconds = ts.time_since_epoch().count();
             if (seconds)
-                jsto.emplace("updated", seconds);
+                jsto.emplace("updateTime", seconds);
         }
-
         jstations.as_array().push_back(jst);
     }
 
@@ -457,62 +414,72 @@ void setCurrentStarSystem(spStarSystem ss) {
     gCurrentStarSystem.swap(ss);
 }
 
-Star* StarSystem::getMainStar() {
+spEntity StarSystem::getMainStar() {
     for (auto& b : this->bodies) {
-        if (b->typeNav == TypeNav::Star) {
-            Star* star = (Star*)b.get();
-            if (star->isMainStar)
-                return star;
-        }
+        if (b->type == TypeNav::Star && b->special)
+            return b;
     }
-    return nullptr;
+    return {};
 }
 
-spItem StarSystem::getBodyById(int bodyId) {
+spEntity StarSystem::getEntity(const std::string& nm) {
+    if (nm.empty())
+        return {};
+    for (auto& e : this->bodies) {
+        if (e->nameEq(nm))
+            return e;
+    }
+    for (auto& e : this->stations) {
+        if (e->nameEq(nm))
+            return e;
+    }
+    for (auto& e : this->signals) {
+        if (e->nameEq(nm))
+            return e;
+    }
+    return {};
+}
+
+spEntity StarSystem::getBodyById(int bodyId) {
     if (bodyId <= 0)
         return {};
     for (auto& b : this->bodies) {
-        if (b->bodyId.has_value() && b->bodyId.value() == bodyId) {
-            return std::static_pointer_cast<Item>(b);
-        }
+        if (b->bodyId >= 0 && b->bodyId == bodyId)
+            return b;
     }
     // stations also have bodyId
     for (auto& s : this->stations) {
-        if (s->bodyId.has_value() && s->bodyId.value() == bodyId) {
-            return std::static_pointer_cast<Item>(s);
-        }
+        if (s->bodyId >= 0 && s->bodyId == bodyId)
+            return s;
     }
     return {};
 }
 
-spBody StarSystem::getBody(const std::string& bname) {
+spEntity StarSystem::getBody(const std::string& bname) {
     if (bname.empty())
         return {};
     for (auto& b : this->bodies) {
-        if (b->name == bname) {
+        if (b->nameEq(bname))
             return b;
-        }
     }
     return {};
 }
-spSite StarSystem::getDock(const std::string& sname) {
+spEntity StarSystem::getDock(const std::string& sname) {
     if (sname.empty())
         return {};
     for (auto& s : this->stations) {
-        if (s->name == sname || s->nloc == sname) {
+        if (s->nameEq(sname))
             return s;
-        }
     }
     return {};
 }
 
-spSite StarSystem::getDock(int64_t marketId) {
+spEntity StarSystem::getDock(int64_t marketId) {
     if (marketId == 0)
         return {};
     for (auto& s : this->stations) {
-        if (s->marketId == marketId) {
+        if (s->marketId == marketId)
             return s;
-        }
     }
     return {};
 }
@@ -523,22 +490,29 @@ void StarSystem::addDestination() {
         return;
     auto& dname = st::destination.name;
     for (auto& b : this->bodies) {
-        if (b->name == dname)
+        if (b->nameEq(dname))
             return;
     }
     for (auto& s : this->stations) {
-        if (s->name == dname || s->nloc == dname) {
-            switch (s->typeSite) {
-            case TypeSite::FleetCarrier:
-            case TypeSite::SquadronCarrier:
-            case TypeSite::StrongholdCarrier:
-            case TypeSite::ColonisationShip:
-            case TypeSite::StationMegaShip:
-            case TypeSite::TrailblazerDream:
-            case TypeSite::EngineerPort:
-            case TypeSite::Settlement:
-            case TypeSite::SpaceConstr:
-            case TypeSite::PlanetConstr:
+        if (s->nameEq(dname)) {
+            switch (s->type) {
+            case TypeNav::NavBeacon:
+            case TypeNav::TouristBeacon:
+            case TypeNav::SpaceInstallation:
+            case TypeNav::FleetCarrier:
+            case TypeNav::SquadronCarrier:
+            case TypeNav::StrongholdCarrier:
+            case TypeNav::ColonisationShip:
+            case TypeNav::Megaship:
+            case TypeNav::TrailblazerDream:
+            case TypeNav::PlanetaryThing:
+            case TypeNav::PlanetaryStation:
+            case TypeNav::PlanetaryPort:
+            case TypeNav::PlanetaryInstallation:
+            case TypeNav::EngineerPort:
+            case TypeNav::Settlement:
+            case TypeNav::SpaceConstrDepot:
+            case TypeNav::PlanetaryConstrDepot:
                 if (s->parentBodyId != st::destination.bodyId) {
                     s->parentBodyId = st::destination.bodyId;
                     this->saved = false;
@@ -555,16 +529,16 @@ void StarSystem::addDestination() {
             // a star
             char c = dname[dname.size()-1];
             if (c >= 'A' && c <= 'Z') {
-                spBody star = std::make_shared<Star>();
-                star->name = dname;
+                spEntity star = std::make_shared<Entity>();
+                star->setName(dname);
                 star->bodyId = st::destination.bodyId;
                 bodies.push_back(star);
                 this->saved = false;
             }
         } else {
             // a body
-            spBody body = std::make_shared<Body>();
-            body->name = dname;
+            spEntity body = std::make_shared<Entity>();
+            body->setName(dname);
             body->bodyId = st::destination.bodyId;
             bodies.push_back(body);
             this->saved = false;
@@ -572,19 +546,17 @@ void StarSystem::addDestination() {
         return;
     }
     else if (dname.starts_with("Orbital Construction Site:")) {
-        spSite site = std::make_shared<Site>();
-        site->typeNav = gal::TypeNav::SpaceConstr;
-        site->typeSite = gal::TypeSite::SpaceConstr;
-        site->name = dname;
+        spEntity site = std::make_shared<Entity>();
+        site->type = TypeNav::SpaceConstrDepot;
+        site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
         stations.push_back(site);
         this->saved = false;
     }
     else if (dname.starts_with("Planetary Construction Site:")) {
-        spSite site = std::make_shared<Site>();
-        site->typeNav = gal::TypeNav::PlanetConstr;
-        site->typeSite = gal::TypeSite::PlanetConstr;
-        site->name = dname;
+        spEntity site = std::make_shared<Entity>();
+        site->type = TypeNav::PlanetaryConstrDepot;
+        site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
         stations.push_back(site);
         this->saved = false;
@@ -593,130 +565,180 @@ void StarSystem::addDestination() {
         saveStarSystem(this);
 }
 
-spSite StarSystem::addStation(int64_t marketId, const std::string& sname, const std::string& type) {
-    spSite site;
-    if (marketId) {
-        for (auto &s: stations) {
-            if (s->marketId == marketId) {
-                site = s;
-                break;
-            }
+spEntity StarSystem::addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& sname, int bodyId) {
+    spEntity entity = getEntity(sname);
+    bool added = false;
+    if (!entity) {
+        entity.reset(new Entity);
+        added = true;
+    }
+
+    TypeNav typeNav = TypeNav::Other;
+    for (auto nt: ALL_NAV_TYPES) {
+        if (nt->match_name(sname)) {
+            typeNav = nt->type;
+            break;
         }
     }
-    if (!site) {
-        for (auto &s: stations) {
-            if (s->nameEq(sname)) {
-                if (!marketId || !s->marketId) {
-                    site = s;
+    if (typeNav == TypeNav::Other) {
+        TypeNav tp = TypeNav::Other;
+        for (auto nt: ALL_NAV_TYPES) {
+            if (nt->match_icon(charOCR, nav_icon)) {
+                if (entity->type == TypeNav::Other || nt->type == entity->type) {
+                    typeNav = nt->type;
                     break;
                 }
+                if (tp != TypeNav::Other)
+                    tp = nt->type;
+            }
+        }
+        if (typeNav != entity->type && tp != TypeNav::Other)
+            typeNav = tp;
+    }
+
+    if (typeNav != TypeNav::Other && entity->type != typeNav) {
+        entity->type = typeNav;
+        saved = false;
+    }
+    if (entity->name.empty() || !entity->nameEq(sname)) {
+        entity->setName(sname);
+        saved = false;
+    }
+
+    if (bodyId >= 0) {
+        if (isBody(entity->type) || isSpaceStation(entity->type)) {
+            if (entity->bodyId < 0) {
+                entity->bodyId = bodyId;
+                saved = false;
+            }
+        } else {
+            if (entity->parentBodyId < 0) {
+                entity->parentBodyId = bodyId;
+                saved = false;
             }
         }
     }
-    TypeNav typeNav = site ? site->typeNav : TypeNav::Other;
-    TypeSite typeSite = site ? site->typeSite : TypeSite::Other;
-    if (!type.empty()) {
-        if (type == "Drake-Class Carrier" || type == "Fleet Carrier") {
-            typeNav = TypeNav::Carrier;
-            typeSite = TypeSite::FleetCarrier;
-        } else if (type == "Squadron Carrier") {
-            typeNav = TypeNav::Carrier;
-            typeSite = TypeSite::SquadronCarrier;
-        } else if (type == "Orbis" || type == "Orbis Starport") {
-            typeNav = TypeNav::SpacePort;
-            typeSite = TypeSite::Orbis;
-        } else if (type == "Ocellus" || type == "Ocellus Starport") {
-            typeNav = TypeNav::SpacePort;
-            typeSite = TypeSite::Ocellus;
-        } else if (type == "Coriolis" || type == "Coriolis Starport") {
-            typeNav = TypeNav::SpacePort;
-            typeSite = TypeSite::Coriolis;
-        } else if (type == "Outpost" || type == "Outpost Starport") {
-            typeNav = TypeNav::SpacePort;
-            typeSite = TypeSite::SpaceOutpost;
-        } else if (type == "SpaceConstr" || type == "SpaceConstructionDepot") {
-            typeNav = TypeNav::SpaceConstr;
-            typeSite = TypeSite::SpaceConstr;
-        }  else if (type == "PlanetConstr" || type == "PlanetaryConstructionDepot") {
-            typeNav = TypeNav::PlanetConstr;
-            typeSite = TypeSite::PlanetConstr;
-        } else if (/*type == "Planetary Outpost" &&*/ sname == "Stronghold Carrier" || sname == "Носитель-база") {
-            typeNav = TypeNav::MegashipDock;
-            typeSite = TypeSite::StrongholdCarrier;
-        } else if (/*type == "Planetary Outpost" &&*/ sname == "Trailblazer Dream") {
-            typeNav = TypeNav::MegashipDock;
-            typeSite = TypeSite::TrailblazerDream;
-        } else if (/*type == "Planetary Outpost" &&*/ sname.starts_with("$EXT_PANEL_ColonisationShip;")) {
-            typeNav = TypeNav::MegashipDock;
-            typeSite = TypeSite::ColonisationShip;
-        } else if (type == "Planetary Outpost") {
-            typeNav = TypeNav::PlanetInst;
-            typeSite = TypeSite::Other;
-        } else if (type == "Settlement" || type == "Odyssey Settlement") {
-            typeNav = TypeNav::PlanetPort;
-            typeSite = TypeSite::Settlement;
-        } else if (type.empty() && sname.starts_with("Orbital Construction Site:")) {
-            typeNav = TypeNav::SpaceConstr;
-            typeSite = TypeSite::SpaceConstr;
-        } else if (type.empty() && sname.starts_with("Planetary Construction Site:")) {
-            typeNav = TypeNav::PlanetConstr;
-            typeSite = TypeSite::PlanetConstr;
+
+    if (added) {
+        if (isBody(entity->type)) {
+            bodies.push_back(entity);
+            saved = false;
+        }
+        else if (isSite(entity->type)) {
+            stations.push_back(entity);
+            saved = false;
+        }
+        else
+            signals.push_back(entity);
+    }
+    if (!saved)
+        saveStarSystem(this);
+    return entity;
+}
+
+spEntity StarSystem::addStation(spGameEvent& ge) {
+    if (!(ge->event=="ApproachSettlement" || ge->event=="Docked" || (ge->event=="Location") && ge->data["Docked"]))
+        return {};
+    auto& je = ge->data;
+
+    std::string sname = je.at("StationName","").as_string();
+    std::string stype = je.at("StationType","").as_string();
+    int64_t marketId = je.at("MarketID",0).as_int64();
+    spEntity dock = getDock(marketId);
+    if (!dock) {
+        dock = getDock(sname);
+        if (dock) {
+            if (dock->marketId) {
+                assert (dock->marketId != marketId);
+                dock.reset();
+            } else {
+                dock->marketId = marketId;
+                saved = false;
+            }
         }
     }
-    if (!site) {
-        site = std::make_shared<Site>();
-        site->marketId = marketId;
-        site->name = sname;
-        stations.push_back(site);
+    if (!dock) {
+        dock.reset(new Entity);
+        dock->marketId = marketId;
+    }
+
+    TypeNav typeNav = TypeNav::Other;
+    for (auto nt: ALL_NAV_TYPES) {
+        if (nt->match_name(sname)) {
+            typeNav = nt->type;
+            break;
+        }
+    }
+    if (typeNav == TypeNav::Other) {
+        TypeNav tp = TypeNav::Other;
+        for (auto nt: ALL_NAV_TYPES) {
+            if (nt->match_type(stype)) {
+                if (nt->type == dock->type) {
+                    typeNav = nt->type;
+                    break;
+                }
+                if (tp != TypeNav::Other)
+                    tp = nt->type;
+            }
+        }
+        if (typeNav != dock->type && tp != TypeNav::Other)
+            typeNav = tp;
+    }
+    if (typeNav == TypeNav::PlanetaryPort) {
+        if (je["StationGovernment"].is_string() && je["StationGovernment"].as_string() == "$government_Engineer;")
+            typeNav = TypeNav::EngineerPort;
+    }
+    if (typeNav != TypeNav::Other && dock->type != typeNav) {
+        dock->type = typeNav;
         saved = false;
     }
-    if (!site->marketId && marketId) {
-        site->marketId = marketId;
+    if (dock->name.empty() || dock->nameEq(sname)) {
+        dock->setName(sname);
         saved = false;
     }
-    if (!type.empty() && site->typeNav != typeNav) {
-        site->typeNav = typeNav;
-        saved = false;
-    }
-    if (!type.empty() && site->typeSite != typeSite) {
-        site->typeSite = typeSite;
-        saved = false;
-    }
-    if (site->parentBodyId < 0) {
+    if (dock->parentBodyId < 0) {
         if (st::space.bodyType == "Planet" || st::space.bodyType == "Star") {
-            site->parentBodyId = st::space.bodyId;
+            dock->parentBodyId = st::space.bodyId;
+            saved = false;
+        }
+    }
+    if (je["DistFromStarLS"].is_number()) {
+        double dist = je["DistFromStarLS"].as_number();
+        if (!dock->main_star_distance.valid() || std::round(dock->main_star_distance.get(dist_t::LS)) != std::round(dist)) {
+            dock->main_star_distance = dist_t(dist_t::LS, dist);
             saved = false;
         }
     }
     if (!saved)
         saveStarSystem(this);
-    return site;
+    return dock;
 }
 
-void StarSystem::checkType(spSite& site, gal::TypeNav type, Timestamp timestamp) {
-    if (site && site->typeNav != type && site->updated < timestamp) {
-        site->typeNav = type;
+
+spEntity StarSystem::addSignal(spEntity signal) {
+    if (signal) {
+        assert (isSignal(signal->type));
+        signals.push_back(signal);
+    }
+    return signal;
+}
+
+void StarSystem::checkType(spEntity& site, TypeNav type, Timestamp timestamp) {
+    if (site && type != TypeNav::Other && site->type != type && site->updated < timestamp) {
+        site->type = type;
         site->updated = timestamp;
         saved = false;
     }
 }
-void StarSystem::checkType(spSite& site, gal::TypeSite type, Timestamp timestamp) {
-    if (site && site->typeSite != type && site->updated < timestamp) {
-        site->typeSite = type;
-        site->updated = timestamp;
-        saved = false;
+void StarSystem::checkName(spEntity& site, const std::string& name, Timestamp timestamp) {
+    if (site && !site->nameEq(name) && site->updated < timestamp) {
+        if (site->setName(name)) {
+            site->updated = timestamp;
+            saved = false;
+        }
     }
 }
-void StarSystem::checkName(spSite& site, const std::string& name, Timestamp timestamp) {
-    if (site && site->name != name && site->updated < timestamp) {
-        if (site->typeSite == TypeSite::FleetCarrier && name.size() == 7 && site->name.ends_with(name))
-            return;
-        site->name = name;
-        site->updated = timestamp;
-        saved = false;
-    }
-}
-void StarSystem::checkNloc(spSite& site, const std::string& nloc, Timestamp timestamp) {
+void StarSystem::checkNloc(spEntity& site, const std::string& nloc, Timestamp timestamp) {
     if (site && site->nloc != nloc) {
         site->nloc = nloc;
         site->updated = timestamp;
@@ -726,21 +748,6 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
     if (events.empty())
         return;
     Timestamp timestamp = events.front()->timestamp;
-    // get known sites
-    std::map<spSite,bool> knownStations;
-    for (auto& site : stations) {
-        switch(site->typeSite) {
-        case TypeSite::Other:
-        case TypeSite::EngineerPort:
-        case TypeSite::Settlement:
-        case TypeSite::SpaceConstr:
-        case TypeSite::PlanetConstr:
-            continue;
-        default:
-            knownStations[site] = false;
-            continue;
-        }
-    }
     // add all sites from events
     for (auto event : events) {
         if (event->event != "FSSSignalDiscovered")
@@ -751,128 +758,268 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
         std::string stype = data["SignalType"].as_string();
         std::string sname = data["SignalName"].as_string();
         std::string snloc;
-        if (data["SignalName_Localised"].is_string())
+        if (data["SignalName_Localised"].is_string()) {
             snloc = data["SignalName_Localised"].as_string();
+            sname = snloc;
+        }
         bool isStation = data["IsStation"];
 
-        if (stype == "NavBeacon") {
-            sname = "NavBeacon";
-        }
-        auto site = getDock(sname);
+        spEntity site = getDock(sname);
         if (!site) {
-            site.reset(new Site());
-            site->name = sname;
-            if (stype == "FleetCarrier") {
-                site->typeNav = TypeNav::Carrier;
-                site->typeSite = TypeSite::FleetCarrier;
-            }
+            site.reset(new Entity());
+            if (stype == "NavBeacon")
+                site->type = TypeNav::NavBeacon;
+            if (stype == "FleetCarrier")
+                site->type = TypeNav::FleetCarrier;
+            site->setName(sname);
             stations.push_back(site);
             saved = false;
         }
         else if (site->updated > timestamp)
             continue;
-        knownStations[site] = true;
-        if (isStation) {
-            if (stype == "FleetCarrier") {
-                checkType(site, TypeNav::Carrier, timestamp);
-                checkType(site, TypeSite::FleetCarrier, timestamp);
-            } else if (stype == "StationMegaShip") {
-                if (sname == "Stronghold Carrier" || sname == "Носитель-база") {
-                    checkType(site, TypeNav::MegashipDock, timestamp);
-                    checkType(site, TypeSite::StrongholdCarrier, timestamp);
-                    snloc = sname;
-                    sname = "Stronghold Carrier";
-                } else {
-                    checkType(site, TypeNav::MegashipDock, timestamp);
-                    checkType(site, TypeSite::StationMegaShip, timestamp);
-                }
-            } else if (stype == "Megaship") {
-                if (sname == "Trailblazer Dream") {
-                    checkType(site, TypeNav::MegashipDock, timestamp);
-                    checkType(site, TypeSite::TrailblazerDream, timestamp);
-                } else {
-                    checkType(site, TypeNav::MegashipInst, timestamp);
-                    checkType(site, TypeSite::Other, timestamp);
-                }
-            } else if (stype == "StationONeilOrbis" || stype == "StationONeilCylinder") {
-                checkType(site, TypeNav::SpacePort, timestamp);
-                checkType(site, TypeSite::Orbis, timestamp);
-            } else if (stype == "StationBernalSphere") {
-                checkType(site, TypeNav::SpacePort, timestamp);
-                checkType(site, TypeSite::Ocellus, timestamp);
-            } else if (stype == "StationCoriolis") {
-                checkType(site, TypeNav::SpacePort, timestamp);
-                checkType(site, TypeSite::Coriolis, timestamp);
-            } else if (stype == "AsteroidBase") {
-                checkType(site, TypeNav::SpacePort, timestamp);
-                checkType(site, TypeSite::AsteroidBase, timestamp);
-            } else if (stype == "Outpost") {
-                checkType(site, TypeNav::SpacePort, timestamp);
-                checkType(site, TypeSite::SpaceOutpost, timestamp);
-            }
-        } else {
-            if (stype == "NavBeacon") {
-                checkType(site, TypeNav::Other, timestamp);
-                checkType(site, TypeSite::NavBeacon, timestamp);
-                sname = "NavBeacon";
-            } else if (stype == "Installation") {
-                checkType(site, TypeNav::SpaceInst, timestamp);
-                checkType(site, TypeSite::Other, timestamp);
-            } else if (stype == "StationMegaShip" || stype == "Megaship") {
-                if (sname == "Trailblazer Dream") {
-                    checkType(site, TypeNav::MegashipDock, timestamp);
-                    checkType(site, TypeSite::TrailblazerDream, timestamp);
-                } else {
-                    checkType(site, TypeNav::MegashipInst, timestamp);
-                    checkType(site, TypeSite::Other, timestamp);
-                }
+
+        TypeNav typeNav = TypeNav::Other;
+        for (auto nt: ALL_NAV_TYPES) {
+            if (nt->match_name(sname)) {
+                typeNav = nt->type;
+                break;
             }
         }
+        if (typeNav == TypeNav::Other) {
+            TypeNav tp = TypeNav::Other;
+            for (auto nt: ALL_NAV_TYPES) {
+                if (nt->match_type(stype)) {
+                    if (nt->type == site->type) {
+                        typeNav = nt->type;
+                        break;
+                    }
+                    if (tp != TypeNav::Other)
+                        tp = nt->type;
+                }
+            }
+            if (typeNav != site->type && tp != TypeNav::Other)
+                typeNav = tp;
+        }
+        checkType(site, typeNav, timestamp);
         checkName(site, sname, timestamp);
         checkNloc(site, snloc, timestamp);
     }
-    //for (auto& it : knownStations) {
-    //    if (!it.second && it.first->updated < timestamp) {
-    //        std::erase(stations, it.first);
-    //        saved = false;
-    //    }
-    //}
     if (!saved)
         saveStarSystem(this);
 }
 
+spMarket getMarket(int64_t marketId) {
+    if (!marketId)
+        return {};
+    auto market = gMarketById[marketId];
+    if (market)
+        return market;
+    market = loadMarket(marketId);
+    if (market)
+        gMarketById[marketId] = market;
+    return market;
+}
+
 void setMarketData(spMarket market) {
-    auto starSystem = getStarSystem(market->starSystem);
-    if (!starSystem)
+    if (!market || !market->marketId)
         return;
-    auto dock = starSystem->addStation(market->marketId, market->stationName, market->stationType);
-    if (dock->marketData && dock->marketData->timestamp >= market->timestamp)
+    if (auto old = gMarketById[market->marketId]; old && old->timestamp > market->timestamp)
         return;
-    dock->marketData = market;
-    starSystem->saved = false;
-    saveStarSystem(starSystem.get());
+    gMarketById[market->marketId] = market;
+    saveMarket(market.get());
 }
 
-bool Item::nameEq(const std::string& nm) {
-    return name == nm;
-}
-
-bool Site::nameEq(const std::string& nm) {
+bool Entity::nameEq(const std::string& nm) const {
     if (name == nm)
         return true;
     if (!nloc.empty() && nloc == nm)
         return true;
-    if (typeSite == TypeSite::StrongholdCarrier && (nm == "Stronghold Carrier" || nm == "Носитель-база"))
-        return true;
-    if (typeSite == TypeSite::NavBeacon && (nm == "NavBeacon" || nm == "Нав. маяк"))
-        return true;
-    if (typeSite == TypeSite::FleetCarrier) {
+
+    NavType* navType = nullptr;
+    switch (type) {
+    case TypeNav::Other:
+    case TypeNav::Error:
+    case TypeNav::Signal:
+    case TypeNav::StarSystem:
+    case TypeNav::Body:
+    case TypeNav::Barycenter:
+    case TypeNav::Ring:
+    case TypeNav::AsteroidCluster:
+    case TypeNav::Star:
+    case TypeNav::Planet:
+    case TypeNav::SpaceThing:
+    case TypeNav::TouristBeacon:
+    case TypeNav::SpaceStation:
+    case TypeNav::Orbis:
+    case TypeNav::Ocellus:
+    case TypeNav::Coriolis:
+    case TypeNav::AsteroidBase:
+    case TypeNav::SpaceOutpost:
+    case TypeNav::SpaceInstallation:
+    case TypeNav::SquadronCarrier:
+    case TypeNav::ColonisationShip:
+    case TypeNav::PlanetaryThing:
+    case TypeNav::PlanetaryStation:
+    case TypeNav::PlanetaryPort:
+    case TypeNav::EngineerPort:
+    case TypeNav::Settlement:
+    case TypeNav::PlanetaryInstallation:
+    case TypeNav::SpaceConstrDepot:
+    case TypeNav::PlanetaryConstrDepot:
+    case TypeNav::Megaship:
+    case TypeNav::StationMegaShip:
+        return false;
+    case TypeNav::FleetCarrier:
+        if (code == nm)
+            return true;
         if (name.size() == 7 && nm.size() > 7 && nm.ends_with(name))
             return true;
         if (nm.size() == 7 && name.size() > 7 && name.ends_with(nm))
             return true;
+        return false;
+    case TypeNav::NotExplored:
+        navType = &UNEXPLORED;
+        break;
+    case TypeNav::WarZone:
+        navType = &WAR_ZONE;
+        break;
+    case TypeNav::ResSite:
+        navType = &RES_SITE;
+        break;
+    case TypeNav::NavBeacon:
+        navType = &BEACON;
+        break;
+    case TypeNav::StrongholdCarrier:
+        navType = &STRONGHOLD_CARRIER;
+        break;
+    case TypeNav::TrailblazerDream:
+        navType = &TRAILBLAZER_DREAM;
+    }
+    for (auto& p : navType->name_loc) {
+        if (p.second == nm)
+            return true;
     }
     return false;
 }
+
+bool Entity::setName(const std::string& nm) {
+    NavType* navType = nullptr;
+    switch (type) {
+    case TypeNav::Other:
+    case TypeNav::Error:
+    case TypeNav::Signal:
+    case TypeNav::StarSystem:
+    case TypeNav::Body:
+    case TypeNav::Barycenter:
+    case TypeNav::Ring:
+    case TypeNav::AsteroidCluster:
+    case TypeNav::Star:
+    case TypeNav::Planet:
+    case TypeNav::SpaceThing:
+    case TypeNav::TouristBeacon:
+    case TypeNav::SpaceStation:
+    case TypeNav::Orbis:
+    case TypeNav::Ocellus:
+    case TypeNav::Coriolis:
+    case TypeNav::AsteroidBase:
+    case TypeNav::SpaceOutpost:
+    case TypeNav::SpaceInstallation:
+    case TypeNav::SpaceConstrDepot:
+    case TypeNav::Megaship:
+    case TypeNav::StationMegaShip:
+    case TypeNav::SquadronCarrier:
+    case TypeNav::PlanetaryThing:
+    case TypeNav::PlanetaryStation:
+    case TypeNav::PlanetaryPort:
+    case TypeNav::EngineerPort:
+    case TypeNav::Settlement:
+    case TypeNav::PlanetaryInstallation:
+    case TypeNav::PlanetaryConstrDepot:
+        if (name == nm)
+            return false;
+        name = nm;
+        return true;
+    case TypeNav::FleetCarrier:
+        if (name == nm)
+            return false;
+        if (nm.size() == 7)
+            code = nm;
+        else if (nm.size() > 7)
+            code = nm.substr(nm.size()-7);
+        name = nm;
+        return true;
+    case TypeNav::NotExplored:
+        navType = &UNEXPLORED;
+        break;
+    case TypeNav::WarZone:
+        navType = &WAR_ZONE;
+        break;
+    case TypeNav::ResSite:
+        navType = &RES_SITE;
+        break;
+    case TypeNav::NavBeacon:
+        navType = &BEACON;
+        break;
+    case TypeNav::StrongholdCarrier:
+        navType = &STRONGHOLD_CARRIER;
+        break;
+    case TypeNav::TrailblazerDream:
+        navType = &TRAILBLAZER_DREAM;
+        break;
+    case TypeNav::ColonisationShip:
+        navType = &COLONIZATION_SHIP;
+        break;
+    }
+
+    std::string xx_name;
+    std::string ru_name;
+    auto it = navType->name_loc.begin();
+    for (; it != navType->name_loc.end(); it++) {
+        if (it->first == Lang::XX || it->first == Lang::EN)
+            xx_name = it->second;
+        if (it->second == nm)
+            break;
+    }
+    if (it == navType->name_loc.end()) {
+        xx_name.clear();
+    } else {
+        for (; it != navType->name_loc.end(); it++) {
+            if (it->first == Lang::XX || it->first == st::lng) {
+                ru_name = it->second;
+                break;
+            }
+        }
+    }
+    if (xx_name.empty()) {
+        xx_name.clear();
+        ru_name.clear();
+        it = navType->name_loc.begin();
+        for (; it != navType->name_loc.end(); it++) {
+            if (xx_name.empty() && (it->first == Lang::XX || it->first == Lang::EN)) {
+                xx_name = it->second;
+                break;
+            }
+        }
+        for (; it != navType->name_loc.end(); it++) {
+            if (it->first == Lang::XX || it->first == st::lng) {
+                ru_name = it->second;
+                break;
+            }
+        }
+    }
+    if (this->name != xx_name) {
+        this->name = xx_name;
+        if (ru_name.empty() || ru_name == xx_name)
+            this->nloc.clear();
+        else
+            this->nloc = ru_name;
+        return true;
+    }
+    else if (this->nloc != ru_name) {
+        this->nloc = ru_name;
+    }
+    return false;
+}
+
 
 } // namespace gal

@@ -327,16 +327,18 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* co
     ai::detectEDState(level, colorImage, grayImage);
 }
 
-bool Step::Message::expired() {
+bool Step::Message::expired() const {
     auto now = std::chrono::steady_clock::now();
     switch (severity) {
     default:
     case MSG_INFO:
-        return timestamp < now + std::chrono::seconds(5);
+        return (now - timestamp) > 5s;
     case MSG_WARN:
-        return timestamp < now + std::chrono::seconds(10);
+        return (now - timestamp) > 10s;
     case MSG_ERROR:
-        return timestamp < now + std::chrono::seconds(60);
+        return (now - timestamp) > 30s;
+    case MSG_FATAL:
+        return false;
     }
 }
 

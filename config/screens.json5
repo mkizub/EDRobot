@@ -233,6 +233,7 @@
     vars: {
       compass: [
         { size: [61,57], rect: [679,803,72,68], key: ['type9'] },
+        { size: [62,58], rect: [684,798,70,66], key: ['panthermkii'] },
         { size: [61,58], rect: [679,803,71,71] }
       ],
       undistort: [ // for fov [54,60]

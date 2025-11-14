@@ -48,6 +48,7 @@ add_executable(EDRobot
         src/FuzzyMatch.h
         src/Galaxy.cpp
         src/Galaxy.h
+        src/GalaxyNav.cpp
         src/Keyboard.cpp
         src/Keyboard.h
         src/Master.cpp
@@ -195,7 +196,12 @@ install(DIRECTORY config/tessdata-best DESTINATION ".")
 install(DIRECTORY config/tessdata-fast DESTINATION ".")
 install(DIRECTORY config/ControlSchemes DESTINATION ".")
 install(FILES
-        config/actions.json5 config/configuration.json5 config/screens.json5 config/logging.conf
+        config/eddb.json5
+        config/commodity-database.json5
+        config/configuration.json5
+        config/screens.json5
+        config/tasks.json5
+        config/logging.conf
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 

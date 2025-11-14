@@ -9,8 +9,6 @@
 #include "../Keyboard.h"
 #include "../ShipStats.h"
 
-using namespace std::chrono_literals;
-
 namespace ai {
 
 namespace trk {
@@ -180,7 +178,7 @@ void turn_step() {
     }
     CompassInfo compass = st::compass;
     auto compassElapsed = std::chrono::utc_clock::now() - compass.timestamp;
-    if (!compass.hemisphere || compassElapsed > 500ms) {
+    if (!compass.hemisphere || compassElapsed > 250ms) {
         resetTurnAxis();
         return;
     }
@@ -188,17 +186,12 @@ void turn_step() {
     int speed_set_to = st::autopilot.speed_set_to.has_value() ? st::autopilot.speed_set_to.value() : 50;
     double pitchSpeed = shipStats->getPitchSpeed(speed_set_to);
     double yawSpeed = shipStats->getYawSpeed(speed_set_to);
-    double rollSpeed = shipStats->getRollSpeed(speed_set_to);
+    //double rollSpeed = shipStats->getRollSpeed(speed_set_to);
 
-    double expectedPitch;
-    double expectedYaw;
-    double expectedRoll;
     double timeDelta = std::chrono::duration_cast<std::chrono::duration<double>>(compassElapsed).count();
-    {
-        expectedPitch = compass.targetPitch - timeDelta * pitchSpeed * pitchAxis.value;
-        expectedYaw = compass.targetYaw - timeDelta * yawSpeed * yawAxis.value;
-        expectedRoll = compass.targetRoll - timeDelta * rollSpeed * rollAxis.value;
-    }
+    double expectedPitch = compass.targetPitch - timeDelta * pitchSpeed * pitchAxis.value;
+    double expectedYaw = compass.targetYaw - timeDelta * yawSpeed * yawAxis.value;
+    //double expectedRoll = compass.targetRoll - timeDelta * rollSpeed * rollAxis.value;
 
     double delta_pitch = expectedPitch - requestedPitch;
     if (delta_pitch > 180) delta_pitch = 360-delta_pitch;
@@ -206,19 +199,21 @@ void turn_step() {
     double delta_yaw = expectedYaw;
 
     if (!compass.has_nav_target) {
-        if (std::abs(delta_pitch) < 5)
+        if (std::abs(delta_pitch) < 4)
             delta_pitch = 0;
-        if (std::abs(delta_yaw) < 5)
+        if (std::abs(delta_yaw) < 4)
             delta_yaw = 0;
     }
 
-//    LOG(INFO) << std::format("KeepCourse: time delta: {}ms", int(timeDelta*1000));
+//    LOG(INFO) << std::format("KeepCourse: time delta: {}ms, {}/{}, p {:.1f}, y {:.1f}, r {:.1f}, a {:.1f}",
+//                             int(timeDelta*1000), (compass.hemisphere > 0 ? "front" : "back"), compass.has_nav_target,
+//                             compass.targetPitch, compass.targetYaw, compass.targetRoll, compass.targetAngle);
 //    LOG(INFO) << std::format("KeepCourse: pitch from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
 //                             compass.targetPitch, expectedPitch, pitchSpeed, pitchAxis.value);
 
     set_axis(pitchSpeed, delta_pitch, pitchAxis);
     set_axis(yawSpeed, delta_yaw, yawAxis);
-    set_axis(rollSpeed, 0, rollAxis);
+    //set_axis(rollSpeed, 0, rollAxis);
 }
 
 } //namespace ai

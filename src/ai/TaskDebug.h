@@ -13,6 +13,10 @@ namespace widget {
 class Label;
 }
 
+namespace gal {
+struct NavType;
+}
+
 namespace ai {
 
 class TaskDebugFindAllBase : public Task {
@@ -48,16 +52,16 @@ private:
     bool checkOcrError(const ClassifiedRect& cr);
     bool checkNavPoint(int offset);
     void saveOcrNavigationRow(const cv::Mat& grayImage, const ClassifiedRect& cr, int offset,
-                                const std::string& lbl_text, const nav::NavType* nt);
+                                const std::string& lbl_text, const gal::NavType* nt);
     void saveOcrNavigationLbl(const cv::Mat& grayImage, const ClassifiedRect& cr, int offset,
-                                std::string& lbl_text, const nav::NavType* nt);
+                                std::string& lbl_text, const gal::NavType* nt);
     json5pp::value curlGetRequest(const char* url);
     json5pp::value curlPostRequest(const char* url, json5pp::value& data);
     bool getSpanishInfo();
     //bool getSystemStations();
     //bool getSystemBodies();
-    const nav::NavType* guessNavType(const std::string& lbl_name, const std::string& lbl_anchor) const;
-    int guessBestStation(std::string& text, const nav::NavType* nav_type) const;
+    const gal::NavType* guessNavType(const std::string& lbl_name, const std::string& lbl_anchor) const;
+    int guessBestStation(std::string& text, const gal::NavType* nav_type) const;
     //bool addStationPrefix(std::string& text, const std::string& lbl_anchor) const;
 
     bool dump_images;

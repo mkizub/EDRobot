@@ -9,132 +9,7 @@
 #include "TradeTasks.h"
 #include "AutopilotTasks.h"
 #include "TaskDebug.h"
-
-namespace nav {
-
-using enum ai::POIType;
-
-// ✦ ☄ ☕ ⚾ ⚽ ⛬ ✇ ⛋ ⭖ ⧰ ⧖ ⛫ ☗ ☖ ✈ ⛴ ♻ ♲ ⏣ ⯐ ⌖ ⛏ ☀ ∇ ◇ ⬖ ◆
-
-NavType STAR { u'\u2726', // ✦
-    Star, {"nav_select_icon_star.png"}, {"Star"}
-};
-NavType BEACON { u'\u2604', // ☄
-    Place, {"nav_select_icon_beacon.png"}, {"NavBeacon"}
-};
-NavType TOURIST_BEACON { u'\u2615', // ☕
-    Place, {"nav_select_icon_tourist_beacon.png"}, {"TouristBeacon"}
-};
-NavType BODY { u'\u26BE', // ⚾
-    Planet, {"nav_select_icon_body.png"}, {"Planet"}
-};
-NavType LAND { u'\u26BD', // ⚽
-    Planet, {"nav_select_icon_body_land.png"}, {"Planet"}
-};
-NavType BELT { u'\u26EC', // ⛬
-    AsteroidBelt, {"nav_select_icon_ast_belt.png"}, {}
-};
-NavType ORBIS { u'\u2707', // ✇
-    Station, {"nav_select_icon_orbis.png", "nav_select_icon_ocellus.png"}, {
-        "Orbis", "Orbis Starport", "StationONeilOrbis", "StationONeilCylinder",
-        "Ocellus", "StationBernalSphere", "Ocellus Starport"
-    }
-};
-NavType CORIOLIS { u'\u26CB', // ⛋
-    Station, {"nav_select_icon_coriolis.png"}, {"Coriolis", "StationCoriolis", "Coriolis Starport"}
-};
-NavType MINER_BASE { u'\u2B56', // ⭖
-    Station, {"nav_select_icon_miner_base.png"}, {"AsteroidBase", "Asteroid base"} // TODO: add the icon!!!
-};
-NavType SPACE_OUTPOST { u'\u29F0', // ⧰
-    Station, {"nav_select_icon_outpost.png"}, {"Outpost"}
-};
-NavType SPACE_INSTALLATION { u'\u29D6', // ⧖
-    Place, {"nav_select_icon_installation.png"}, {"Installation", "Space Installation"}
-};
-NavType PLANETARY_PORT { u'\u26EB', // ⛫
-    Port, {"nav_select_icon_port.png"}, {"Planetary Outpost"}
-};
-NavType PLANETARY_INSTALLATION { u'\u2617', // ☗
-    Place, {"nav_select_icon_factory.png","nav_select_icon_factory_war.png"}, {"Planetary Installation"}
-};
-NavType ODYSSEY_SETTLEMENT { u'\u2616', // ☖
-    Port, {"nav_select_icon_settlement.png"}, {"Settlement","Odyssey Settlement"}
-};
-NavType FLEET_CARRIER { u'\u2708', // ✈
-    FleetCarrier, {"nav_select_icon_carrier.png","nav_select_icon_carrier_bad.png"}, {"FleetCarrier", "Drake-Class Carrier"}
-};
-NavType SQUADRON_CARRIER { u'\u2708', // ⛴
-    FleetCarrier, {"nav_select_icon_squadron.png"}, {"SquadronCarrier"}
-};
-NavType STATION_MEGASHIP { u'\u267B', // ♻
-    Place, {"nav_select_icon_station_megaship.png"}, {"StationMegaShip"}
-};
-NavType MEGASHIP { u'\u2672', // ♲
-    Place, {"nav_select_icon_megaship.png"}, {"Megaship","Trailblazer Dream"}
-};
-NavType ENGINEER { u'\u23E3', // ⏣
-    Port, {"nav_select_icon_engineer.png"}, {}
-};
-NavType SIGNAL { u'\u2BD0', // ⯐
-    Signal, {"nav_select_icon_signal.png","nav_select_icon_mission.png"}, {"Generic"}
-};
-NavType WAR_ZONE { u'\u2316', // ⌖
-    Place, {"nav_select_icon_war_zone.png"}, {"Combat"}
-};
-NavType RES_SITE { u'\u26CF', // ⛏
-    Place, {"nav_select_icon_res_ext.png"}, {"ResourceExtraction"}
-};
-NavType STAR_SYSTEM { u'\u2600', // ☀
-    System, {"nav_select_icon_star_system.png"}, {}
-};
-NavType ERROR { u'\u2047', // ⁇
-    None, {}, {}
-};
-NavType LOCATION { u'\u2207', // ∇
-    None, {}, {}
-};
-NavType SHIELD1 { u'\u25C7', // ◇
-    None, {}, {}
-};
-NavType SHIELD2 { u'\u2B16', // ⬖
-    None, {}, {}
-};
-NavType SHIELD3 { u'\u25C6', // ◆
-    None, {}, {}
-};
-
-std::vector<NavType*> ALL_NAV_TYPES {
-        &STAR, // ✦
-        &BEACON, // ☄
-        &TOURIST_BEACON, // ☕
-        &BODY, // ⚾
-        &LAND, // ⚽
-        &BELT, // ⛬
-        &ORBIS, // ✇
-        &CORIOLIS, // ⛋
-        &MINER_BASE, // ⭖
-        &SPACE_OUTPOST, // ⧰
-        &SPACE_INSTALLATION, // ⧖
-        &PLANETARY_PORT, // ⛫
-        &PLANETARY_INSTALLATION, // ☗
-        &ODYSSEY_SETTLEMENT, // ☖
-        &FLEET_CARRIER, // ✈
-        &SQUADRON_CARRIER, // ⛴
-        &STATION_MEGASHIP, // ♻
-        &MEGASHIP, // ♲
-        &ENGINEER, // ⏣
-        &SIGNAL, // ⯐
-        &WAR_ZONE, // ⌖
-        &RES_SITE, // ⛏
-        &STAR_SYSTEM, // ☀
-//        &LOCATION, // ∇
-//        &SHIELD1, // ◇
-//        &SHIELD2, // ⬖
-//        &SHIELD3, // ◆
-};
-
-}
+#include "../Galaxy.h"
 
 namespace ai {
 
@@ -281,19 +156,19 @@ void initTemplates() {
             {
                 .id = ED_TASK_MARKET_SELL_ALL,
                 .name = _("Sell all cargo commodities"),
-                .params = {{Param::Int, "chunk", 0 }},
+                .params = {{Param::String, "except", "", "", true},{Param::Int, "chunk", 0, "", true}},
                 .factory = [](const TaskTemplate& templ) { return new TaskSellAll(templ); }
             },
             {
                 .id = ED_TASK_MARKET_SELL,
                 .name = _("Sell commodity"),
-                .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }, {Param::Int, "chunk", 0 }},
+                .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0, "", true}, {Param::Int, "chunk", 0, "", true}},
                 .factory = [](const TaskTemplate& templ) { return new TaskSell(templ); }
             },
             {
                 .id = ED_TASK_MARKET_BUY,
                 .name = _("Buy commodity"),
-                .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0 }},
+                .params = {{Param::Commodity, "commodity", ""}, {Param::Int, "amount", 0, "", true}},
                 .factory = [](const TaskTemplate& templ) { return new TaskBuy(templ); }
             },
             {
@@ -337,9 +212,10 @@ void initTemplates() {
                 .params = {
                     {Param::Enum, "test", "", "OrientTowards|OrientAway|KeepCourse|Departure|DockSpaceStation|DockPlanetPort|"
                                               "EnterCruise|HyperJump|LeaveBody|FocusDestDock|FocusDestBody|FocusNearestBody|GalMapNavRoute|FocusTopEntry|"
-                                              "NavDockSelect|NavBodySelect|CruiseToDist|DiveUnderPlanet|ExitCruiseToSpace|ExitCruiseToPlanet" },
+                                              "NavDockSelect|NavBodySelect|CruiseToDist|DiveUnderPlanet|ExitCruiseToSpace|ExitCruiseToPlanet|"
+                                              "ForwardAccelerate|ReverseAccelerate" },
                     {Param::String, "target", "", "", true},
-                    {Param::Real, "precision", 1.0, "", true }
+                    {Param::Real, "value", 1.0, "", true },
                 },
                 .factory = [](const TaskTemplate& templ) { return new TaskDebugAutopilot(templ); }
             }

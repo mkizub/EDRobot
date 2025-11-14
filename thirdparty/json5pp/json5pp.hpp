@@ -142,8 +142,13 @@ public:
   using string_type = std::string;
   using string_p_type = const char*;
   using array_type = std::vector<value>;
-  using object_type = std::map<string_type, value>;
-  using pair_type = object_type::value_type;
+  using object_type = tsl::ordered_map<string_type, value, std::hash<string_type>, std::equal_to<string_type>,
+          std::allocator<std::pair<string_type, value>>,
+          std::vector<std::pair<string_type, value>>,
+          std::uint_least32_t>;
+  using pair_type = std::pair<string_type, value>;
+  // using object_type = std::map<string_type, value>;
+  // using pair_type = object_type::value_type;
   using json_type = std::string;
 
   /*================================================================================
@@ -1529,7 +1534,7 @@ private:
       }
       // [value]
       auto result = elements.emplace(key, nullptr);
-      parse_value(result.first->second, context);
+      parse_value(const_cast<value &>(result.first->second), context);
     }
   }
 

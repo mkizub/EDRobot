@@ -102,6 +102,13 @@ bool loadEDDB() {
     return true;
 }
 
+ShipAttr* getShipAttr(Attr attr) {
+    auto attr_it = gEDDBAttributes.find(attr);
+    if (attr_it != gEDDBAttributes.end())
+        return &attr_it->second;
+    return nullptr;
+}
+
 ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
     : attr(attr)
     , jvalue(jv)
@@ -120,6 +127,8 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
         desc = jv["desc"].as_string();
     modset = jv["modset"];
     modadd = jv["modadd"];
+    if (jv["unit"].is_string())
+        unit = jv["unit"].as_string();
     if (jv["modmod"].is_number())
         modmod = jv["modmod"].as_number();
     //if (jv["scale"].is_number())
@@ -139,12 +148,8 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
         if (!a.has_value()) {
             LOG(ERROR) << "Attribute " << dflt << " not found";
         } else {
-            auto attr_it = gEDDBAttributes.find(a.value());
-            if (attr_it == gEDDBAttributes.end()) {
-                LOG(ERROR) << "Attribute " << dflt << " not found";
-            } else {
-                default_attr = &attr_it->second;
-            }
+            default_attr = getShipAttr(a.value());
+            LOG_IF(!default_attr,ERROR) << "Attribute " << dflt << " not found";
         }
     } else {
         default_value = dflt.as_number();
@@ -234,12 +239,11 @@ void ShipSlot::setEngineering(const std::string& bp, int level, float quality, c
                 if (!attr_opt.has_value())
                     continue;
                 Attr attr = attr_opt.value();
-                auto attr_it = gEDDBAttributes.find(attr);
-                if (attr_it == gEDDBAttributes.end())
+                auto attribute = getShipAttr(attr);
+                if (!attribute)
                     continue;
-                auto &attribute = attr_it->second;
-                if (attribute.modset || attribute.modadd || attribute.modmod.has_value() || getBaseAttrValue(attr)) {
-                    attrModifier[attr] = getBlueprintGradeRollAttrModifier(attribute);
+                if (attribute->modset || attribute->modadd || attribute->modmod.has_value() || getBaseAttrValue(attr)) {
+                    attrModifier[attr] = getBlueprintGradeRollAttrModifier(*attribute);
                 }
             }
         } else {
@@ -294,17 +298,16 @@ double ShipSlot::getRelatedAttrModifier(Attr attr) {
 double ShipSlot::getExperimentalAttrModifier(Attr attr) {
     if (!effect)
         return 0;
-    auto attr_it = gEDDBAttributes.find(attr);
-    if (attr_it == gEDDBAttributes.end())
+    auto attribute = getShipAttr(attr);
+    if (!attribute)
         return 0;
-    auto &attribute = attr_it->second;
-    auto& modExp = effect->at(attribute.id);
+    auto& modExp = effect->at(attribute->id);
     if (!modExp.is_number())
         return 0;
     double value = modExp.is_number();
-    if (!(attribute.modset || attribute.modadd)) {
-        if (attribute.modmod.has_value())
-            value /= attribute.modmod.value();
+    if (!(attribute->modset || attribute->modadd)) {
+        if (attribute->modmod.has_value())
+            value /= attribute->modmod.value();
         else
             value /= 100;
     }
@@ -316,12 +319,11 @@ double ShipSlot::getAttrModifierSum(Attr attr, double modifier1, double modifier
         return modifier2;
     if (std::isnan(modifier2))
         return modifier1;
-    auto attr_it = gEDDBAttributes.find(attr);
-    if (attr_it != gEDDBAttributes.end()) {
-        auto &attribute = attr_it->second;
-        if (attribute.modset)
+    auto attribute = getShipAttr(attr);
+    if (attribute) {
+        if (attribute->modset)
             return modifier2;
-        if (attribute.modadd)
+        if (attribute->modadd)
             return modifier1 + modifier2;
     }
     // modmod and standard
@@ -339,39 +341,37 @@ double ShipSlot::getEffectiveAttrModifier(Attr attr) {
 
 }
 double ShipSlot::getAttrValue(Attr attr, double value, double modifier) {
-    auto attr_it = gEDDBAttributes.find(attr);
-    if (attr_it != gEDDBAttributes.end()) {
-        auto& attribute = attr_it->second;
+    auto attribute = getShipAttr(attr);
+    if (attribute) {
         // fall back on attribute default value
         if (std::isnan(value)) {
-            if (attribute.default_attr)
-                value = getAttrValue(attribute.default_attr->attr, false);
+            if (attribute->default_attr)
+                value = getAttrValue(attribute->default_attr->attr, false);
             else
-                value = attribute.default_value;
+                value = attribute->default_value;
         }
 
         // apply modifier?
-        if (!std::isnan(modifier) && !std::isnan(value) && (value || attribute.modset || attribute.modadd || attribute.modmod.has_value())) {
-            if (attribute.modset)
+        if (!std::isnan(modifier) && !std::isnan(value) && (value || attribute->modset || attribute->modadd || attribute->modmod.has_value())) {
+            if (attribute->modset)
                 value = modifier;
-            else if (attribute.modadd)
+            else if (attribute->modadd)
                 value = value + modifier;
-            else if (attribute.modmod.has_value())
-                value = ((1 + (value / attribute.modmod.value())) * (1 + modifier) - 1) * attribute.modmod.value();
+            else if (attribute->modmod.has_value())
+                value = ((1 + (value / attribute->modmod.value())) * (1 + modifier) - 1) * attribute->modmod.value();
             else
                 value = value * (1 + modifier);
 
             // apply constraints
-            if (attribute.step.has_value())
-                value = round(value / attribute.step.value()) * attribute.step.value();
-            if (attribute.min.has_value())
-                value = std::max(value, attribute.min.value());
-            if (attribute.max.has_value())
-                value = std::min(value, attribute.max.value());
+            if (attribute->step.has_value())
+                value = round(value / attribute->step.value()) * attribute->step.value();
+            if (attribute->min.has_value())
+                value = std::max(value, attribute->min.value());
+            if (attribute->max.has_value())
+                value = std::min(value, attribute->max.value());
         }
     }
     return value;
-
 }
 
 double ShipSlot::getAttrValue(Attr attr, bool modified) {
@@ -423,13 +423,12 @@ double ShipSlot::getModuleAttrValue(const json5pp::value& module, Attr attr, dou
         break;
     }
     if (!value.is_number() || std::isnan(value.is_number())) {
-        auto attr_it = gEDDBAttributes.find(attr);
-        if (attr_it != gEDDBAttributes.end()) {
-            auto &attribute = attr_it->second;
-            if (attribute.default_attr) {
-                value = getModuleAttrValue(module, attribute.default_attr->attr);
+        auto attribute = getShipAttr(attr);
+        if (attribute) {
+            if (attribute->default_attr) {
+                value = getModuleAttrValue(module, attribute->default_attr->attr);
             } else {
-                value = attribute.default_value;
+                value = attribute->default_value;
             }
         }
     }
@@ -497,7 +496,11 @@ void ShipStats::setSlotModule(const json5pp::value &jvalue) {
 }
 
 void ShipStats::updateStat(ShipSlot& slot, Attr attr) {
-    stats[int(attr)] = slot.getEffectiveAttrValue(attr);
+    double value = slot.getEffectiveAttrValue(attr);
+    auto attribute = getShipAttr(attr);
+    if (attribute && attribute->unit == "%")
+        value /= 100.0;
+    stats[int(attr)] = value;
 }
 void ShipStats::updateStats() {
     auto& slot_hull = getSlot("Hull");
@@ -568,7 +571,7 @@ double ShipStats::getMassRotMultiplier() {
     double minmulrot = stats[int(Attr::minmulrot)];
     double optmulrot = stats[int(Attr::optmulrot)];
     double maxmulrot = stats[int(Attr::maxmulrot)];
-    return getMassCurveMultiplier(totallMass, minmass, optmass, maxmass, minmulrot, optmulrot, maxmulrot) / 100.;
+    return getMassCurveMultiplier(totallMass, minmass, optmass, maxmass, minmulrot, optmulrot, maxmulrot);
 }
 double ShipStats::getMassSpdMultiplier() {
     double totallMass = st::shipStats.unladenMass + st::shipStats.fuelMain + st::shipStats.fuelReservoir + st::shipStats.cargo;
@@ -578,7 +581,7 @@ double ShipStats::getMassSpdMultiplier() {
     double minmulspd = stats[int(Attr::minmulspd)];
     double optmulspd = stats[int(Attr::optmulspd)];
     double maxmulspd = stats[int(Attr::maxmulspd)];
-    return getMassCurveMultiplier(totallMass, minmass, optmass, maxmass, minmulspd, optmulspd, maxmulspd) / 100.;
+    return getMassCurveMultiplier(totallMass, minmass, optmass, maxmass, minmulspd, optmulspd, maxmulspd);
 }
 
 double speed_scale(int speed_percent, float values[3]) {

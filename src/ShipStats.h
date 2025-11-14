@@ -244,6 +244,7 @@ public:
     std::string desc;
     bool modset;
     bool modadd;
+    std::string unit;
     std::optional<double> modmod;
     //std::optional<double> scale;
     std::optional<double> min;

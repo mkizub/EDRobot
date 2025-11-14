@@ -9,17 +9,9 @@
 
 #include "Types.h"
 #include "Task.h"
+#include "../Galaxy.h"
 
-namespace gal {
-class Item;
-class Body;
-class Site;
-typedef std::shared_ptr<Item> spItem;
-typedef std::shared_ptr<Body> spBody;
-typedef std::shared_ptr<Site> spSite;
-}
-
-namespace nav {
+namespace ai {
 
 struct NavListEntry {
     wchar_t icon {L'\0'};  // ✦ / ☄ / ✇ / etc.
@@ -30,12 +22,13 @@ struct NavListEntry {
     wchar_t portDanger {L'\0'}; // ◇ / ⬖ / ◆
     std::wstring name;
     dist_t dist;
-    const nav::NavType* navType {nullptr};
-    gal::spItem item {};
+    const gal::NavType* navType {nullptr};
+    gal::spEntity item {};
     int ocr_conf {};
     bool focused {};
     bool parsed {};
     int8_t confirmed {};
+    int8_t index {};
 };
 
 class NavList {
@@ -45,26 +38,27 @@ public:
     bool init(st::NavPanelFilters filters);
     std::vector<ClassifiedRect*> initNavList(cv::Mat& grayImage, int& focusIdx);
     std::vector<ClassifiedRect*> recognizeWholePage(cv::Mat& grayImage, int& focusIdx);
-    bool recognizeFocusedNavRow(nav::NavListEntry& nle);
-    gal::spItem guessNavItem(NavListEntry &nle);
+    gal::spEntity guessNavItem(int idx);
     bool fixupNavList();
 
     bool focusDestDock();
     bool focusDestBody();
-    gal::spBody focusNearestBody(dist_t* dist=nullptr);
+    bool focusDestination(int& focusIdx);
+    gal::spEntity focusNearestBody(dist_t* dist=nullptr);
     bool focusTopEntry();
 
     bool selectFocused();
+    bool discoverSelected();
 
     dist_t getFocusedDist(int max_try);
+
+    bool parseNavRow(const cv::Mat &grayImage, const ResolvedEnv& rEnv, const ClassifiedRect &cr, int idx);
+    bool parseNavDist(const cv::Mat &grayImage, const ResolvedEnv& rEnv, const ClassifiedRect &cr, int idx);
 
     std::vector<NavListEntry> list;
 
 };
 
-} // namespace nav
-
-namespace ai {
 
 class NavListScanTask : public Task {
 public:
@@ -73,7 +67,7 @@ public:
     bool gotoNavPageNavigation();
 
     bool mTravel {false};
-    nav::NavList nl;
+    NavList nl;
 };
 
 } // namespace ai

@@ -1,5 +1,67 @@
 [
   {
+    name: "Build Gulyaev City",
+    templ: "tsk-repeat",
+    //count: 10,
+    //duration: 300, // at least 5 hours (300 minutes)
+    steps: [
+      {
+        templ: "tsk-travel",
+        system: "Col 285 Sector GP-K b23-4",
+        dock: "Biesbroeck Reach"
+        //system: "7 G. Aquilae",
+        //dock: "Meredith's Inheritance"
+      },
+      {
+        templ: "tsk-market-buy-constr",
+        system: "Col 285 Sector XK-O d6-69",
+        depot: "Orbital Construction Site: Gulyaev City"
+      },
+      {
+        templ: "tsk-travel",
+        system: "Col 285 Sector XK-O d6-69",
+        dock: "Orbital Construction Site: Gulyaev City"
+      },
+      {
+        templ: "tsk-constr-unload",
+      }
+    ]
+  },
+  {
+    name: "Trade loop",
+    templ: "tsk-repeat",
+    //count: 10,
+    //duration: 300, // at least 5 hours (300 minutes)
+    steps: [
+      {
+        templ: "tsk-travel",
+        system: "LTT 6988",
+        dock: "Weichelt Legacy"
+      },
+      {
+        templ: "tsk-market-sell-all",
+        except: "indite",
+      },
+      {
+        templ: "tsk-market-buy",
+        commodity: "indite",
+      },
+      {
+        templ: "tsk-travel",
+        system: "Desyne",
+        dock: "Accardo Watch"
+      },
+      {
+        templ: "tsk-market-sell-all",
+        except: "cmmcomposite",
+      },
+      {
+        templ: "tsk-market-buy",
+        commodity: "cmmcomposite",
+      },
+    ]
+  },
+  {
     name: "Build Richards Watch",
     templ: "tsk-repeat",
     //count: 10,

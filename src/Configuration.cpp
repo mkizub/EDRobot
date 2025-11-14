@@ -159,6 +159,7 @@ bool Configuration::load() {
         openclDisabled = true;
 #endif
         std::filesystem::create_directories("cache/systems");
+        std::filesystem::create_directories("cache/markets");
 
         LOG(INFO) << "Initializing D3D device";
         Capturer::InitD3DDevice();
@@ -173,7 +174,6 @@ bool Configuration::load() {
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
 
-        loadGameStatus();
         loadCalibration();
 
         LOG(INFO) << "Setting journal directory listener";
@@ -1177,7 +1177,7 @@ bool Configuration::loadMarket(Timestamp event_timestamp) {
 
     spMarket market = std::shared_ptr<Market>(new Market{
             .timestamp = timestamp,
-            .marketId = j_market.at("MarketID").as_integer(),
+            .marketId = j_market.at("MarketID").as_int64(),
             .stationName = j_market.at("StationName").as_string(),
             .stationType = j_market.at("StationType").as_string(),
             .starSystem = j_market.at("StarSystem").as_string(),

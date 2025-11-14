@@ -24,8 +24,6 @@
 # define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
 #endif
 
-using namespace std::chrono_literals;
-
 namespace ai {
 
 namespace {
@@ -219,9 +217,11 @@ void throw_trouble(const std::string& msg) {
 void throw_failed(const char* msg) {
     assert (taskThread.get_id() == std::this_thread::get_id());
     if (msg && *msg) {
-        spStep curr = curr_step();
-        if (curr)
-            curr->addMessage(MSG_ERROR, msg);
+        spTask curr = curr_task();
+        if (curr) {
+            curr->failed = true;
+            curr->addMessage(MSG_FATAL, msg);
+        }
         LOG(ERROR) << msg;
     }
     throw nonlocal_return(true, msg);
@@ -229,9 +229,11 @@ void throw_failed(const char* msg) {
 void throw_failed(const std::string& msg) {
     assert (taskThread.get_id() == std::this_thread::get_id());
     if (!msg.empty()) {
-        spStep curr = curr_step();
-        if (curr)
-            curr->addMessage(MSG_ERROR, msg);
+        spTask curr = curr_task();
+        if (curr) {
+            curr->failed = true;
+            curr->addMessage(MSG_FATAL, msg);
+        }
         LOG(ERROR) << msg;
     }
     throw nonlocal_return(true, msg);
@@ -313,24 +315,25 @@ void task_step() {
         Mgr.setGameForeground();
         LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getTitle();
         bool ok = false;
+        bool failed = false;
         TRY {
             activeTask->prevSubStep.reset();
             activeTask->currSubStep.reset();
             ok = activeTask->run();
         } CATCH (const std::exception& ex) {
             kbd::reset_vJoy();
-            if (dynamic_cast<const nonlocal_return*>(&ex))
-                ;
+            if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex))
+                activeTask->failed = failed = nlr->failed;
             else if (dynamic_cast<const interrupted_error*>(&ex))
                 ;
             else
                 LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
         }
-        if (ok) {
+        if (ok || failed) {
             lastTask.reset();
             lastTask.swap(activeTask);
         }
-        LOG(INFO) << "ai::task_loop(): active task: " << (isInterrupted ? "interrupted" : ok ? "passed" : "not complete");
+        LOG(INFO) << "ai::task_loop(): active task: " << (isInterrupted ? "interrupted" : failed ? "failed" : ok ? "passed" : "not complete");
         return;
     }
 }

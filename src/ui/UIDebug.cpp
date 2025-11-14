@@ -172,8 +172,8 @@ void UIDebug::resizeWindow() {
         D2D1_RENDER_TARGET_PROPERTIES rtProps = {
                 .type =  D2D1_RENDER_TARGET_TYPE_DEFAULT,
                 .pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
-                .dpiX = 0.0,
-                .dpiY = 0.0,
+                .dpiX = USER_DEFAULT_SCREEN_DPI,
+                .dpiY = USER_DEFAULT_SCREEN_DPI,
                 .usage = D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE,
                 .minLevel = D2D1_FEATURE_LEVEL_DEFAULT,
         };
@@ -206,6 +206,8 @@ void UIDebug::resizeWindow() {
         hMonitor = hCurrMonitor;
         mMonitorFullRect = fromRECT(monitorInfo.rcMonitor);
         mMonitorWorkRect = fromRECT(monitorInfo.rcWork);
+        float dpi = GetDpiForWindow(hWnd);
+        mDPIScale = dpi / USER_DEFAULT_SCREEN_DPI;
     }
 
     RECT windowRect;
@@ -294,7 +296,7 @@ void UIDebug::onPaint() {
         pRenderTarget->BeginDraw();
         pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
-        D2D1_RECT_F bitmapRect = D2D1::RectF(0, 0, mDPIScale*mOutputSize.width, mDPIScale*mOutputSize.height);
+        D2D1_RECT_F bitmapRect = D2D1::RectF(0, 0, mOutputSize.width, mOutputSize.height);
         pRenderTarget->DrawBitmap(pGameBitmap, &bitmapRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, &bitmapRect);
         if (mDebugOverlayPresent)
             pRenderTarget->DrawBitmap(pOverlayBitmap, &bitmapRect, 1.0, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, &bitmapRect);

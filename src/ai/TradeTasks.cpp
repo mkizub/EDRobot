@@ -11,8 +11,6 @@
 #include "../Keyboard.h"
 #include "../Galaxy.h"
 
-using namespace std::chrono_literals;
-
 #ifdef CPPTRACE_TRY
 # define TRY CPPTRACE_TRY
 # define CATCH(param) CPPTRACE_CATCH(param)
@@ -131,6 +129,14 @@ bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, b
             return false;
         }
     }
+    kbd::send("UI_Left");
+    for (int i=0; i < 4; i++)
+        kbd::send("UI_Up");
+    ai::detectEDState(DetectLevel::Buttons);
+    if (!ai::uiState.match(dlg_mod))
+        return false;
+    if (ai::uiState.focused_name() != "spn-amount")
+        return false;
     return true;
 }
 
@@ -158,21 +164,36 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
 
 TaskSellAll::TaskSellAll(const TaskTemplate& templ_)
         : BaseMarketTask(templ_)
-        , mChunk(1000)
+        , mChunk(0)
+        , mSold(0)
 {
     assert (templ.id == ED_TASK_MARKET_SELL_ALL);
     for (auto& p : templ.params) {
+        if (p.name == "except")
+            mExcept = std::get<std::string>(p.value);
         if (p.name == "chunk")
             mChunk = std::get<int64_t>(p.value);
     }
+}
+
+std::string TaskSellAll::getTitle() {
+    int soldTotal = 0;
+    for (auto& st : sell_queue)
+        soldTotal += st.task->mSold;
+    return std::format("Sell everything, sold {}", soldTotal);
 }
 
 bool TaskSellAll::run() {
     gotoMarketScreen(false);
 
     if (sell_queue.empty()) {
+        std::vector<std::string> except;
+        if (!mExcept.empty())
+            except = split(mExcept, ',');
         spShipCargo shipCargo = st::currentCargo;
         for (Commodity* commodity: shipCargo->inventory) {
+            if (contains(except, commodity->nameId))
+                continue;
             bool complete = false;
             for (auto& st : sell_queue) {
                 if (st.commodity == commodity && (st.complete || st.failed)) {
@@ -193,6 +214,8 @@ bool TaskSellAll::run() {
             sell_queue.emplace_back(commodity, task, false, false);
         }
     }
+    if (sell_queue.empty())
+        return true;
     for (auto& st : sell_queue) {
         if (st.complete || st.failed)
             continue;
@@ -389,13 +412,6 @@ bool TaskSell::processTradeDialog(bool force) {
     status = TRADING;
     if (!enterTradeDialog(mCommodity, "scr-market:mod-sell", force))
         return false;
-    for (int i=0; i < 4; i++)
-        kbd::send("UI_Up");
-    ai::detectEDState(DetectLevel::Buttons);
-    if (!ai::uiState.match("scr-market:mod-sell:dlg-trade:*"))
-        return false;
-    if (ai::uiState.focused_name() != "spn-amount")
-        return false;
     int canSell = Mgr.canSell(mCommodity);
     if (canSell <= 0)
         return false;
@@ -583,13 +599,6 @@ bool TaskBuy::processTradeDialog(bool force) {
     status = TRADING;
     if (!enterTradeDialog(mCommodity, "scr-market:mod-buy", force))
         return false;
-    for (int i=0; i < 4; i++)
-        kbd::send("UI_Up");
-    ai::detectEDState(DetectLevel::Buttons);
-    if (!ai::uiState.match("scr-market:mod-buy:dlg-trade:*"))
-        return false;
-    if (ai::uiState.focused_name() != "spn-amount")
-        return false;
     int canBuy = Mgr.canBuy(mCommodity);
     if (canBuy <= 0)
         return false;
@@ -649,9 +658,10 @@ bool TaskBuyConstr::run() {
     auto depot = starSystem->getDock(destConstrName);
     if (!depot)
         throw_failed("Construction depot '"+destConstrName+"' not known");
-    if (!(depot->typeNav == gal::TypeNav::SpaceConstr || depot->typeNav == gal::TypeNav::PlanetConstr))
+    if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot))
         throw_failed("Site '"+destConstrName+"' is not a construction depot");
-    if (!depot->marketData || depot->marketData->items.empty())
+    spMarket depotMarket = gal::getMarket(depot->marketId);
+    if (!depotMarket|| depotMarket->items.empty())
         throw_failed("Construction depot '"+destConstrName+"' demand is not known");
 
     if (st::shipStats.cargo >= st::shipStats.cargoCapacity)
@@ -660,8 +670,6 @@ bool TaskBuyConstr::run() {
 
     bool triedToBuy = false;
     if (buy_queue.empty()) {
-        spMarket depotMarket = depot->marketData;
-
         for (auto it: depotMarket->items) {
             Commodity* commodity = it.first;
             MarketLine& ml = it.second;

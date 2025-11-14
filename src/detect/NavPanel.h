@@ -19,7 +19,19 @@ public:
     double match(ClassifyEnv& env) override;
 
 private:
+    friend struct NavPanelDetectLock;
+    static std::string forceDetect;
+
     std::vector<std::unique_ptr<Detector>> detectors;
+};
+
+struct NavPanelDetectLock {
+    NavPanelDetectLock(std::string force) {
+        NavPanelDetector::forceDetect = force;
+    }
+    ~NavPanelDetectLock() {
+        NavPanelDetector::forceDetect.clear();
+    }
 };
 
 }

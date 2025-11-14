@@ -30,7 +30,7 @@ spNavRoute currentNavRoute;
 CompassInfo compass;
 Autopilot autopilot;
 
-void Autopilot::setDestBody(std::shared_ptr<gal::Body> body) {
+void Autopilot::setDestBody(gal::spEntity body) {
     destBody = body;
     isDestDockFocused = false;
     isDestBodyFocused = false;
@@ -41,7 +41,7 @@ void Autopilot::setDestBody(std::shared_ptr<gal::Body> body) {
         isDestBodyTargeted = false;
     }
 }
-void Autopilot::setDestDock(std::shared_ptr<gal::Site> dock) {
+void Autopilot::setDestDock(gal::spEntity dock) {
     destDock = dock;
     isDestDockFocused = false;
     isDestBodyFocused = false;
@@ -247,7 +247,11 @@ bool Configuration::loadGameStatus() {
         // "Destination":{ "System":2381282543995, "Body":0, "Name":"Col 285 Sector XK-O d6-69" }
         // "Destination":{ "System":2868098639337, "Body":1, "Name":"Orbital Construction Site: Piestrak Town" }
         int64 systemAddress = jd.at("System",0).as_int64();
-        std::string name = jd.at("Name","").as_string();
+        std::string name;
+        if (jd.at("Name_Localised").is_string())
+            name = jd["Name_Localised"].as_string();
+        else
+            name = jd.at("Name","").as_string();
         int bodyId = jd.at("Body",0).as_integer();
         if (systemAddress != st::destination.systemAddress || name != st::destination.name || bodyId != st::destination.bodyId) {
             st::destination.systemAddress = systemAddress;
@@ -364,8 +368,7 @@ void parseEvent_Location(spGameEvent& ge) {
         st::dockedAt.marketId = je.at("MarketID",0).as_int64();
         set(st::dockedAt.stationName, je.at("StationName",""));
         set(st::dockedAt.stationType, je.at("StationType",""));
-        gal::spStarSystem ss = gal::getCurrentStarSystem();
-        ss->addStation(st::dockedAt.marketId, st::dockedAt.stationName, st::dockedAt.stationType);
+        gal::getCurrentStarSystem()->addStation(ge);
         st::space = {};
     } else {
         if (je["Body"].is_string()) {
@@ -508,26 +511,16 @@ void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
 
     st::dockedAt = {};
     st::space.marketId = je.at("MarketID",0).as_int64();
-    st::space.stationName = je.at("Type","").as_string();
+    if (je.at("Type_Localised").is_string())
+        st::space.stationName = je["Type_Localised"].as_string();
+    else
+        st::space.stationName = je.at("Type","").as_string();
+
     st::space.stationType.clear();
     if (st::space.stationType.empty() && st::space.stationName.starts_with("Orbital Construction Site"))
         st::space.stationType = "SpaceConstructionDepot";
-    gal::spStarSystem starSystem = gal::getCurrentStarSystem();
-    if (!starSystem)
-        return;
-    if (!st::space.marketId)
-        return;
-    gal::spSite dock = starSystem->addStation(st::space.marketId, st::space.stationName, st::space.stationType);
-    switch (dock->typeSite) {
-    case gal::TypeSite::FleetCarrier:
-        st::space.stationType = "FleetCarrier";
-        break;
-    case gal::TypeSite::SpaceConstr:
-        st::space.stationType = "SpaceConstructionDepot";
-        break;
-    default:
-        break;
-    }
+    if (auto ss = gal::getCurrentStarSystem())
+        ss->addStation(ge);
 }
 
 void parseEvent_ApproachSettlement(spGameEvent& ge) {
@@ -545,17 +538,8 @@ void parseEvent_ApproachSettlement(spGameEvent& ge) {
 
     if (st::space.stationType.empty() && st::space.stationName.starts_with("Planetary Construction Site"))
         st::space.stationType = "PlanetaryConstructionDepot";
-    gal::spStarSystem starSystem = gal::getCurrentStarSystem();
-    if (!starSystem)
-        return;
-    gal::spSite dock = starSystem->addStation(st::space.marketId, st::space.stationName, st::space.stationType);
-    switch (dock->typeSite) {
-    case gal::TypeSite::PlanetConstr:
-        st::space.stationType = "PlanetaryConstructionDepot";
-        break;
-    default:
-        break;
-    }
+    if (auto ss = gal::getCurrentStarSystem())
+        ss->addStation(ge);
 }
 
 void parseEvent_SupercruiseExit(spGameEvent& ge) {
@@ -617,15 +601,14 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
     if (!starSystem)
         return;
     int64_t marketId = je.at("MarketID").as_int64();
+    spMarket market = gal::getMarket(marketId);
+    if (market && market->timestamp > ge->timestamp)
+        return;
     auto dock = starSystem->getDock(marketId);
-    if (!dock)
-        return;
-    if (dock->marketData && dock->marketData->timestamp > ge->timestamp)
-        return;
-    spMarket market = std::shared_ptr<Market>(new Market{
+    market = std::make_shared<Market>(Market{
             .timestamp = ge->timestamp,
             .marketId = marketId,
-            .stationName = dock->name,
+            .stationName = dock ? dock->name : "",
             .stationType = "",
             .starSystem = starSystem->systemName,
     });
@@ -652,9 +635,6 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             ml.isProducer = false;
             market->items.emplace(commodity, ml);
         }
-        //LOG(INFO) << "Construction " << dock->name << std::format(" progress: {:.1f}%", progress);
-    } else {
-        LOG(INFO) << "Construction " << dock->name << " COMPLETE!";
     }
 
     st::currentMarket.swap(market);

@@ -73,9 +73,12 @@ void CompassDetector::loadCompass() {
         }
     }
     compassImageName = std::format("templates/compass/compass*_{}.png",preprocessedShip);
+    bool use_gray_compass = false;
     auto paths = glob::glob(compassImageName);
-    if (paths.empty())
+    if (paths.empty()) {
+        use_gray_compass = true;
         compassImageName = "templates/compass/compass*_default.png";
+    }
 
     compassDetector = std::make_unique<ImageTemplate>(compassImageName, std::make_shared<ConstRect>(compassRefRect));
     compassDetector->testAngles = {0}; //{0, -1, +1};
@@ -86,7 +89,11 @@ void CompassDetector::loadCompass() {
     compassDetector->threshold_max = 0.8;
     compassDetector->matchMethod = cv::TM_CCORR_NORMED;
 
-    HsvMaskFilter* hsvFilter = new HsvGrayCropFilter();
+    HsvMaskFilter* hsvFilter;
+    if (use_gray_compass)
+        hsvFilter = new HsvGrayCropFilter;
+    else
+        hsvFilter = new HsvColorCropFilter;
     //hsvFilter->rangesU.emplace_back(cv::Vec3b(15,50,254),cv::Vec3b(35,255,255)); // limit Hue[10..30]
     hsvFilter->rangesU.emplace_back(cv::Vec3b(10,0,0),cv::Vec3b(35,255,255)); // limit Hue[10..35]
     compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.65, 0)));
@@ -125,78 +132,78 @@ double CompassDetector::match(ClassifyEnv &env) {
 
     auto totalStartTime = std::chrono::high_resolution_clock::now();
 
-    //auto startTime = std::chrono::high_resolution_clock::now();
-    double compassMatch = compassDetector->match(env);
-    //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-    //LOG(INFO) << "Compass detect took: " << elapsedTime.count() << "us";
-    if (compassMatch < 0.5 || compassDetector->lastTemplatedx < 0) {
-        return compassMatch;
+    bool can_use_compass = !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
+    double compassMatch = 0;
+    if (can_use_compass) {
+        compassMatch = compassDetector->match(env);
+        if (compassMatch < 0.5 || compassDetector->lastTemplatedx < 0)
+            can_use_compass = false;
     }
-
-    //
-    // Detect compass dot
-    //
-    if (preprocessedDotsScale != env.getScale()) {
-        preprocessedDotsScale = env.getScale();
-        for (auto &im: compassDotsOrig) {
-            compassDotsPrepared.push_back(ImageTemplate::prepareImageMatrix(env, dotsFilters, im.templImageU, 1, 0, im.name));
-        }
-        for (auto &im: navTargetOrig) {
-            for (auto scale : navTargetScales) {
-                navTargetPrepared.push_back(ImageTemplate::prepareImageMatrix(env, navTargetFilters, im.templImageU, scale/env.getScale(), 0, im.name));
+    if (can_use_compass) {
+        //
+        // Detect compass dot
+        //
+        if (preprocessedDotsScale != env.getScale()) {
+            preprocessedDotsScale = env.getScale();
+            for (auto &im: compassDotsOrig) {
+                compassDotsPrepared.push_back(
+                        ImageTemplate::prepareImageMatrix(env, dotsFilters, im.templImageU, 1, 0, im.name));
             }
-        }
-
-        auto fov = Cfg.getConfigFOV();
-        preprocessedFOV = fov;
-        double fov_scale = std::lerp(1.0, 1.3, (fov-54)/6.);
-        const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem("scr-cockpit");
-        if (scr_cockpit) {
-            std::string res = std::format("{}x{}", env.captureRect.width, env.captureRect.height);
-            auto &varSet = scr_cockpit->varSetMap.at("undistort");
-            for (auto &vars: varSet) {
-                if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), res)) {
-                    auto& vals = vars.values.at("fov"); // for FOV [54,60]
-                    fov_scale = std::lerp(vals[0], vals[1], (fov-54)/6.);
-                    break;
+            for (auto &im: navTargetOrig) {
+                for (auto scale: navTargetScales) {
+                    navTargetPrepared.push_back(ImageTemplate::prepareImageMatrix(env, navTargetFilters, im.templImageU,
+                                                                                  scale / env.getScale(), 0, im.name));
                 }
             }
+
+            auto fov = Cfg.getConfigFOV();
+            preprocessedFOV = fov;
+            double fov_scale = std::lerp(1.0, 1.3, (fov - 54) / 6.);
+            const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem(
+                    "scr-cockpit");
+            if (scr_cockpit) {
+                std::string res = std::format("{}x{}", env.captureRect.width, env.captureRect.height);
+                auto &varSet = scr_cockpit->varSetMap.at("undistort");
+                for (auto &vars: varSet) {
+                    if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), res)) {
+                        auto &vals = vars.values.at("fov"); // for FOV [54,60]
+                        fov_scale = std::lerp(vals[0], vals[1], (fov - 54) / 6.);
+                        break;
+                    }
+                }
+            }
+
+            cv::Rect remapRect = targetReferenceRect;
+            remapRect = ImageTemplate::makeOptimalMatchRect(remapRect);
+            targetRemapRect = remapRect;
+            navTargetRemapXY.create(remapRect.height, remapRect.width, CV_32FC2);
+            const int cx = env.ReferenceScreenCenter.x;
+            const int cy = env.ReferenceScreenCenter.y;
+            const int dx = remapRect.x;
+            const int dy = remapRect.y;
+            const int ccx = env.captureRect.width / 2;
+            const int ccy = env.captureRect.height / 2;
+
+            const double A = fov_scale / cx;
+            const double env_scale = env.getScale();
+            navTargetRemapXY.forEach<cv::Point2f>([=](cv::Point2f &pixel, const int position[]) -> void {
+                int y = position[0] + dy;
+                int x = position[1] + dx;
+                double off_x = x - cx;
+                double off_y = y - cy;
+                double radius = std::sqrt((off_x * off_x) + (off_y * off_y));
+                double r_tan = A * radius;
+                double undistort_scale;
+                if (r_tan == 0)
+                    undistort_scale = 1;
+                else
+                    undistort_scale = r_tan / std::atan(r_tan);
+                pixel.x = ccx + undistort_scale * off_x * env_scale;
+                pixel.y = ccy + undistort_scale * off_y * env_scale;
+            });
+            cv::convertMaps(navTargetRemapXY, cv::noArray(), navTargetRemap1, navTargetRemap2, CV_16SC2, false);
         }
 
-        cv::Rect remapRect = targetReferenceRect;
-        remapRect = ImageTemplate::makeOptimalMatchRect(remapRect);
-        targetRemapRect = remapRect;
-        navTargetRemapXY.create(remapRect.height, remapRect.width, CV_32FC2);
-        const int cx = env.ReferenceScreenCenter.x;
-        const int cy = env.ReferenceScreenCenter.y;
-        const int dx = remapRect.x;
-        const int dy = remapRect.y;
-        const int ccx = env.captureRect.width/2;
-        const int ccy = env.captureRect.height/2;
-
-        const double A = fov_scale / cx;
-        const double env_scale = env.getScale();
-        navTargetRemapXY.forEach<cv::Point2f>([=](cv::Point2f& pixel, const int position[]) -> void {
-            int y = position[0] + dy;
-            int x = position[1] + dx;
-            double off_x = x - cx;
-            double off_y = y - cy;
-            double radius = std::sqrt((off_x * off_x) + (off_y * off_y));
-            double r_tan = A * radius;
-            double undistort_scale;
-            if (r_tan == 0)
-                undistort_scale = 1;
-            else
-                undistort_scale = r_tan / std::atan(r_tan);
-            pixel.x = ccx + undistort_scale * off_x * env_scale;
-            pixel.y = ccy + undistort_scale * off_y * env_scale;
-        });
-        cv::convertMaps(navTargetRemapXY, cv::noArray(), navTargetRemap1, navTargetRemap2, CV_16SC2, false);
-    }
-
-    //startTime = std::chrono::high_resolution_clock::now();
-
-    {
         cv::Rect matchRect = ImageTemplate::makeOptimalMatchRect(compassDetector->captureRect);
         env.cropToCapture(matchRect);
         XMat imagePrepared = ImageTemplate::applyFilters(dotsFilters, env.getColorImage()(matchRect));
@@ -252,7 +259,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         }
     }
 
-    if ((lastHemisphere > 0 && std::abs(lastTgtYaw) < 25 && lastTgtPitch >= -10 && lastTgtPitch <= 25) || env.isDebugMatch()) {
+    if (!can_use_compass || (lastHemisphere > 0 && std::abs(lastTgtYaw) < 25 && lastTgtPitch >= -10 && lastTgtPitch <= 25) || env.isDebugMatch()) {
         //startTime = std::chrono::high_resolution_clock::now();
 
         XMat correctedColorImage;
@@ -277,6 +284,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             cv::Point referencePos = env.cvtCapturedToReference(navCapturePos);
             lastNavTargetOffset = referencePos - env.ReferenceScreenCenter;
             navTargetFound = true;
+            lastHemisphere = 1;
         } else {
             lastNavTargetOffset = {};
             navTargetFound = false;
@@ -379,9 +387,9 @@ double CompassDetector::match(ClassifyEnv &env) {
         }
     }
     auto totalElapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - totalStartTime);
-    LOG(INFO) << "Compass detection took: " << std::format("{}ms",totalElapsedTime.count());
+    //LOG(DEBUG) << "Compass detection took: " << std::format("{}ms",totalElapsedTime.count());
 
-    return compassMatch;
+    return navTargetFound ? 1 : can_use_compass ? compassMatch : 0;
 }
 
 void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect) {

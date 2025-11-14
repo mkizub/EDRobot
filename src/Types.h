@@ -14,45 +14,89 @@ enum class Lang { XX=-1, EN=0, RU=1 };
 enum class GuiFocus { None=0, Right=1, Left=2, Chat=3, Role=4, Services=5, GalaxyMap=6, SystemMap=7, Orrery=8, FSS=9, SAA=10, Codex=11 };
 
 
-
-namespace gal {
+// BodyType values game journals
+//enum class JournalTypeBody {
+//    Null, // a barycentre
+//    Star,
+//    Planet,
+//    PlanetaryRing,
+//    StellarRing,
+//    Station,
+//    AsteroidCluster,
+//};
+//
+//enum class TypeBody {
+//    Other, // barycenter
+//    Star,
+//    Planet,
+//    Ring,
+//    AsteroidCluster,
+//};
 
 enum class TypeNav {
-    Other, // space barycentre, asteroid cluster, etc.
-    Star,
-    Planet,
-    SpacePort, // Orbis, Ocellus, Coriolis, AsteroidBase - large landing pads
-    SpaceInst, // non-dockable space installations / instance
-    SpaceConstr, // space construction site
-    PlanetPort, // planet ports - large landing pads
-    PlanetInst, // non-dockable ground installations / instance
-    PlanetConstr, // planet construction site
-    Carrier, // pilot/squadron fleet carrier
-    MegashipDock, // dockable megaship - pp base, trailblazer megaships
-    MegashipInst, // non-dockable space megaship / instance
+    Other                   = 0,
+    Error                   = 1,
+    NotExplored             = 2,
+    Signal                  = 3,
+    WarZone                 = 4,
+    ResSite                 = 5,
+    StarSystem              = 6,
+    Body                    = 0x10,   // generic type, also, Barycenter
+    Barycenter              = 0x11,
+    Ring                    = 0x12,
+    AsteroidCluster         = 0x13,
+    Star                    = 0x14,
+    Planet                  = 0x15,
+    SpaceThing              = 0x20,   // generic type
+    NavBeacon               = 0x21,
+    TouristBeacon           = 0x22,
+    SpaceStation            = 0x27,   // generic type
+    Orbis                   = 0x28,
+    Ocellus                 = 0x29,
+    Coriolis                = 0x2A,
+    AsteroidBase            = 0x2B,
+    SpaceOutpost            = 0x2C,
+    SpaceInstallation       = 0x2D,
+    SpaceConstrDepot        = 0x2F,
+    Megaship                = 0x30,   // generic type
+    StationMegaShip         = 0x31,
+    FleetCarrier            = 0x32,
+    SquadronCarrier         = 0x33,
+    StrongholdCarrier       = 0x34,
+    ColonisationShip        = 0x35,
+    TrailblazerDream        = 0x36,
+    PlanetaryThing          = 0x40,   // generic type
+    PlanetaryStation        = 0x41,   // generic type
+    PlanetaryPort           = 0x42,
+    EngineerPort            = 0x43,
+    Settlement              = 0x44,   // odyssey settlement
+    PlanetaryInstallation   = 0x45,
+    PlanetaryConstrDepot    = 0x46,
 };
 
-enum class TypeSite {
-    Other,
-    Orbis,
-    Ocellus,
-    Coriolis,
-    AsteroidBase,
-    SpaceOutpost,
-    FleetCarrier,
-    SquadronCarrier,
-    StrongholdCarrier,
-    ColonisationShip,
-    StationMegaShip,
-    TrailblazerDream,
-    EngineerPort,
-    Settlement, // odyssey settlements
-    NavBeacon,
-    SpaceConstr,
-    PlanetConstr,
-};
+inline bool isSignal(TypeNav type) {
+    return type < TypeNav::Body;
+}
+inline bool isBody(TypeNav type) {
+    return type >= TypeNav::Body && type < TypeNav::SpaceThing;
+}
+inline bool isSite(TypeNav type) {
+    return type >= TypeNav::SpaceThing;
+}
+inline bool isSpaceSite(TypeNav type) {
+    return type >= TypeNav::SpaceThing && type < TypeNav::PlanetaryThing;
+}
+inline bool isSpaceStation(TypeNav type) {
+    return type >= TypeNav::SpaceStation && type <= TypeNav::SpaceOutpost;
+}
+inline bool isPlanetarySite(TypeNav type) {
+    return type >= TypeNav::PlanetaryThing && type <= TypeNav::PlanetaryConstrDepot;
+}
 
-} // namespace gal
+namespace gal {
+    class Entity;
+    typedef std::shared_ptr<Entity> spEntity;
+}
 
 namespace ai {
 
