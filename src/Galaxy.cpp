@@ -496,15 +496,20 @@ void StarSystem::addDestination() {
     for (auto& s : this->stations) {
         if (s->nameEq(dname)) {
             switch (s->type) {
+            case TypeNav::FleetCarrier:
+                if (s->name != dname) {
+                    s->setName(dname);
+                    this->saved = false;
+                }
+                // fall through
             case TypeNav::NavBeacon:
             case TypeNav::TouristBeacon:
             case TypeNav::SpaceInstallation:
-            case TypeNav::FleetCarrier:
             case TypeNav::SquadronCarrier:
             case TypeNav::StrongholdCarrier:
             case TypeNav::ColonisationShip:
             case TypeNav::Megaship:
-            case TypeNav::TrailblazerDream:
+            //case TypeNav::TrailblazerDream:
             case TypeNav::PlanetaryThing:
             case TypeNav::PlanetaryStation:
             case TypeNav::PlanetaryPort:
@@ -516,6 +521,8 @@ void StarSystem::addDestination() {
                 if (s->parentBodyId != st::destination.bodyId) {
                     s->parentBodyId = st::destination.bodyId;
                     this->saved = false;
+                }
+                if (!this->saved) {
                     saveStarSystem(this);
                 }
             }
@@ -588,7 +595,7 @@ spEntity StarSystem::addNavListEntry(wchar_t charOCR, const std::string& nav_ico
                     typeNav = nt->type;
                     break;
                 }
-                if (tp != TypeNav::Other)
+                if (tp == TypeNav::Other)
                     tp = nt->type;
             }
         }
@@ -673,15 +680,14 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
         TypeNav tp = TypeNav::Other;
         for (auto nt: ALL_NAV_TYPES) {
             if (nt->match_type(stype)) {
-                if (nt->type == dock->type) {
+                if (nt->type == dock->type || dock->type == TypeNav::Other) {
                     typeNav = nt->type;
                     break;
                 }
-                if (tp != TypeNav::Other)
-                    tp = nt->type;
+                tp = nt->type;
             }
         }
-        if (typeNav != dock->type && tp != TypeNav::Other)
+        if (tp != TypeNav::Other)
             typeNav = tp;
     }
     if (typeNav == TypeNav::PlanetaryPort) {
@@ -786,19 +792,12 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
             }
         }
         if (typeNav == TypeNav::Other) {
-            TypeNav tp = TypeNav::Other;
             for (auto nt: ALL_NAV_TYPES) {
                 if (nt->match_type(stype)) {
-                    if (nt->type == site->type) {
-                        typeNav = nt->type;
-                        break;
-                    }
-                    if (tp != TypeNav::Other)
-                        tp = nt->type;
+                    typeNav = nt->type;
+                    break;
                 }
             }
-            if (typeNav != site->type && tp != TypeNav::Other)
-                typeNav = tp;
         }
         checkType(site, typeNav, timestamp);
         checkName(site, sname, timestamp);
@@ -892,8 +891,8 @@ bool Entity::nameEq(const std::string& nm) const {
     case TypeNav::StrongholdCarrier:
         navType = &STRONGHOLD_CARRIER;
         break;
-    case TypeNav::TrailblazerDream:
-        navType = &TRAILBLAZER_DREAM;
+    //case TypeNav::TrailblazerDream:
+    //    navType = &TRAILBLAZER_DREAM;
     }
     for (auto& p : navType->name_loc) {
         if (p.second == nm)
@@ -963,9 +962,9 @@ bool Entity::setName(const std::string& nm) {
     case TypeNav::StrongholdCarrier:
         navType = &STRONGHOLD_CARRIER;
         break;
-    case TypeNav::TrailblazerDream:
-        navType = &TRAILBLAZER_DREAM;
-        break;
+    //case TypeNav::TrailblazerDream:
+    //    navType = &TRAILBLAZER_DREAM;
+    //    break;
     case TypeNav::ColonisationShip:
         navType = &COLONIZATION_SHIP;
         break;

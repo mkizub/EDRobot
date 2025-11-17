@@ -7,7 +7,6 @@
 #include "Task.h"
 #include "AIManager.h"
 #include "../Keyboard.h"
-#include "../ui/UIManager.h"
 #include "../EDWidget.h"
 #include <synchapi.h>
 
@@ -68,7 +67,7 @@ Task::Task(const TaskTemplate& templ_)
 }
 
 std::string Task::getTitle() {
-    return templ.name.c_str();
+    return templ.name().c_str();
 }
 
 void sleep(int milliseconds, bool precise) {
@@ -372,23 +371,32 @@ TaskRepeat::TaskRepeat(const TaskTemplate& templ_)
 {
     assert (templ.id == ED_TASK_REPEAT);
     for (auto& p : templ.params) {
-        if (p.name == "count")
-            mTotal = std::get<int64_t>(p.value);
-        else if (p.name == "duration")
-            mDuration = std::get<int64_t>(p.value);
+        if (p.id == "count")
+            mTotal = p.as_integer();
+        else if (p.id == "duration")
+            mDuration = p.as_integer();
+        else if (p.id == "tasks") {
+            if (p.value.is_array()) {
+                for (auto task : p.value.as_array()) {
+                    TaskTemplate tt = TaskTemplate::loadTemplate(task);
+                    if (!tt.id.empty())
+                        steps.emplace_back(std::move(tt));
+                }
+            }
+        }
     }
 }
 
 std::string TaskRepeat::getTitle() {
     if (mTotal)
-        return std_format("{}: {} of {} ", templ.name, mCompleted+1, mTotal);
-    return std_format("{}: {} ", templ.name, mCompleted+1);
+        return std::format("{}: {} / {} ", templ.name(), mCompleted+1, mTotal);
+    return std::format("{}: {} ", templ.name(), mCompleted+1);
 }
 
 bool TaskRepeat::run() {
     if (mTotal && mTotal - mCompleted <= 0)
         return true;
-    if (templ.steps.empty())
+    if (steps.empty())
         return true;
 
     if (mDuration && !timer.started())
@@ -398,13 +406,13 @@ bool TaskRepeat::run() {
         return true;
     if (!mStarted) {
         // skip to travel entry if we are docked
-        for (int i=0; i < templ.steps.size(); i++) {
-            TaskTemplate &step_templ = templ.steps[i];
+        for (int i=0; i < steps.size(); i++) {
+            TaskTemplate &step_templ = steps[i];
             if (step_templ.id == ED_TASK_TRAVEL && st::ship.flags.docked) {
                 std::string destDockName;
                 for (auto& p : step_templ.params) {
-                    if (p.name == "dock")
-                        destDockName = std::get<std::string>(p.value);
+                    if (p.id == "dock")
+                        destDockName = p.as_string();
                 }
                 if (st::dockedAt.stationName == destDockName) {
                     mStepIdx = i + 1;
@@ -418,13 +426,13 @@ bool TaskRepeat::run() {
     for (;;) {
         if (mTotal && mCompleted >= mTotal)
             return true;
-        for (; mStepIdx < templ.steps.size(); mStepIdx++) {
+        for (; mStepIdx < steps.size(); mStepIdx++) {
             if (mDuration && timer.expired())
                 return true;
-            TaskTemplate &step_templ = templ.steps[mStepIdx];
+            TaskTemplate &step_templ = steps[mStepIdx];
             auto step = spStep(step_templ.factory(step_templ));
             if (!step)
-                throw_failed("Cannot create task for next task_step");
+                throw_failed("Cannot create task for next step");
             if (!run_sub_step(step))
                 return false;
         }

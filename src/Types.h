@@ -64,7 +64,7 @@ enum class TypeNav {
     SquadronCarrier         = 0x33,
     StrongholdCarrier       = 0x34,
     ColonisationShip        = 0x35,
-    TrailblazerDream        = 0x36,
+    //TrailblazerDream        = 0x36,
     PlanetaryThing          = 0x40,   // generic type
     PlanetaryStation        = 0x41,   // generic type
     PlanetaryPort           = 0x42,

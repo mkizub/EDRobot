@@ -14,54 +14,6 @@ class Task;
 typedef std::shared_ptr<Step> spStep;
 typedef std::shared_ptr<Task> spTask;
 
-struct OrientationRequest {
-    int pitch;
-    int yaw;
-    int roll;
-
-
-};
-
-enum class FlyState {
-    Void, Space, Jump, Cruise, CruiseInt, CruiseJet, Docked, Landed, Depart, BootScreen, DeathScreen
-};
-
-enum class ViewMode {
-    Norm, Left, Right, Down, Chat, Dock, Station, GalMap, SysMap
-};
-
-struct Param {
-    enum Type { Bool, Enum, Int, Real, String, System, POI, Dock, Commodity };
-
-    const Type        type;
-    const std::string name;
-    std::variant<bool,int64_t,double,std::string> value;
-    const std::string meta {};
-    const bool        optional {false};
-};
-
-struct ReqState {
-    std::optional<FlyState> flyState;
-    std::optional<ViewMode> viewMode;
-};
-
-struct TaskTemplate {
-    const std::string id;
-    std::string name;
-    std::vector<Param> params;
-    std::vector<TaskTemplate> steps;
-    std::function<Task*(const TaskTemplate& templ)> factory;
-
-    bool set(const string& param, bool value);
-    bool set(const string& param, int64_t value);
-    bool set(const string& param, int32_t value) { return set(param, (int64_t)value); }
-    bool set(const string& param, double value);
-    bool set(const string& param, float value) { return set(param, (double)value); }
-    bool set(const string& param, const string& value);
-
-    bool validate();
-};
-
 class nonlocal_return : public std::exception {
 public:
     explicit nonlocal_return(bool failed)

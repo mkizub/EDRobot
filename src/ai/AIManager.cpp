@@ -86,7 +86,8 @@ bool shutdown() {
     interrupt();
     shutdown_ship_tracker();
     taskCond.notify_all();
-    taskThread.join();
+    if (taskThread.joinable())
+        taskThread.join();
     return true;
 }
 
@@ -171,13 +172,8 @@ spStep curr_step() {
     return curr;
 }
 
-void notify_progress(MessageSeverity severity, const char* msg) {
+void notify_progress_(MessageSeverity severity, const char* msg) {
     if (!msg || !*msg)
-        return;
-    notify_progress(severity, std::string(msg));
-}
-void notify_progress(MessageSeverity severity, const std::string& msg) {
-    if (msg.empty())
         return;
     spStep curr = curr_step();
     if (curr)
@@ -192,43 +188,25 @@ void notify_progress(MessageSeverity severity, const std::string& msg) {
     case MSG_ERROR:
         LOG(ERROR) << msg;
         break;
-    }
-}
-void throw_trouble(const char* msg) {
-    assert (taskThread.get_id() == std::this_thread::get_id());
-    if (msg && *msg) {
-        spStep curr = curr_step();
-        if (curr)
-            curr->addMessage(MSG_WARN, msg);
-        LOG(WARNING) << msg;
-    }
-    throw nonlocal_return(false, msg);
-}
-void throw_trouble(const std::string& msg) {
-    assert (taskThread.get_id() == std::this_thread::get_id());
-    if (!msg.empty()) {
-        spStep curr = curr_step();
-        if (curr)
-            curr->addMessage(MSG_WARN, msg);
-        LOG(WARNING) << msg;
-    }
-    throw nonlocal_return(false, msg);
-}
-void throw_failed(const char* msg) {
-    assert (taskThread.get_id() == std::this_thread::get_id());
-    if (msg && *msg) {
-        spTask curr = curr_task();
-        if (curr) {
-            curr->failed = true;
-            curr->addMessage(MSG_FATAL, msg);
-        }
+    case MSG_FATAL:
         LOG(ERROR) << msg;
+        break;
     }
-    throw nonlocal_return(true, msg);
 }
-void throw_failed(const std::string& msg) {
+
+void throw_trouble_(const char* msg) {
     assert (taskThread.get_id() == std::this_thread::get_id());
-    if (!msg.empty()) {
+    if (msg && *msg) {
+        spStep curr = curr_step();
+        if (curr)
+            curr->addMessage(MSG_WARN, msg);
+        LOG(WARNING) << msg;
+    }
+    throw nonlocal_return(false, msg);
+}
+void throw_failed_(const char* msg) {
+    assert (taskThread.get_id() == std::this_thread::get_id());
+    if (msg && *msg) {
         spTask curr = curr_task();
         if (curr) {
             curr->failed = true;

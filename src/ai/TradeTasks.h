@@ -12,9 +12,10 @@
 namespace ai {
 
 class BaseMarketTask : public Task {
-public:
-    BaseMarketTask(const TaskTemplate& templ_) : Task(templ_) {}
+protected:
+    explicit BaseMarketTask(const TaskTemplate& templ_) : Task(templ_) {}
 
+public:
     bool clickButton(const char* btn);
     bool moveToWidget(const char* widget);
     void gotoMarketScreen(bool buy);
@@ -28,7 +29,7 @@ public:
 
 class TaskSell final : public BaseMarketTask {
 public:
-    TaskSell(const TaskTemplate& templ);
+    explicit TaskSell(const TaskTemplate& templ);
     bool run() final;
     bool processTradeDialog(bool force);
 
@@ -47,13 +48,12 @@ public:
 
 class TaskSellAll final : public BaseMarketTask {
 public:
-    TaskSellAll(const TaskTemplate& templ);
+    explicit TaskSellAll(const TaskTemplate& templ);
     bool run() final;
     std::string getTitle() override;
 private:
     int mChunk;
-    int mSold;
-    std::string mExcept;
+    json5pp::value mExcept;
     struct SubTask {
         Commodity* commodity {};
         std::shared_ptr<TaskSell> task;
@@ -65,7 +65,7 @@ private:
 
 class TaskBuy final : public BaseMarketTask {
 public:
-    TaskBuy(const TaskTemplate& templ);
+    explicit TaskBuy(const TaskTemplate& templ);
     bool run() final;
     bool processTradeDialog(bool force);
 
@@ -83,7 +83,7 @@ public:
 
 class TaskBuyConstr final : public BaseMarketTask {
 public:
-    TaskBuyConstr(const TaskTemplate& templ);
+    explicit TaskBuyConstr(const TaskTemplate& templ);
     bool run() final;
 
     std::string destSystemName;
@@ -100,7 +100,7 @@ public:
 
 class TaskConstrUnload final : public BaseMarketTask {
 public:
-    TaskConstrUnload(const TaskTemplate& templ);
+    explicit TaskConstrUnload(const TaskTemplate& templ);
     bool run() final;
 
     int contributed {};
@@ -111,6 +111,27 @@ public:
     } status {READY};
 };
 
+class TaskTradeAt : public Task {
+public:
+    explicit TaskTradeAt(const TaskTemplate& templ);
+    ~TaskTradeAt() override = default;
+    bool run() override;
+};
+
+class TradeLoopTask : public Task {
+public:
+    explicit TradeLoopTask(const TaskTemplate& templ);
+    ~TradeLoopTask() override = default;
+    bool run() override;
+
+    struct MarketInfo {
+        std::string system;
+        std::string dock;
+        Commodity* sell {};
+        Commodity* buy {};
+    };
+    std::vector<MarketInfo> markets;
+};
 
 } // ai
 

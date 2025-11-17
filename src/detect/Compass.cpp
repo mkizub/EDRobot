@@ -14,7 +14,7 @@ namespace detect {
 
 CompassDetector::CompassDetector()
         : Detector()
-        , threshold_dot{0.7}
+        , threshold_dot{0.6}
         , lastHemisphere(0)
         , navTargetFound(false)
 {
@@ -29,9 +29,11 @@ CompassDetector::CompassDetector()
     compassDotsOrig.emplace_back(1.0, 0, "dot_fwd.png", dotFwdImage);
     compassDotsOrig.emplace_back(1.0, 0, "dot_bwd.png", dotBwdImage);
 
-    hsvFilter = new HsvColorCropFilter();
-    hsvFilter->rangesU.emplace_back(cv::Vec3b(30,0,180),cv::Vec3b(100,90,255)); // limit Saturation[..90] and Value[80..]
-    dotsFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
+    //hsvFilter = new HsvGrayCropFilter();
+    //hsvFilter->rangesU.emplace_back(cv::Vec3b(30,0,180),cv::Vec3b(100,90,255)); // limit Saturation[..90] and Value[80..]
+    //dotsFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
+    //dotsFilters.push_back(std::unique_ptr<ImageFilter>(new SobelFilter));
+    dotsFilters.push_back(std::unique_ptr<ImageFilter>(new GradientFilter(false, 2)));
 
     // nav target (3/4 circle with distance)
     navTargetReferenceRadius = 48;
@@ -87,7 +89,7 @@ void CompassDetector::loadCompass() {
     compassDetector->extendRB = {60, 110}; //{50, 140};
     compassDetector->threshold_min = 0.3;
     compassDetector->threshold_max = 0.8;
-    compassDetector->matchMethod = cv::TM_CCORR_NORMED;
+    compassDetector->matchMethod = cv::TM_CCOEFF_NORMED; // cv::TM_CCORR_NORMED;
 
     HsvMaskFilter* hsvFilter;
     if (use_gray_compass)
@@ -128,21 +130,6 @@ double CompassDetector::match(ClassifyEnv &env) {
                 captureFovX = std::round(captureFovX * 65536) / 65536;
             }
         }
-    }
-
-    auto totalStartTime = std::chrono::high_resolution_clock::now();
-
-    bool can_use_compass = !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
-    double compassMatch = 0;
-    if (can_use_compass) {
-        compassMatch = compassDetector->match(env);
-        if (compassMatch < 0.5 || compassDetector->lastTemplatedx < 0)
-            can_use_compass = false;
-    }
-    if (can_use_compass) {
-        //
-        // Detect compass dot
-        //
         if (preprocessedDotsScale != env.getScale()) {
             preprocessedDotsScale = env.getScale();
             for (auto &im: compassDotsOrig) {
@@ -203,12 +190,26 @@ double CompassDetector::match(ClassifyEnv &env) {
             });
             cv::convertMaps(navTargetRemapXY, cv::noArray(), navTargetRemap1, navTargetRemap2, CV_16SC2, false);
         }
+    }
 
+    auto totalStartTime = std::chrono::high_resolution_clock::now();
+
+    bool can_use_compass = !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
+    double compassMatch = 0;
+    if (can_use_compass) {
+        compassMatch = compassDetector->match(env);
+        if (compassMatch < 0.5 || compassDetector->lastTemplatedx < 0)
+            can_use_compass = false;
+    }
+    if (can_use_compass) {
+        //
+        // Detect compass dot
+        //
         cv::Rect matchRect = ImageTemplate::makeOptimalMatchRect(compassDetector->captureRect);
         env.cropToCapture(matchRect);
-        XMat imagePrepared = ImageTemplate::applyFilters(dotsFilters, env.getColorImage()(matchRect));
+        XMat imagePrepared = ImageTemplate::applyFilters(dotsFilters, env.getColorImage()(matchRect), {.convertToFloat=true});
         ImageTemplate::MatchResult dr;
-        ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, imagePrepared, compassDotsPrepared, dr);
+        ImageTemplate::matchTemplates(cv::TM_CCOEFF_NORMED, imagePrepared, compassDotsPrepared, dr);
         //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         //LOG(INFO) << "Compass dot detect took: " << elapsedTime.count() << "us";
         if (dr.value >= threshold_dot) {
@@ -255,7 +256,9 @@ double CompassDetector::match(ClassifyEnv &env) {
 
             LOG(DEBUG) << std::format("Compass dot direction={}", ((lastHemisphere < 0) ? "backward" : "forward"))
                        << ", sphere pos=" << dotSpherePosition
-                       << std_format(" pitch:{}, yaw:{}, roll:{}", int(pitch), int(yaw), int(roll));
+                       << std::format(" pitch:{}, yaw:{}, roll:{}", int(pitch), int(yaw), int(roll));
+        } else {
+            LOG(WARNING) << std::format("compass dot failed, match result: {:.3f}", dr.value);
         }
     }
 

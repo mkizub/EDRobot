@@ -143,6 +143,13 @@ public:
     XMat apply(XMat image, Params params) final;
     const double scale;
 };
+class GradientFilter : public ImageFilter {
+public:
+    GradientFilter(bool vert, double scale=1) : vert(vert), scale(scale) {}
+    XMat apply(XMat image, Params params) final;
+    const bool vert;
+    const double scale;
+};
 class EdgeByBoxFilter : public ImageFilter {
 public:
     EdgeByBoxFilter(int kern=5, double scale=2.0, double thr=0) : kern(kern), scale(scale), threshold(thr)  {}

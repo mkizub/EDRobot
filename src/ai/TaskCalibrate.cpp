@@ -154,9 +154,9 @@ void TaskCalibrate::getRowsByState(const ClassifiedRect** rows) {
 bool TaskCalibrate::run() {
     ai::detectEDState(DetectLevel::Buttons, &colorImage, nullptr);
     if (!ai::uiState.match("scr-market:*"))
-        throw_failed(_("Not at market, calibration fails"));
+        throw_failed("Not at market, calibration fails");
 
-    notify_progress(MSG_INFO, _("Calibration started"));
+    notify_progress(MSG_INFO, "Calibration started");
 
     //
     // Detect normal, focused, activated colors using buttons
@@ -239,7 +239,7 @@ bool TaskCalibrate::run() {
     hardcodedStep("{click:'btn-to-sell', after: 1000}", DetectLevel::ListRows, &colorImage, nullptr);
     LOG(INFO) << "State " << ai::uiState << " expected state 'scr-market:mod-sell'";
     if (!ai::uiState.match("scr-market:mod-sell"))
-        throw_failed(_("Not at market sell, calibration fails"));
+        throw_failed("Not at market sell, calibration fails");
 
     //
     // Detect normal list rows in sell market
@@ -264,7 +264,7 @@ bool TaskCalibrate::run() {
     getRowsByState(list_rows);
     const ClassifiedRect* row_to_test = list_rows[int(WState::Normal)];
     if (!row_to_test)
-        throw_failed(_("Cannot find commodity to test sell dialog, calibration fails"));
+        throw_failed("Cannot find commodity to test sell dialog, calibration fails");
 
     //
     // found commodity to test, check we detected list row correctly
@@ -282,7 +282,7 @@ bool TaskCalibrate::run() {
     getRowsByState(list_rows);
     row_to_test = list_rows[int(WState::Focused)];
     if (!row_to_test)
-        throw_failed(_("Cannot find commodity to test sell dialog, calibration fails"));
+        throw_failed("Cannot find commodity to test sell dialog, calibration fails");
 
     hardcodedStep("[{key:'UI_Select', after:2000},"
                   "{check:'scr-market:mod-sell:dlg-trade:*'},"
@@ -327,7 +327,7 @@ bool TaskCalibrate::run() {
     getRowsByState(list_rows);
     row_to_test = list_rows[int(WState::Active)];
     if (!row_to_test)
-        throw_failed(_("Cannot find commodity to test buy dialog, calibration fails"));
+        throw_failed("Cannot find commodity to test buy dialog, calibration fails");
 
     {
         auto& row_rect = row_to_test->detectedRect;
@@ -357,10 +357,10 @@ bool TaskCalibrate::run() {
     LOG(INFO) << "State " << ai::uiState;
 
     if (calculateAverage(false)) {
-        notify_progress(MSG_INFO, _("Calibration completed successfully!"));
+        notify_progress(MSG_INFO, "Calibration completed successfully!");
         Cfg.saveCalibration();
     } else {
-        throw_failed(_("Failed to calibrate button state detector"));
+        throw_failed("Failed to calibrate button state detector");
     }
     return true;
 }

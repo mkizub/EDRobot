@@ -32,6 +32,7 @@ add_compile_options(/Zc:__cplusplus /await /utf-8 /Zi)
 add_link_options(/DEBUG)
 
 add_executable(EDRobot
+        EDRobot.manifest
         src/pch.cpp
         src/pch.h
         src/ed_opencv.h

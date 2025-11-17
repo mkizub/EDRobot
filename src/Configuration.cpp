@@ -112,6 +112,12 @@ bool Configuration::load() {
         }
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
+        if (auto& tm = j_config.at("ui-scale-factor"); tm.is_number()) {
+            if (tm.is_integer() && tm.as_integer() > 15)
+                mUiScaleFactor = tm.as_integer() * 0.01f;
+            else if (tm.as_number() >= 0.125 && tm.as_number() <= 8)
+                mUiScaleFactor = (float)tm.as_number();
+        }
         if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer())
             defaultKeyHoldTime = tm.as_integer();
         if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer())
@@ -880,8 +886,8 @@ bool Configuration::checkResolutionSupported(cv::Size gameSize, std::string& err
     cv::Size displaySize(configScreenWidth, configScreenHeight);
     double cmp = gameSize.aspectRatio() - displaySize.aspectRatio();
     if (std::abs(cmp) > 0.01) {
-        std::string msg = std_format(
-                _("In FullScreen/Borderless mode aspect ratio must match, but {:.3f} != {:.3f} for {}x{} and {}x{}"),
+        std::string msg = lc_format(
+                "In FullScreen/Borderless mode aspect ratio must match, but {0:.3f} != {1:.3f} for {2}x{3} and {4}x{5}",
                 gameSize.aspectRatio(), displaySize.aspectRatio(),
                 gameSize.width, gameSize.height, configScreenWidth, configScreenHeight);
         LOG(ERROR) << msg;

@@ -86,12 +86,12 @@ TaskDebugFindAllCommodities::TaskDebugFindAllCommodities(const TaskTemplate& tem
 {
     assert (templ.id == ED_TASK_DEBUG_FIND_ALL_COMMODITIES);
     for (auto& p : templ.params) {
-        if (p.name == "shuffle")
-            shuffle = std::get<bool>(p.value);
-        if (p.name == "dump_images")
-            dump_images = std::get<bool>(p.value);
-        if (p.name == "start_index")
-            start_index = (int)std::get<int64_t>(p.value);
+        if (p.id == "shuffle")
+            shuffle = p.as_boolean();
+        if (p.id == "dump_images")
+            dump_images = p.as_boolean();
+        if (p.id == "start_index")
+            start_index = p.as_integer();
     }
 }
 
@@ -107,7 +107,7 @@ bool TaskDebugFindAllCommodities::run() {
     else if (marketMode == "mod-buy")
         table = Cfg.getMarketInBuyOrder();
     else
-        throw_failed("Unknown market mode "+marketMode);
+        throw_failed("Unknown market mode {}", marketMode);
     if (table.empty())
         throw_failed("Empty market?");
     struct VerifyStats {
@@ -453,16 +453,16 @@ TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(const TaskTemplate &templ)
 {
     assert (templ.id == ED_TASK_DEBUG_FIND_ALL_NAV_POINTS);
     for (auto& p : templ.params) {
-        if (p.name == "dump_images")
-            dump_images = std::get<bool>(p.value);
-        if (p.name == "resume")
-            resume = std::get<bool>(p.value);
-        if (p.name == "unfocused")
-            unfocused = std::get<bool>(p.value);
-        if (p.name == "ocr_confidence")
-            ocr_confidence = (int)std::get<int64_t >(p.value);
-        if (p.name == "txt_confidence")
-            txt_confidence = (int)std::get<int64_t >(p.value);
+        if (p.id == "dump_images")
+            dump_images = p.as_boolean();
+        if (p.id == "resume")
+            resume = p.as_boolean();
+        if (p.id == "unfocused")
+            unfocused = p.as_boolean();
+        if (p.id == "ocr_confidence")
+            ocr_confidence = p.as_integer();
+        if (p.id == "txt_confidence")
+            txt_confidence = p.as_integer();
     }
     //std::string filename = std::format("testset-edr/nav-{}-lbl-gray.png", lng, offset);
     //std::string filename = std::format("testset-edr/nav-{}-row-gray.png", lng, offset);
@@ -867,7 +867,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::SquadronCarrier:
     case TypeNav::StrongholdCarrier:
     case TypeNav::ColonisationShip:
-    case TypeNav::TrailblazerDream:
+    //case TypeNav::TrailblazerDream:
     case TypeNav::PlanetaryThing:
     case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:

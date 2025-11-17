@@ -9,7 +9,6 @@
 #include "../EDWidget.h"
 #include "../FuzzyMatch.h"
 #include "../Keyboard.h"
-#include "../Galaxy.h"
 
 #ifdef CPPTRACE_TRY
 # define TRY CPPTRACE_TRY
@@ -42,7 +41,7 @@ bool BaseMarketTask::moveToWidget(const char* widget) {
 
 void BaseMarketTask::gotoMarketScreen(bool buy) {
     if (!st::ship.flags.docked)
-        throw_failed("Not docked");
+        throw_trouble("Not docked");
     for (int step=0; step < 20; step++) {
         ai::detectEDState(DetectLevel::Buttons);
         if (st::guiFocus == GuiFocus::None) {
@@ -129,7 +128,8 @@ bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, b
             return false;
         }
     }
-    kbd::send("UI_Left");
+    if (ai::uiState.path().ends_with("mod-more") && ai::uiState.focused_name() != "spn-amount")
+        kbd::send("UI_Left");
     for (int i=0; i < 4; i++)
         kbd::send("UI_Up");
     ai::detectEDState(DetectLevel::Buttons);
@@ -165,14 +165,13 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
 TaskSellAll::TaskSellAll(const TaskTemplate& templ_)
         : BaseMarketTask(templ_)
         , mChunk(0)
-        , mSold(0)
 {
     assert (templ.id == ED_TASK_MARKET_SELL_ALL);
     for (auto& p : templ.params) {
-        if (p.name == "except")
-            mExcept = std::get<std::string>(p.value);
-        if (p.name == "chunk")
-            mChunk = std::get<int64_t>(p.value);
+        if (p.id == "except" && p.value.is_array())
+            mExcept = p.value;
+        if (p.id == "chunk")
+            mChunk = p.as_integer();
     }
 }
 
@@ -188,8 +187,12 @@ bool TaskSellAll::run() {
 
     if (sell_queue.empty()) {
         std::vector<std::string> except;
-        if (!mExcept.empty())
-            except = split(mExcept, ',');
+        if (mExcept.is_array()) {
+            for (auto& v : mExcept.as_array()) {
+                if (v.is_string())
+                    except.push_back(v.as_string());
+            }
+        }
         spShipCargo shipCargo = st::currentCargo;
         for (Commodity* commodity: shipCargo->inventory) {
             if (contains(except, commodity->nameId))
@@ -258,7 +261,7 @@ bool TaskSellAll::run() {
     }
     if (complete) {
         if (!soldTotal)
-            throw_failed("Nothing was sold");
+            throw_trouble("Nothing was sold");
         return true;
     }
     throw_trouble("Not complete");
@@ -274,12 +277,12 @@ TaskSell::TaskSell(const TaskTemplate& templ_)
 {
     assert (templ.id == ED_TASK_MARKET_SELL);
     for (auto& p : templ.params) {
-        if (p.name == "commodity")
-            mCommodity = Cfg.getCommodityById(std::get<std::string>(p.value));
-        if (p.name == "amount")
-            const_cast<int&>(mTotal) = std::get<int64_t>(p.value);
-        if (p.name == "chunk")
-            const_cast<int&>(mChunk) = std::get<int64_t>(p.value);
+        if (p.id == "commodity")
+            mCommodity = Cfg.getCommodityById(p.as_string());
+        if (p.id == "amount")
+            const_cast<int&>(mTotal) = p.as_integer();
+        if (p.id == "chunk")
+            const_cast<int&>(mChunk) = p.as_integer();
     }
 }
 
@@ -287,7 +290,7 @@ bool TaskSell::run() {
     FuzzyMatch matcher;
 
     if (!mCommodity)
-        throw_failed("No commodity to sell");
+        throw_trouble("No commodity to sell");
 
     status = TO_MARKET;
     gotoMarketScreen(false);
@@ -302,9 +305,9 @@ bool TaskSell::run() {
     }
 
     if (mChunk > 0)
-        notify_progress(MSG_INFO, std_format(_("Start selling {} by {} item(s)"), mLeft, mChunk));
+        notify_progress(MSG_INFO, "Start selling {0} by {1} item(s)", mLeft, mChunk);
     else
-        notify_progress(MSG_INFO, std_format(_("Start selling {} item(s)"), mLeft));
+        notify_progress(MSG_INFO, "Start selling {0} item(s)", mLeft);
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
@@ -312,7 +315,7 @@ bool TaskSell::run() {
         ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (ai::uiState.match("scr-market:mod-sell")) {
             if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInSellOrder()))
-                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
+                throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
@@ -356,7 +359,7 @@ bool TaskSell::run() {
                 else
                     missCount += 1;
                 if (missCount >= 3)
-                    throw_failed("Too many fails");
+                    throw_trouble("Too many fails");
                 continue;
             }
             prevFocusedIdx = -1;
@@ -371,7 +374,7 @@ bool TaskSell::run() {
                 continue;
             }
             if (!focusedCommodity)
-                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
+                throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
 
             int focusedIdx = -1;
             int needIdx = -1;
@@ -394,7 +397,7 @@ bool TaskSell::run() {
                 }
                 continue;
             }
-            throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
+            throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
         } else if (ai::uiState.match("scr-market:mod-sell:dlg-trade:*")) {
             kbd::send("UI_Back");
             waitUiState("scr-market:mod-sell", 2s);
@@ -440,8 +443,8 @@ bool TaskSell::processTradeDialog(bool force) {
 std::string TaskSell::getTitle() {
     std::string name = mCommodity ? mCommodity->name : "???";
     if (status == DONE)
-        return std::format("Sold {} {}", mSold, name);
-    return std_format("Selling  {} {} ", mTotal, name);
+        return lc_format("Sold {0} items of {1}", mSold, name);
+    return lc_format("Selling {0} items of {1}", mTotal, name);
 }
 
 std::string TaskSell::getStatus() {
@@ -469,10 +472,10 @@ TaskBuy::TaskBuy(const TaskTemplate& templ_)
 {
     assert (templ.id == ED_TASK_MARKET_BUY);
     for (auto& p : templ.params) {
-        if (p.name == "commodity")
-            mCommodity = Cfg.getCommodityById(std::get<std::string>(p.value));
-        if (p.name == "amount")
-            const_cast<int&>(mTotal) = std::get<int64_t>(p.value);
+        if (p.id == "commodity")
+            mCommodity = Cfg.getCommodityById(p.as_string());
+        if (p.id == "amount")
+            const_cast<int&>(mTotal) = p.as_integer();
     }
 }
 
@@ -480,7 +483,7 @@ bool TaskBuy::run() {
     FuzzyMatch matcher;
 
     if (!mCommodity)
-        throw_failed("No commodity to sell");
+        throw_trouble("No commodity to sell");
 
     status = TO_MARKET;
     gotoMarketScreen(true);
@@ -492,7 +495,7 @@ bool TaskBuy::run() {
     if (mLeft <= 0)
         return true;
 
-    notify_progress(MSG_INFO, std_format(_("Start purchasing {} item(s)"), mLeft));
+    notify_progress(MSG_INFO, "Start purchasing {} item(s)", mLeft);
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
@@ -500,7 +503,7 @@ bool TaskBuy::run() {
         ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (ai::uiState.match("scr-market:mod-buy")) {
             if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInBuyOrder()))
-                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
+                throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
@@ -544,7 +547,7 @@ bool TaskBuy::run() {
                 else
                     missCount += 1;
                 if (missCount >= 3)
-                    throw_failed("Too many fails");
+                    throw_trouble("Too many fails");
                 continue;
             }
             prevFocusedIdx = -1;
@@ -559,7 +562,7 @@ bool TaskBuy::run() {
                 continue;
             }
             if (!focusedCommodity)
-                throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
+                throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
 
             int focusedIdx = -1;
             int needIdx = -1;
@@ -582,7 +585,7 @@ bool TaskBuy::run() {
                 }
                 continue;
             }
-            throw_trouble(_("Cannot detect commodities in 'lst-goods', aborting"));
+            throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
         } else if (ai::uiState.match("scr-market:mod-buy:dlg-trade:*")) {
             kbd::send("UI_Back");
             waitUiState("scr-market:mod-buy", 2s);
@@ -602,7 +605,7 @@ bool TaskBuy::processTradeDialog(bool force) {
     int canBuy = Mgr.canBuy(mCommodity);
     if (canBuy <= 0)
         return false;
-    if (mLeft >= canBuy) {
+    if (mLeft >= canBuy && mLeft > 20) {
         kbd::send("UI_Right", 3000); // buy all
     } else {
         for (int i=0; i < mLeft; i++)
@@ -619,8 +622,8 @@ bool TaskBuy::processTradeDialog(bool force) {
 std::string TaskBuy::getTitle() {
     std::string name = mCommodity ? mCommodity->name : "???";
     if (status == DONE)
-        return std::format("Bought {} {}", mBought, name);
-    return std_format("Buying  {} {} ", mTotal, name);
+        return lc_format("Bought {0} items of {1}", mBought, name);
+    return lc_format("Buying {0} items of {1}", mTotal, name);
 }
 
 std::string TaskBuy::getStatus() {
@@ -644,25 +647,25 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
 {
     assert (templ.id == ED_TASK_MARKET_BUY_CONSTR);
     for (auto& p : templ.params) {
-        if (p.name == "system")
-            destSystemName = std::get<std::string>(p.value);
-        else if (p.name == "depot")
-            destConstrName = std::get<std::string>(p.value);
+        if (p.id == "system")
+            destSystemName = p.as_string();
+        else if (p.id == "depot")
+            destConstrName = p.as_string();
     }
 }
 
 bool TaskBuyConstr::run() {
     auto starSystem = gal::getStarSystem(destSystemName);
     if (!starSystem)
-        throw_failed("Star system '"+destSystemName+"' not known");
+        throw_failed("Star system '{}' not known", destSystemName);
     auto depot = starSystem->getDock(destConstrName);
     if (!depot)
-        throw_failed("Construction depot '"+destConstrName+"' not known");
+        throw_failed("Construction depot '{}' not known", destConstrName);
     if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot))
-        throw_failed("Site '"+destConstrName+"' is not a construction depot");
+        throw_failed("Site '{}' is not a construction depot", destConstrName);
     spMarket depotMarket = gal::getMarket(depot->marketId);
     if (!depotMarket|| depotMarket->items.empty())
-        throw_failed("Construction depot '"+destConstrName+"' demand is not known");
+        throw_failed("Construction depot '{}' demand is not known", destConstrName);
 
     if (st::shipStats.cargo >= st::shipStats.cargoCapacity)
         return true;
@@ -753,7 +756,7 @@ bool TaskBuyConstr::run() {
     }
     if (complete) {
         if (!boughtTotal)
-            throw_failed("Nothing was bought");
+            throw_trouble("Nothing was bought");
         return true;
     }
     throw_trouble("Not complete");
@@ -776,7 +779,7 @@ bool TaskConstrUnload::run() {
 
     ai::detectEDState(DetectLevel::Buttons);
     if (!ai::uiState.match("scr-constr"))
-        throw_failed("Cannot enter unload screen");
+        throw_trouble("Cannot enter unload screen");
 
     status = UNLOAD;
     clickButton("btn-all");
@@ -809,5 +812,147 @@ std::string TaskConstrUnload::getStatus() {
     return {};
 }
 
+
+TaskTradeAt::TaskTradeAt(const TaskTemplate& templ_)
+        : Task(templ_)
+{
+    assert (templ.id == ED_TASK_TRADE_AT);
+}
+
+bool TaskTradeAt::run() {
+    throw_failed_("Task TaskTradeAt is not implemented yet");
+}
+
+TradeLoopTask::TradeLoopTask(const TaskTemplate& templ_)
+        : Task(templ_)
+{
+    assert (templ.id == ED_TASK_TRADE_LOOP);
+}
+
+//std::string TradeLoopTask::getTitle() {
+//    if (mTotal)
+//        return lc_format("{}: {} of {} ", templ.name, mCompleted+1, mTotal);
+//    return lc_format("{}: {} ", templ.name, mCompleted+1);
+//}
+
+gal::spEntity getCurrDock() {
+    gal::spEntity dock;
+    if (st::dockedAt.marketId)
+        dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.marketId);
+    if (!dock && !st::dockedAt.stationName.empty())
+        dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.stationName);
+    return dock;
+}
+bool TradeLoopTask::run() {
+    if (markets.empty()) {
+        Param &p = templ.get("markets");
+        if (p.value.is_array()) {
+            for (auto &mv: p.value.as_array()) {
+                TaskTemplate mt = TaskTemplate::loadTemplate(mv);
+                if (mt.id != ED_TASK_TRADE_AT)
+                    continue;
+                struct MarketInfo mi{
+                        mt.get("system").as_string(),
+                        mt.get("dock").as_string(),
+                        mt.get("sell").as_commodity(),
+                        mt.get("buy").as_commodity(),
+                };
+                markets.emplace_back(mi);
+            }
+        }
+        Commodity *bought = nullptr;
+        for (int i = 0; i <= markets.size(); i++) {
+            auto &mi = markets[i % markets.size()];
+            if (i == 0) {
+                bought = mi.buy;
+                continue;
+            }
+            if (!bought && !mi.buy) {
+                LOG(INFO) << "At " << mi.dock << " nothing to sell or buy";
+                return false;
+            }
+            if (bought && mi.sell != nullptr && mi.sell != bought) {
+                LOG(INFO) << "At " << mi.dock << " cannot sell " << bought->name;
+                return false;
+            }
+            bought = mi.buy;
+        }
+    }
+    if (markets.size() < 2)
+        return false;
+
+    int marketIdx = -1;
+    // check we need to sell first
+    if (st::currentCargo && st::currentCargo->count > 0) {
+        // check we may sell something at designated market
+        for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
+            auto &mi = markets[i];
+            if (mi.sell && mi.sell->ship.count > 0)
+                marketIdx = i;
+        }
+        // check we may sell all at any market
+        for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
+            auto &mi = markets[i];
+            if (!mi.sell && (!mi.buy || mi.buy->ship.count <= 0))
+                marketIdx = i;
+        }
+    }
+    if (st::shipStats.cargo < st::shipStats.cargoCapacity) {
+        // go to the market in current system to buy something
+        for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
+            auto &mi = markets[i];
+            if (st::currentStarSystem == mi.system && mi.buy && mi.buy->ship.count <= 0)
+                marketIdx = i;
+        }
+        // go to the market in any system to buy something
+        for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
+            auto &mi = markets[i];
+            if (mi.buy && mi.buy->ship.count <= 0)
+                marketIdx = i;
+        }
+    }
+
+    for (;;) {
+        if (marketIdx < 0 || marketIdx >= markets.size())
+            marketIdx = 0;
+        for (; marketIdx < markets.size(); marketIdx++) {
+            auto &mi = markets[marketIdx];
+            gal::spEntity dock = getCurrDock();
+            if (!dock || !dock->nameEq(mi.dock)) {
+                TaskTemplate templ = *getTaskTemplate(ED_TASK_TRAVEL);
+                templ.set("system", mi.system);
+                templ.set("dock", mi.dock);
+                run_sub_step(templ.factory(templ));
+                dock = getCurrDock();
+                if (!dock || !dock->nameEq(mi.dock))
+                    throw_trouble("Trouble traveling to market {}", mi.dock);
+            }
+            if (st::shipStats.cargo > 0) {
+                if (!mi.sell) {
+                    TaskTemplate templ = *getTaskTemplate(ED_TASK_MARKET_SELL_ALL);
+                    if (mi.buy) {
+                        templ.set("except", json5pp::array({mi.buy->nameId}));
+                    }
+                    if (!run_sub_step(templ.factory(templ)))
+                        throw_trouble("Trouble selling at market {}", mi.dock);
+                } else {
+                    TaskTemplate templ = *getTaskTemplate(ED_TASK_MARKET_SELL);
+                    templ.set("commodity", mi.sell->nameId);
+                    if (!run_sub_step(templ.factory(templ)))
+                        throw_trouble("Trouble selling at market {}", mi.dock);
+                }
+            }
+            if (st::shipStats.cargo < st::shipStats.cargoCapacity) {
+                if (mi.buy) {
+                    TaskTemplate templ = *getTaskTemplate(ED_TASK_MARKET_BUY);
+                    templ.set("commodity", mi.buy->nameId);
+                    if (!run_sub_step(templ.factory(templ)))
+                        throw_trouble("Trouble buying at market {}", mi.dock);
+                }
+            }
+        }
+    }
+    return true;
+}
 
 } // ai

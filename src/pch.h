@@ -65,9 +65,11 @@ inline bool useOpenCL() { return false; }
 #include <clocale>
 #define pgettext(P,T) gettext(P "\004" T)
 #define _(T) gettext(T)
-template<typename... Args>
-std::string std_format(std::string_view rt_fmt_str, Args&&... args) {
-    return std::vformat(rt_fmt_str, std::make_format_args(args...));
+#define _lc(T) T
+template <class... _Types>
+[[nodiscard]] std::string lc_format(const std::format_string<_Types...> _Fmt, _Types&&... _Args) {
+    auto lc_fmt = gettext(_Fmt.get().data());
+    return std::vformat(lc_fmt, std::make_format_args(_Args...));
 }
 
 #include <magic_enum/magic_enum.hpp>

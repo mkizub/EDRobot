@@ -145,7 +145,7 @@ bool NavList::init(st::NavPanelFilters filters) {
 
         ai::detectEDState(DetectLevel::Buttons);
         if (!ai::uiState.match("scr-left-panel:dlg-filters")) {
-            ai::throw_trouble("TaskDock expecting 'scr-left-panel:dlg-filters' but got " + ai::uiState.to_string());
+            ai::throw_trouble("Expecting 'scr-left-panel:dlg-filters' but got {}", ai::uiState.to_string());
         }
         // currently ED always opens filters at top position 'stars',
         // so just scroll down and select/deselect what we need
@@ -703,8 +703,8 @@ gal::spEntity NavList::focusNearestBody(dist_t* dist) {
         for (int idx=focusIdx; idx < list.size(); idx++) {
             parseNavRow(grayImage, ai::rEnv, *rows[idx], idx);
             guessNavItem(idx);
-            gal::spEntity body = list[idx].item;
-            if ((body && isBody(body->type)) ||
+            gal::spEntity item = list[idx].item;
+            if ((item && isBody(item->type)) ||
                 list[idx].icon == gal::STAR.charOCR ||
                 list[idx].icon == gal::BODY.charOCR ||
                 list[idx].icon == gal::LAND.charOCR)
@@ -718,10 +718,11 @@ gal::spEntity NavList::focusNearestBody(dist_t* dist) {
                 nearestIdx = idx;
                 continue;
             }
-            if (list[idx].icon == gal::STAR.charOCR ||
-                list[idx].icon == gal::BODY.charOCR ||
-                list[idx].icon == gal::LAND.charOCR ||
-                list[idx].icon == gal::ERROR_MARK)
+            if ((item && !isBody(item->type)) || !(
+                    list[idx].icon == gal::STAR.charOCR ||
+                    list[idx].icon == gal::BODY.charOCR ||
+                    list[idx].icon == gal::LAND.charOCR ||
+                    list[idx].icon == gal::ERROR_MARK))
             {
                 if (nearestIdx >= 0) {
                     if (list[idx].indent < 2)
@@ -881,8 +882,8 @@ NavListScanTask::NavListScanTask(const TaskTemplate& templ_)
 {
     assert (templ.id == ED_TASK_NAV_SCAN);
     for (auto& p : templ.params) {
-        if (p.name == "travel")
-            mTravel = std::get<bool>(p.value);
+        if (p.id == "travel")
+            mTravel = p.as_boolean();
     }
 }
 
@@ -909,7 +910,7 @@ bool NavListScanTask::run() {
 
     auto starSystem = gal::getCurrentStarSystem();
     if (!starSystem)
-        throw_failed("StarSystem not known");
+        throw_failed("Current star system not known");
     std::vector<gal::spEntity> scannedBodies;
     std::vector<gal::spEntity> scannedSites;
     gal::spEntity parentBody;

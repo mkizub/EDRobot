@@ -42,7 +42,7 @@ NavType LAND {
         u'\u26BD', // ⚽
         TypeNav::Planet,
         {"nav_select_icon_body_land.png"},
-        {"Planet"}
+        {}, // only detected by icon
 };
 NavType BELT {
         u'\u26EC', // ⛬
@@ -92,7 +92,7 @@ NavType SPACE_CONSTR_DEPOT {
         TypeNav::SpaceConstrDepot,
         {},
         {"SpaceConstructionDepot"},
-        true
+        true, // "Orbital Construction Site: *"
 };
 NavType PLANETARY_PORT {
         u'\u26EB', // ⛫
@@ -104,14 +104,14 @@ NavType PLANETARY_INSTALLATION {
         u'\u2617', // ☗
         TypeNav::PlanetaryInstallation,
         {"nav_select_icon_factory.png","nav_select_icon_factory_war.png"},
-        {"Planetary Installation"}
+        {"Planetary Installation"},
 };
 NavType PLANETARY_CONSTR_DEPOT {
         u'\u0000',
         TypeNav::PlanetaryConstrDepot,
         {},
         {"PlanetaryConstructionDepot"},
-        true
+        true, // "Planetary Construction Site: *"
 };
 NavType ODYSSEY_SETTLEMENT {
         u'\u2616', // ☖
@@ -133,7 +133,7 @@ NavType SQUADRON_CARRIER {
 };
 NavType STATION_MEGASHIP {
         u'\u267B', // ♻
-        TypeNav::Megaship,
+        TypeNav::StationMegaShip,
         {"nav_select_icon_station_megaship.png"},
         {"StationMegaShip"}
 };
@@ -141,31 +141,31 @@ NavType STRONGHOLD_CARRIER {
         u'\u267B', // ♻
         TypeNav::StrongholdCarrier,
         {"nav_select_icon_station_megaship.png"},
-        {"Megaship"},
+        {}, // only by icon or localize name
         false,
-        {{Lang::EN,"Stronghold Carrier"},{Lang::RU,"Носитель-база"}}
-};
-NavType TRAILBLAZER_DREAM {
-        u'\u0000',
-        TypeNav::TrailblazerDream,
-        {},
-        {"TrailblazerDream","Trailblazer Dream"},
-        false,
-        {{Lang::XX,"Trailblazer Dream"}}
-};
-NavType COLONIZATION_SHIP {
-        u'\u0000',
-        TypeNav::ColonisationShip,
-        {},
-        {},
-        true,
-        {{Lang::EN,"System Colonisation Ship"},{Lang::RU,"Колонизационный корабль"}}
+        {{Lang::EN,"Stronghold Carrier"},{Lang::RU,"Носитель-база"}},
 };
 NavType MEGASHIP {
         u'\u2672', // ♲
         TypeNav::Megaship,
         {"nav_select_icon_megaship.png"},
         {"Megaship"}
+};
+//NavType TRAILBLAZER_DREAM {
+//        u'\u0000',
+//        TypeNav::TrailblazerDream,
+//        {},
+//        {"TrailblazerDream","Trailblazer Dream"},
+//        false,
+//        {{Lang::XX,"Trailblazer Dream"}}
+//};
+NavType COLONIZATION_SHIP {
+        u'\u0000',
+        TypeNav::ColonisationShip,
+        {},
+        {},
+        true, // "$EXT_PANEL_ColonisationShip*"
+        {{Lang::EN,"System Colonisation Ship"},{Lang::RU,"Колонизационный корабль"}}
 };
 NavType ENGINEER {
         u'\u23E3', // ⏣
@@ -239,13 +239,13 @@ const std::vector<NavType*> ALL_NAV_TYPES {
         &FLEET_CARRIER, // ✈
         &SQUADRON_CARRIER, // ⛴
         &STATION_MEGASHIP, // ♻
-        &MEGASHIP, // ♲
         &STRONGHOLD_CARRIER,
-        &TRAILBLAZER_DREAM,
+        &MEGASHIP, // ♲
+        //&TRAILBLAZER_DREAM,
         &COLONIZATION_SHIP,
         &ENGINEER, // ⏣
-        &UNEXPLORED, // ⯐
         &SIGNAL, // ⯐
+        &UNEXPLORED, // ⯐
         &WAR_ZONE, // ⌖
         &RES_SITE, // ⛏
         &STAR_SYSTEM, // ☀

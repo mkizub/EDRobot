@@ -96,6 +96,7 @@ void parseEvent_Undocked(spGameEvent& ge);
 void parseEvent_Docking(spGameEvent& ge);
 void parseEvent_StartJump(spGameEvent& ge);
 void parseEvent_FSDJump(spGameEvent& ge);
+void parseEvent_CarrierJump(spGameEvent& ge);
 void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge);
 void parseEvent_ApproachSettlement(spGameEvent& ge);
 void parseEvent_SupercruiseExit(spGameEvent& ge);
@@ -129,6 +130,7 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"DockingTimeout", parseEvent_Docking},
         {"StartJump", parseEvent_StartJump},
         {"FSDJump", parseEvent_FSDJump},
+        {"CarrierJump", parseEvent_CarrierJump},
         {"SupercruiseDestinationDrop", parseEvent_SupercruiseDestinationDrop},
         {"ApproachSettlement", parseEvent_ApproachSettlement},
         {"SupercruiseExit", parseEvent_SupercruiseExit},
@@ -501,9 +503,50 @@ void parseEvent_FSDJump(spGameEvent& ge) {
         ss->starPos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
     }
     gal::setCurrentStarSystem(ss);
-    st::space.bodyId = je.at("BodyID",0).as_integer();
+    st::space.bodyId = je.at("BodyID",-1).as_integer();
     set(st::space.bodyName, je.at("Body",""));
     set(st::space.bodyType, je.at("BodyType",""));
+}
+
+void parseEvent_CarrierJump(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    gal::spEntity carrier;
+    if (!st::dockedAt.stationName.empty()) {
+        auto ss = gal::getCurrentStarSystem();
+        if (ss) {
+            carrier = ss->getDock(st::dockedAt.marketId);
+            if (!carrier)
+                carrier = ss->getDock(st::dockedAt.stationName);
+        }
+        if (carrier && (carrier->type == TypeNav::FleetCarrier || carrier->type == TypeNav::SquadronCarrier)) {
+            carrier->parentBodyId = -1;
+            std::erase(ss->stations, carrier);
+            ss->saved = false;
+            gal::saveStarSystem(ss.get());
+        } else {
+            carrier.reset();
+        }
+    }
+    st::shipAtBody.approachBody = false;
+    st::shipAtBody.nearBody = false;
+    st::currentStarSystem = je["StarSystem"].as_string();
+    int64_t address = je["SystemAddress"].as_int64();
+    gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
+    if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
+        auto& jp = je["StarPos"].as_array();
+        ss->starPos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+    }
+    gal::setCurrentStarSystem(ss);
+    st::space.bodyId = je.at("BodyID",-1).as_integer();
+    set(st::space.bodyName, je.at("Body",""));
+    set(st::space.bodyType, je.at("BodyType",""));
+    if (carrier) {
+        ss->stations.push_back(carrier);
+        carrier->parentBodyId = st::space.bodyId;
+        ss->saved = false;
+        gal::saveStarSystem(ss.get());
+    }
 }
 
 void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {

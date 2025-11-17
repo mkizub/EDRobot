@@ -127,7 +127,6 @@ private:
     Capturer* getCapturer();
     void resetCapturer();
 
-    bool preInitTask();
     bool pauseAITask();
     bool resumeAITask();
     bool stopAITask();

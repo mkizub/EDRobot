@@ -296,8 +296,10 @@ int Master::initialize(int argc, char* argv[]) {
 
     bool kwd = false;
     std::string ocr_dir;
+    std::string lang;
     options.add_flag("--kwd,--keep-working-dir", kwd, "Keep working directory (do not change on start)");
     options.add_option("--ocr-dir,--tesseract-dir", ocr_dir, "Tesseract OCR data directory");
+    options.add_option("--lang,--language", lang, "Language (ru for russian)");
 
     CLI11_PARSE(options, argc, argv)
     if (!kwd) {
@@ -314,12 +316,32 @@ int Master::initialize(int argc, char* argv[]) {
         }
     }
 
+    SetConsoleOutputCP(CP_UTF8);
+    setlocale(LC_ALL, "");
+    if (lang.empty() && GetUserDefaultUILanguage() == 0x0419) // ru-RU
+        lang = "ru";
+
+    if (equalsIgnoreCase(lang,"ru")) {
+        SetConsoleOutputCP(CP_UTF8);
+        setlocale(LC_ALL, "");
+        setlocale(LC_MESSAGES, "ru-RU.UTF-8");
+        _putenv_s("LC_MESSAGES", "ru");
+        bindtextdomain("EDRobot", "locales");
+        bind_textdomain_codeset("EDRobot", "UTF-8");
+        textdomain("EDRobot");
+        //LOG(INFO) << _("Hello world!");
+    }
+
     TRY {
         initializeInternal(ocr_dir);
     } CATCH(const std::exception& e) {
         LOG(ERROR) << "Exception in initialization: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
         return 1;
     }
+
+    LOG(INFO) << lc_format("Press '{0}' to popup EDRobot", Cfg.getShortcutFor(Command::Start));
+    LOG(INFO) << lc_format("Press '{0}' to pause/stop", Cfg.getShortcutFor(Command::Stop));
+
 
     return 0;
 }
@@ -546,36 +568,6 @@ void Master::popCommand(pCommand& cmd) {
         std::swap(cmd, nop);
     }
 }
-
-bool Master::preInitTask() {
-    auto capturer = getCapturer();
-    if (!capturer)
-        return false;
-    std::string error;
-    bool ok = Cfg.checkResolutionSupported(capturer->getCaptureRect().size(), error);
-    if (!ok) {
-        UIManager::showToast(_("Unsupported aspect ratio"), error);
-        return false;
-    }
-    // Calibration is not needed anymore
-    //if (checkCalibration && Cfg.checkNeedColorCalibration()) {
-    //    bool agree = UIManager::askCalibrationDialog(_("Color calibration required"));
-    //    if (agree) {
-    //        pushCommand(Command::Calibrate);
-    //        return false;
-    //    }
-    //}
-
-    Sleep(200); // wait for dialog to dissappear
-    SetForegroundWindow(hWndED);
-    Sleep(200); // wait for switching to foreground
-    if (!isGameForeground()) {
-        LOG(ERROR) << "ED is not foreground";
-        return false;
-    }
-    return true;
-}
-
 
 const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& grayImage, const std::string& lbl_name) {
     const Widget* widget = getInstance().getCfgItem(lbl_name);
@@ -1361,6 +1353,12 @@ Capturer* Master::getCapturer() {
             return nullptr;
         mCapturer->start();
     }
+//    std::string error;
+//    bool ok = Cfg.checkResolutionSupported(capturer->getCaptureRect().size(), error);
+//    if (!ok) {
+//        UIManager::showToast(_("Unsupported aspect ratio"), error);
+//        return false;
+//    }
     return mCapturer;
 }
 

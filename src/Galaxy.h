@@ -106,7 +106,7 @@ extern NavType FLEET_CARRIER;
 extern NavType SQUADRON_CARRIER;
 extern NavType STRONGHOLD_CARRIER;
 extern NavType STATION_MEGASHIP;
-extern NavType TRAILBLAZER_DREAM;
+//extern NavType TRAILBLAZER_DREAM;
 extern NavType COLONIZATION_SHIP;
 extern NavType MEGASHIP;
 extern NavType ENGINEER;

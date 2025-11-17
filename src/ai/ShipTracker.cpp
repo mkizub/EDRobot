@@ -49,6 +49,19 @@ void CourseLocker::requestPitchRoll(double pitch, bool without_roll) {
     request_pitch_roll(pitch, without_roll);
 }
 
+CourseLockerPause::CourseLockerPause()
+    : wasActive(isActive)
+{
+    if (wasActive)
+        disableAutoTurn();
+}
+CourseLockerPause::~CourseLockerPause() {
+    if (wasActive) {
+        isActive = true;
+        turnCond.notify_one();
+    }
+}
+
 
 void setAxisBindings(Axis& axis, const char* name, bool invert) {
     const KeyBindings& orig = Cfg.getGameKeyBindings(name);
@@ -74,7 +87,8 @@ void init_ship_tracker() {
 void shutdown_ship_tracker() {
     isWorking = false;
     turnCond.notify_all();
-    turnThread.join();
+    if (turnThread.joinable())
+        turnThread.join();
     kbd::reset_vJoy();
 }
 

@@ -5,6 +5,7 @@
 #include "../pch.h"
 
 #include "../../ui/resource.h"
+#include <commctrl.h>
 
 #include "UIManager.h"
 #include "UIMainDialog.h"
@@ -13,6 +14,10 @@
 #include "UIAddTask.h"
 #include "UISelectRect.h"
 #include "UIDebug.h"
+
+#pragma comment(linker,"\"/manifestdependency:type='win32' \
+    name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+    processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 UIManager &UIManager::getInstance() {
     static UIMainDialog mainDialog;
@@ -34,6 +39,12 @@ UIManager::~UIManager() {
 
 bool UIManager::initialize() {
     bool ok = true;
+
+    INITCOMMONCONTROLSEX icex;
+    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    icex.dwICC = ICC_STANDARD_CLASSES; // Or other specific classes
+    InitCommonControlsEx(&icex);
+
     ok &= UIToast::initialize();
     ok &= UISelectRect::initialize();
     ok &= UIDebug::initialize();
@@ -51,6 +62,7 @@ bool UIManager::shutdown() {
 
 void UIManager::uiThreadLoop() {
     SetThreadDescription(GetCurrentThread(), L"UIManager main thread");
+    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     HINSTANCE hInstance = GetModuleHandle(nullptr);
     uiMain.winmain_run(hInstance, SW_HIDE);
 }

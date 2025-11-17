@@ -244,6 +244,8 @@ XMat LaplacianFilter::apply(XMat image, Params params) {
         XMat out8U;
         cv::Laplacian(image, out16S, CV_16S, kern, scale, delta);
         cv::convertScaleAbs(out16S, out8U);
+        if (out8U.channels() == 4)
+            cv::cvtColor(out8U, out8U, cv::COLOR_BGRA2BGR);
         return out8U;
     }
     else if (image.depth() == CV_32F) {
@@ -251,6 +253,8 @@ XMat LaplacianFilter::apply(XMat image, Params params) {
         cv::Laplacian(image, out32F, CV_32F, kern, scale, delta);
         cv::max(out32F, 0.0f, out32F);
         cv::min(out32F, 1.0f, out32F);
+        if (out32F.channels() == 4)
+            cv::cvtColor(out32F, out32F, cv::COLOR_BGRA2BGR);
         return out32F;
     }
     return image;
@@ -264,10 +268,14 @@ XMat SobelFilter::apply(XMat image, Params params) {
     if (image.depth() == CV_8U && !params.convertToFloat) {
         XMat out8U;
         convertScaleAbs(grad, out8U);
+        if (out8U.channels() == 4)
+            cv::cvtColor(out8U, out8U, cv::COLOR_BGRA2BGR);
         return out8U;
     }
     cv::max(grad, 0.0f, grad);
     cv::min(grad, 1.0f, grad);
+    if (grad.channels() == 4)
+        cv::cvtColor(grad, grad, cv::COLOR_BGRA2BGR);
     return grad;
 }
 
@@ -288,6 +296,31 @@ XMat ScharrFilter::apply(XMat image, Params params) {
         return out32F;
     }
     return image;
+}
+
+XMat GradientFilter::apply(XMat image, Params params) {
+    assert(image.depth() == CV_8U || image.depth() == CV_32F);
+    bool restore8U = false;
+    if (image.depth() == CV_8U) {
+        restore8U = !params.convertToFloat;
+        XMat out32f;
+        image.convertTo(out32f, CV_32F, 1.0 / 255.0);
+        image = out32f;
+    }
+    XMat grad;
+    if (vert)
+        cv::Scharr(image, grad, CV_32F, 0, 1, 0.5*scale*0.0625, 0.5);
+    else
+        cv::Scharr(image, grad, CV_32F, 1, 0, 0.5*scale*0.0625, 0.5);
+    if (grad.channels() == 4)
+        cv::cvtColor(grad, grad, cv::COLOR_BGRA2BGR);
+    if (!restore8U)
+        return grad;
+    //cv::max(grad, 0.0f, grad);
+    //cv::min(grad, 1.0f, grad);
+    XMat out8U;
+    cv::convertScaleAbs(grad, out8U, 255);
+    return out8U;
 }
 
 XMat EdgeByBoxFilter::apply(XMat image, Params params) {
@@ -461,8 +494,9 @@ void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<Im
     }
 
 //    {
-//        cv::Mat img = image.getMat(cv::ACCESS_READ);
-//        cv::Mat templ = templates[0].templImage.getMat(cv::ACCESS_READ);
+//        cv::Mat img = preparedImage.getMat(cv::ACCESS_READ);
+//        cv::Mat templU = templates[0].templImageU.getMat(cv::ACCESS_READ);
+//        cv::Mat templF = templates[0].templImageF.getMat(cv::ACCESS_READ);
 //        if (img.empty())
 //            return;
 //    }

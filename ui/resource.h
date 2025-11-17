@@ -29,6 +29,9 @@
 #define IDC_BUTTON_PAUSE_RESUME         1019
 #define IDC_TASK_STATUS                 1020
 #define IDC_STATUS                      1021
+#define IDC_TASK_PARAMETERS             1023
+#define IDC_SCROLLBAR1                  1024
+#define IDC_TASK_PARAMS_SCROLLBAR       1024
 #define ID_DEV_RELOADCONFIG             32776
 #define ID_DEV_SAVECONFIG               32777
 #define ID_DEV_SELECT_RECT              32778
@@ -46,7 +49,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        139
 #define _APS_NEXT_COMMAND_VALUE         32783
-#define _APS_NEXT_CONTROL_VALUE         1022
+#define _APS_NEXT_CONTROL_VALUE         1025
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

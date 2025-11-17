@@ -158,67 +158,67 @@ public:
   /**
    * @brief JSON value default constructor for "null" type.
    */
-  value() noexcept : value(nullptr) {}
+  constexpr value() noexcept : value(nullptr) {}
 
   /**
    * @brief JSON value constructor for "null" type.
    * @param null A dummy argument for nullptr
    */
-  value(null_type null) noexcept : type(TYPE_NULL) {}
+  constexpr value(null_type null) noexcept : type(TYPE_NULL) {}
 
   /**
    * @brief JSON value constructor for "boolean" type.
    * @param boolean A boolean value to be set.
    */
-  value(boolean_type boolean) noexcept : type(TYPE_BOOLEAN), content(boolean) {}
+  constexpr value(boolean_type boolean) noexcept : type(TYPE_BOOLEAN), content(boolean) {}
 
   /**
    * @brief JSON value constructor for "number" type.
    * @param number A number to be set.
    */
-  value(number_type number) noexcept : type(TYPE_NUMBER), content(number) {}
+  constexpr value(number_type number) noexcept : type(TYPE_NUMBER), content(number) {}
 
   /**
    * @brief JSON value constructor with integer for "number" type.
    * @param number An integer value to be set.
    */
-  value(int64_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+  constexpr value(int64_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
 
   /**
    * @brief JSON value constructor with integer for "number" type.
    * @param number An integer value to be set.
    */
-  value(uint64_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+  constexpr value(uint64_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
 
   /**
    * @brief JSON value constructor with integer for "number" type.
    * @param number An integer value to be set.
    */
-  value(int32_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+  constexpr value(int32_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
 
   /**
    * @brief JSON value constructor with integer for "number" type.
    * @param number An integer value to be set.
    */
-  value(uint32_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+  constexpr value(uint32_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
 
   /**
    * @brief JSON value constructor with integer for "number" type.
    * @param number An integer value to be set.
    */
-  value(int16_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+  constexpr value(int16_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
 
   /**
    * @brief JSON value constructor with integer for "number" type.
    * @param number An integer value to be set.
    */
-  value(uint16_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
+  constexpr value(uint16_t integer) noexcept : type(TYPE_INTEGER), content((integer_type)integer) {}
 
   /**
    * @brief JSON value constructor for "string" type.
    * @param string A string value to be set.
    */
-  value(const string_type& string) : type(TYPE_STRING)
+  constexpr value(const string_type& string) : type(TYPE_STRING)
   {
     new(&content.string) string_type(string);
   }
@@ -227,7 +227,7 @@ public:
    * @brief JSON value constructor for "string" type. (const char* version)
    * @param string A string value to be set.
    */
-  value(string_p_type string) : type(TYPE_STRING)
+  constexpr value(string_p_type string) : type(TYPE_STRING)
   {
     new(&content.string) string_type(string);
   }
@@ -236,7 +236,7 @@ public:
    * @brief JSON value constructor for "array" type.
    * @param array An initializer list of elements.
    */
-  explicit value(std::initializer_list<value> array) : type(TYPE_ARRAY)
+  constexpr explicit value(std::initializer_list<value> array) : type(TYPE_ARRAY)
   {
     new(&content.array) array_type(array);
   }
@@ -245,7 +245,7 @@ public:
    * @brief JSON value constructor with key,value pair for "object" type.
    * @param elements An initializer list of key,value pair.
    */
-  explicit value(std::initializer_list<pair_type> elements) : type(TYPE_OBJECT)
+  constexpr explicit value(std::initializer_list<pair_type> elements) : type(TYPE_OBJECT)
   {
     new(&content.object) object_type(elements);
   }
@@ -829,10 +829,10 @@ private:
     string_type string;
     array_type array;
     object_type object;
-    content() {}
-    content(boolean_type boolean) : boolean(boolean) {}
-    content(number_type number) : number(number) {}
-    content(integer_type integer) : integer(integer) {}
+    constexpr content() {}
+    constexpr content(boolean_type boolean) : boolean(boolean) {}
+    constexpr content(number_type number) : number(number) {}
+    constexpr content(integer_type integer) : integer(integer) {}
     ~content() {}
   } content;
 };

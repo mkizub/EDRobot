@@ -8,12 +8,14 @@
 #define EDROBOT_TASK_H
 
 #include "Types.h"
+#include "TaskTemplate.h"
 
 namespace ai {
 
 class Step : std::enable_shared_from_this<Step> {
-public:
+protected:
     Step();
+public:
     virtual ~Step() = default;
 
     virtual bool run() = 0;
@@ -33,7 +35,7 @@ public:
         std::chrono::time_point<std::chrono::steady_clock> timestamp;
         MessageSeverity severity;
         std::string message;
-        bool expired() const;
+        [[nodiscard]] bool expired() const;
     };
     std::deque<Message> messages;
     std::mutex messagesMutex;
@@ -42,10 +44,11 @@ public:
 };
 
 class Task : public Step {
+protected:
+    explicit Task(const TaskTemplate& templ);
 public:
-    Task(const TaskTemplate& templ);
-    virtual ~Task() = default;
-    virtual std::string getTitle();
+    ~Task() override = default;
+    std::string getTitle() override;
 
     TaskTemplate templ;
 
@@ -60,14 +63,15 @@ public:
 
 class TaskRepeat : public Task {
 public:
-    TaskRepeat(const TaskTemplate& templ);
-    virtual ~TaskRepeat() = default;
+    explicit TaskRepeat(const TaskTemplate& templ);
+    ~TaskRepeat() override = default;
     bool run() override;
 
     std::string getTitle() override;
 
     int mTotal {};
-    int mDuration;
+    int mDuration {};
+    std::vector<TaskTemplate> steps;
 
     bool mStarted {};
     int mCompleted {};

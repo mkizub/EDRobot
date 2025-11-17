@@ -25,6 +25,12 @@ struct CourseLocker {
     void requestPitchRoll(double pitch, bool without_roll=false);
 };
 
+struct CourseLockerPause {
+    CourseLockerPause();
+    ~CourseLockerPause();
+    const bool wasActive;
+};
+
 class BaseAutopilotTask : public Task {
 public:
     BaseAutopilotTask(const TaskTemplate& templ_) : Task(templ_) {}
