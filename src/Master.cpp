@@ -8,6 +8,7 @@
 #include "ai/AIManager.h"
 #include "detect/Detector.h"
 #include "detect/Lines.h"
+#include "detect/NavPanel.h"
 #include "Keyboard.h"
 #include "Capturer.h"
 #include "FuzzyMatch.h"
@@ -1066,6 +1067,28 @@ bool Master::debugWindowUpdate() {
     }
 
     if (mLastUIState.screen && mLastUIState.screen->transform && mLastUIState.screen->transform->valid) {
+        auto* npd = dynamic_cast<detect::NavPanelDetector*>(mLastUIState.screen->oracle.get());
+        if (npd) {
+            detect::LineDetector *detect_angle = npd->getLineDetector("detect-angle");
+            cv::rectangle(debugImage, detect_angle->lineMatchRect, {128,128,128});
+            for (auto& dl : detect_angle->detectedLines) {
+                cv::Line line = dl.line;
+                line += detect_angle->lineMatchRect.tl();
+                cv::line(debugImage, line.p0(), line.p1(), {128,128,128}, 1, cv::LINE_AA);
+            }
+            cv::Point2f points[4];
+            npd->lastRotRect.points(points); // bottomLeft, topLeft, topRight, bottomRight
+            for (int j = 0; j < 4; j++)
+                cv::line(debugImage, points[j], points[(j+1) % 4], {160,160,160}, 1, cv::LINE_AA);
+            auto& topLine = npd->lastTopLine;
+            cv::line(debugImage, topLine.p0(), topLine.p1(), {200,200,200}, 1, cv::LINE_AA);
+            cv::drawMarker(debugImage, topLine.p0(), {255,255,255}, 10);
+            cv::drawMarker(debugImage, topLine.p1(), {255,255,255}, 10);
+            auto& btmLine = npd->lastBottomLine;
+            cv::line(debugImage, btmLine.p0(), btmLine.p1(), {200,200,200}, 1, cv::LINE_AA);
+            cv::drawMarker(debugImage, btmLine.p0(), {255,255,255}, 10);
+            cv::drawMarker(debugImage, btmLine.p1(), {255,255,255}, 10);
+        }
         for (int p=0; p < 4; p++) {
             auto& p0 = mLastUIState.screen->transform->transformSrc[p];
             auto& p1 = mLastUIState.screen->transform->transformSrc[(p+1)%4];
@@ -1089,10 +1112,6 @@ bool Master::debugWindowUpdate() {
             cv::rectangle(debugImage, r, {96, 255, 96}, 2);
             //std::string text = std::format("s:{:.4f} a:{:.4f} m:{:.4f}", cr.u.ldet.scale, cr.u.ldet.angle, cr.u.ldet.match);
             //cv::putText(debugImage, text, r.br(), cv::FONT_HERSHEY_PLAIN, 1.5, {254, 254, 254}, 2);
-            if (detect::AnchoredLineDetector* detector = dynamic_cast<detect::AnchoredLineDetector*>(cr.u.ldet.detector)) {
-                r = detector->anchorDetector->matchRect;
-                cv::rectangle(debugImage, r, {96, 96, 255}, 1);
-            }
             cv::Line line = cEnv.cvtReferenceToCaptured(cr.u.ldet.referenceLine);
             cv::line(debugImage, line.p0(), line.p1(), {96, 255, 96}, 3, cv::LINE_AA);
         }

@@ -106,36 +106,35 @@ bool Configuration::load() {
         if (GetEnvironmentVariableW(L"LocalAppData", buffer, MAX_PATH)) {
             dirAppDataLocal = buffer;
             mEDSettingsPath = dirAppDataLocal + LR"(\Frontier Developments\Elite Dangerous)";
-        }
-        else if (!dirUserProfile.empty()) {
+        } else if (!dirUserProfile.empty()) {
             mEDSettingsPath = dirUserProfile + LR"(\AppData\Local\Frontier Developments\Elite Dangerous)";
         }
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
-        if (auto& tm = j_config.at("ui-scale-factor"); tm.is_number()) {
+        if (auto &tm = j_config.at("ui-scale-factor"); tm.is_number()) {
             if (tm.is_integer() && tm.as_integer() > 15)
                 mUiScaleFactor = tm.as_integer() * 0.01f;
             else if (tm.as_number() >= 0.125 && tm.as_number() <= 8)
-                mUiScaleFactor = (float)tm.as_number();
+                mUiScaleFactor = (float) tm.as_number();
         }
-        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer())
+        if (auto &tm = j_config.at("default-key-hold-time"); tm.is_integer())
             defaultKeyHoldTime = tm.as_integer();
-        if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer())
+        if (auto &tm = j_config.at("default-key-after-time"); tm.is_integer())
             defaultKeyAfterTime = tm.as_integer();
-        if (auto& tm = j_config.at("search-region-extent"); tm.is_integer())
+        if (auto &tm = j_config.at("search-region-extent"); tm.is_integer())
             searchRegionExtent = tm.as_integer();
-        if (auto& tm = j_config.at("auto-pause"); tm.is_boolean())
+        if (auto &tm = j_config.at("auto-pause"); tm.is_boolean())
             autoPause = tm.as_boolean();
         if (j_config.at("shortcuts").is_object()) {
-            auto& obj = j_config.at("shortcuts");
+            auto &obj = j_config.at("shortcuts");
             parseShortcutConfig(Command::Start, "start", obj);
             parseShortcutConfig(Command::Pause, "pause", obj);
             parseShortcutConfig(Command::Resume, "resume", obj);
-            parseShortcutConfig(Command::Stop,  "stop",  obj);
-            parseShortcutConfig(Command::DebugTemplates,  "debug-templates",  obj);
-            parseShortcutConfig(Command::DebugWindow,     "debug-window",  obj);
-            parseShortcutConfig(Command::DevRectSelect,   "dev-rect-select",  obj);
-            parseShortcutConfig(Command::Shutdown,  "shutdown",  obj);
+            parseShortcutConfig(Command::Stop, "stop", obj);
+            parseShortcutConfig(Command::DebugTemplates, "debug-templates", obj);
+            parseShortcutConfig(Command::DebugWindow, "debug-window", obj);
+            parseShortcutConfig(Command::DevRectSelect, "dev-rect-select", obj);
+            parseShortcutConfig(Command::Shutdown, "shutdown", obj);
         }
         if (auto tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
             mEDSettingsPath = toUtf16(tm.as_string());
@@ -143,14 +142,14 @@ bool Configuration::load() {
             mEDLogsPath = toUtf16(tm.as_string());
         if (auto tm = j_config.at("tesseract-data-path"); tm.is_string())
             mTesseractDataPath = tm.as_string();
-        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
+        if (auto &tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
             capturerWin32Disabled = tm.as_boolean();
-        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
+        if (auto &tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
             capturerWinRTDisabled = tm.as_boolean();
-        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
+        if (auto &tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
             capturerDXGIDisabled = tm.as_boolean();
-        if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
-            vJoyDeviceID = (uint8_t)tm.as_integer();
+        if (auto &tm = j_config.at("vjoy-device-id"); tm.is_integer())
+            vJoyDeviceID = (uint8_t) tm.as_integer();
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
             openclDisabled = tm.as_boolean();
@@ -169,7 +168,21 @@ bool Configuration::load() {
 
         LOG(INFO) << "Initializing D3D device";
         Capturer::InitD3DDevice();
+    }
 
+    {
+        LOG(INFO) << "Setting screens.json5";
+        widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
+        std::ifstream ifs_config("screens.json5");
+        auto j_screens = json5pp::parse5(ifs_config).as_array();
+        for (json5pp::value& s: j_screens) {
+            screensRoot->addSubItem(widget_from_json(s, screensRoot));
+        }
+        //detect::NavPanelDetectLock lock("flt-line");
+        //detect::NavPanelDetector::standaloneTest("nav-panel-test-3.png", "scr-left-panel");
+    }
+
+    {
         eddb::loadEDDB();
         preloadGameJournal(); // game language & version
         loadGameSettings(true);
@@ -193,16 +206,6 @@ bool Configuration::load() {
             changeDirListener->AddDirectory(mEDLogsPath, false, dirNotificationFlags);
             hShutdownEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
             changeDirThread = std::thread(&Configuration::changeDirThreadLoop, this);
-        }
-    }
-
-    {
-        LOG(INFO) << "Setting screens.json5";
-        widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
-        std::ifstream ifs_config("screens.json5");
-        auto j_screens = json5pp::parse5(ifs_config).as_array();
-        for (json5pp::value& s: j_screens) {
-            screensRoot->addSubItem(widget_from_json(s, screensRoot));
         }
     }
 
@@ -1689,19 +1692,53 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
     }
     if (jo.contains("laplacian") && jf["laplacian"].is_object()) {
         int kern = 3;
+        double scale = 1;
+        double delta = 0;
         if (jf["laplacian"]["kern"].is_integer())
             kern = jf["laplacian"]["kern"].as_integer();
-        double scale = 1;
         if (jf["laplacian"]["scale"].is_number())
             scale = jf["laplacian"]["scale"].as_number();
-        f.reset(new LaplacianFilter(kern, scale));
+        if (jf["laplacian"]["delta"].is_number())
+            delta = jf["laplacian"]["delta"].as_number();
+        f.reset(new LaplacianFilter(kern, scale, delta));
         return;
     }
     if (jo.contains("scharr") && jf["scharr"].is_object()) {
+        bool vert = false;
         double scale = 1;
+        if (jf["scharr"]["vert"].is_boolean())
+            vert = jf["scharr"]["vert"].as_boolean();
+        else if (jf["scharr"]["horz"].is_boolean())
+            vert = !jf["scharr"]["horz"].as_boolean();
         if (jf["scharr"]["scale"].is_number())
             scale = jf["scharr"]["scale"].as_number();
-        f.reset(new ScharrFilter(scale));
+        f.reset(new ScharrFilter(vert, scale));
+        return;
+    }
+    if (jo.contains("lines") && jf["lines"].is_object()) {
+        bool vert = false;
+        double scale = 1;
+        int threshold = 45;
+        int dilatePos = 2;
+        int dilateNeg = 2;
+        int erode = 0;
+        if (jf["lines"]["vert"].is_boolean())
+            vert = jf["lines"]["vert"].as_boolean();
+        else if (jf["lines"]["horz"].is_boolean())
+            vert = !jf["lines"]["horz"].as_boolean();
+        if (jf["lines"]["scale"].is_number())
+            scale = jf["lines"]["scale"].as_number();
+        if (jf["lines"]["thr"].is_number())
+            threshold = jf["lines"]["thr"].as_number();
+        if (jf["lines"]["dilate"].is_integer())
+            dilatePos = dilateNeg = jf["lines"]["dilate"].as_integer();
+        if (jf["lines"]["dilate_pos"].is_integer())
+            dilatePos = jf["lines"]["dilate_pos"].as_integer();
+        if (jf["lines"]["dilate_neg"].is_integer())
+            dilateNeg = jf["lines"]["dilate_neg"].as_integer();
+        if (jf["lines"]["erode"].is_integer())
+            erode = jf["lines"]["erode"].as_integer();
+        f.reset(new LinesFilter(vert, scale, threshold, dilatePos, dilateNeg, erode));
         return;
     }
     if (jo.contains("edge_box") && jf["edge_box"].is_object()) {
@@ -1805,6 +1842,56 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
     }
 }
 
+static void image_template_from_json(const json5pp::value& j, ImageTemplate* templ) {
+    if (j.at("name").is_string()) {
+        templ->name = j.at("name").as_string();
+    }
+
+    if (j.at("scale").is_number())
+        templ->testScales.push_back(j["scale"].as_number());
+    else if (j.at("scale").is_array()) {
+        for (auto& scl : j.at("scale").as_array())
+            templ->testScales.push_back(scl.as_number());
+    }
+
+    if (j.at("angle").is_integer())
+        templ->testAngles.push_back(j["angle"].as_integer());
+    else if (j.at("angle").is_array()) {
+        for (auto& angle : j.at("angle").as_array())
+            templ->testAngles.push_back(angle.as_integer());
+    }
+
+    ext_from_json(j["ext"], templ->extendLT, templ->extendRB);
+    minmax_from_json(j["t"], templ->threshold_min, templ->threshold_max);
+
+    if (j.at("method").is_string()) {
+        const std::string method = j.at("method").as_string();
+        if (method == "coeff")
+            templ->matchMethod = cv::TM_CCOEFF_NORMED;
+        else if (method == "corr")
+            templ->matchMethod = cv::TM_CCORR_NORMED;
+        else if (method == "sqdiff")
+            templ->matchMethod = cv::TM_SQDIFF_NORMED;
+    }
+
+    if (j.at("filter")) {
+        if (j.at("filter").is_object()) {
+            std::unique_ptr<ImageFilter> f;
+            from_json(j.at("filter"), f);
+            if (f)
+                templ->filters.push_back(std::move(f));
+        }
+        else if (j.at("filter").is_array()) {
+            for (auto& jf : j.at("filter").as_array()) {
+                std::unique_ptr<ImageFilter> f;
+                from_json(jf, f);
+                if (f)
+                    templ->filters.push_back(std::move(f));
+            }
+        }
+    }
+}
+
 static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
     if (j.is_null())
         return nullptr;
@@ -1823,69 +1910,31 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
         return new detect::ReferDetector(referred);
     }
     if (j.is_object()) {
+        if (j.as_object().contains("anchor")) {
+            std::string filename = "templates/"+j.at("img").as_string();
+            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"]);
+            cv::Point anchor = point_from_json(j["anchor"]);
+            AnchorDetector* templ = new AnchorDetector(filename, rect, anchor);
+            image_template_from_json(j, templ);
+            return templ;
+        }
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
             spEvalRect rect = makeEvalRect(widget, "rect", j["rect"]);
-
             ImageTemplate* templ = new ImageTemplate(filename, rect);
-
-            if (j.at("name").is_string()) {
-                templ->name = j.at("name").as_string();
-            }
-
-            if (j.at("scale").is_number())
-                templ->testScales.push_back(j["scale"].as_number());
-            else if (j.at("scale").is_array()) {
-                for (auto& scl : j.at("scale").as_array())
-                    templ->testScales.push_back(scl.as_number());
-            }
-
-            if (j.at("angle").is_integer())
-                templ->testAngles.push_back(j["angle"].as_integer());
-            else if (j.at("angle").is_array()) {
-                for (auto& angle : j.at("angle").as_array())
-                    templ->testAngles.push_back(angle.as_integer());
-            }
-
-            ext_from_json(j["ext"], templ->extendLT, templ->extendRB);
-            minmax_from_json(j["t"], templ->threshold_min, templ->threshold_max);
-
-            if (j.at("filter")) {
-                if (j.at("filter").is_object()) {
-                    std::unique_ptr<ImageFilter> f;
-                    from_json(j.at("filter"), f);
-                    if (f)
-                        templ->filters.push_back(std::move(f));
-                }
-                else if (j.at("filter").is_array()) {
-                    for (auto& jf : j.at("filter").as_array()) {
-                        std::unique_ptr<ImageFilter> f;
-                        from_json(jf, f);
-                        if (f)
-                            templ->filters.push_back(std::move(f));
-                    }
-                }
-            }
+            image_template_from_json(j, templ);
             return templ;
         }
         if (j.as_object().contains("line")) {
-            Detector* anchor = nullptr;
-
-            if (j["anchor"].is_object())
-                anchor = detector_from_json(j["anchor"], widget);
-
             spEvalLine line = makeEvalLine(widget, "line", j["line"]);
-
-            detect::LineDetector* ldet;
-            if (anchor)
-                ldet = new AnchoredLineDetector(dynamic_cast<ImageTemplate*>(anchor), line);
-            else
-                ldet = new SimpleLineDetector(line);
+            detect::LineDetector* ldet = new detect::LineDetector(line);
 
             if (j["name"].is_string())
                 ldet->name = j["name"].as_string();
 
-            minmax_from_json(j["ext"], ldet->extendAngleMin, ldet->extendAngleMax);
+            ext_from_json(j["ext"], ldet->extendLT, ldet->extendRB);
+            if (j.at("delta"))
+                minmax_from_json(j["delta"], ldet->extendAngleMin, ldet->extendAngleMax);
             if (j.at("votes"))
                 ldet->houghThreshold = j["votes"].as_integer();
             if (j.at("prec"))
@@ -1951,13 +2000,25 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
             return new BestOf(std::move(oracles));
         }
         else if (j.as_object().contains("nav_panel")) {
-            std::vector<std::unique_ptr<Detector>> oracles;
-            for (auto& jo : j["nav_panel"].as_array()) {
+            std::vector<std::unique_ptr<LineDetector>> lines;
+            std::vector<std::unique_ptr<AnchorDetector>> anchors;
+            std::vector<NavPanelDetector::Tab> tabs;
+            for (auto& jo : j["nav_panel"]["lines"].as_array()) {
                 Detector *oracle = detector_from_json(jo, widget);
-                if (oracle)
-                    oracles.emplace_back(oracle);
+                if (auto ldet = dynamic_cast<LineDetector*>(oracle))
+                    lines.emplace_back(ldet);
             }
-            return new NavPanelDetector(std::move(oracles));
+            for (auto& jo : j["nav_panel"]["anchors"].as_array()) {
+                Detector *oracle = detector_from_json(jo, widget);
+                if (auto adet = dynamic_cast<AnchorDetector*>(oracle))
+                    anchors.emplace_back(adet);
+            }
+            for (auto& jo : j["nav_panel"]["tabs"].as_array()) {
+                cv::Rect rect = rect_from_json(jo["rect"]);
+                const std::string& name = jo["name"].as_string();
+                tabs.emplace_back(NavPanelDetector::Tab{rect, name});
+            }
+            return new NavPanelDetector(widget.path, std::move(lines), std::move(anchors), std::move(tabs));
         }
         return nullptr;
     }

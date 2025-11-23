@@ -2,10 +2,9 @@
 // Created by mkizub on 31.05.2025.
 //
 
-// conflicts with _() of gettext, have to include before pch.h
-#include <peglib/peglib.h>
-
 #include "pch.h"
+
+#include <peglib/peglib.h>
 
 #include "EDWidget.h"
 #include "OCR.h"
@@ -1190,7 +1189,7 @@ spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const 
     }
     auto& j_arr = jv.as_array();
     bool simple = true;
-    for (int i=0; i < 4; i++) {
+    for (int i=0; i < 2; i++) {
         if (!j_arr[i].is_integer()) {
             simple = false;
             if (!j_arr[i].is_string())

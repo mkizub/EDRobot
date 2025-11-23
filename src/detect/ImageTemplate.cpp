@@ -239,13 +239,20 @@ XMat GaussFilter::apply(XMat image, Params params) {
 
 XMat LaplacianFilter::apply(XMat image, Params params) {
     assert(image.depth() == CV_8U || image.depth() == CV_32F);
+    double scale;
+    if (kern == 1)
+        scale = this->scale / 4.;
+    else if (kern == 3)
+        scale = this->scale / 8.;
+    else
+        scale = this->scale;
+    if (image.channels() == 4)
+        cv::cvtColor(image, image, cv::COLOR_BGRA2BGR);
     if (image.depth() == CV_8U) {
         XMat out16S;
         XMat out8U;
         cv::Laplacian(image, out16S, CV_16S, kern, scale, delta);
         cv::convertScaleAbs(out16S, out8U);
-        if (out8U.channels() == 4)
-            cv::cvtColor(out8U, out8U, cv::COLOR_BGRA2BGR);
         return out8U;
     }
     else if (image.depth() == CV_32F) {
@@ -253,8 +260,6 @@ XMat LaplacianFilter::apply(XMat image, Params params) {
         cv::Laplacian(image, out32F, CV_32F, kern, scale, delta);
         cv::max(out32F, 0.0f, out32F);
         cv::min(out32F, 1.0f, out32F);
-        if (out32F.channels() == 4)
-            cv::cvtColor(out32F, out32F, cv::COLOR_BGRA2BGR);
         return out32F;
     }
     return image;
@@ -321,6 +326,88 @@ XMat GradientFilter::apply(XMat image, Params params) {
     XMat out8U;
     cv::convertScaleAbs(grad, out8U, 255);
     return out8U;
+}
+
+LinesFilter::LinesFilter(bool vert, double gradient_scale, int gradient_threshold, int dilatePos, int dilateNeg, int erode)
+        : vert(vert)
+        , gradient_scale(gradient_scale)
+        , gradient_threshold(gradient_threshold)
+        , dilatePos(dilatePos)
+        , dilateNeg(dilateNeg)
+        , erode(erode)
+{
+    if (!vert) {
+        kernel_2 = cv::getStructuringElement(cv::MORPH_RECT, {1, 2});
+        kernel_3 = cv::getStructuringElement(cv::MORPH_RECT, {1, 3});
+    } else {
+        kernel_2 = cv::getStructuringElement(cv::MORPH_RECT, {2, 1});
+        kernel_3 = cv::getStructuringElement(cv::MORPH_RECT, {3, 1});
+    }
+}
+
+XMat LinesFilter::apply(XMat image, Params params) {
+    XMat grad;
+    cv::Point anchor;
+    if (!vert) {
+        cv::Scharr(image, grad, CV_32F, 0, 1, gradient_scale * 0.0625 / 255., 0);
+        anchor = {0, 1};
+    } else {
+        cv::Scharr(image, grad, CV_32F, 1, 0, gradient_scale * 0.0625 / 255., 0);
+        anchor = {1, 0};
+    }
+
+    XMat grad_posF;
+    cv::max(grad, 0.0, grad_posF);
+    XMat grad_posU;
+    cv::convertScaleAbs(grad_posF, grad_posU, 255);
+    cv::threshold(grad_posU, grad_posU, gradient_threshold, 255, cv::THRESH_BINARY);
+    if (dilatePos > 0)
+        cv::dilate(grad_posU, grad_posU, kernel_2, anchor, dilatePos);
+
+    XMat grad_negF;
+    cv::min(grad, 0.0, grad_negF);
+    XMat grad_negU;
+    cv::convertScaleAbs(grad_negF, grad_negU, 255);
+    cv::threshold(grad_negU, grad_negU, gradient_threshold, 255, cv::THRESH_BINARY);
+    if (dilateNeg > 0) {
+        cv::flip(grad_negU, grad_negU, vert ? 1 : 0);
+        cv::dilate(grad_negU, grad_negU, kernel_2, anchor, dilateNeg);
+        cv::flip(grad_negU, grad_negU, vert ? 1 : 0);
+    }
+
+    XMat out;
+    if (dilatePos > 0 || dilateNeg > 0)
+        cv::bitwise_and(grad_posU, grad_negU, out);
+    else
+        cv::bitwise_or(grad_posU, grad_negU, out);
+    if (erode > 0)
+        cv::erode(out, out, kernel_3, anchor, erode);
+    return out;
+}
+
+XMat CompassFilter::apply(XMat image, Params params) {
+    if (image.channels() < 3)
+        return image;
+    std::vector<XMat> channel;
+    cv::split(image, channel);
+    std::vector<XMat> merge;
+    merge.reserve(4);
+    XMat grad_gv;
+    cv::Scharr(channel[1], grad_gv, CV_32F, 0, 1, 0.0625 / 255., 0);
+    merge.push_back(grad_gv);
+    XMat grad_gh;
+    cv::Scharr(channel[1], grad_gh, CV_32F, 1, 0, 0.0625 / 255., 0);
+    merge.push_back(grad_gh);
+    XMat grad_rv;
+    cv::Scharr(channel[2], grad_rv, CV_32F, 0, 1, 0.0625 / 255., 0);
+    merge.push_back(grad_rv);
+    XMat grad_rh;
+    cv::Scharr(channel[2], grad_rh, CV_32F, 1, 0, 0.0625 / 255., 0);
+    merge.push_back(grad_rh);
+
+    XMat out;
+    cv::merge(merge, out);
+    return out;
 }
 
 XMat EdgeByBoxFilter::apply(XMat image, Params params) {
@@ -549,26 +636,29 @@ cv::Rect ImageTemplate::makeOptimalMatchRect(cv::Rect r) {
 }
 
 double ImageTemplate::match(ClassifyEnv &env) {
+    XMat gameImage = channels == 1 ? env.getGrayImage() : env.getColorImage();
+    return match(env, gameImage, {});
+}
+
+double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point gameImageOffset) {
     lastMatch = 0;
     if (refEvalRect)
         refOrig = refEvalRect->calcReferenceRect(env).tl();
     if (imagesOrig.empty() || refSize.empty() || !channels)
         return 0;
-    XMat gameImage = channels == 1 ? env.getGrayImage() : env.getColorImage();
     if (gameImage.empty())
         return 0;
-
     prepareImages(env);
 
     auto startTime = std::chrono::high_resolution_clock::now();
 
     int ext = Master::getInstance().getSearchRegionExtent();
     cv::Rect refRect(refOrig, refSize);
-    captureRect = env.cvtReferenceToCaptured(refRect);
+    captureRect = env.cvtReferenceToCaptured(refRect + gameImageOffset);
     matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
                          captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
     matchRect = makeOptimalMatchRect(matchRect);
-    env.cropToCapture(matchRect);
+    matchRect &= cv::Rect(0,0,gameImage.cols,gameImage.rows);
 
     XMat gameImagePrepared = applyFilters(filters, gameImage(matchRect), {.convertToFloat=useOpenCL()});
     if (gameImagePrepared.empty())

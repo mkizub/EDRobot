@@ -134,7 +134,7 @@ bool NavList::init(st::NavPanelFilters filters) {
         if (filters == st::navFilters)
             return true;
 
-        if (!ai::gotoNavPage("mod-navigation", false))
+        if (!ai::gotoNavPage("mod-nav-list", false))
             continue;
 
         int delay = 300;
@@ -143,6 +143,7 @@ bool NavList::init(st::NavPanelFilters filters) {
             kbd::send("UI_Up", 0, delay);
         kbd::send("UI_Select", 0, 1000);
 
+        detect::NavPanelDetectLock lock("flt-line");
         ai::detectEDState(DetectLevel::Buttons);
         if (!ai::uiState.match("scr-left-panel:dlg-filters")) {
             ai::throw_trouble("Expecting 'scr-left-panel:dlg-filters' but got {}", ai::uiState.to_string());
@@ -200,8 +201,8 @@ std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage, int& focus
     focusIdx = -1;
     list.clear();
     for (int retry=0; retry < 3; retry++) {
-        if (!ai::uiState.match("scr-left-panel:mod-navigation"))
-            if (!ai::gotoNavPage("mod-navigation", false))
+        if (!ai::uiState.match("scr-left-panel:mod-nav-list"))
+            if (!ai::gotoNavPage("mod-nav-list", false))
                 continue;
         if (ai::uiState.focused_name() != "lst-bodies")
             kbd::send("UI_Right");
@@ -834,12 +835,12 @@ bool NavList::discoverSelected() {
 
         std::string nav_icon;
         for (int retr=0; nav_icon.empty() && retr < 3; retr++){
-            detect::NavPanelDetectLock lock("nvline");
+            detect::NavPanelDetectLock lock("nav-line");
             ai::sleep(1000);
             cv::Mat grayImage;
             ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
             for (auto &cr: ai::rEnv.classified) {
-                if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
+                if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nav-line:")) {
                     nav_icon = cr.text.substr(7);
                     LOG(INFO) << "NavType icon: '" << nav_icon << "'";
                     break;
@@ -980,8 +981,8 @@ bool NavListScanTask::run() {
 bool NavListScanTask::gotoNavPageNavigation() {
     bool ok = false;
     for (int retry=0; retry < 3; retry++) {
-        if (!ai::uiState.match("scr-left-panel:mod-navigation"))
-            gotoNavPage("mod-navigation");
+        if (!ai::uiState.match("scr-left-panel:mod-nav-list"))
+            gotoNavPage("mod-nav-list");
         if (ai::uiState.focused_name() != "lst-bodies")
             kbd::send("UI_Right");
         ok = true;

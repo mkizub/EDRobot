@@ -14,7 +14,7 @@ namespace detect {
 
 CompassDetector::CompassDetector()
         : Detector()
-        , threshold_dot{0.6}
+        , threshold_dot{0.5}
         , lastHemisphere(0)
         , navTargetFound(false)
 {
@@ -62,15 +62,22 @@ void CompassDetector::loadCompass() {
     preprocessedShip = st::shipInfo.shipType;
     const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem("scr-cockpit");
     cv::Rect compassRefRect;
+    cv::Point compassExtLT;
+    cv::Point compassExtRB;
     auto &varSet = scr_cockpit->varSetMap.at("compass");
     for (auto &vars: varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), preprocessedShip)) {
-            compassRefSize.width = vars.values.at("size")[0];
-            compassRefSize.height = vars.values.at("size")[1];
-            compassRefRect.x = vars.values.at("rect")[0];
-            compassRefRect.y = vars.values.at("rect")[1];
-            compassRefRect.width = vars.values.at("rect")[2];
-            compassRefRect.height = vars.values.at("rect")[3];
+            auto v = vars.values;
+            compassRefSize.width = v["size"][0];
+            compassRefSize.height = v["size"][1];
+            compassRefRect.x = v["rect"][0];
+            compassRefRect.y = v["rect"][1];
+            compassRefRect.width = v["rect"][2];
+            compassRefRect.height = v["rect"][3];
+            compassExtLT.x = v["ext"][0];
+            compassExtLT.y = v["ext"][1];
+            compassExtRB.x = v["ext"][2];
+            compassExtRB.y = v["ext"][3];
             break;
         }
     }
@@ -85,21 +92,13 @@ void CompassDetector::loadCompass() {
     compassDetector = std::make_unique<ImageTemplate>(compassImageName, std::make_shared<ConstRect>(compassRefRect));
     compassDetector->testAngles = {0}; //{0, -1, +1};
     compassDetector->testScales = {1, 1.025, 0.975, 1.05, 0.95, /*1.075, 0.925, 1.1, 0.9, 1.125, 0.875*/};
-    compassDetector->extendLT = {40, 60}; //{40, 80};
-    compassDetector->extendRB = {60, 110}; //{50, 140};
+    compassDetector->extendLT = compassExtLT;
+    compassDetector->extendRB = compassExtRB;
     compassDetector->threshold_min = 0.3;
     compassDetector->threshold_max = 0.8;
     compassDetector->matchMethod = cv::TM_CCOEFF_NORMED; // cv::TM_CCORR_NORMED;
 
-    HsvMaskFilter* hsvFilter;
-    if (use_gray_compass)
-        hsvFilter = new HsvGrayCropFilter;
-    else
-        hsvFilter = new HsvColorCropFilter;
-    //hsvFilter->rangesU.emplace_back(cv::Vec3b(15,50,254),cv::Vec3b(35,255,255)); // limit Hue[10..30]
-    hsvFilter->rangesU.emplace_back(cv::Vec3b(10,0,0),cv::Vec3b(35,255,255)); // limit Hue[10..35]
-    compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.65, 0)));
-    compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
+    compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(new CompassFilter));
 }
 
 double CompassDetector::match(ClassifyEnv &env) {

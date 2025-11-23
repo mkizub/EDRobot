@@ -649,7 +649,7 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
     for (auto& p : templ.params) {
         if (p.id == "system")
             destSystemName = p.as_string();
-        else if (p.id == "depot")
+        else if (p.id == "dock")
             destConstrName = p.as_string();
     }
 }

@@ -64,7 +64,7 @@ inline bool useOpenCL() { return false; }
 #include "libintl.h"
 #include <clocale>
 #define pgettext(P,T) gettext(P "\004" T)
-#define _(T) gettext(T)
+#define _gt(T) gettext(T)
 #define _lc(T) T
 template <class... _Types>
 [[nodiscard]] std::string lc_format(const std::format_string<_Types...> _Fmt, _Types&&... _Args) {

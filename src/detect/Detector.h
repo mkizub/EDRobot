@@ -76,13 +76,15 @@ public:
     enum class Mode {
         Gray, Hsv, Luv, BGR
     };
-    Histogram(Mode mode, const cv::Rect rect) : mMode(mode), mRect(rect) {}
+    Histogram(Mode mode, const cv::Rect rect, int bin=8) : mMode(mode), mRect(rect), mBin(bin) {}
 
     bool calc(ClassifyEnv& env);
+    bool calc(cv::Mat image);
 
     Mode mMode;
     cv::Vec3b mLastColor;
     cv::Rect mRect;
+    int mBin;
 };
 
 class ImageFilter {
@@ -95,7 +97,7 @@ public:
 };
 class ThresholdFilter : public ImageFilter {
 public:
-    ThresholdFilter(double thr=127, double max=255) : thr(thr), max(max) {}
+    explicit ThresholdFilter(double thr=127, double max=255) : thr(thr), max(max) {}
     XMat apply(XMat image, Params params) final;
     const double thr;
     const double max;
@@ -103,13 +105,13 @@ public:
 class ChannelFilter : public ImageFilter {
 public:
     enum Channel {red, green, blue, gray, hue, sat, value};
-    ChannelFilter(Channel channel) : channel(channel) {}
+    explicit ChannelFilter(Channel channel) : channel(channel) {}
     XMat apply(XMat image, Params params) final;
     const Channel channel;
 };
 class GainBiasFilter : public ImageFilter {
 public:
-    GainBiasFilter(double gain, double bias) : gain(gain), bias(bias) {}
+    explicit GainBiasFilter(double gain, double bias=0) : gain(gain), bias(bias) {}
     XMat apply(XMat image, Params params) final;
     const double gain;
     const double bias;
@@ -123,7 +125,7 @@ public:
 };
 class LaplacianFilter : public ImageFilter {
 public:
-    LaplacianFilter(int kern=3, double scale=1, double delta=0) : kern(kern), scale(scale), delta(delta) {}
+    explicit LaplacianFilter(int kern=3, double scale=1, double delta=0) : kern(kern), scale(scale), delta(delta) {}
     XMat apply(XMat image, Params params) final;
     const int kern;
     const double scale;
@@ -131,7 +133,7 @@ public:
 };
 class SobelFilter : public ImageFilter {
 public:
-    SobelFilter(int kern=3, double scale=1, double delta=0) : kern(kern), scale(scale), delta(delta) {}
+    explicit SobelFilter(int kern=3, double scale=1, double delta=0) : kern(kern), scale(scale), delta(delta) {}
     XMat apply(XMat image, Params params) final;
     const int kern;
     const double scale;
@@ -139,16 +141,38 @@ public:
 };
 class ScharrFilter : public ImageFilter {
 public:
-    ScharrFilter(double scale) : scale(scale) {}
+    explicit ScharrFilter(bool vert, double scale=1) : vert(vert), scale(scale) {}
     XMat apply(XMat image, Params params) final;
+    const bool vert;
     const double scale;
 };
 class GradientFilter : public ImageFilter {
 public:
-    GradientFilter(bool vert, double scale=1) : vert(vert), scale(scale) {}
+    explicit GradientFilter(bool vert, double scale=1) : vert(vert), scale(scale) {}
     XMat apply(XMat image, Params params) final;
     const bool vert;
     const double scale;
+};
+class LinesFilter : public ImageFilter {
+public:
+
+    explicit LinesFilter(bool vert, double gradient_scale=1, int gradient_threshold=45, int dilatePos=2, int dilateNeg=2, int erode=0);
+    XMat apply(XMat image, Params params) final;
+
+    const bool vert;
+    double gradient_scale;
+    int gradient_threshold;
+    int dilatePos; // dilate down for positive gradients
+    int dilateNeg; // dilate up for negative gradients
+    int erode; // erode after positive and negative (dilated) masks merged (bitwise and)
+
+    cv::Mat kernel_2;
+    cv::Mat kernel_3;
+};
+class CompassFilter : public ImageFilter {
+public:
+    explicit CompassFilter() = default;
+    XMat apply(XMat image, Params params) final;
 };
 class EdgeByBoxFilter : public ImageFilter {
 public:
@@ -224,6 +248,7 @@ public:
     void setTemplate(const std::string& filename);
 
     double match(ClassifyEnv& env) override;
+    double match(ClassifyEnv& env, XMat gameImage, cv::Point gameImageOffset);
 
     static bool loadImageAndMask(const std::string& filename, XMat& image);
 
@@ -249,7 +274,7 @@ public:
     double threshold_min;
     double threshold_max;
     std::vector<std::unique_ptr<ImageFilter>> filters;
-    int matchMethod = cv::TM_CCOEFF_NORMED; //cv::TM_CCORR_NORMED;
+    int matchMethod = cv::TM_CCOEFF_NORMED;
 
     std::vector<ImageMatrix> imagesOrig;
     std::vector<ImageMatrix> imagesPrepared;
@@ -265,6 +290,17 @@ public:
     std::vector<int> testAngles;
     int lastTemplatedx;
     double lastMatch {0};
+};
+
+class AnchorDetector : public ImageTemplate {
+public:
+    AnchorDetector(const std::string& filename, spEvalRect rect, cv::Point anchor_of)
+        : ImageTemplate(filename, rect)
+        , anchor_of(anchor_of)
+        {}
+    ~AnchorDetector() override = default;
+
+    const cv::Point anchor_of;
 };
 
 class CompassDetector : public Detector {

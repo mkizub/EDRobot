@@ -55,7 +55,7 @@ int getNavPageIndex(const std::string &page_name) {
     int pageIndex = -1;
     if (page_name == "mod-sysinfo")
         pageIndex = 0;
-    else if (page_name == "mod-navigation")
+    else if (page_name == "mod-nav-list")
         pageIndex = 1;
     else if (page_name == "mod-transact")
         pageIndex = 2;
@@ -88,7 +88,10 @@ bool gotoNavPage(const std::string &page_name, bool required) {
             continue;
         }
         if (ai::uiState.guiFocus == GuiFocus::Left && !ai::uiState.screen) {
-            rollBlindCompass();
+            if ((i & 1) == 0)
+                rollBlindCompass();
+            else
+                kbd::send("UI_Back", 0, 500);
             continue;
         }
         if (!ai::uiState.match("scr-left-panel:*")) {
@@ -300,7 +303,7 @@ static void sendOrientAxis(const KeyBindings& bind, double speed, double delta, 
     }
     int pause = std::min(1000,int(std::abs(40*value*speed)));
     kbd::axis(bind, value);
-    ai::sleep(duration);
+    ai::sleep(duration, true);
     kbd::axis(bind, 0);
     ai::sleep(pause);
 }
@@ -904,9 +907,9 @@ std::string DepartureStep::getStatus() {
     case DONE:
         return {};
     case GOING_TO_DOCK:
-        return _("Going to landing pad");
+        return _gt("Going to landing pad");
     case REFUEL:
-        return _("Refuel/repair/rearm");
+        return _gt("Refuel/repair/rearm");
     case TAKEOFF:
         return lc_format("Takeoff: {}", timer.left());
     case WAIT_AUTOPILOT:
@@ -917,7 +920,7 @@ std::string DepartureStep::getStatus() {
         else
             return lc_format("Autopilot: {}", timer.left());
     case ORIENT_AWAY:
-        return "Orient away from planet";
+        return _gt("Orient away from planet");
     case LEAVE_DEPOT:
         return lc_format("Leaving depot: {}s", timer.left());
     case MASSLOCKED:
@@ -925,7 +928,7 @@ std::string DepartureStep::getStatus() {
     case FLYAWAY:
         return lc_format("Fly away: {}", timer.left());
     case RELOGIN:
-        return _("Re-login");
+        return _gt("Re-login");
     }
     return {};
 }
@@ -944,8 +947,15 @@ bool EnterCruiseStep::run() {
     for (int retry=0; retry < 3; retry++) {
         dist_t dist;
         gal::spEntity body = task->nl.focusNearestBody(&dist);
-        if (body && body->radius > 0 && dist.valid() && dist.get(dist_t::KM) / body->radius > 4)
-            break;
+        if (body && body->radius > 0 && dist.valid()) {
+            if (body->type == TypeNav::Star) {
+                if (dist.get(dist_t::LS) > 20 || dist.get(dist_t::KM) / body->radius > 10)
+                    break;
+            } else {
+                if (dist.get(dist_t::KM) / body->radius > 4)
+                    break;
+            }
+        }
         if (body && dist.valid() || st::space.bodyType == "Star") {
             flyAway = true;
             task->nl.selectFocused();
@@ -1276,7 +1286,7 @@ bool LeaveBodyStep::run() {
         }
     }
 
-    timer = utc_timer(10s);
+    timer = utc_timer(15s);
     setSpeed(100);
     status = FLY_AWAY;
     while (!timer.expired()) {
@@ -1378,7 +1388,7 @@ spGameEvent BaseDockStep::requestDockingPermit() {
 
             ai::detectEDState(DetectLevel::Buttons);
             if (ai::uiState.focused_name() != "btn-landing") {
-                gotoNavPage("mod-navigation");
+                gotoNavPage("mod-nav-list");
                 continue;
             }
         }
@@ -2595,8 +2605,10 @@ bool DiveUnderPlanetStep::run() {
         bool pointingToDock = false;
         if (targetIsBody) {
             status = ORIENT_BODY;
-            if (!st::autopilot.isDestBodyFocused && !task->nl.focusDestBody())
-                return false;
+            if (!st::autopilot.isDestBodyFocused && !task->nl.focusDestBody()) {
+                rollBlindCompass();
+                continue;
+            }
             if (st::guiFocus != GuiFocus::None)
                 kbd::send("UI_Back", 0, 1500);
             if (!task->orientTowardTarget(2))
@@ -2655,8 +2667,10 @@ bool DiveUnderPlanetStep::run() {
         }
         else if (targetIsDock) {
             status = ORIENT_DOCK;
-            if (!st::autopilot.isDestDockFocused && !task->nl.focusDestDock())
-                return false;
+            if (!st::autopilot.isDestDockFocused && !task->nl.focusDestDock()) {
+                rollBlindCompass();
+                continue;
+            }
             if (st::guiFocus != GuiFocus::None)
                 kbd::send("UI_Back", 0, 1500);
             if (!task->orientTowardTarget(2))
@@ -2729,11 +2743,11 @@ bool DiveUnderPlanetStep::run() {
         if (dist_body < 2.25*st::autopilot.destBody->radius)
             return false; // need to fly away
         int angle_to_dive = int(std::asin(2*st::autopilot.destBody->radius / dist_body) * 180 / M_PI);
-        if (angle_to_dive < 15)
-            angle_to_dive = 15;
+        if (angle_to_dive < 20)
+            angle_to_dive = 20;
         if (!orient_pitch(angle_to_dive))
             return false;
-        if (!fly_dive(180-angle_to_dive-10))
+        if (!fly_dive(180-angle_to_dive-15))
             return false;
     }
     return false;
@@ -3324,6 +3338,10 @@ bool CruiseAndDock::run() {
             throw_trouble("Cannot leave body");
     }
 
+    if (st::autopilot.destBody && !st::autopilot.destBody->nameEq(st::destination.name)) {
+        if (st::autopilot.destBody->type == TypeNav::Planet)
+            run_sub_step(new NavBodySelect);
+    }
 
     while (!at_dock) {
         if (!st::ship.flags.cruise) {
@@ -3352,7 +3370,20 @@ bool CruiseAndDock::run() {
 
         bool skip_dive = false;
         bool skip_cruise_to_dist = false;
-        if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name)) {
+        if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name)) {
+            if (ai::compassInfo.has_nav_target) {
+                if (st::autopilot.distanceToBody.valid()) {
+                    if (st::autopilot.distanceToBody <= max_dist) {
+                        skip_cruise_to_dist = true;
+                    }
+                    if (st::autopilot.distanceToBody <= 5_Mm) {
+                        skip_cruise_to_dist = true;
+                        skip_dive = true;
+                    }
+                }
+            }
+        }
+        else if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name)) {
             if (ai::compassInfo.has_nav_target) {
                 if (st::autopilot.distanceToDock.valid()) {
                     if (st::autopilot.distanceToDock <= max_dist) {

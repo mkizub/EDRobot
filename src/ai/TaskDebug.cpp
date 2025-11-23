@@ -489,8 +489,8 @@ TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(const TaskTemplate &templ)
 bool TaskDebugFindAllNavPoints::run() {
     checkAndFixOCRText();
     ai::detectEDState(DetectLevel::Screen);
-    if (!ai::uiState.match("scr-left-panel:mod-navigation"))
-        throw_failed("Not in mod-navigation?");
+    if (!ai::uiState.match("scr-left-panel:mod-nav-list"))
+        throw_failed("Not in mod-nav-list?");
 
     if (!getSpanishInfo())
         LOG(ERROR) << "Cannot get system info from spansh.co.uk";

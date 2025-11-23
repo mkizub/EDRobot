@@ -39,6 +39,11 @@ public:
     //! true if empty
     bool empty() const;
 
+    //! get angle in degrees
+    double angle() const;
+    //! get length
+    double length() const;
+
     _Tp x0; //!< x coordinate of the point
     _Tp y0; //!< y coordinate of the point
     _Tp x1; //!< x coordinate of the point
@@ -116,7 +121,60 @@ bool Line_<_Tp>::empty() const
     return x0 == x1 && y0 == y1;
 }
 
+template<typename _Tp> inline
+double Line_<_Tp>::angle() const {
+    if (empty())
+        return 0;
+    cv::Point_<_Tp> vect = p1() - p0();
+    return std::atan2(vect.y, vect.x) * 180 / M_PI;
+}
 
+template<typename _Tp> inline
+double Line_<_Tp>::length() const {
+    return cv::norm(p1() - p0());
+}
+
+template<typename _Tp> static inline
+Line_<_Tp> operator + (Line_<_Tp>& l, const Point_<_Tp>& p)
+{
+    Line_<_Tp> r;
+    r.x0 = l.x0 + p.x;
+    r.y0 = l.y0 + p.y;
+    r.x1 = l.x1 + p.x;
+    r.y1 = l.y1 + p.y;
+    return r;
+}
+
+template<typename _Tp> static inline
+Line_<_Tp> operator - (Line_<_Tp>& l, const Point_<_Tp>& p)
+{
+    Line_<_Tp> r;
+    r.x0 = l.x0 - p.x;
+    r.y0 = l.y0 - p.y;
+    r.x1 = l.x1 - p.x;
+    r.y1 = l.y1 - p.y;
+    return r;
+}
+
+template<typename _Tp> static inline
+Line_<_Tp>& operator += (Line_<_Tp>& l, const Point_<_Tp>& p)
+{
+    l.x0 += p.x;
+    l.y0 += p.y;
+    l.x1 += p.x;
+    l.y1 += p.y;
+    return l;
+}
+
+template<typename _Tp> static inline
+Line_<_Tp>& operator -= (Line_<_Tp>& l, const Point_<_Tp>& p)
+{
+    l.x0 -= p.x;
+    l.y0 -= p.y;
+    l.x1 -= p.x;
+    l.y1 -= p.y;
+    return l;
+}
 
 }
 

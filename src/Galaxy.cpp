@@ -648,9 +648,17 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
         return {};
     auto& je = ge->data;
 
-    std::string sname = je.at("StationName","").as_string();
-    std::string stype = je.at("StationType","").as_string();
+    std::string sname;
+    std::string stype;
     int64_t marketId = je.at("MarketID",0).as_int64();
+    if (ge->event=="ApproachSettlement") {
+        sname = st::space.stationName;
+        stype = st::space.stationType;
+    } else {
+        sname = je.at("StationName","").as_string();
+        stype = je.at("StationType","").as_string();
+    }
+
     spEntity dock = getDock(marketId);
     if (!dock) {
         dock = getDock(sname);
@@ -698,7 +706,7 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
         dock->type = typeNav;
         saved = false;
     }
-    if (dock->name.empty() || dock->nameEq(sname)) {
+    if (!sname.empty() && (dock->name.empty() || !dock->nameEq(sname))) {
         dock->setName(sname);
         saved = false;
     }

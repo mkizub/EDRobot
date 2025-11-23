@@ -144,7 +144,7 @@ target_sources(EDRobot PUBLIC
 )
 
 
-#target_precompile_headers(EDRobot PUBLIC pch.h)
+target_precompile_headers(EDRobot PUBLIC src/pch.h)
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/include")
 target_include_directories(EDRobot PRIVATE thirdparty)

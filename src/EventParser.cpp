@@ -542,6 +542,12 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     set(st::space.bodyName, je.at("Body",""));
     set(st::space.bodyType, je.at("BodyType",""));
     if (carrier) {
+        std::erase_if(ss->stations, [carrier](auto& st)->bool {
+            if (st->marketId == carrier->marketId)
+                return true;
+            return st->type == TypeNav::FleetCarrier && (st->nameEq(carrier->code) || st->nameEq(carrier->name));
+        });
+        gal::spEntity old_carrier;
         ss->stations.push_back(carrier);
         carrier->parentBodyId = st::space.bodyId;
         ss->saved = false;

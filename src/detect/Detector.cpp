@@ -98,71 +98,84 @@ bool Histogram::calc(ClassifyEnv &env) {
     env.cropToCapture(rect);
     if (rect.empty())
         return false;
+    if (mMode == Mode::Gray) {
+        cv::Mat subImage(toMat(env.getGrayImage()), rect);
+        return calc(subImage);
+    } else {
+        cv::Mat subImage(toMat(env.getColorImage()), rect);
+        return calc(subImage);
+    }
+}
+bool Histogram::calc(cv::Mat image) {
     // TODO: optimize for OpenCL (split to channels and use InputArrayOfArrays)
     int colorPlanes;
     if (mMode == Mode::Gray) {
         colorPlanes = 1;
-        int histSize = 256;
+        int histSize = 256/mBin;
         float range[]{0, 256}; //the upper boundary is exclusive
         const float *histRange[]{range};
-        cv::Mat subImage(toMat(env.getGrayImage()), rect);
+        if (image.channels() != 1)
+            return false;
         cv::Mat hist;
-        cv::calcHist(&subImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+        cv::calcHist(&image, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
         int maxLoc[4]{};
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-        uchar gray = maxLoc[0];
+        uchar gray = maxLoc[0] * mBin + mBin/2;
         mLastColor = {gray, gray, gray};
     }
     else if (mMode == Mode::Hsv) {
-        cv::Mat bgrSubImage(toMat(env.getColorImage()), rect);
+        if (image.channels() < 3)
+            return false;
         cv::Mat hsvSubImage;
-        cv::cvtColor(bgrSubImage, hsvSubImage, cv::COLOR_BGR2HSV_FULL);
+        cv::cvtColor(image, hsvSubImage, cv::COLOR_BGR2HSV_FULL);
         int channels[3] {0, 1, 2};
-        int histSize[3] {256/8, 256/8, 256/8};
+        int histSize[3] {256/mBin, 256/mBin, 256/mBin};
         float range[]{0, 256}; //the upper boundary is exclusive
         const float *histRange[3]{range,range,range};
         cv::Mat hist;
         cv::calcHist(&hsvSubImage, 1, channels, cv::Mat(), hist, 3, histSize, histRange);
         int maxLoc[4]{};
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-        uchar h = maxLoc[0] * 8 + 4;
+        uchar h = maxLoc[0] * mBin + mBin/2;
         h = h * 179. / 255.;
-        uchar s = maxLoc[1] * 8 + 4;
-        uchar v = maxLoc[2] * 8 + 4;
+        uchar s = maxLoc[1] * mBin + mBin/2;
+        uchar v = maxLoc[2] * mBin + mBin/2;
         mLastColor = {h, s, v};
     }
     else if (mMode == Mode::Luv) {
-        cv::Mat bgrSubImage(toMat(env.getColorImage()), rect);
+        if (image.channels() < 3)
+            return false;
         cv::Mat luvSubImage;
-        cv::cvtColor(bgrSubImage, luvSubImage, cv::COLOR_BGR2Luv);
+        cv::cvtColor(image, luvSubImage, cv::COLOR_BGR2Luv);
         int channels[3] {0, 1, 2};
-        int histSize[3] {256/8, 256/8, 256/8};
+        int histSize[3] {256/mBin, 256/mBin, 256/mBin};
         float range[2] {0, 256};
         const float *histRange[3]{range,range,range};
         cv::Mat hist;
         cv::calcHist(&luvSubImage, 1, channels, cv::Mat(), hist, 3, histSize, histRange);
         int maxLoc[4]{};
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-        uchar l = maxLoc[0] * 8 + 4;
-        uchar u = maxLoc[1] * 8 + 4;
-        uchar v = maxLoc[2] * 8 + 4;
+        uchar l = maxLoc[0] * mBin + mBin/2;
+        uchar u = maxLoc[1] * mBin + mBin/2;
+        uchar v = maxLoc[2] * mBin + mBin/2;
         mLastColor = {l, u, v};
     }
     else /*if (mMode == Mode::BGR)*/ {
-        cv::Mat subImage(toMat(env.getColorImage()), rect);
+        if (image.channels() < 3)
+            return false;
         std::vector<cv::Mat> imagePlanes;
-        cv::split(subImage, imagePlanes);
+        cv::split(image, imagePlanes);
         int channels[3] {0, 1, 2};
-        int histSize[3] {256/8, 256/8, 256/8};
+        int histSize[3] {256/mBin, 256/mBin, 256/mBin};
         float range[2] {0, 256};
         const float *histRange[3]{range,range,range};
         cv::Mat hist;
-        cv::calcHist(&subImage, 1, channels, cv::Mat(), hist, 3, histSize, histRange);
+        cv::calcHist(&image, 1, channels, cv::Mat(), hist, 3, histSize, histRange);
         int maxLoc[4]{};
         cv::minMaxIdx(hist, nullptr, nullptr, nullptr, maxLoc);
-        uchar b = maxLoc[0] * 8 + 4;
-        uchar g = maxLoc[1] * 8 + 4;
-        uchar r = maxLoc[2] * 8 + 4;
+        uchar b = maxLoc[0] * mBin + mBin/2;
+        uchar g = maxLoc[1] * mBin + mBin/2;
+        uchar r = maxLoc[2] * mBin + mBin/2;
         mLastColor = {b, g, r};
     }
     return true;

@@ -5,29 +5,27 @@
     markets: [
       {
         templ: "tsk-trade-at",
-        system: "Wredguia PI-B d13-35",
-        dock: "Iyer Plant",
+        system: "Col 285 Sector IX-T d3-56",
+        dock: "Yamamoto Construction",
         buy: "cmmcomposite",
       },
       {
         templ: "tsk-trade-at",
-        system: "Wredguia PI-B d13-35",
+        system: "Col 285 Sector IX-T d3-56",
         dock: "Daimonio tou Sokrati VFT-85B",
       },
     ]
   },
   {
-    name: "Build Gulyaev City",
+    name: "Стройка Gulyaev City",
     templ: "tsk-repeat",
     //count: 10,
     //duration: 300, // at least 5 hours (300 minutes)
     tasks: [
       {
         templ: "tsk-travel",
-        system: "Col 285 Sector GP-K b23-4",
-        dock: "Biesbroeck Reach"
-        //system: "7 G. Aquilae",
-        //dock: "Meredith's Inheritance"
+        system: "Col 285 Sector XK-O d6-69",
+        dock: "Daimonio tou Sokrati VFT-85B",
       },
       {
         templ: "tsk-market-buy-constr",

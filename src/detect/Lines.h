@@ -16,49 +16,37 @@ public:
     LineDetector(spEvalLine line);
     ~LineDetector() override = default;
 
-    double match(ClassifyEnv& env) override = 0;
+    double match(ClassifyEnv& env);
+    double match(ClassifyEnv& env, cv::Line refLine, XMat gameImage);
 
     std::vector<std::unique_ptr<ImageFilter>> filters;
 
     std::string name;
-    float extendAngleMin;
-    float extendAngleMax;
-    float angleStep; // angle step in degrees
-    int houghThreshold;
+    float extendAngleMin {10};
+    float extendAngleMax {10};
+    float angleStep {1}; // angle step in degrees
+    int houghThreshold {0};
+    int detectEdgesMode {0}; // +1 for top line, -1 for bottom line, 0 to not detect
     const spEvalLine referenceLine;
-
-    cv::Line expectedLine;
-    cv::Line detectedLine;
-    cv::Rect lineMatchRect;
-    float lastLineAngle;  // in degrees, -90 <= angle <= +90
-    float lastDeltaAngle;  // in degrees
-    float lastDeltaScale;
-
-};
-
-class AnchoredLineDetector : public LineDetector {
-public:
-
-    AnchoredLineDetector(ImageTemplate* anchor, spEvalLine line);
-    ~AnchoredLineDetector() override = default;
-
-    double match(ClassifyEnv& env) override;
-
-    std::unique_ptr<ImageTemplate> anchorDetector;
-    cv::Point2f captureAnchor;
-};
-
-class SimpleLineDetector : public LineDetector {
-public:
-
-    SimpleLineDetector(spEvalLine line);
-    ~SimpleLineDetector() override = default;
-
-    double match(ClassifyEnv& env) override;
 
     cv::Point extendLT;
     cv::Point extendRB;
-    spEvalLine altReferenceLine;
+
+    struct DetectedLine {
+        float rho;
+        float angle; // in degrees
+        float dist_to_center;
+        int count;
+        cv::Line2d line;
+    };
+    cv::Line expectedLine;
+    cv::Line detectedLine;
+    std::vector<DetectedLine> detectedLines;
+    cv::Rect lineMatchRect;
+    float lastAvrgAngle;  // in degrees, -90 <= angle <= +90
+    float lastDeltaAngle;  // in degrees
+    float lastDeltaScale;
+
 };
 
 }
