@@ -16,6 +16,7 @@ const std::string ED_TASK_REPEAT = "tsk-repeat";
 const std::string ED_TASK_MARKET_SELL = "tsk-market-sell";
 const std::string ED_TASK_MARKET_SELL_ALL = "tsk-market-sell-all";
 const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
+const std::string ED_TASK_MARKET_BUY_ALL = "tsk-market-buy-all";
 const std::string ED_TASK_MARKET_BUY_CONSTR = "tsk-market-buy-constr";
 const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
 const std::string ED_TASK_TRADE_AT = "tsk-trade-at";
@@ -55,7 +56,27 @@ bool TaskTemplate::set(const string& pid, const json5pp::value& value) {
     LOG(ERROR) << "Cannot assign int value to parameter '" << pid << "' of type " << enum_name<Param::Type>(p.type) << " in template " << this->id;
     return false;
 }
-bool Param::set(const json5pp::value& val) {
+
+bool TaskTemplate::operator==(const TaskTemplate& other) const {
+    if (id != other.id)
+        return false;
+    if (name() != other.name())
+        return false;
+    for (int i=0; i < params.size(); i++)
+        if (params[i] != other.params[i])
+            return false;
+    return true;
+}
+
+bool Param::operator==(const Param& other) const {
+    if (type != other.type || id != other.id)
+        return false;
+    if (value.empty() && other.value.empty())
+        return true;
+    return (value == other.value);
+}
+
+bool Param::set(const json5pp::value& val, bool silent) {
     if (val.is_null() || (val.is_string() && val.as_string().empty())) {
         value = nullptr;
         return true;
@@ -154,14 +175,8 @@ bool Param::set(const json5pp::value& val) {
         break;
     case Task:
         if (val.is_object() && val["templ"].is_string()) {
-            auto& templ_id = val["templ"].as_string();
-            auto arr = meta["values"].as_array();
-            for (auto v: arr) {
-                if (v.is_string() && templ_id == v.as_string()) {
-                    value = v;
-                    return true;
-                }
-            }
+            value = val;
+            return true;
         }
         break;
     case Array:
@@ -171,7 +186,8 @@ bool Param::set(const json5pp::value& val) {
         }
         break;
     }
-    LOG(ERROR) << "Cannot assign to parameter '" << id << "' of type " << enum_name<Param::Type>(type) << " value " << val;
+    if (!silent)
+        LOG(ERROR) << "Cannot assign to parameter '" << id << "' of type " << enum_name<Param::Type>(type) << " value " << val;
     return false;
 }
 
@@ -191,9 +207,8 @@ bool TaskTemplate::validate() const {
 }
 
 namespace {
-std::list<TaskTemplate> AllTasks;
+std::list<TaskTemplate> AllUserTasks;
 std::list<TaskTemplate> AllTaskTemplates;
-std::map<std::string, TaskTemplate *> TaskTemplateMap;
 }
 
 
@@ -210,19 +225,11 @@ std::string Param::placeholder() const {
 }
 
 bool Param::optional() const {
-    return meta["optional"];
+    return bool(meta["optional"]);
 }
 
 bool Param::empty() const {
-    if (value.is_null())
-        return true;
-    if (value.is_string() && value.as_string().empty())
-        return true;
-    if (value.is_object() && value.as_object().empty())
-        return true;
-    if (value.is_array() && value.as_array().empty())
-        return true;
-    return false;
+    return value.empty();
 }
 
 bool Param::as_boolean() const {
@@ -336,7 +343,7 @@ bool Param::valid() const {
             break;
         case Param::Task:
             if (value.is_object() && value["templ"].is_string()) {
-                TaskTemplate test = TaskTemplate::loadTemplate(value);
+                TaskTemplate test = TaskTemplate::loadTask(value);
                 if (!test.id.empty() && test.validate()) {
                     for (auto v : meta["values"].as_array()) {
                         if (v.is_string() && test.id == v.as_string()) {
@@ -349,15 +356,20 @@ bool Param::valid() const {
         case Param::Array:
             if (value.is_array()) {
                 auto el_meta = meta["elements"];
-                Type el_type = enum_cast<Param::Type>(el_meta["type"]).value();
-                auto size = value.as_array().size();
+                Type el_type = enum_cast<Param::Type>(el_meta["type"].as_string()).value();
+                bool empty = true;
                 bool ok = true;
-                for (auto i=0; i < size; i++) {
-                    Param p {el_type, "", "", el_meta, value[i]};
+                for (auto& v : value.as_array()) {
+                    if (v.empty())
+                        continue;
+                    empty = false;
+                    Param p {el_type, "", "", el_meta, v};
                     if (!p.valid())
                         ok = false;
                 }
                 valid = ok;
+                if (empty)
+                    valid = optional();
             }
             break;
         }
@@ -385,23 +397,30 @@ void initTemplates() {
     templates.emplace_back(ED_TASK_TRADE_AT, _lc("Trade at station"), FACTORY(TaskTradeAt), P{
             { Param::System,   "system", _lc("Star system") },
             { Param::Dock,     "dock",   _lc("Dock") },
-            { Param::Commodity,"sell",   _lc("Sell commodity"), META("{optional:true, placeholder:'all'}") },
-            { Param::Commodity,"buy",    _lc("Buy commodity"), META("{optional:true, placeholder:'all'}") },
+            { Param::Array,    "tasks",  _lc("Tasks"), META(
+                    R"({elements:{type:'Task', values: [
+                        'tsk-market-sell-all', 'tsk-market-sell',
+                        'tsk-market-buy-all', 'tsk-market-buy',
+                        'tsk-market-buy-constr', 'tsk-constr-unload',
+                    ]}})")},
     });
     templates.emplace_back(ED_TASK_TRADE_LOOP, _lc("Trade loop"), FACTORY(TradeLoopTask), P{
             { Param::Array, "markets", _lc("Markets"),
-              META(R"({elements:{type:'Task', values: ['tsk-market-trade-at']}})")},
+              META(R"({elements:{type:'Task', values: ['tsk-trade-at']}})")},
     });
-    templates.emplace_back(ED_TASK_MARKET_SELL_ALL, _lc("Sell all cargo commodities"), FACTORY(TaskSellAll), P{
+    templates.emplace_back(ED_TASK_MARKET_SELL_ALL, _lc("Sell everything"), FACTORY(TaskSellAll), P{
             { Param::Int,   "chunk",  _lc("By chunk"), META("{optional:true, placeholder:'all', max:100}") },
             { Param::Array, "except", _lc("Except"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
-    templates.emplace_back(ED_TASK_MARKET_SELL, _lc("Sell commodity"), FACTORY(TaskSell), P{
+    templates.emplace_back(ED_TASK_MARKET_SELL, _lc("Sell"), FACTORY(TaskSell), P{
             { Param::Commodity, "commodity", _lc("Commodity") },
             { Param::Int,       "amount",    _lc("Amount"),   META("{optional:true, placeholder:'all'}") },
             { Param::Int,       "chunk",     _lc("By chunk"), META("{optional:true, placeholder:'all', max:100}") },
     });
-    templates.emplace_back(ED_TASK_MARKET_BUY, _lc("Buy commodity"), FACTORY(TaskBuy), P{
+    templates.emplace_back(ED_TASK_MARKET_BUY_ALL, _lc("Buy all"), FACTORY(TaskBuyAll), P{
+            { Param::Array,     "commodity", _lc("Commodity"), META("{elements:{type:'Commodity'}}")},
+    });
+    templates.emplace_back(ED_TASK_MARKET_BUY, _lc("Buy"), FACTORY(TaskBuy), P{
             { Param::Commodity, "commodity", _lc("Commodity") },
             { Param::Int,       "amount",    _lc("Amount"),   META("{optional:true, placeholder:'all'}") },
     });
@@ -419,7 +438,7 @@ void initTemplates() {
             { Param::Int, "duration", _lc("Duration (minutes)"), META("{optional:true, placeholder:'infinit'}")  },
             { Param::Array, "tasks",  _lc("Tasks"),              META(
                     R"({elements:{type:'Task', values: [
-                        'tsk-travel', 'tsk-market-trade-at',
+                        'tsk-travel', 'tsk-trade-at',
                         'tsk-market-sell-all', 'tsk-market-sell', 'tsk-market-buy',
                         'tsk-market-buy-constr', 'tsk-constr-unload',
                     ]}})")},
@@ -449,47 +468,46 @@ void initTemplates() {
     });
 
     AllTaskTemplates.swap(templates);
-    for (auto& it : AllTaskTemplates) {
-        TaskTemplateMap.insert({it.id, &it});
-    }
 
-    TaskTemplate::loadSavedTasks();
+    TaskTemplate::loadUserTasks();
 }
 
-TaskTemplate TaskTemplate::loadTemplate(const json5pp::value& j_task) {
-    auto& templ_id = j_task.at("templ","").as_string();
-    auto* templ = getTaskTemplate(templ_id);
-    if (!templ) {
+TaskTemplate TaskTemplate::loadTask(const json5pp::value& j_task) {
+    auto &templ_id = j_task.at("templ", "").as_string();
+    const TaskTemplate *templ_ptr = nullptr;
+    for (auto &tt: AllTaskTemplates) {
+        if (tt.id == templ_id) {
+            templ_ptr = &tt;
+            break;
+        }
+    }
+    if (!templ_ptr) {
         LOG(ERROR) << "Task template '" << templ_id << "' not found";
         return {};
     }
-    auto task = *templ;
+    auto task = *templ_ptr;
     if (j_task["name"].is_string()) {
         const_cast<std::string&>(task.nm) = j_task["name"].as_string();
     }
-    bool ok = true;
     for (auto& p : task.params) {
         auto& jp = j_task[p.id];
         if (jp.is_null()) {
             if (p.optional())
                 continue;
-            ok = false;
             LOG(ERROR) << "Missing required parameter '" << p.id << "' of task template " << task.id;
             continue;
         }
         else if (!p.set(jp)) {
             LOG(ERROR) << "Failed to set parameter " << p.id << " with " << jp;
-            ok = false;
         }
     }
     if (!task.validate()) {
         LOG(ERROR) << "Task id:'" << task.id << "' name:'" << task.nm << "' is not valid";
-        return {};
     }
     return task;
 }
 
-void TaskTemplate::loadSavedTasks() {
+void TaskTemplate::loadUserTasks() {
     LOG(INFO) << "Loading tasks.json5";
     json5pp::value j_tasks;
     try {
@@ -506,25 +524,96 @@ void TaskTemplate::loadSavedTasks() {
     if (!j_tasks || !j_tasks.is_array())
         return;
     for (const auto& jtt : j_tasks.as_array()) {
-        TaskTemplate task = loadTemplate(jtt);
+        TaskTemplate task = loadTask(jtt);
         if (!task.id.empty())
-            AllTasks.push_back(task);
+            AllUserTasks.push_back(task);
+    }
+}
+
+void TaskTemplate::saveUserTasks() {
+    LOG(INFO) << "Saving tasks.json5";
+    json5pp::value j_tasks = json5pp::array({});
+    for (auto& tt : AllUserTasks) {
+        json5pp::value jt = json5pp::object({
+            {"templ", tt.id},
+            {"name", tt.nm},
+        });
+        for (auto& p : tt.params) {
+            if (p.value.is_array())
+                std::erase_if(p.value.as_array(),[](auto& v) { return v.empty(); });
+            if (p.empty())
+                continue;
+            jt.as_object().emplace(p.id, p.value);
+        }
+        j_tasks.as_array().push_back(jt);
+    }
+    if (std::filesystem::exists("tasks.json5")) {
+        if (std::filesystem::exists("tasks.bak.json5"))
+            std::filesystem::remove("tasks.bak.json5");
+        std::filesystem::rename("tasks.json5", "tasks.bak.json5");
+    }
+    try {
+        std::ofstream tasksFile("tasks.json5", std::ofstream::out|std::ofstream::trunc);
+        if (tasksFile.fail()) {
+            LOG(ERROR) << "Cannot write file: tasks.json5";
+        } else {
+            tasksFile << json5pp::rule::json5() << json5pp::rule::space_indent<2>() << j_tasks;
+        }
+        tasksFile.close();
+    } catch (...) {
+        LOG(ERROR) << "Failed to write tasks.json5";
     }
 }
 
 const std::list<TaskTemplate>& getUserTasks() {
-    return AllTasks;
+    return AllUserTasks;
 }
 
 const std::list<TaskTemplate>& getTemplates() {
     return AllTaskTemplates;
 }
 
-const TaskTemplate* getTaskTemplate(const std::string& name) {
-    auto it = TaskTemplateMap.find(name);
-    if (it == TaskTemplateMap.end())
-        return nullptr;
-    return it->second;
+const TaskTemplate& getTemplate(const std::string& id) {
+    for (auto& tt : AllTaskTemplates)
+        if (tt.id == id)
+            return tt;
+    throw std::out_of_range(id);
+}
+
+bool saveUserTask(TaskTemplate& templ) {
+    for (auto it=AllUserTasks.begin(); it != AllUserTasks.end(); it++) {
+        if (it->id == templ.id && it->nm == templ.nm) {
+            for (int p=0; p < templ.params.size(); p++)
+                it->params[p].value = templ.params[p].value;
+            TaskTemplate::saveUserTasks();
+            return true;
+        }
+    }
+    AllUserTasks.emplace_front(templ);
+    TaskTemplate::saveUserTasks();
+    return true;
+}
+
+bool delUserTask(TaskTemplate& templ) {
+    for (auto it=AllUserTasks.begin(); it != AllUserTasks.end(); it++) {
+        if (it->id == templ.id && it->nm == templ.nm) {
+            AllUserTasks.erase(it);
+            TaskTemplate::saveUserTasks();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool delUserTask(int index) {
+    if (index >= 0 && index < AllUserTasks.size()) {
+        auto it = AllUserTasks.begin();
+        std::advance(it, index);
+        AllUserTasks.erase(it);
+        TaskTemplate::saveUserTasks();
+        return true;
+    }
+    return false;
 }
 
 } // namespace ai

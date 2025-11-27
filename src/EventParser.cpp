@@ -319,8 +319,8 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     }
 
     auto& client = const_cast<st::GameClient&>(st::client);
-    client.isOdyssey = je["Odyssey"];
-    client.isHorizons = je["Horizons"];
+    client.isOdyssey = bool(je["Odyssey"]);
+    client.isHorizons = bool(je["Horizons"]);
     client.gameversion = je["gameversion"].as_string();
     client.build = je["build"].as_string();
     client.language = je["language"].as_string();
@@ -450,17 +450,18 @@ void parseEvent_Undocked(spGameEvent& ge) {
     Cfg.dockingEvent.reset();
     st::currentMarket.reset();
     auto& je = ge->data;
-    st::space.marketId = je.at("MarketID",0).as_int64();
-    st::space.stationName = je["StationName"];
-    st::space.stationType = je.at("StationType", st::dockedAt.stationType);
+    st::space.marketId = je.at("MarketID",st::dockedAt.marketId).as_int64();
+    st::space.stationName = je.at("StationName",st::dockedAt.stationName).as_string();
+    st::space.stationType = je.at("StationType", st::dockedAt.stationType).as_string();
+    st::dockedAt = {};
 }
 
 void parseEvent_Docking(spGameEvent& ge) {
     Cfg.dockingEvent = ge;
     auto& je = ge->data;
     st::space.marketId = je.at("MarketID",0).as_int64();
-    st::space.stationName = je["StationName"];
-    st::space.stationType = je.at("StationType", st::dockedAt.stationType);
+    st::space.stationName = je["StationName"].as_string();
+    st::space.stationType = je.at("StationType", st::dockedAt.stationType).as_string();
 //    if (event == "DockingDenied") {
 //        // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
 //        if (je.contains("Reason"))

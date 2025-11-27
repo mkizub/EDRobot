@@ -81,6 +81,22 @@ public:
     } status {READY};
 };
 
+class TaskBuyAll final : public BaseMarketTask {
+public:
+    explicit TaskBuyAll(const TaskTemplate& templ);
+    bool run() final;
+    std::string getTitle() override;
+private:
+    bool addSubTask(const json5pp::value& commodity);
+    struct SubTask {
+        Commodity* commodity {};
+        std::shared_ptr<TaskBuy> task;
+        bool complete {};
+        bool failed {};
+    };
+    std::vector<SubTask> buy_queue;
+};
+
 class TaskBuyConstr final : public BaseMarketTask {
 public:
     explicit TaskBuyConstr(const TaskTemplate& templ);
@@ -127,8 +143,13 @@ public:
     struct MarketInfo {
         std::string system;
         std::string dock;
-        Commodity* sell {};
-        Commodity* buy {};
+        bool sell_all;
+        bool buy_all;
+        std::vector<Commodity*> sell_list;
+        std::vector<Commodity*> sell_except;
+        std::vector<Commodity*> buy_list;
+        std::vector<json5pp::value> sell_tasks;
+        std::vector<json5pp::value> buy_tasks;
     };
     std::vector<MarketInfo> markets;
 };

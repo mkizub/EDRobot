@@ -176,6 +176,12 @@ bool contains(const std::vector<std::string>& strings, const std::string& str) {
     return it != strings.end();
 }
 
+bool contains(const std::vector<Commodity*>& inventory, Commodity* com) {
+    auto it = std::find(inventory.begin(), inventory.end(), com);
+    return it != inventory.end();
+}
+
+
 cv::Vec3b encodeBGR(unsigned bgr) {
     return cv::Vec3b(bgr & 0xFF, (bgr>>8) & 0xFF, (bgr>>16)&0xFF);
 }

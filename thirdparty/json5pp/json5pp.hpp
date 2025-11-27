@@ -377,6 +377,23 @@ public:
    */
   bool is_object() const noexcept { return type == TYPE_OBJECT; }
 
+  /**
+   * @brief Check if value is empty (null, empty string, array, object)
+   */
+  bool empty() const noexcept {
+      switch (type) {
+      case TYPE_NULL:
+          return true;
+      case TYPE_STRING:
+          return content.string.empty();
+      case TYPE_ARRAY:
+          return content.array.empty();
+      case TYPE_OBJECT:
+          return content.object.empty();
+      }
+      return false;
+  }
+
   /*================================================================================
    * Type casts
    */
@@ -577,7 +594,7 @@ public:
   /*================================================================================
    * Truthy/falsy test
    */
-  operator bool() const
+  explicit operator bool() const
   {
     switch (type) {
     case TYPE_BOOLEAN:
@@ -792,6 +809,43 @@ public:
       new (&content.object) object_type(elements);
     }
     return *this;
+  }
+
+  /**
+   * @brief Compare two values
+   * @param other A value to compare with
+   */
+  bool operator==(const value& other) const
+  {
+    if (type != other.type)
+      return false;
+    switch (type) {
+    case TYPE_NULL:
+      return true;
+    case TYPE_BOOLEAN:
+      return content.boolean == other.content.boolean;
+    case TYPE_NUMBER:
+      return content.number == other.content.number;
+    case TYPE_INTEGER:
+      return content.integer == other.content.integer;
+    case TYPE_STRING:
+      return content.string == other.content.string;
+    case TYPE_ARRAY:
+      return content.array == other.content.array;
+    case TYPE_OBJECT:
+      return content.object == other.content.object;
+    default:
+      return false;
+    }
+  }
+
+  /**
+   * @brief Compare two values
+   * @param other A value to compare with
+   */
+  bool operator!=(const value& other) const
+  {
+    return !operator==(other);
   }
 
   /*================================================================================

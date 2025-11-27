@@ -179,7 +179,7 @@ std::string TaskSellAll::getTitle() {
     int soldTotal = 0;
     for (auto& st : sell_queue)
         soldTotal += st.task->mSold;
-    return std::format("Sell everything, sold {}", soldTotal);
+    return lc_format("{0}: sold {1}", templ.name(), soldTotal);
 }
 
 bool TaskSellAll::run() {
@@ -206,10 +206,7 @@ bool TaskSellAll::run() {
             }
             if (complete)
                 continue;
-            const TaskTemplate* templ = ai::getTaskTemplate(ED_TASK_MARKET_SELL);
-            if (!templ)
-                throw_failed("Cannot find task template");
-            TaskTemplate impl = *templ;
+            TaskTemplate impl = ai::getTemplate(ED_TASK_MARKET_SELL);
             impl.set("commodity", commodity->nameId);
             impl.set("amount", 0);
             impl.set("chunk", mChunk);
@@ -442,9 +439,7 @@ bool TaskSell::processTradeDialog(bool force) {
 
 std::string TaskSell::getTitle() {
     std::string name = mCommodity ? mCommodity->name : "???";
-    if (status == DONE)
-        return lc_format("Sold {0} items of {1}", mSold, name);
-    return lc_format("Selling {0} items of {1}", mTotal, name);
+    return lc_format("{0} {1}: {2} of {3}", templ.name(), name, mSold, mTotal);
 }
 
 std::string TaskSell::getStatus() {
@@ -454,13 +449,108 @@ std::string TaskSell::getStatus() {
     case READY:
         return {};
     case TO_MARKET:
-        return "Going to market";
+        return _gt("Going to market");
     case TO_COMMODITY:
-        return std::format("Selecting {}", name);
+        return lc_format("Selecting {}", name);
     case TRADING:
-        return std::format("Selling {} {}\n  sold: {}\n  left: {}", (mSold+mLeft), name, mSold, mLeft);
+        return lc_format("Selling {} {}\n  sold: {}\n  left: {}", (mSold+mLeft), name, mSold, mLeft);
     }
     return {};
+}
+
+TaskBuyAll::TaskBuyAll(const TaskTemplate& templ_)
+        : BaseMarketTask(templ_)
+{
+    assert (templ.id == ED_TASK_MARKET_BUY_ALL);
+}
+
+std::string TaskBuyAll::getTitle() {
+    int boughtTotal = 0;
+    for (auto& st : buy_queue)
+        boughtTotal += st.task->mBought;
+    return lc_format("{0}: bought {1}", templ.name(), boughtTotal);
+}
+
+bool TaskBuyAll::addSubTask(const json5pp::value& jv) {
+    if (!jv.is_string())
+        return false;
+    auto* commodity = Cfg.getCommodityById(jv.as_string());
+    if (!commodity)
+        return false;
+    for (auto& t : buy_queue) {
+        if (t.commodity == commodity)
+            return false;
+    }
+    TaskTemplate impl = ai::getTemplate(ED_TASK_MARKET_BUY);
+    impl.set("commodity", commodity->nameId);
+    auto task = std::make_shared<TaskBuy>(impl);
+    buy_queue.emplace_back(commodity, task, false, false);
+    return true;
+}
+
+bool TaskBuyAll::run() {
+    gotoMarketScreen(false);
+
+    if (buy_queue.empty()) {
+        for (auto& p : templ.params) {
+            if (p.id == "commodity") {
+                if (p.value.is_string())
+                    addSubTask(p.value);
+                else if (p.value.is_array()) {
+                    for (auto& v : p.value.as_array())
+                        addSubTask(v);
+                }
+            }
+        }
+    }
+    if (buy_queue.empty())
+        return true;
+    for (auto& st : buy_queue) {
+        if (st.complete || st.failed)
+            continue;
+        prevSubStep.reset();
+        currSubStep = st.task;
+        TRY {
+            check_interrupted();
+            st.complete = st.task->run();
+        } CATCH (const std::exception& ex) {
+            prevSubStep = currSubStep;
+            currSubStep.reset();
+            if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
+                if (nlr->failed) {
+                    st.failed = true;
+                    st.complete = true;
+                } else {
+                    st.task->missCount += 1;
+                    if (st.task->missCount >= 3) {
+                        st.failed = true;
+                        st.complete = true;
+                    }
+                }
+            }
+            else if (dynamic_cast<const interrupted_error*>(&ex)) {
+                throw;
+            }
+            else {
+                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+                st.failed = true;
+                st.complete = true;
+            }
+        }
+    }
+    int boughtTotal = 0;
+    bool complete = true;
+    for (auto& st : buy_queue) {
+        boughtTotal += st.task->mBought;
+        if (!st.complete && !st.failed)
+            complete = false;
+    }
+    if (complete) {
+        if (!boughtTotal)
+            throw_trouble("Nothing was bought");
+        return true;
+    }
+    throw_trouble("Not complete");
 }
 
 TaskBuy::TaskBuy(const TaskTemplate& templ_)
@@ -621,9 +711,7 @@ bool TaskBuy::processTradeDialog(bool force) {
 
 std::string TaskBuy::getTitle() {
     std::string name = mCommodity ? mCommodity->name : "???";
-    if (status == DONE)
-        return lc_format("Bought {0} items of {1}", mBought, name);
-    return lc_format("Buying {0} items of {1}", mTotal, name);
+    return lc_format("{0} {1}: {2} of {3}", templ.name(), name, mBought, mTotal);
 }
 
 std::string TaskBuy::getStatus() {
@@ -633,11 +721,11 @@ std::string TaskBuy::getStatus() {
     case READY:
         return {};
     case TO_MARKET:
-        return "Going to market";
+        return _gt("Going to market");
     case TO_COMMODITY:
-        return std::format("Selecting {}", name);
+        return lc_format("Selecting {}", name);
     case TRADING:
-        return std::format("Buying {} {}\n  bought: {}\n  left: {}", (mBought+mLeft), name, mBought, mLeft);
+        return lc_format("Buying {} {}\n  bought: {}\n  left: {}", (mBought+mLeft), name, mBought, mLeft);
     }
     return {};
 }
@@ -694,10 +782,7 @@ bool TaskBuyConstr::run() {
             if (complete)
                 continue;
             triedToBuy = true;
-            const TaskTemplate* templ = ai::getTaskTemplate(ED_TASK_MARKET_BUY);
-            if (!templ)
-                throw_failed("Cannot find task template");
-            TaskTemplate impl = *templ;
+            TaskTemplate impl = ai::getTemplate(ED_TASK_MARKET_BUY);
             impl.set("commodity", commodity->nameId);
             impl.set("amount", buy);
             auto task = std::make_shared<TaskBuy>(impl);
@@ -801,13 +886,13 @@ std::string TaskConstrUnload::getStatus() {
     case READY:
         return {};
     case TO_MARKET:
-        return "Going to market";
+        return _gt("Going to market");
     case UNLOAD:
-        return "Unloading";
+        return _gt("Unloading");
     case DONE:
-        return std::format("Unloaded {} items", contributed);
+        return lc_format("Unloaded {} items", contributed);
     case DONE_NOTHING:
-        return "Nothing to unload";
+        return _gt("Nothing to unload");
     }
     return {};
 }
@@ -848,38 +933,134 @@ bool TradeLoopTask::run() {
         Param &p = templ.get("markets");
         if (p.value.is_array()) {
             for (auto &mv: p.value.as_array()) {
-                TaskTemplate mt = TaskTemplate::loadTemplate(mv);
+                TaskTemplate mt = TaskTemplate::loadTask(mv);
                 if (mt.id != ED_TASK_TRADE_AT)
                     continue;
-                struct MarketInfo mi{
-                        mt.get("system").as_string(),
-                        mt.get("dock").as_string(),
-                        mt.get("sell").as_commodity(),
-                        mt.get("buy").as_commodity(),
-                };
-                markets.emplace_back(mi);
+                MarketInfo& mi = markets.emplace_back(mt.get("system").as_string(), mt.get("dock").as_string());
+                auto& j_tasks = mt.get("tasks").value;
+                if (!j_tasks.is_array()) {
+                    mi.sell_all = true;
+                    json5pp::value jt = json5pp::object({{"templ",ED_TASK_MARKET_SELL_ALL}});
+                    mi.sell_tasks.push_back(jt);
+                    continue;
+                }
+                for (auto& jtt : j_tasks.as_array()) {
+                    if (!jtt.is_object() || !jtt["templ"].is_string())
+                        continue;
+                    ai::TaskTemplate tt = ai::TaskTemplate::loadTask(jtt);
+                    if (tt.id == ED_TASK_MARKET_SELL_ALL) {
+                        mi.sell_tasks.push_back(jtt);
+                        mi.sell_all = true;
+                        auto& jex = tt.get("except").value;
+                        if (jex.is_array()) {
+                            for (auto& jcom : jex.as_array()) {
+                                if (jcom.is_string()) {
+                                    auto* com = Cfg.getCommodityByName(jcom.as_string(), false);
+                                    if (com)
+                                        mi.sell_except.push_back(com);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    if (tt.id == ED_TASK_MARKET_SELL) {
+                        mi.sell_tasks.push_back(jtt);
+                        auto* com = tt.get("commodity").as_commodity();
+                        if (com) {
+                            mi.sell_list.push_back(com);
+                            std::erase(mi.sell_except, com);
+                        }
+                        continue;
+                    }
+                    if (tt.id == ED_TASK_CONSTR_UNLOAD) {
+                        mi.sell_tasks.push_back(jtt);
+                        mi.sell_all = true;
+                        continue;
+                    }
+                    if (tt.id == ED_TASK_MARKET_BUY_CONSTR) {
+                        mi.buy_tasks.push_back(jtt);
+                        mi.buy_all = true;
+                        continue;
+                    }
+                    if (tt.id == ED_TASK_MARKET_BUY_ALL) {
+                        mi.buy_tasks.push_back(jtt);
+                        mi.buy_all = true;
+                        auto& jex = tt.get("commodity").value;
+                        if (jex.is_array()) {
+                            for (auto& jcom : jex.as_array()) {
+                                if (jcom.is_string()) {
+                                    auto* com = Cfg.getCommodityByName(jcom.as_string(), false);
+                                    if (com) {
+                                        mi.buy_list.push_back(com);
+                                        mi.sell_except.push_back(com);
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    if (tt.id == ED_TASK_MARKET_BUY) {
+                        mi.buy_tasks.push_back(jtt);
+                        auto* com = tt.get("commodity").as_commodity();
+                        if (com) {
+                            mi.buy_list.push_back(com);
+                            mi.sell_except.push_back(com);
+                        }
+                        continue;
+                    }
+                }
             }
         }
-        Commodity *bought = nullptr;
+        if (markets.size() < 2) {
+            throw_failed("Need at least 2 markets for trade loop");
+        }
+        bool buy_all = false;
+        std::vector<Commodity*> bought;
         for (int i = 0; i <= markets.size(); i++) {
             auto &mi = markets[i % markets.size()];
             if (i == 0) {
-                bought = mi.buy;
+                if (mi.buy_all) {
+                    buy_all = true;
+                    bought.clear();
+                } else {
+                    for (auto *com: mi.buy_list)
+                        bought.push_back(com);
+                }
                 continue;
             }
-            if (!bought && !mi.buy) {
-                LOG(INFO) << "At " << mi.dock << " nothing to sell or buy";
-                return false;
+            if (!buy_all && bought.empty() && !(mi.buy_all || mi.sell_all || mi.buy_list.empty() || mi.sell_list.empty())) {
+                throw_failed("At {} nothing to sell or buy", mi.dock);
             }
-            if (bought && mi.sell != nullptr && mi.sell != bought) {
-                LOG(INFO) << "At " << mi.dock << " cannot sell " << bought->name;
-                return false;
+            if (mi.sell_all) {
+                std::erase_if(bought, [=](auto* com)->bool {
+                    return std::find(mi.sell_except.begin(), mi.sell_except.end(), com) == mi.sell_except.end();
+                });
+                std::erase_if(bought, [=](auto* com)->bool {
+                    return std::find(mi.sell_list.begin(), mi.sell_list.end(), com) != mi.sell_list.end();
+                });
+                buy_all = false;
+            } else {
+                for (auto* com : mi.sell_list) {
+                    if (buy_all) {
+                        std::erase(bought, com);
+                    } else {
+                        if (auto it = std::find(bought.begin(), bought.end(), com); it != bought.end())
+                            bought.erase(it);
+                        else
+                            LOG(INFO) << "At " << mi.dock << " cannot sell " << com->name;
+                    }
+                }
             }
-            bought = mi.buy;
+            buy_all = false;
+            if (mi.buy_all) {
+                buy_all = true;
+                bought.clear();
+            } else {
+                for (auto *com: mi.buy_list)
+                    bought.push_back(com);
+            }
         }
     }
-    if (markets.size() < 2)
-        return false;
 
     int marketIdx = -1;
     // check we need to sell first
@@ -887,28 +1068,54 @@ bool TradeLoopTask::run() {
         // check we may sell something at designated market
         for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
             auto &mi = markets[i];
-            if (mi.sell && mi.sell->ship.count > 0)
-                marketIdx = i;
-        }
-        // check we may sell all at any market
-        for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
-            auto &mi = markets[i];
-            if (!mi.sell && (!mi.buy || mi.buy->ship.count <= 0))
-                marketIdx = i;
+            if (!mi.sell_list.empty()) {
+                for (auto* com : mi.sell_list) {
+                    if (com && com->ship.count > 0) {
+                        marketIdx = i;
+                        break;
+                    }
+                }
+            }
+            if (marketIdx < 0 && mi.sell_all) {
+                for (auto* com : st::currentCargo->inventory) {
+                    if (com && com->ship.count > 0 && !contains(mi.sell_except, com)) {
+                        marketIdx = i;
+                        break;
+                    }
+                }
+            }
         }
     }
     if (st::shipStats.cargo < st::shipStats.cargoCapacity) {
         // go to the market in current system to buy something
         for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
             auto &mi = markets[i];
-            if (st::currentStarSystem == mi.system && mi.buy && mi.buy->ship.count <= 0)
-                marketIdx = i;
+            if (st::currentStarSystem == mi.system) {
+                if (mi.buy_all)
+                    marketIdx = i;
+                if (!mi.buy_list.empty()) {
+                    for (auto* com : st::currentCargo->inventory) {
+                        if (com && com->ship.count == 0) {
+                            marketIdx = i;
+                            break;
+                        }
+                    }
+                }
+            }
         }
         // go to the market in any system to buy something
         for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
             auto &mi = markets[i];
-            if (mi.buy && mi.buy->ship.count <= 0)
+            if (mi.buy_all)
                 marketIdx = i;
+            if (!mi.buy_list.empty()) {
+                for (auto* com : st::currentCargo->inventory) {
+                    if (com && com->ship.count == 0) {
+                        marketIdx = i;
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -919,35 +1126,30 @@ bool TradeLoopTask::run() {
             auto &mi = markets[marketIdx];
             gal::spEntity dock = getCurrDock();
             if (!dock || !dock->nameEq(mi.dock)) {
-                TaskTemplate templ = *getTaskTemplate(ED_TASK_TRAVEL);
-                templ.set("system", mi.system);
-                templ.set("dock", mi.dock);
-                run_sub_step(templ.factory(templ));
+                TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
+                impl.set("system", mi.system);
+                impl.set("dock", mi.dock);
+                run_sub_step(impl.factory(impl));
                 dock = getCurrDock();
                 if (!dock || !dock->nameEq(mi.dock))
                     throw_trouble("Trouble traveling to market {}", mi.dock);
             }
             if (st::shipStats.cargo > 0) {
-                if (!mi.sell) {
-                    TaskTemplate templ = *getTaskTemplate(ED_TASK_MARKET_SELL_ALL);
-                    if (mi.buy) {
-                        templ.set("except", json5pp::array({mi.buy->nameId}));
+                for (auto& jt : mi.sell_tasks) {
+                    TaskTemplate impl = ai::TaskTemplate::loadTask(jt);
+                    if (!impl.id.empty()) {
+                        if (!run_sub_step(impl.factory(impl)))
+                            notify_progress(MSG_WARN, "Trouble selling at market {}", mi.dock);
                     }
-                    if (!run_sub_step(templ.factory(templ)))
-                        throw_trouble("Trouble selling at market {}", mi.dock);
-                } else {
-                    TaskTemplate templ = *getTaskTemplate(ED_TASK_MARKET_SELL);
-                    templ.set("commodity", mi.sell->nameId);
-                    if (!run_sub_step(templ.factory(templ)))
-                        throw_trouble("Trouble selling at market {}", mi.dock);
                 }
             }
             if (st::shipStats.cargo < st::shipStats.cargoCapacity) {
-                if (mi.buy) {
-                    TaskTemplate templ = *getTaskTemplate(ED_TASK_MARKET_BUY);
-                    templ.set("commodity", mi.buy->nameId);
-                    if (!run_sub_step(templ.factory(templ)))
-                        throw_trouble("Trouble buying at market {}", mi.dock);
+                for (auto& jt : mi.buy_tasks) {
+                    TaskTemplate impl = ai::TaskTemplate::loadTask(jt);
+                    if (!impl.id.empty()) {
+                        if (!run_sub_step(impl.factory(impl)))
+                            notify_progress(MSG_WARN, "Trouble buying at market {}", mi.dock);
+                    }
                 }
             }
         }

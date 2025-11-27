@@ -830,28 +830,36 @@ bool DepartureStep::run() {
     // 4 minutes for departure
     timer = utc_timer(4min);
     status = AUTOPILOT;
+    setSpeed(0, true);
+    unsigned speedeZeroHandle = kbd::post("SetSpeedZero", 4*60*1000);
     notAutoPilotCounter = 0;
-    for (;;) {
-        if (timer.expired()) {
-            notify_progress(MSG_ERROR, "Autopilot time expired");
-            status = RELOGIN;
-            task->relogin();
-            return false;
+    try {
+        for (;;) {
+            if (timer.expired()) {
+                kbd::clearInput(speedeZeroHandle);
+                notify_progress(MSG_ERROR, "Autopilot time expired");
+                status = RELOGIN;
+                task->relogin();
+                return false;
+            }
+            sleep(250);
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::uiState.autopilot) {
+                notAutoPilotCounter = 0;
+                continue;
+            }
+            if (++notAutoPilotCounter > 4) {
+                notify_progress(MSG_INFO, "Departure complete (autopilot off)");
+                break;
+            } else {
+                notify_progress(MSG_INFO, std::format("Auto-pilot off counter: {}", notAutoPilotCounter));
+            }
         }
-        setSpeed(0, true);
-        sleep(250);
-        ai::detectEDState(DetectLevel::Screen);
-        if (ai::uiState.autopilot) {
-            notAutoPilotCounter = 0;
-            continue;
-        }
-        if (++notAutoPilotCounter > 4) {
-            notify_progress(MSG_INFO, "Departure complete (autopilot off)");
-            break;
-        } else {
-            notify_progress(MSG_INFO, std::format("Auto-pilot off counter: {}", notAutoPilotCounter));
-        }
+    } catch (...) {
+        kbd::clearInput(speedeZeroHandle);
+        throw;
     }
+    kbd::clearInput(speedeZeroHandle);
 
     ai::detectEDState(DetectLevel::Screen);
     if (ai::compassInfo.hemisphere)
@@ -1039,8 +1047,8 @@ bool EnterCruiseStep::run() {
 
 std::string EnterCruiseStep::getTitle() {
     if (status == DONE)
-        return gettext("Entered cruise");
-    return gettext("Entering cruise");
+        return _gt("Entered cruise");
+    return _gt("Entering cruise");
 }
 
 std::string EnterCruiseStep::getStatus() {
@@ -1049,21 +1057,21 @@ std::string EnterCruiseStep::getStatus() {
     case READY:
         return {};
     case LOCK_BODY:
-        return "Locking body";
+        return _gt("Locking body");
     case LOCK_TARGET:
-        return "Locking target";
+        return _gt("Locking target");
     case ORIENT:
-        return "Orienting";
+        return _gt("Orienting");
     case MASSLOCKED:
-        return std::format("Mass-locked: {}", timer.passed());
+        return lc_format("Mass-locked: {}", timer.passed());
     case PREPARE:
-        return std::format("Preparing");
+        return lc_format("Preparing");
     case FSD_COOLDOWN:
-        return std::format("FSD Cooldown: {}", timer.passed());
+        return lc_format("FSD Cooldown: {}", timer.passed());
     case ENTER_CRUISE:
-        return std::format("Entering cruise: {}", timer.left());
+        return lc_format("Entering cruise: {}", timer.left());
     case FLY_AWAY:
-        return std::format("Fly away: {}", timer.left());
+        return lc_format("Fly away: {}", timer.left());
     }
     return {};
 }
@@ -1182,14 +1190,14 @@ std::string HyperJumpStep::getStatus() {
     case READY:
         return {};
     case CHARGE:
-        return std::format("Charging: {}", timer.passed());
+        return lc_format("Charging: {}", timer.passed());
     case HYPERSPACE:
         return "Hyperspace";
-        return std::format("Hyperspace: {}", timer.left());
+        return lc_format("Hyperspace: {}", timer.left());
     case AVOID_STAR:
         return "Avoid star";
     case FLY_AWAY:
-        return std::format("Fly away: {}", timer.left());
+        return lc_format("Fly away: {}", timer.left());
     }
     return {};
 }
@@ -1319,21 +1327,21 @@ std::string LeaveBodyStep::getStatus() {
     case READY:
         return {};
     case LOCK_BODY:
-        return "Locking body";
+        return _gt("Locking body");
     case ORIENT:
-        return "Orienting";
+        return _gt("Orienting");
     case MASSLOCKED:
-        return std::format("Mass-locked: {}", timer.passed());
+        return lc_format("Mass-locked: {}", timer.passed());
     case PREPARE:
-        return std::format("Preparing");
+        return lc_format("Preparing");
     case FSD_COOLDOWN:
-        return std::format("FSD Cooldown: {}", timer.passed());
+        return lc_format("FSD Cooldown: {}", timer.passed());
     case ENTER_CRUISE:
-        return std::format("Entering cruise: {}", timer.left());
+        return lc_format("Entering cruise: {}", timer.left());
     case LEAVING_BODY:
-        return std::format("Leaving body: {}", timer.passed());
+        return lc_format("Leaving body: {}", timer.passed());
     case FLY_AWAY:
-        return std::format("Fly away {}", timer.passed());
+        return lc_format("Fly away {}", timer.passed());
     }
     return {};
 }
@@ -1483,23 +1491,23 @@ std::string BaseDockStep::getStatus() {
     default:
         return {};
     case PREPARE:
-        return "Prepare docking";
+        return _gt("Prepare docking");
     case APPROACH:
         if (!lastDockingStatus.empty())
-            return std::format("{}\nApproach\n  dist {}", lastDockingStatus, st::autopilot.distanceToDock.to_string());
-        return std::format("Approach\n  dist {}", st::autopilot.distanceToDock.to_string());
+            return lc_format("{}\nApproach\n  dist {}", lastDockingStatus, st::autopilot.distanceToDock.to_string());
+        return lc_format("Approach\n  dist {}", st::autopilot.distanceToDock.to_string());
     case REQUEST:
         if (!lastDockingStatus.empty())
-            return std::format("{}\nRequesting permit", lastDockingStatus);
-        return "Requesting permit";
+            return lc_format("{}\nRequesting permit", lastDockingStatus);
+        return _gt("Requesting permit");
     case WAITING:
         if (!lastDockingStatus.empty())
-            return std::format("{}\nWaiting", lastDockingStatus);
+            return lc_format("{}\nWaiting", lastDockingStatus);
         return "Waiting";
     case AUTOPILOT:
-        return std::format("Autopilot {}", timer.left());
+        return lc_format("Autopilot {}", timer.left());
     case REFUEL:
-        return "Refuel";
+        return _gt("Refuel");
     }
 }
 
@@ -2537,14 +2545,14 @@ std::string BaseCruiseStep::getStatus() {
     case DONE:
     case READY:
         return {};
-    case DIST_BAD: st="Dist bad"; break;
-    case DIST_FAR: st="Dist far"; break;
-    case DIST_NEAR: st="Dist near"; break;
-    case DIST_STOP: st="Reached"; break;
+    case DIST_BAD: st=_gt("Dist bad"); break;
+    case DIST_FAR: st=_gt("Dist far"); break;
+    case DIST_NEAR: st=_gt("Dist near"); break;
+    case DIST_STOP: st=_gt("Reached"); break;
     }
-    return std::format("{}: {} / {}\nspeeed: {}%", st,
-                       cur.to_string(), req.to_string(),
-                       st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+    return lc_format("{}: {} / {}\nspeeed: {}%", st,
+                     cur.to_string(), req.to_string(),
+                     st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
 }
 
 bool DiveUnderPlanetStep::run() {
@@ -2868,17 +2876,17 @@ std::string DiveUnderPlanetStep::getStatus() {
     case READY:
         return {};
     case ORIENT_BODY:
-        return "Orient to body";
+        return _gt("Orient to body");
     case DIST_BODY:
-        return "Get distance to body";
+        return _gt("Get distance to body");
     case ORIENT_DOCK:
-        return "Orient to dock";
+        return _gt("Orient to dock");
     case DIST_DOCK:
-        return "Get distance to dock";
+        return _gt("Get distance to dock");
     case ORIENT_DIVE:
-        return "Orient to dive";
+        return _gt("Orient to dive");
     case FLY_DIVE:
-        return "Dive fly";
+        return _gt("Dive fly");
     }
     return {};
 }
@@ -3003,22 +3011,22 @@ std::string ExitCruiseToSpace::getTitle() {
 
 std::string ExitCruiseToSpace::getStatus() {
     if (status == ORIENT)
-        return "Orienting towards target";
+        return _gt("Orienting towards target");
     if (status == APPROACH) {
         if (dist_fails)
-            return std::format("Approaching:\ndist {} (fails {})\nspeeed {}%", st::autopilot.distanceToDock.to_string(), dist_fails,
+            return lc_format("Approaching:\ndist {} (fails {})\nspeeed {}%", st::autopilot.distanceToDock.to_string(), dist_fails,
                                st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
         else if (exit_confirm)
-            return std::format("Approaching:\ndist {} (confirm {})\nspeeed {}%", st::autopilot.distanceToDock.to_string(), exit_confirm,
-                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+            return lc_format("Approaching:\ndist {} (confirm {})\nspeeed {}%", st::autopilot.distanceToDock.to_string(), exit_confirm,
+                             st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
         else
-            return std::format("Approaching:\ndist {}\nspeeed {}%", st::autopilot.distanceToDock.to_string(),
-                               st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+            return lc_format("Approaching:\ndist {}\nspeeed {}%", st::autopilot.distanceToDock.to_string(),
+                             st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
     }
     if (status == EXITING)
-        return std::format("Exiting cruise {}", timer.left());
+        return lc_format("Exiting cruise {}", timer.left());
     if (status == CONFIRM)
-        return std::format("Checking distance\nfails {}", dist_fails);
+        return lc_format("Checking distance\nfails {}", dist_fails);
     return {};
 }
 
@@ -3151,21 +3159,21 @@ std::string ExitCruiseToPlanet::getTitle() {
 
 std::string ExitCruiseToPlanet::getStatus() {
     if (status == ORIENT)
-        return "Orienting towards target";
+        return _gt("Orienting towards target");
     if (status == FLY_TO_BODY) {
-        return std::format("Fly to body: {}\ndist {}\nspeeed {}%", timer.passed(),
-                           st::autopilot.distanceToDock.to_string(),
-                           st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+        return lc_format("Fly to body: {}\ndist {}\nspeeed {}%", timer.passed(),
+                         st::autopilot.distanceToDock.to_string(),
+                         st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
     }
     if (status == APPROACH) {
-        return std::format("Approaching {}:\ndist {}\nspeeed {}%", timer.passed(),
-                           st::autopilot.distanceToDock.to_string(),
-                           st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
+        return lc_format("Approaching {}:\ndist {}\nspeeed {}%", timer.passed(),
+                        st::autopilot.distanceToDock.to_string(),
+                        st::autopilot.speed_set_to.has_value() ? std::to_string(st::autopilot.speed_set_to.value()) : "??");
     }
     if (status == EXITING)
-        return "Exiting cruise";
+        return _gt("Exiting cruise");
     if (status == CONFIRM)
-        return "Checking distance";
+        return _gt("Checking distance");
     return {};
 }
 
@@ -3289,13 +3297,13 @@ std::string CompleteNavRoute::getStatus() {
     case READY:
         return {};
     case ORIENT:
-        return "Orienting";
+        return _gt("Orienting");
     case ENTER_CRUISE:
-        return "Entering cruise";
+        return _gt("Entering cruise");
     case LEAVE_BODY:
-        return "Fly away from nearest body";
+        return _gt("Fly away from nearest body");
     case FLY_AWAY:
-        return std::format("Fly away {}", timer.passed());
+        return lc_format("Fly away {}", timer.passed());
     }
     return {};
 }
@@ -3465,19 +3473,19 @@ std::string CruiseAndDock::getStatus() {
     case READY:
         return {};
     case DEPARTURE:
-        return "Departure";
+        return _gt("Departure");
     case ENTER_CRUISE:
-        return "Entering cruise";
+        return _gt("Entering cruise");
     case LEAVE_BODY:
-        return "Fly away from nearest body";
+        return _gt("Fly away from nearest body");
     case APPROACH:
-        return "Get close to body";
+        return _gt("Get close to body");
     case DIVE:
-        return "Dive to space";
+        return _gt("Dive to space");
     case LEAVE_CRUISE:
-        return "Leaving cruise";
+        return _gt("Leaving cruise");
     case DOCK:
-        return "Docking";
+        return _gt("Docking");
     }
     return {};
 }
@@ -3496,7 +3504,9 @@ TaskTravel::TaskTravel(const TaskTemplate &templ_)
 
 std::string TaskTravel::getTitle() {
     std::string dest = destDockName.empty() ? destSystemName : destDockName;
-    return lc_format("Travel to: {}", dest);
+    if (templ.nm.empty())
+        return lc_format("Travel to: {}", dest);
+    return templ.name();
 }
 
 bool TaskTravel::run() {
@@ -3557,7 +3567,9 @@ Autopilot::Autopilot(const TaskTemplate &templ_)
 }
 
 std::string Autopilot::getTitle() {
-    return gettext("Autopilot");
+    if (templ.nm.empty())
+        return _gt("Autopilot");
+    return templ.name();
 }
 
 bool Autopilot::run() {

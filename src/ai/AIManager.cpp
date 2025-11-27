@@ -151,8 +151,8 @@ bool autopilot() {
             return true;
         return false;
     }
-    auto templ = getTaskTemplate(ED_TASK_AUTOPILOT);
-    return new_task(*templ);
+    auto& templ = getTemplate(ED_TASK_AUTOPILOT);
+    return new_task(templ);
 }
 
 spTask curr_task() {

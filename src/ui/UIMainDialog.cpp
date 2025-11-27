@@ -18,7 +18,7 @@ UIMainDialog::UIMainDialog()
     setup.dialogId = IDD_ED_ROBOT;
     setup.iconId = IDI_DIALOGS;
 
-    this->base_msg_pubm::on_message(WM_INITDIALOG, [this](wl::params p){return initialize(p);});
+    on_message(WM_INITDIALOG, [this](wl::params p){return initialize(p);});
 
     this->base_msg_pubm::on_message(WM_CLOSE, [this](wl::params) noexcept -> INT_PTR {
         hide();

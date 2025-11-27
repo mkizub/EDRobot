@@ -16,9 +16,9 @@ struct TaskTemplate;
 struct Param {
     enum Type { Void, Bool, Enum, Int, Real, String, System, Dock, Commodity, Task, Array };
 
-    const Type        type;
-    const std::string id;
-    const std::string nm;
+    Type              type;
+    std::string       id;
+    std::string       nm;
     json5pp::value    meta;
     json5pp::value    value;
 
@@ -36,13 +36,16 @@ struct Param {
     std::string as_string() const;
     ::Commodity* as_commodity() const;
 
-    bool set(const json5pp::value& value);
+    bool set(const json5pp::value& value, bool silent=false);
+    bool operator==(const Param& other) const;
+    bool operator!=(const Param& other) const { return !operator==(other); }
 };
 
 struct TaskTemplate {
-    const std::string id;
-    const std::string nm;
-    const std::function<Task*(const TaskTemplate& templ)> factory;
+    typedef std::function<Task*(const TaskTemplate& templ)> factory_t;
+    std::string id;
+    std::string nm;
+    factory_t factory;
     std::vector<Param> params;
 
     Param& get(const string& pid);
@@ -51,16 +54,20 @@ struct TaskTemplate {
 
     std::string name() const;
     bool validate() const;
+    bool operator==(const TaskTemplate& other) const;
+    bool operator!=(const TaskTemplate& other) const { return !operator==(other); }
 
-    static TaskTemplate loadTemplate(const json5pp::value& task);
-    static void loadSavedTasks();
+    static TaskTemplate loadTask(const json5pp::value& task);
+    static void loadUserTasks();
+    static void saveUserTasks();
 };
 
 
 extern const std::string ED_TASK_REPEAT;            // repeat sequence of several tasks
 extern const std::string ED_TASK_MARKET_SELL;       // sell specified commodity, maybe by a few items
 extern const std::string ED_TASK_MARKET_SELL_ALL;   // sell all commodities, maybe by a few items
-extern const std::string ED_TASK_MARKET_BUY;        // buy a list of commodities
+extern const std::string ED_TASK_MARKET_BUY;        // buy specified commodity
+extern const std::string ED_TASK_MARKET_BUY_ALL;    // buy all from a list of commodities
 extern const std::string ED_TASK_MARKET_BUY_CONSTR; // buy commodities needed for construction
 extern const std::string ED_TASK_CONSTR_UNLOAD;     // unload all construction materials at construction depot
 extern const std::string ED_TASK_TRADE_AT;          // sell/buy at specified dock

@@ -776,7 +776,7 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
             snloc = data["SignalName_Localised"].as_string();
             sname = snloc;
         }
-        bool isStation = data["IsStation"];
+        bool isStation = bool(data["IsStation"]);
 
         spEntity site = getDock(sname);
         if (!site) {

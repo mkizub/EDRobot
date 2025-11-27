@@ -68,7 +68,10 @@ template <class... _Types>
 
 const std::list<TaskTemplate>& getUserTasks();
 const std::list<TaskTemplate>& getTemplates();
-const TaskTemplate* getTaskTemplate(const std::string& name);
+const TaskTemplate& getTemplate(const std::string& id);
+bool saveUserTask(TaskTemplate& templ);
+bool delUserTask(TaskTemplate& templ);
+bool delUserTask(int index);
 
 enum class CheckResult {
     Failure,

@@ -134,7 +134,7 @@ public:
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
-    float getUiScaleFactor() const { return mUiScaleFactor; }
+    int getUiScalePercents() const { return mUiScalePercents; }
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return searchRegionExtent; }
@@ -226,7 +226,7 @@ private:
     std::wstring mEDLogsPath;
     std::wstring mEDCurrentJournalFile;
 
-    float mUiScaleFactor = 1.f;
+    int mUiScalePercents = 100;
     bool autoPause = true;
     std::map<std::pair<std::string,unsigned>, Command> keyMapping;
 

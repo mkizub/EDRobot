@@ -67,7 +67,7 @@ Task::Task(const TaskTemplate& templ_)
 }
 
 std::string Task::getTitle() {
-    return templ.name().c_str();
+    return templ.name();
 }
 
 void sleep(int milliseconds, bool precise) {
@@ -378,7 +378,7 @@ TaskRepeat::TaskRepeat(const TaskTemplate& templ_)
         else if (p.id == "tasks") {
             if (p.value.is_array()) {
                 for (auto task : p.value.as_array()) {
-                    TaskTemplate tt = TaskTemplate::loadTemplate(task);
+                    TaskTemplate tt = TaskTemplate::loadTask(task);
                     if (!tt.id.empty())
                         steps.emplace_back(std::move(tt));
                 }
@@ -388,9 +388,10 @@ TaskRepeat::TaskRepeat(const TaskTemplate& templ_)
 }
 
 std::string TaskRepeat::getTitle() {
+    std::string name = templ.nm.empty() ? _gt("Repeat") : templ.name();
     if (mTotal)
-        return std::format("{}: {} / {} ", templ.name(), mCompleted+1, mTotal);
-    return std::format("{}: {} ", templ.name(), mCompleted+1);
+        return std::format("{}: {} / {} ", name, mCompleted+1, mTotal);
+    return std::format("{}: {} ", name, mCompleted+1);
 }
 
 bool TaskRepeat::run() {

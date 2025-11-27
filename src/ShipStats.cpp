@@ -125,8 +125,8 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
         name = jv["name"].as_string();
     if (jv["desc"])
         desc = jv["desc"].as_string();
-    modset = jv["modset"];
-    modadd = jv["modadd"];
+    modset = bool(jv["modset"]);
+    modadd = bool(jv["modadd"]);
     if (jv["unit"].is_string())
         unit = jv["unit"].as_string();
     if (jv["modmod"].is_number())

@@ -266,7 +266,7 @@
             method:'coeff', filter: { laplacian: { scale: 3, delta: 63 } }
           },{
             name: "top-right", img: "left/anchor-right*.png", anchor: [260,-15], rect: [817,19,22,24], t: [0.3, 0.8],
-            method:'coeff', filter: { laplacian: { scale: 3, delta: 63 } }
+            method:'coeff', filter: [{ hsv_crop: { h: [10,40], s:[63,255], v:[128,255] } }, { laplacian: { scale: 3, delta: 63 } }]
           },{
             name: "flt-left", img: "left/anchor-filters-left*.png", anchor: [-137,-34], rect: [2,9,74,28], t: [0.3, 0.8],
             method:'coeff', filter: { laplacian: { scale: 3, delta: 63 } }
@@ -278,7 +278,7 @@
         lines: [
           {
             name: "detect-angle", line: [570,293, 970,285], ext: [1,150], delta: 10, prec: 1, votes: 350,
-            filter: [{ channel: 'red' }, { lines: { thr: 45 } }]
+            filter: [{ hsv_crop: { h: [10,40], s:[63,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 45 } }]
           },{
             name: "top-line", line: [234,250, 1300,237], ext: [300,120], delta: 2, prec: 0.125,
             //votes: 1000, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate: 2, } }],
@@ -404,7 +404,7 @@
         lines: [
           {
             name: "detect-angle", line: [950,235, 1350,239], ext: [1,150], delta: 10, prec: 1, votes: 350,
-            filter: [{ channel: 'red' }, { lines: { thr: 45 } }]
+            filter: [{ hsv_crop: { h: [10,40], s:[63,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 45 } }]
           },{
             name: "top-line", line: [613,231, 1535,242], ext: [300,120], delta: 2, prec: 0.125,
             //votes: 1000, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate: 2, } }],

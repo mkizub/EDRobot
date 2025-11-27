@@ -111,11 +111,9 @@ bool Configuration::load() {
         }
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
-        if (auto &tm = j_config.at("ui-scale-factor"); tm.is_number()) {
-            if (tm.is_integer() && tm.as_integer() > 15)
-                mUiScaleFactor = tm.as_integer() * 0.01f;
-            else if (tm.as_number() >= 0.125 && tm.as_number() <= 8)
-                mUiScaleFactor = (float) tm.as_number();
+        if (auto &tm = j_config.at("ui-scale-percents"); tm.is_integer()) {
+            if (tm.as_integer() >= 25 && tm.as_integer() <= 400)
+                mUiScalePercents = tm.as_integer();
         }
         if (auto &tm = j_config.at("default-key-hold-time"); tm.is_integer())
             defaultKeyHoldTime = tm.as_integer();

@@ -94,12 +94,15 @@ add_executable(EDRobot
         src/ui/UIDebug.h
         src/ui/UIDialog.cpp
         src/ui/UIDialog.h
+        src/ui/UILayout.h
         src/ui/UIManager.cpp
         src/ui/UIManager.h
         src/ui/UISelectRect.cpp
         src/ui/UISelectRect.h
         src/ui/UIStartupDialog.cpp
         src/ui/UIStartupDialog.h
+        src/ui/UITaskEditor.cpp
+        src/ui/UITaskEditor.h
         src/ui/UIToast.cpp
         src/ui/UIToast.h
         src/ui/UIWindow.cpp
