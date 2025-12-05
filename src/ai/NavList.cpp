@@ -115,10 +115,11 @@ bool NavList::parseNavDist(const cv::Mat &grayImage, const ResolvedEnv& rEnv, co
     NavListEntry &nle = list[idx];
     assert (nle.index == idx);
     std::string dist;
-    if (ocr::ocrRowText(ocr::DISTANCE, grayImage, rEnv, cr, 1, dist) < 60)
+    int conf = ocr::ocrRowText(ocr::DISTANCE, grayImage, rEnv, cr, 1, dist);
+    if (conf < 60)
         return false;
     std::wstring wdist = toUtf16(dist);
-    nle.dist = parseDist(wdist);
+    nle.dist = parseDist(wdist, conf);
     return nle.dist.valid();
 }
 
@@ -399,13 +400,13 @@ bool NavList::focusDestDock() {
         if (destBody && list[idx].item.get() == destBody.get()) {
             destBodyNavIdx = idx;
             parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-            if (list[idx].dist.valid())
+            if (list[idx].dist)
                 st::autopilot.distanceToBody = list[idx].dist;
         }
         if (list[idx].item.get() == destDock.get()) {
             destDockNavIdx = idx;
             parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-            if (list[idx].dist.valid())
+            if (list[idx].dist)
                 st::autopilot.distanceToDock = list[idx].dist;
             break;
         }
@@ -470,7 +471,7 @@ bool NavList::focusDestDock() {
             if (list[idx].item.get() == destDock.get()) {
                 destDockNavIdx = idx;
                 parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-                if (list[idx].dist.valid())
+                if (list[idx].dist)
                     st::autopilot.distanceToDock = list[idx].dist;
                 break;
             }
@@ -512,14 +513,14 @@ bool NavList::focusDestBody() {
         if (destBody && list[idx].item.get() == destBody.get()) {
             destBodyNavIdx = idx;
             parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-            if (list[idx].dist.valid())
+            if (list[idx].dist)
                 st::autopilot.distanceToBody = list[idx].dist;
             break;
         }
         if (destDock && list[idx].item.get() == destDock.get()) {
             destDockNavIdx = idx;
             parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-            if (list[idx].dist.valid())
+            if (list[idx].dist)
                 st::autopilot.distanceToDock = list[idx].dist;
         }
     }
@@ -532,7 +533,7 @@ bool NavList::focusDestBody() {
             if (list[idx].item.get() == destBody.get()) {
                 destBodyNavIdx = idx;
                 parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-                if (list[idx].dist.valid())
+                if (list[idx].dist)
                     st::autopilot.distanceToBody = list[idx].dist;
                 break;
             }
@@ -609,7 +610,7 @@ bool NavList::focusDestBody() {
                 if (list[idx].item.get() == destBody.get()) {
                     destBodyNavIdx = idx;
                     parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-                    if (list[idx].dist.valid())
+                    if (list[idx].dist)
                         st::autopilot.distanceToBody = list[idx].dist;
                     break;
                 }
@@ -743,7 +744,7 @@ gal::spEntity NavList::focusNearestBody(dist_t* dist) {
             parseNavDist(grayImage, ai::rEnv, *rows[nearestIdx], nearestIdx);
             if (list[nearestIdx].item.get() == st::autopilot.destBody.get()) {
                 st::autopilot.isDestBodyFocused = true;
-                if (list[nearestIdx].dist.valid())
+                if (list[nearestIdx].dist)
                     st::autopilot.distanceToBody = list[nearestIdx].dist;
             }
             if (dist)
@@ -865,7 +866,7 @@ dist_t NavList::getFocusedDist(int max_try) {
         if (rows.empty())
             continue;
         if (parseNavDist(grayImage, ai::rEnv, *rows[focusIdx], focusIdx)) {
-            if (list[focusIdx].dist.valid()) {
+            if (list[focusIdx].dist) {
                 if (st::autopilot.isDestBodyFocused)
                     st::autopilot.distanceToBody = list[focusIdx].dist;
                 if (st::autopilot.isDestDockFocused)

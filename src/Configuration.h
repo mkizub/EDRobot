@@ -102,22 +102,6 @@ typedef std::shared_ptr<ShipCargo> spShipCargo;
 typedef std::shared_ptr<NavRoute> spNavRoute;
 typedef std::shared_ptr<GameEvent> spGameEvent;
 
-struct GameKey {
-    enum Device { Void, Keyboard, Mouse, vJoy };
-    Device device {Void};
-    std::string key;
-    int code {0}; // scancode or mouse button
-    std::vector<GameKey> modifiers;
-    friend std::ostream& operator<<(std::ostream& os, const GameKey& obj);
-};
-struct KeyBindings {
-    enum Mode { Hold, Toggle, Axis, AxisInv };
-    std::string action;
-    Mode mode {Hold};
-    GameKey primary;
-    GameKey secondary;
-};
-
 class Configuration {
     Configuration();
     ~Configuration();
@@ -127,10 +111,10 @@ public:
     static Configuration& getInstance();
 
     bool load();
+    void shutdown();
     void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
     bool saveCalibration() const;
     bool checkResolutionSupported(cv::Size gameSize, std::string& error);
-    bool checkNeedColorCalibration() const;
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
@@ -155,33 +139,10 @@ public:
 
     const KeyBindings& getGameKeyBindings(const std::string& name) const;
 
-    uchar getButtonGrayColor(WState ws) const {
-        if (ws == WState::Unknown)
-            return {};
-        if (mUseCalibratedColors)
-            return mCalibratedButtonGray[int(ws)];
-        return mCalcButtonGray[int(ws)];
-    }
-    uchar getLstRowGrayColor(WState ws) const {
-        if (ws == WState::Unknown)
-            return {};
-        if (mUseCalibratedColors)
-            return mCalibratedLstRowGray[int(ws)];
-        return mCalcLstRowGray[int(ws)];
-    }
-    const std::array<cv::Vec3b, 4>& getButtonHsvColors() const {
-        if (mUseCalibratedColors)
-            return mCalibratedButtonHsv;
-        return mCalcButtonHsv;
-    }
-    const std::array<cv::Vec3b, 4>& getLstRowHsvColors() const {
-        if (mUseCalibratedColors)
-            return mCalibratedLstRowHsv;
-        return mCalcLstRowHsv;
-    }
+    double getConfigFOV() const { return configFOV; }
+    unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
 
-    double getConfigFOV() { return configFOV; }
-    unsigned getVJoyDeviceID() { return vJoyDeviceID; }
+    bool isHeadlookSmoothing() const { return configHeadlookSmoothing; }
 
     spGameEvent dockingEvent;
     spGameEvent marketEvent;
@@ -190,7 +151,6 @@ private:
     friend class Master;
 
     void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
-    bool loadCalibration();
     std::string filenameFromPreset(std::string base, std::string preset, const char* ext);
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
     bool parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag);
@@ -236,37 +196,8 @@ private:
     int configScreenWidth = 0;    // Options\Graphics\DisplaySettings.xml: <ScreenWidth>1920</ScreenWidth>
     int configScreenHeight = 0;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
     FullScreenMode configFullScreen = FullScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
+    bool configHeadlookSmoothing = true;
     std::unordered_map<std::string,KeyBindings> mKeyBindingsMap;
-
-    bool mUseCalibratedColors = false;
-    double calibrationDashboardGUIBrightness = -1;
-    double calibrationGammaOffset = 0;
-    int calibrationScreenWidth = 0;
-    int calibrationScreenHeight = 0;
-    FullScreenMode calibrationFullScreen = FullScreenMode::Window;
-
-    std::array<cv::Vec3b, 4> mOrigButtonBGR;
-    std::array<cv::Vec3b, 4> mOrigLstRowBGR;
-
-    std::array<cv::Vec3b, 4> mCalcButtonBGR;
-    std::array<cv::Vec3b, 4> mCalcLstRowBGR;
-    std::array<cv::Vec3b, 4> mCalibratedButtonBGR;
-    std::array<cv::Vec3b, 4> mCalibratedLstRowBGR;
-
-    std::array<cv::Vec3b, 4> mCalcButtonHsv;
-    std::array<cv::Vec3b, 4> mCalcLstRowHsv;
-    std::array<cv::Vec3b, 4> mCalibratedButtonHsv;
-    std::array<cv::Vec3b, 4> mCalibratedLstRowHsv;
-
-    std::array<cv::Vec3b, 4> mCalcButtonLuv;
-    std::array<cv::Vec3b, 4> mCalcLstRowLuv;
-    std::array<cv::Vec3b, 4> mCalibratedButtonLuv;
-    std::array<cv::Vec3b, 4> mCalibratedLstRowLuv;
-
-    std::array<uchar, 4> mCalcButtonGray;
-    std::array<uchar, 4> mCalcLstRowGray;
-    std::array<uchar, 4> mCalibratedButtonGray;
-    std::array<uchar, 4> mCalibratedLstRowGray;
 
     bool mCommodityDatabaseUpdated;
     std::deque<CommodityCategory> allKnownCommodityCategories;

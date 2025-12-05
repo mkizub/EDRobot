@@ -80,6 +80,7 @@ extern const std::string ED_TASK_CALIBRATE;         // calibrate colors
 extern const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES;
 extern const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS;
 extern const std::string ED_TASK_DEBUG_AUTOPILOT;
+extern const std::string ED_TASK_DEBUG_SHIP_STATS;
 
 } // namespace ai
 

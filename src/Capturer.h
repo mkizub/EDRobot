@@ -18,11 +18,20 @@ public:
     static struct ID3D11DeviceContext* getID3D11DeviceContext();
 
     static Capturer* getEDCapturer(HWND hwnd);
+    static void shutdown();
 
     virtual ~Capturer() = default;
 
-    virtual bool start() { atomicIsStarted.exchange(true); return true; };
-    virtual bool stop() { atomicIsStarted.exchange(false); return true; };
+    virtual bool start() {
+        atomicIsStarted.exchange(true);
+        hpcStartTimestamp = std::chrono::high_resolution_clock::now();
+        utcStartTimestamp = std::chrono::utc_clock::now();
+        return true;
+    };
+    virtual bool stop() {
+        atomicIsStarted.exchange(false);
+        return true;
+    };
     virtual upFrame capture(upFrame&& recycle) = 0;
 
     cv::Rect getCaptureRect();
@@ -49,6 +58,9 @@ protected:
     HWND hWndED;
     MONITORINFOEX monitorInfo;
     std::atomic<bool> atomicIsStarted;
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> hpcStartTimestamp;
+    std::chrono::time_point<std::chrono::utc_clock> utcStartTimestamp;
 
 private:
     friend class Master;

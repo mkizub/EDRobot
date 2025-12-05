@@ -27,7 +27,8 @@ public:
     ~NavPanelDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    double match_dialog(ClassifyEnv& env, float roughAngle, XMat roughImage, AnchorDetector *lan, cv::Mat debugImage);
+    bool match_flt_line(const char* lineName, cv::Line& detectedLine, ClassifyEnv& env, float roughAngle, XMat& roughImage, AnchorDetector *lan, cv::Mat& debugRough);
+    double match_dialog(ClassifyEnv& env, float roughAngle, XMat& roughImage, AnchorDetector *lan, cv::Mat& debugImage);
     void approximate_bottom_line(ClassifyEnv& env);
 
     LineDetector* getLineDetector(const char* name);

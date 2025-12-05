@@ -29,6 +29,7 @@ const std::string ED_TASK_CALIBRATE = "tsk-calibrate";
 const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES = "tsk-debug-find-all-commodities";
 const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS = "tsk-debug-find-all-nav-points";
 const std::string ED_TASK_DEBUG_AUTOPILOT = "tsk-debug-autopilot";
+const std::string ED_TASK_DEBUG_SHIP_STATS = "tsk-debug-ship-stats";
 
 static Param dummy_param {};
 Param& TaskTemplate::get(const string& pid) {
@@ -137,10 +138,12 @@ bool Param::set(const json5pp::value& val, bool silent) {
             return true;
         }
         if (val.is_string()) {
-            try {
-                value = std::stoll(val.as_string());
+            auto& str = val.as_string();
+            int64_t result = 0;
+            if (std::from_chars(str.c_str(), str.c_str()+str.size(), result).ec == std::errc{}) {
+                value = result;
                 return true;
-            } catch (...) {}
+            }
         }
         break;
     case Real:
@@ -149,10 +152,12 @@ bool Param::set(const json5pp::value& val, bool silent) {
             return true;
         }
         if (val.is_string()) {
-            try {
-                value = std::stod(val.as_string());
+            auto& str = val.as_string();
+            double result = 0;
+            if (std::from_chars(str.c_str(), str.c_str()+str.size(), result).ec == std::errc{}) {
+                value = result;
                 return true;
-            } catch (...) {}
+            }
         }
         break;
     case String:
@@ -427,6 +432,13 @@ void initTemplates() {
     templates.emplace_back(ED_TASK_MARKET_BUY_CONSTR, _lc("Buy for construction"), FACTORY(TaskBuyConstr), P{
             { Param::System,   "system", _lc("Star system") },
             { Param::Dock,     "dock",   _lc("Construction depot") },
+            { Param::Enum,     "mode",   _lc("Mode"), META(R"({values: [
+                         { id: 'ExceptLittleFirst', name: 'Except in list, Little first' },
+                         { id: 'ExceptBulkFirst', name: 'Except in list, Bulk first' },
+                         { id: 'OnlyLittleFirst', name: 'Only listed, Little first' },
+                         { id: 'OnlyBulkFirst', name: 'Only listed, Bulk first' },
+                       ]})"), "ExceptLittleFirst"},
+            { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
     templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
     templates.emplace_back(ED_TASK_TRAVEL, _lc("Travel to dock"), FACTORY(TaskTravel), P{
@@ -443,28 +455,37 @@ void initTemplates() {
                         'tsk-market-buy-constr', 'tsk-constr-unload',
                     ]}})")},
     });
-    templates.emplace_back(ED_TASK_DEBUG_FIND_ALL_COMMODITIES, _lc("Debug: find all commodities"), FACTORY(TaskDebugFindAllCommodities), P{
+    templates.emplace_back(ED_TASK_DEBUG_FIND_ALL_COMMODITIES, "Debug: find all commodities", FACTORY(TaskDebugFindAllCommodities), P{
             { Param::Bool, "shuffle" },
             { Param::Bool, "dump_images" },
             { Param::Int,  "start_index", "", OPT },
     });
-    templates.emplace_back(ED_TASK_DEBUG_FIND_ALL_NAV_POINTS, _lc("Debug: find all nav points"), FACTORY(TaskDebugFindAllNavPoints), P{
+    templates.emplace_back(ED_TASK_DEBUG_FIND_ALL_NAV_POINTS, "Debug: find all nav points", FACTORY(TaskDebugFindAllNavPoints), P{
             { Param::Bool, "dump_images" },
             { Param::Int,  "ocr_confidence", "", META({{"max",100}}), 90 },
             { Param::Int,  "txt_confidence", "", META({{"max",100}}), 90 },
             { Param::Bool, "resume" },
             { Param::Bool, "unfocused" },
     });
-    templates.emplace_back(ED_TASK_DEBUG_AUTOPILOT, _lc("Debug: autopilot steps"), FACTORY(TaskDebugAutopilot), P{
+    templates.emplace_back(ED_TASK_DEBUG_AUTOPILOT, "Debug: autopilot steps", FACTORY(TaskDebugAutopilot), P{
             { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
-                         "OrientTowards", "OrientAway", "KeepCourse", "Departure", "DockSpaceStation",
-                         "DockPlanetPort", "EnterCruise", "HyperJump", "LeaveBody", "FocusDestDock",
-                         "FocusDestBody", "FocusNearestBody", "GalMapNavRoute", "FocusTopEntry",
+                         "Departure", "DockSpaceStation", "DockPlanetPort",
+                         "LeaveBody", "EnterCruise", "HyperJump",
+                         "FocusDestDock", "FocusDestBody", "FocusNearestBody", "GalMapNavRoute", "FocusTopEntry",
                          "NavDockSelect", "NavBodySelect", "CruiseToDist", "DiveUnderPlanet",
-                         "ExitCruiseToSpace", "ExitCruiseToPlanet", "ForwardAccelerate", "ReverseAccelerate"
+                         "ExitCruiseToSpace", "ExitCruiseToPlanet",
                        ]})")},
             { Param::String,  "target", _lc("Target"), OPT },
-            { Param::Real,    "value",  _lc("Value"),  OPT, 1.0 },
+    });
+    templates.emplace_back(ED_TASK_DEBUG_SHIP_STATS, "Debug: ship stats", FACTORY(TaskDebugShipStats), P{
+            { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
+                         "OrientTowards", "OrientAway", "KeepCourse",
+                         "ForwardAccelerate", "ReverseAccelerate", "ForwardDist",
+                         "Pitch", "Yaw", "Roll", "PitchCurve", "YawCurve", "RollCurve",
+                       ]})")},
+            { Param::Real,    "value",  _lc("Value"),  OPT },
+            { Param::Real,    "duration", _lc("Duration"), META({{"min",0},{"optional",true},{"placeholder","seconds"}}) },
+            { Param::Int,     "speed", _lc("Speed"), META({{"min",0},{"max",100},{"optional",true},{"placeholder","percents"}}) },
     });
 
     AllTaskTemplates.swap(templates);

@@ -26,13 +26,17 @@
 
 namespace ai {
 
+std::thread taskThread;
+std::mutex taskMutex;
+std::condition_variable taskCond;
+
+std::thread turnThread;
+std::mutex turnMutex;
+std::condition_variable turnCond;
+
 namespace {
     spTask activeTask;
     spTask lastTask;
-
-    std::thread taskThread;
-    std::mutex taskMutex;
-    std::condition_variable taskCond;
 
     std::atomic_bool isWorking;
     std::atomic_bool isLoopWaiting;
@@ -51,7 +55,7 @@ CompassInfo compassInfo;
 
 
 void check_interrupted() {
-    assert (taskThread.get_id() == std::this_thread::get_id());
+    assert (taskThread.get_id() == std::this_thread::get_id() || turnThread.get_id() == std::this_thread::get_id());
     while (isDebugPaused) {
         if (isInterrupted) {
             isDebugPaused = false;
@@ -106,8 +110,8 @@ void stop() {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || isLoopWaiting;
     });
-    spTask oldTask;
-    activeTask.swap(oldTask);
+    lastTask.reset();
+    activeTask.swap(lastTask);
     taskCond.notify_one();
 }
 
@@ -172,8 +176,8 @@ spStep curr_step() {
     return curr;
 }
 
-void notify_progress_(MessageSeverity severity, const char* msg) {
-    if (!msg || !*msg)
+void notify_progress_(MessageSeverity severity, std::string_view msg) {
+    if (msg.empty())
         return;
     spStep curr = curr_step();
     if (curr)
@@ -194,9 +198,9 @@ void notify_progress_(MessageSeverity severity, const char* msg) {
     }
 }
 
-void throw_trouble_(const char* msg) {
+void throw_trouble_(const string_view msg) {
     assert (taskThread.get_id() == std::this_thread::get_id());
-    if (msg && *msg) {
+    if (!msg.empty()) {
         spStep curr = curr_step();
         if (curr)
             curr->addMessage(MSG_WARN, msg);
@@ -204,9 +208,9 @@ void throw_trouble_(const char* msg) {
     }
     throw nonlocal_return(false, msg);
 }
-void throw_failed_(const char* msg) {
+void throw_failed_(const string_view msg) {
     assert (taskThread.get_id() == std::this_thread::get_id());
-    if (msg && *msg) {
+    if (!msg.empty()) {
         spTask curr = curr_task();
         if (curr) {
             curr->failed = true;
@@ -254,9 +258,9 @@ bool new_task(const TaskTemplate& templ) {
 
 
 void task_loop() {
-    SetThreadDescription(GetCurrentThread(), L"AIManager task task_loop");
+    SetThreadDescription(GetCurrentThread(), L"AIManager task loop");
 
-    LOG(INFO) << "Starting ai task task_loop";
+    LOG(INFO) << "Starting ai task loop";
     while (isWorking) {
         {
             std::unique_lock<std::mutex> lock(taskMutex);
@@ -278,7 +282,7 @@ void task_loop() {
         disableAutoTurn();
         st::autopilot = {};
     }
-    LOG(INFO) << "Exiting ai task task_loop";
+    LOG(INFO) << "Exiting ai task loop";
 }
 
 
@@ -319,23 +323,22 @@ void task_step() {
 const bool detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
     check_interrupted();
 #ifdef NDEBUG
-    std::chrono::milliseconds timeout = 2000ms;
+    std::chrono::milliseconds timeout = 1000ms;
 #else
-    std::chrono::milliseconds timeout = 5000ms;
+    std::chrono::milliseconds timeout = 3000ms;
 #endif
     auto now = std::chrono::system_clock::now();
     auto until = now + timeout;
     uiState.valid = false;
-    DetectRequest request { level, &uiState, &rEnv, &compassInfo, colorImage, grayImage };
     std::promise<bool> promise;
     std::future<bool> future = promise.get_future();
-    Mgr.pushDetectRequest(std::move(promise), std::move(request));
+    Mgr.pushDetectRequest(std::move(promise), {level, &uiState, &rEnv, &compassInfo, colorImage, grayImage});
     while (now < until) {
         check_interrupted();
         auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
         if (left.count() < 5)
             break;
-        auto status = future.wait_for(250ms);
+        auto status = future.wait_for(timeout);
         if (status == std::future_status::ready)
             break;
         now = std::chrono::system_clock::now();

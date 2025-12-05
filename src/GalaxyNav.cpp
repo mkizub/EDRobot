@@ -251,6 +251,23 @@ const std::vector<NavType*> ALL_NAV_TYPES {
         &STAR_SYSTEM, // ☀
 };
 
+NavType* NavType::findNavType(TypeNav tp) {
+    if (tp == TypeNav::Other)
+        return nullptr;
+    for (auto nt: ALL_NAV_TYPES) {
+        if (tp == nt->type)
+            return nt;
+    }
+    return nullptr;
+}
+
+std::string NavType::get_nloc() const {
+    for (auto &p: name_loc) {
+        if (p.first == st::lng)
+            return p.second;
+    }
+    return {};
+}
 bool NavType::match_name(const std::string& sname) const {
     if (sname.empty())
         return false;

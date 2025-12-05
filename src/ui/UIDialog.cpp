@@ -37,7 +37,11 @@ INT_PTR CALLBACK UIDialog::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LP
     case WM_INITDIALOG:
         SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
         positionDialog(hDlg);
-        return (INT_PTR)((UIDialog*)lParam)->onInitDialog(hDlg);
+        if (((UIDialog*)lParam)->onInitDialog(hDlg)) {
+            BringWindowToTop(hDlg);
+            return TRUE;
+        }
+        return FALSE;
 
     case WM_SYSCOMMAND:
     case WM_COMMAND:

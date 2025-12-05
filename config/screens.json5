@@ -207,7 +207,7 @@
     vars: {
       compass: [
         { size: [61,57], rect: [679,803,72,68], ext: [40, 60, 60, 110], key: ['type9'] },
-        { size: [62,58], rect: [684,798,70,66], ext: [80, 70, 80, 100], key: ['panthermkii'] },
+        { size: [62,58], rect: [684,798,70,66], ext: [130, 80, 120, 140], key: ['panthermkii'] },
         { size: [61,58], rect: [679,803,71,71], ext: [40, 60, 60, 110] }
       ],
       undistort: [ // for fov [54,60]
@@ -288,10 +288,17 @@
             votes: 900, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate: 2, } }],
             //votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate_pos: 3, dilate_neg: 0, erode: 0 } }]
           },{
+            name: "btm-line-weak", line: [285,903, 1317,797], ext: [20,50], delta: [4,7], prec: 0.125,
+            votes: 800, filter: [{ hsv_crop: { h: [10,40], s:[128,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 30, dilate: 2, } }],
+            //votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate_pos: 3, dilate_neg: 0, erode: 0 } }]
+          },{
             name: "nav-line", line: [372,272,1212,258], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
             filter: [{ channel: 'red' }, { lines: { thr: 45 } }],
           },{
             name: "flt-line", line: [372,272,1212,258], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
+            filter: [{ channel: 'red' }, { lines: { thr: 35 } }],
+          },{
+            name: "flt-line2", line: [374,308,1213,290], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
             filter: [{ channel: 'red' }, { lines: { thr: 35 } }],
           }
         ]
@@ -412,6 +419,10 @@
           },{
             name: "btm-line", line: [602,793, 1671,902], ext: [20,50], delta: [4,7], prec: 0.125,
             votes: 900, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate: 2, } }],
+            //votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate_pos: 3, dilate_neg: 0, erode: 0 } }]
+          },{
+            name: "btm-line-weak", line: [285,903, 1317,797], ext: [20,50], delta: [4,7], prec: 0.125,
+            votes: 800, filter: [{ hsv_crop: { h: [10,40], s:[128,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 30, dilate: 2, } }],
             //votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate_pos: 3, dilate_neg: 0, erode: 0 } }]
           },
         ]

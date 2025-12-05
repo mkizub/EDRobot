@@ -74,32 +74,27 @@ void sleep(int milliseconds, bool precise) {
     check_interrupted();
     if (milliseconds <= 0)
         return;
-    if (milliseconds >= 75 && !precise) {
-        auto now = std::chrono::system_clock::now();
-        auto until = now + std::chrono::milliseconds(milliseconds);
-        while (now < until) {
-            auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
+    auto now = std::chrono::high_resolution_clock::now();
+    auto until = now + std::chrono::milliseconds(milliseconds);
+    if (milliseconds >= 75 || !precise) {
+        auto until_rough = until;
+        if (precise)
+            until_rough -= 50ms;
+        while (now < until_rough) {
+            check_interrupted();
+            auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until_rough - now);
             if (left.count() < 5)
                 break;
-            auto duration = std::min(std::chrono::milliseconds(500), left);
+            auto duration = std::min(500ms, left);
             std::this_thread::sleep_for(duration);
-            now = std::chrono::system_clock::now();
+            now = std::chrono::high_resolution_clock::now();
         }
-        check_interrupted();
-        return;
     }
-
-    LARGE_INTEGER frequency, start, end;
-    QueryPerformanceFrequency(&frequency);
-    QueryPerformanceCounter(&start);
-
-    double seconds = milliseconds * 0.001;
-    while (true) {
-        QueryPerformanceCounter(&end);
-        double elapsed_seconds = double(end.QuadPart - start.QuadPart) / double(frequency.QuadPart);
-        if (elapsed_seconds >= seconds)
-            break;
-        check_interrupted();
+    if (precise) {
+        while (now < until) {
+            check_interrupted();
+            now = std::chrono::high_resolution_clock::now();
+        }
     }
 }
 
@@ -341,15 +336,13 @@ bool Step::Message::expired() const {
     }
 }
 
-void Step::addMessage(MessageSeverity severity, const char* msg) {
-    if (msg)
-        addMessage(severity, std::string(msg));
-}
-void Step::addMessage(MessageSeverity severity, const std::string& msg) {
+void Step::addMessage(MessageSeverity severity, const std::string_view msg) {
+    if (msg.empty())
+        return;
     std::scoped_lock<std::mutex> lock(messagesMutex);
     while (!messages.empty() && messages.front().expired() || messages.size() > 4)
         messages.pop_front();
-    messages.emplace_back(std::chrono::steady_clock::now(), severity, msg);
+    messages.emplace_back(std::chrono::steady_clock::now(), severity, std::string(msg));
 }
 
 std::vector<std::string> Step::getMessages() {

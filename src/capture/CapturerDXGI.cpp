@@ -49,6 +49,7 @@ bool FrameDXGI::valid() const {
 }
 
 void FrameDXGI::cleanup() {
+    timestamp = {};
     if (stagingTextureMapped) {
         ((CapturerDXGI*)owner)->getID3D11DeviceContext()->Unmap(mStagingTexture, 0);
         mStagingMappedTex = {};
@@ -232,6 +233,15 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             Sleep(1);
             continue;
         } else {
+            //frame->timestamp = std::chrono::utc_clock::now();
+            const long long _Freq = _Query_perf_frequency(); // doesn't change after system boot
+            const long long _Ctr  = fi.LastPresentTime.QuadPart;
+            const long long _Whole = (_Ctr / _Freq) * std::chrono::steady_clock::period::den;
+            const long long _Part  = (_Ctr % _Freq) * std::chrono::steady_clock::period::den / _Freq;
+            auto frame_tp = std::chrono::steady_clock::time_point(std::chrono::steady_clock::duration(_Whole + _Part));
+            auto elapsed_since_start = frame_tp - hpcStartTimestamp;
+            auto utc_tp = utcStartTimestamp + elapsed_since_start;
+            frame->timestamp = std::chrono::time_point_cast<Timestamp::duration>(utc_tp);
             break;
         }
     }

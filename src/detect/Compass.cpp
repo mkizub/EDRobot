@@ -253,7 +253,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             lastTgtRoll = roll;
             lastTgtAngle = angle;
 
-            LOG(DEBUG) << std::format("Compass dot direction={}", ((lastHemisphere < 0) ? "backward" : "forward"))
+            LOG(DEBUG) << std::format("Compass dot dir={}", ((lastHemisphere < 0) ? "bwd" : "fwd"))
                        << ", sphere pos=" << dotSpherePosition
                        << std::format(" pitch:{}, yaw:{}, roll:{}", int(pitch), int(yaw), int(roll));
         } else {
@@ -357,8 +357,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             cv::bitwise_not(ocrImage, ocrImage);
             std::string text;
             int conf =  ocr::ocrTargetDistText(toMat(ocrImage), text);
-            if (conf >= 75)
-                lastNavDist = parseDist(toUtf16(text));
+            lastNavDist = parseDist(toUtf16(text), conf);
 //            else {
 //                static int counter = 0;
 //                if (!counter) {

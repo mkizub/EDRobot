@@ -18,43 +18,6 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// Russian (Neutral) resources
-
-#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_RUS)
-LANGUAGE LANG_RUSSIAN, SUBLANG_NEUTRAL
-#pragma code_page(1251)
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Menu
-//
-
-IDC_DIALOGS MENU
-BEGIN
-    POPUP "&Файл"
-    BEGIN
-        MENUITEM "&Калибровка",                 ID_FILE_CALIBRATE
-        MENUITEM SEPARATOR
-        MENUITEM "Выход",                       IDM_EXIT_APP
-    END
-    POPUP "&Разработка"
-    BEGIN
-        MENUITEM "&Сохранить конфигурацию",     ID_DEV_SAVECONFIG
-        MENUITEM "&Загрузить конфигурацию",     ID_DEV_RELOADCONFIG
-        MENUITEM "Выбрать прямоугольник",       ID_DEV_SELECT_RECT
-        MENUITEM "Отладка найти все продаваемые товары", ID_DEVELOPER_DEBUGFINDALLSELLCOMMODITIES
-    END
-    POPUP "&Помощь"
-    BEGIN
-        MENUITEM "&О программе ...",            IDM_ABOUT
-    END
-END
-
-#endif    // Russian (Neutral) resources
-/////////////////////////////////////////////////////////////////////////////
-
-
-/////////////////////////////////////////////////////////////////////////////
 // Neutral (Default) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_NEUD)
@@ -76,36 +39,6 @@ BEGIN
     DEFPUSHBUTTON   "OK",IDOK,113,51,50,14,WS_GROUP
 END
 
-IDD_SELLBOX DIALOGEX 0, 0, 130, 94
-STYLE DS_SETFONT | DS_SETFOREGROUND | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
-EXSTYLE WS_EX_TOPMOST
-CAPTION "ED Robot"
-MENU IDC_DIALOGS
-FONT 10, "Microsoft Sans Serif", 400, 0, 0xCC
-BEGIN
-    COMBOBOX        IDC_COMBO_ITEMS,6,12,117,74,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    EDITTEXT        IDC_EDIT_TOTAL,83,25,40,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER | WS_GROUP
-    EDITTEXT        IDC_EDIT_ITEMS,83,39,40,12,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
-    EDITTEXT        IDC_EDIT_SELLS,83,53,40,12,ES_RIGHT | ES_AUTOHSCROLL | ES_READONLY | ES_NUMBER | WS_GROUP
-    DEFPUSHBUTTON   "OK",IDOK,6,69,50,14,WS_GROUP
-    PUSHBUTTON      "Cancel",IDCANCEL,73,69,50,14,WS_GROUP
-    ICON            IDI_DIALOGS,IDC_STATIC,12,32,16,16
-    LTEXT           "Sells:",IDC_STATIC_SELLS,41,55,38,8,SS_NOPREFIX
-    LTEXT           "Items:",IDC_STATIC_ITEMS,41,41,38,8
-    LTEXT           "Total:",IDC_STATIC_TOTAL,41,27,38,8
-END
-
-IDD_CALIBRATIONBOX DIALOGEX 0, 0, 149, 50
-STYLE DS_SETFONT | DS_MODALFRAME | WS_CAPTION | WS_SYSMENU
-EXSTYLE WS_EX_OVERLAPPEDWINDOW | WS_EX_STATICEDGE
-CAPTION "EDRobot"
-FONT 10, "Microsoft Sans Serif", 400, 0, 0xCC
-BEGIN
-    DEFPUSHBUTTON   "Start",IDOK,21,29,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,78,29,50,14
-    CTEXT           "Color calibration required",IDC_STATIC_1,17,10,110,10,SS_NOPREFIX
-END
-
 IDD_ADD_TASK DIALOGEX 0, 0, 209, 178
 STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "EDRobot Add Task"
@@ -114,7 +47,7 @@ BEGIN
     DEFPUSHBUTTON   "Run",ID_RUN,27,157,31,14
     PUSHBUTTON      "Delete",ID_DELETE,149,157,31,14
     COMBOBOX        IDC_COMBO_TEMPLATES,29,4,149,134,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    DEFPUSHBUTTON   "Save",ID_SAVE,88,157,31,14
+    PUSHBUTTON      "Save",ID_SAVE,88,157,31,14
 END
 
 IDD_ED_ROBOT DIALOGEX 0, 0, 201, 245
@@ -123,7 +56,7 @@ CAPTION "EDRobot"
 FONT 10, "Microsoft Sans Serif", 400, 0, 0xCC
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,12,223,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,138,223,50,14
+    PUSHBUTTON      "Exit",IDC_EXIT,138,223,50,14
     LTEXT           "Task:",IDC_STATIC,15,16,30,8
     CTEXT           "Task Name",IDC_CURRENT_TASK,49,15,138,11,WS_BORDER
     PUSHBUTTON      "Watch",IDC_BUTTON_WATCH,75,223,50,14,BS_CENTER
@@ -150,19 +83,6 @@ BEGIN
         BOTTOMMARGIN, 65
     END
 
-    IDD_SELLBOX, DIALOG
-    BEGIN
-        BOTTOMMARGIN, 87
-    END
-
-    IDD_CALIBRATIONBOX, DIALOG
-    BEGIN
-        LEFTMARGIN, 7
-        RIGHTMARGIN, 142
-        TOPMARGIN, 7
-        BOTTOMMARGIN, 43
-    END
-
     IDD_ADD_TASK, DIALOG
     BEGIN
         LEFTMARGIN, 7
@@ -182,43 +102,6 @@ END
 #endif    // APSTUDIO_INVOKED
 
 #endif    // Neutral (Default) resources
-/////////////////////////////////////////////////////////////////////////////
-
-
-/////////////////////////////////////////////////////////////////////////////
-// English (Neutral) resources
-
-#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
-LANGUAGE LANG_ENGLISH, SUBLANG_NEUTRAL
-#pragma code_page(1252)
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Menu
-//
-
-IDC_DIALOGS MENU
-BEGIN
-    POPUP "&File"
-    BEGIN
-        MENUITEM "&Calibrate",                  ID_FILE_CALIBRATE
-        MENUITEM SEPARATOR
-        MENUITEM "E&xit",                       IDM_EXIT_APP
-    END
-    POPUP "&Developer"
-    BEGIN
-        MENUITEM "&Save Config",                ID_DEV_SAVECONFIG
-        MENUITEM "&Reload Config",              ID_DEV_RELOADCONFIG
-        MENUITEM "Select Rectangle",            ID_DEV_SELECT_RECT
-        MENUITEM "Debug Find All Sell Commodities", ID_DEVELOPER_DEBUGFINDALLSELLCOMMODITIES
-    END
-    POPUP "&Help"
-    BEGIN
-        MENUITEM "&About ...",                  IDM_ABOUT
-    END
-END
-
-#endif    // English (Neutral) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

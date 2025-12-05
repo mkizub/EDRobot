@@ -299,6 +299,8 @@ public:
     void setSlotModule(const json5pp::value &jvalue);
     void updateStats();
 
+    double getRotationScale(Axis::Type at, int speed_percent);
+    double getRotationSpeed(Axis::Type at, int speed_percent);
     double getPitchSpeed(int speed_percent);
     double getYawSpeed(int speed_percent);
     double getRollSpeed(int speed_percent);
@@ -311,12 +313,8 @@ public:
 
 private:
     std::array<double, enum_count<Attr>()> stats;
-    float cruise_pitch[3]; // at speed [0,50,100]
-    float cruise_yaw[3]; // at speed [0,50,100]
-    float cruise_roll[3]; // at speed [0,50,100]
-    float space_pitch[3]; // at speed [0,50,100]
-    float space_yaw[3]; // at speed [0,50,100]
-    float space_roll[3]; // at speed [0,50,100]
+    float cruise_rot[3][3]; // Axis::type + at speed [0,50,100]
+    float space_rot[3][3]; // Axis::type + at speed [0,50,100]
 
     void updateStat(ShipSlot& slot, Attr attr);
     eddb::ShipSlot& getSlot(const std::string& name);

@@ -225,13 +225,13 @@ void ShipSlot::setEngineering(const std::string& bp, int level, float quality, c
     }
 
     if (blueprint) {
-        auto& mtype = gEDDBFull["mtype"][(*module)["mtype"].as_string()];
+        auto& mtype = gEDDBFull["mtype"][(*module)["mtype"].asif_string()];
         //if (!mtype["modifiable"] || !mtype["blueprints"] || mtype["blueprints"].indexOf(blueprint->at("bpid").as_string()) < 0)
         //    return false;
         if (blueprintQuality > 0) {
             attrModifier.clear();
             attrOverride.clear();
-            for (auto& a : mtype["modifiable"].as_array()) {
+            for (auto& a : mtype["modifiable"].asif_array()) {
                 auto& attr_name = a.as_string();
                 if (!(*blueprint)[attr_name])
                     continue;
@@ -467,12 +467,12 @@ ShipStats::ShipStats(const string &type, const json5pp::value &jship)
     getSlot("DiscoveryScanner");
     getSlot("ColonisationSuite");
 
-    parse_speed_scale(jship["pitch_cruise"], cruise_pitch, jship["pitch"].as_number());
-    parse_speed_scale(jship["yaw_cruise"], cruise_yaw, jship["yaw"].as_number());
-    parse_speed_scale(jship["roll_cruise"], cruise_roll, jship["roll"].as_number());
-    parse_speed_scale(jship["pitch_space"], space_pitch, 1);
-    parse_speed_scale(jship["yaw_space"], space_yaw, 1);
-    parse_speed_scale(jship["roll_space"], space_roll, 1);
+    parse_speed_scale(jship["pitch_cruise"], cruise_rot[Axis::Pitch], jship["pitch"].as_number());
+    parse_speed_scale(jship["yaw_cruise"], cruise_rot[Axis::Yaw], jship["yaw"].as_number());
+    parse_speed_scale(jship["roll_cruise"], cruise_rot[Axis::Roll], jship["roll"].as_number());
+    parse_speed_scale(jship["pitch_space"], space_rot[Axis::Pitch], 1);
+    parse_speed_scale(jship["yaw_space"], space_rot[Axis::Yaw], 1);
+    parse_speed_scale(jship["roll_space"], space_rot[Axis::Roll], 1);
 }
 
 
@@ -592,29 +592,48 @@ double speed_scale(int speed_percent, float values[3]) {
 }
 const double MAX_POWER_DIST = 8.0;
 
+double ShipStats::getRotationScale(Axis::Type at, int speed_percent) {
+    if (st::ship.flags.cruise)
+        return speed_scale(speed_percent, cruise_rot[at]) / cruise_rot[at][1];
+    return speed_scale(speed_percent, space_rot[at]);
+}
+
+double ShipStats::getRotationSpeed(Axis::Type at, int speed_percent) {
+    switch (at) {
+    case Axis::Pitch:
+        return getPitchSpeed(speed_percent);
+    case Axis::Yaw:
+        return getYawSpeed(speed_percent);
+    case Axis::Roll:
+        return getRollSpeed(speed_percent);
+    default:
+        return 0;
+    }
+}
+
 double ShipStats::getPitchSpeed(int speed_percent) {
     if (st::ship.flags.cruise)
-        return speed_scale(speed_percent, cruise_pitch);
+        return speed_scale(speed_percent, cruise_rot[Axis::Pitch]);
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
     double massRotMul = getMassRotMultiplier();
     double value = stats[int(Attr::pitch)] * pipsEngMul + stats[int(Attr::minpitch)] * (1 - pipsEngMul);
-    return value * massRotMul * speed_scale(speed_percent, space_pitch);
+    return value * massRotMul * speed_scale(speed_percent, space_rot[Axis::Pitch]);
 }
 double ShipStats::getYawSpeed(int speed_percent) {
     if (st::ship.flags.cruise)
-        return speed_scale(speed_percent, cruise_yaw);
+        return speed_scale(speed_percent, cruise_rot[Axis::Yaw]);
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
     double massRotMul = getMassRotMultiplier();
     double value = stats[int(Attr::yaw)] * pipsEngMul + stats[int(Attr::minyaw)] * (1 - pipsEngMul);
-    return value * massRotMul * speed_scale(speed_percent, space_yaw);
+    return value * massRotMul * speed_scale(speed_percent, space_rot[Axis::Yaw]);
 }
 double ShipStats::getRollSpeed(int speed_percent) {
     if (st::ship.flags.cruise)
-        return speed_scale(speed_percent, cruise_roll);
+        return speed_scale(speed_percent, cruise_rot[Axis::Roll]);
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
     double massRotMul = getMassRotMultiplier();
     double value = stats[int(Attr::roll)] * pipsEngMul + stats[int(Attr::minroll)] * (1 - pipsEngMul);
-    return value * massRotMul * speed_scale(speed_percent, space_roll);
+    return value * massRotMul * speed_scale(speed_percent, space_rot[Axis::Roll]);
 }
 double ShipStats::getThrustSpeed() {
     if (st::ship.flags.cruise)

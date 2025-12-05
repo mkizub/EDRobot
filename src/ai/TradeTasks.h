@@ -104,10 +104,14 @@ public:
 
     std::string destSystemName;
     std::string destConstrName;
+    bool bulkFirst {};
+    bool onlyListed {};
+    std::vector<Commodity*> commodities;
 
     struct SubTask {
         Commodity* commodity {};
         std::shared_ptr<TaskBuy> task;
+        int total_demand;
         bool complete {};
         bool failed {};
     };

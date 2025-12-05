@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
         LOG(INFO) << "Shutdown UI";
         UIManager::shutdown();
     }
+    master.shutdown();
     LOG(INFO) << "Shutdown";
     el::Loggers::flushAll();
     return err;

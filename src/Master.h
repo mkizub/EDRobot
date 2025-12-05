@@ -83,6 +83,7 @@ public:
     static Master& getInstance();
 
     int initialize(int argc, char* argv[]);
+    void shutdown();
     void loop();
     bool isGameForeground();
     bool setGameForeground();
@@ -145,7 +146,6 @@ private:
     std::unique_ptr<widget::Root> mScreensRoot;
     HWND hWndED;
 
-    cv::UMat mCapturedED;
     Capturer* mCapturer {nullptr};
     UIState mLastUIState;
     ClassifyEnv mClassifyEnv;

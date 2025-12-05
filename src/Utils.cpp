@@ -388,6 +388,19 @@ double dist_t::get(Unit u) const {
     return dist*DIST_UNIT_SCALE[unit][u];
 }
 
+double dist_t::get_m() const {
+    if (unit == Unit::X) return -1;
+    return dist*DIST_UNIT_SCALE[unit][Unit::M];
+}
+double dist_t::get_km() const {
+    if (unit == Unit::X) return -1;
+    return dist*DIST_UNIT_SCALE[unit][Unit::KM];
+}
+double dist_t::get_ls() const {
+    if (unit == Unit::X) return -1;
+    return dist*DIST_UNIT_SCALE[unit][Unit::LS];
+}
+
 std::string dist_t::to_string() const {
     switch (unit) {
     default:
@@ -411,7 +424,7 @@ std::ostream& operator<<(std::ostream& os, const dist_t& obj) {
     return os;
 }
 
-dist_t parseDist(std::wstring dist) {
+dist_t parseDist(std::wstring dist, int conf) {
     bool cruise = st::ship.flags.cruise;
     dist_t::Unit unit = dist_t::X;
     dist = trim(dist);
@@ -463,25 +476,42 @@ dist_t parseDist(std::wstring dist) {
     if (unit == dist_t::X)
         return {};
 
+    int th_sep = 0;
+    int fr_sep = 0;
     std::string num;
     for (auto dig : dist) {
-        if (dig >= '0' && dig <= '9')
-            num.push_back((char)dig);
-        else if (dig == ',' || dig == '.')
+        if (dig >= '0' && dig <= '9') {
+            if (th_sep)
+                th_sep -= 1;
+            if (fr_sep)
+                fr_sep += 1;
+            num.push_back((char) dig);
+        }
+        else if (dig == ',' || dig == '.') {
+            if (fr_sep)
+                conf -= 10;
+            if (th_sep)
+                conf -= 10;
             num.push_back('.');
-        else if (dig == ' ')
+            fr_sep = 1;
+        }
+        else if (dig == ' ') {
+            if (th_sep)
+                conf -= 10;
+            th_sep = 3;
             continue;
+        }
         else
             return {};
     }
-    if (num.empty())
+    if (fr_sep > 3)
+        conf -= 10;
+    if (num.empty() || conf < 60)
         return {};
-    try {
-        double d = std::stod(num);
-        return {unit, d};
-    } catch (...) {
+    double d = 0;
+    if (std::from_chars(num.c_str(), num.c_str()+num.size(), d).ec != std::errc{})
         return {};
-    }
+    return dist_t(d, unit, conf);
 }
 
 bool utc_timer::started() const {

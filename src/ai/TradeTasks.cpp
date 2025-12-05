@@ -302,9 +302,9 @@ bool TaskSell::run() {
     }
 
     if (mChunk > 0)
-        notify_progress(MSG_INFO, "Start selling {0} by {1} item(s)", mLeft, mChunk);
+        notify_info("Start selling {0} by {1} item(s)", mLeft, mChunk);
     else
-        notify_progress(MSG_INFO, "Start selling {0} item(s)", mLeft);
+        notify_info("Start selling {0} item(s)", mLeft);
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
@@ -585,7 +585,7 @@ bool TaskBuy::run() {
     if (mLeft <= 0)
         return true;
 
-    notify_progress(MSG_INFO, "Start purchasing {} item(s)", mLeft);
+    notify_info("Start purchasing {} item(s)", mLeft);
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
@@ -732,6 +732,7 @@ std::string TaskBuy::getStatus() {
 
 TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
         : BaseMarketTask(templ_)
+
 {
     assert (templ.id == ED_TASK_MARKET_BUY_CONSTR);
     for (auto& p : templ.params) {
@@ -739,6 +740,36 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
             destSystemName = p.as_string();
         else if (p.id == "dock")
             destConstrName = p.as_string();
+        else if (p.id == "mode") {
+            auto mode = p.as_string();
+            if (mode == "ExceptLittleFirst") {
+                bulkFirst = false;
+                onlyListed = false;
+            } else if (mode == "ExceptBulkFirst") {
+                bulkFirst = true;
+                onlyListed = false;
+            } else if (mode == "OnlyLittleFirst") {
+                bulkFirst = false;
+                onlyListed = true;
+            } else if (mode == "OnlyBulkFirst") {
+                bulkFirst = true;
+                onlyListed = true;
+            }
+        }
+        else if (p.id == "commodity") {
+            if (p.value.is_string()) {
+                auto* com = Cfg.getCommodityByName(p.value.as_string(), false);
+                if (com)
+                    commodities.push_back(com);
+            }
+            else if (p.value.is_array()) {
+                for (auto& v : p.value.as_array()) {
+                    auto* com = Cfg.getCommodityByName(v.asif_string(), false);
+                    if (com)
+                        commodities.push_back(com);
+                }
+            }
+        }
     }
 }
 
@@ -767,6 +798,15 @@ bool TaskBuyConstr::run() {
             int demand = ml.demand - ml.stock - commodity->ship.count;
             if (demand <= 0)
                 continue;
+            if (!commodities.empty()) {
+                if (onlyListed) {
+                    if (!contains(commodities, commodity))
+                        continue;
+                } else {
+                    if (contains(commodities, commodity))
+                        continue;
+                }
+            }
             int buy = Mgr.canBuy(commodity);
             buy = std::min(buy, demand);
             if (buy <= 0)
@@ -786,11 +826,17 @@ bool TaskBuyConstr::run() {
             impl.set("commodity", commodity->nameId);
             impl.set("amount", buy);
             auto task = std::make_shared<TaskBuy>(impl);
-            buy_queue.emplace_back(commodity, task, false, false);
+            buy_queue.emplace_back(commodity, task, ml.demand, false, false);
         }
-        std::sort(buy_queue.begin(), buy_queue.end(), [](const SubTask& a, const SubTask& b) {
-            return a.task->mTotal < b.task->mTotal;
-        });
+        if (bulkFirst) {
+            std::sort(buy_queue.begin(), buy_queue.end(), [](const SubTask &a, const SubTask &b) {
+                return a.total_demand >= b.total_demand;
+            });
+        } else {
+            std::sort(buy_queue.begin(), buy_queue.end(), [](const SubTask &a, const SubTask &b) {
+                return a.total_demand < b.total_demand;
+            });
+        }
     }
     if (!triedToBuy)
         return true;
@@ -1139,7 +1185,7 @@ bool TradeLoopTask::run() {
                     TaskTemplate impl = ai::TaskTemplate::loadTask(jt);
                     if (!impl.id.empty()) {
                         if (!run_sub_step(impl.factory(impl)))
-                            notify_progress(MSG_WARN, "Trouble selling at market {}", mi.dock);
+                            notify_warn("Trouble selling at market {}", mi.dock);
                     }
                 }
             }
@@ -1148,7 +1194,7 @@ bool TradeLoopTask::run() {
                     TaskTemplate impl = ai::TaskTemplate::loadTask(jt);
                     if (!impl.id.empty()) {
                         if (!run_sub_step(impl.factory(impl)))
-                            notify_progress(MSG_WARN, "Trouble buying at market {}", mi.dock);
+                            notify_warn("Trouble buying at market {}", mi.dock);
                     }
                 }
             }

@@ -39,8 +39,9 @@ UIMainDialog::UIMainDialog()
             POINT pt;
             GetCursorPos(&pt);
             HMENU hmenu = CreatePopupMenu();
-            InsertMenu(hmenu, 0, MF_BYPOSITION | MF_STRING, IDM_EXIT, L"Exit");
+            InsertMenu(hmenu, 0, MF_BYPOSITION | MF_STRING, IDM_EXIT, toUtf16(_gt("Exit")).c_str());
             SetForegroundWindow(this->hwnd());
+            BringWindowToTop(this->hwnd());
             int cmd = TrackPopupMenu(hmenu,
                                      TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_BOTTOMALIGN | TPM_NONOTIFY | TPM_RETURNCMD,
                                      pt.x, pt.y, 0, this->hwnd(), NULL);
@@ -71,6 +72,10 @@ UIMainDialog::UIMainDialog()
         UIManager::showDebugWindow();
         return 0;
     });
+    this->base_msg_pubm::on_command(IDC_EXIT, [this](wl::params p){
+        Master::getInstance().pushCommand(Command::Shutdown);
+        return 0;
+    });
     this->base_msg_pubm::on_message(WM_TIMER, [this](wl::params p){
         update_curr_task();
         return 0;
@@ -97,6 +102,12 @@ int UIMainDialog::initialize(wl::params &params) {
     btn_stop_new.assign(hwnd(), IDC_BUTTON_STOP_NEW);
     btn_pause_resume.assign(hwnd(), IDC_BUTTON_PAUSE_RESUME);
     btn_watch.assign(hwnd(), IDC_BUTTON_WATCH);
+    btn_exit.assign(hwnd(), IDC_EXIT);
+    if (GetSystemMetrics(SM_CMONITORS) < 2)
+        btn_watch.set_enabled(false);
+
+    btn_watch.set_text(toUtf16(_gt("Watch")).c_str());
+    btn_exit.set_text(toUtf16(_gt("Exit")).c_str());
 
     update_curr_task();
 
@@ -106,7 +117,8 @@ int UIMainDialog::initialize(wl::params &params) {
 bool UIMainDialog::show() {
     ShowWindow(this->hwnd(), SW_RESTORE);
     SetForegroundWindow(this->hwnd());
-    mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
+    BringWindowToTop(this->hwnd());
+    update_curr_task();
     return true;
 }
 
@@ -117,16 +129,17 @@ bool UIMainDialog::hide() {
     return true;
 }
 
-int UIMainDialog::on_command_stop_new(wl::params &params) {
+void UIMainDialog::on_command_stop_new(wl::params &params) {
     try {
         ai::spTask task = ai::curr_task();
         if (!task) {
-            //hide();
             UIAddTask addTaskDlg;
             int res = addTaskDlg.show(this);
-            if (res == IDOK)
-                return TRUE;
-            //show();
+            if (res == IDOK) {
+                if (GetSystemMetrics(SM_CMONITORS) < 2)
+                    hide();
+                return;
+            }
         } else {
             ai::stop();
         }
@@ -136,24 +149,35 @@ int UIMainDialog::on_command_stop_new(wl::params &params) {
     } catch (const std::exception& ex) {
         LOG(ERROR) << ex.what();
     }
-    return TRUE;
 }
 
-int UIMainDialog::on_command_pause_resume(wl::params &params) {
+void UIMainDialog::on_command_pause_resume(wl::params &params) {
     try {
         ai::spTask task = ai::curr_task();
         if (!task) {
-            hide();
-            UIAddTask addTaskDlg;
-            int res = addTaskDlg.show(this);
-            show();
-            if (res == IDOK)
-                return TRUE;
+            // repeat
+            task = ai::last_task();
+            if (task && ai::new_task(task->templ)) {
+                if (GetSystemMetrics(SM_CMONITORS) < 2) {
+                    hide();
+                    return;
+                }
+            }
         } else {
-            if (ai::active())
+            if (!ai::active() || ai::isDebugPause()) {
+                // resume
+                if (ai::isDebugPause())
+                    ai::toggleDebugPause();
+                if (!ai::active())
+                    ai::resume();
+                if (GetSystemMetrics(SM_CMONITORS) < 2) {
+                    hide();
+                    return;
+                }
+            } else {
+                // pause
                 ai::interrupt();
-            else
-                ai::resume();
+            }
         }
         update_curr_task();
     } catch (const std::system_error& ex) {
@@ -161,7 +185,6 @@ int UIMainDialog::on_command_pause_resume(wl::params &params) {
     } catch (const std::exception& ex) {
         LOG(ERROR) << ex.what();
     }
-    return TRUE;
 }
 
 void addStepStatus(std::string& status, int indent, ai::spStep step) {
@@ -190,16 +213,18 @@ void addStepStatus(std::string& status, int indent, ai::spStep step) {
 void UIMainDialog::update_curr_task() {
     ai::spTask task = ai::curr_task();
     if (!task) {
-        lbl_curr_task.set_text(L"No active task");
-        btn_stop_new.set_text(L"New");
-        btn_pause_resume.set_text(L"Repeat");
+        lbl_curr_task.set_text(toUtf16(_gt("No active task")).c_str());
+        btn_stop_new.set_text(toUtf16(_gt("New task")).c_str());
+        btn_pause_resume.set_text(toUtf16(_gt("Repeat")).c_str());
+        btn_pause_resume.set_enabled(bool(ai::last_task()));
     } else {
         lbl_curr_task.set_text(toUtf16(task->getTitle()).c_str());
-        btn_stop_new.set_text(L"Stop");
-        if (ai::active())
-            btn_pause_resume.set_text(L"Pause");
+        btn_stop_new.set_text(toUtf16(_gt("Stop")).c_str());
+        if (ai::active() && !ai::isDebugPause())
+            btn_pause_resume.set_text(toUtf16(_gt("Pause")).c_str());
         else
-            btn_pause_resume.set_text(L"Resume");
+            btn_pause_resume.set_text(toUtf16(_gt("Resume")).c_str());
+        btn_pause_resume.set_enabled(true);
     }
     bool completed = false;
     bool failed = false;
@@ -253,36 +278,36 @@ void UIMainDialog::update_curr_task() {
     }
     else if (completed) {
         if (task->failed)
-            lbl_status.set_text(L"Finished (failed)");
+            lbl_status.set_text(toUtf16(_gt("Finished (failed)")).c_str());
         else
-            lbl_status.set_text(L"Finished");
+            lbl_status.set_text(toUtf16(_gt("Finished")).c_str());
     }
     else if (!ai::active()) {
-        lbl_status.set_text(L"Paused (inactive)");
+        lbl_status.set_text(toUtf16(_gt("Paused (inactive)")).c_str());
     }
     else if (ai::isDebugPause()) {
-        lbl_status.set_text(L"Paused (active)");
+        lbl_status.set_text(toUtf16(_gt("Paused (active)")).c_str());
     }
     else if (st::ship.flags.docked) {
-        lbl_status.set_text(L"Docked");
+        lbl_status.set_text(toUtf16(_gt("Docked")).c_str());
     }
     else if (st::ship.flags.landed) {
-        lbl_status.set_text(L"Landed");
+        lbl_status.set_text(toUtf16(_gt("Landed")).c_str());
     }
     else if (st::ship.flags.fsd_jump) {
-        lbl_status.set_text(L"Hyperspace");
+        lbl_status.set_text(toUtf16(_gt("Hyperspace")).c_str());
     }
     else {
-        std::string space = st::ship.flags.cruise ? "Cruise" : "Space";
+        std::string space = st::ship.flags.cruise ? _gt("Cruise") : _gt("Space");
         std::string spd = "??";
         if (st::autopilot.speed_set_to.has_value())
             spd = std::to_string(st::autopilot.speed_set_to.value());
         std::string dist = "??";
-        if (st::autopilot.isDestBodyTargeted && st::autopilot.distanceToBody.valid())
+        if (st::autopilot.isDestBodyTargeted && st::autopilot.distanceToBody)
             dist = st::autopilot.distanceToBody.to_string();
-        if (st::autopilot.isDestDockTargeted && st::autopilot.distanceToDock.valid())
+        if (st::autopilot.isDestDockTargeted && st::autopilot.distanceToDock)
             dist = st::autopilot.distanceToDock.to_string();
-        lbl_status.set_text(toUtf16(std::format("{}: spd {}%, dist {}", space, spd, dist)));
+        lbl_status.set_text(toUtf16(lc_format("{}: speed {}%, distance {}", space, spd, dist)));
     }
     mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
 }

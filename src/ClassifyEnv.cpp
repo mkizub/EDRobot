@@ -82,25 +82,25 @@ void ClassifyEnv::init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* gr
     ResolvedEnv::init(rEnv.monitorRect, rEnv.captureRect);
     mWarpTransform.reset();
     if (!mWarpedColorImage.empty())
-        mWarpedColorImage = XMat();
+        mWarpedColorImage.release();
     if (!mWarpedGrayImage.empty())
-        mWarpedGrayImage = XMat();
+        mWarpedGrayImage.release();
 }
 
 void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFrame&& frame) {
     assert (frame);
     assert (captRect.size() == frame->size);
     mFrame.swap(frame);
-    mColorImage = XMat();
-    mGrayImage = XMat();
+    mColorImage.release();
+    mGrayImage.release();
     if (!mDebugOverlay.empty())
-        mDebugOverlay = cv::Mat();
+        mDebugOverlay.release();
     ResolvedEnv::init(monRect, captRect);
     mWarpTransform.reset();
     if (!mWarpedColorImage.empty())
-        mWarpedColorImage = XMat();
+        mWarpedColorImage.release();
     if (!mWarpedGrayImage.empty())
-        mWarpedGrayImage = XMat();
+        mWarpedGrayImage.release();
 }
 
 void ResolvedEnv::clear() {
@@ -120,15 +120,15 @@ void ResolvedEnv::clear() {
 void ClassifyEnv::clear() {
     ResolvedEnv::clear();
     mFrame.reset();
-    mColorImage = XMat();
-    mGrayImage = XMat();
+    mColorImage.release();
+    mGrayImage.release();
     if (!mDebugOverlay.empty())
-        mDebugOverlay = cv::Mat();
+        mDebugOverlay.release();
     mWarpTransform.reset();
     if (!mWarpedColorImage.empty())
-        mWarpedColorImage = XMat();
+        mWarpedColorImage.release();
     if (!mWarpedGrayImage.empty())
-        mWarpedGrayImage = XMat();
+        mWarpedGrayImage.release();
 }
 
 const XMat& ClassifyEnv::getColorImage() const {

@@ -24,8 +24,7 @@ public:
 
     virtual std::string getTitle() = 0;
 
-    void addMessage(MessageSeverity severity, const char* msg);
-    void addMessage(MessageSeverity severity, const std::string& msg);
+    void addMessage(MessageSeverity severity, const std::string_view msg);
     std::vector<std::string> getMessages();
     virtual std::string getStatus();
 

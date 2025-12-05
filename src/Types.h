@@ -102,21 +102,29 @@ namespace ai {
 
 void toggleDebugPause();
 bool isDebugPause();
+void resetCompassDetects();
 
 }
 
 struct dist_t {
     enum Unit {
         X, M, KM, MM, LS, LY
-    } unit;
+    };
     double dist;
+    Unit unit : 8;
+    int8_t conf : 8;
 
-    constexpr dist_t() : unit(X), dist(0) {}
-    constexpr dist_t(Unit u, double d) : unit(u), dist(d) {}
+    constexpr dist_t() : dist(0), unit(X), conf(0) {}
+    constexpr dist_t(Unit u, double d) : unit(u), dist(d), conf(0) {}
+    constexpr dist_t(double d, Unit u, int8_t conf) : dist(d), unit(u), conf(conf) {}
 
+    explicit operator bool() const { return unit != X && dist > 0; }
     bool valid() const { return unit != X; }
     dist_t convertTo(Unit u) const;
     double get(Unit u) const;
+    double get_m() const;
+    double get_km() const;
+    double get_ls() const;
     std::string to_string() const;
 };
 std::ostream& operator<<(std::ostream& os, const dist_t& obj);
@@ -153,13 +161,13 @@ inline dist_t operator +(const dist_t d1, const dist_t d2) {
 }
 inline dist_t operator -(const dist_t d1, const dist_t d2) {
     dist_t::Unit u = d1.unit < d2.unit ? d1.unit : d2.unit;
-    return {u, d1.get(u) + d2.get(u)};
+    return {u, d1.get(u) - d2.get(u)};
 }
 inline dist_t operator *(const dist_t d, double scale) {
     return {d.unit, d.dist * scale};
 }
 inline dist_t operator /(const dist_t d, double scale) {
-    return {d.unit, d.dist * scale};
+    return {d.unit, d.dist / scale};
 }
 
 struct utc_timer {
@@ -188,5 +196,46 @@ struct CompassInfo {
     bool has_nav_target;
     dist_t nav_target_dist;
 };
+
+struct GameKey {
+    enum Device { Void, Keyboard, Mouse, vJoy };
+    Device device {Void};
+    std::string key;
+    int code {0}; // scancode or mouse button
+    std::vector<GameKey> modifiers;
+    friend std::ostream& operator<<(std::ostream& os, const GameKey& obj);
+};
+struct KeyBindings {
+    enum Mode { Hold, Toggle, Axis, AxisInv };
+    std::string action;
+    Mode mode {Hold};
+    GameKey primary;
+    GameKey secondary;
+};
+
+struct Axis {
+    enum Type { Pitch, Yaw, Roll };
+    Axis(Type type) : type(type) {}
+
+    const Type type;
+    KeyBindings bindings;
+    double value;
+    Timestamp start;
+    Timestamp stop;
+
+    static void resetAll(bool reset_mouse=false);
+    const std::string_view name() { return enum_name<Axis::Type>(type); }
+    void set(double val, int duration);
+    void setRaw(double val, int duration);
+    void reset();
+    [[nodiscard]] bool active() const;
+
+    double timeScaleFor(double val) const;
+    double valueScaleFor(double val) const;
+};
+
+extern Axis pitchAxis;
+extern Axis yawAxis;
+extern Axis rollAxis;
 
 #endif //EDROBOT_TYPES_H

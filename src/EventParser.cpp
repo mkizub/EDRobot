@@ -487,6 +487,7 @@ void parseEvent_StartJump(spGameEvent& ge) {
         gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
         gal::setCurrentStarSystem(ss);
     }
+    ai::resetCompassDetects();
 }
 
 void parseEvent_FSDJump(spGameEvent& ge) {
@@ -507,6 +508,7 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::space.bodyId = je.at("BodyID",-1).as_integer();
     set(st::space.bodyName, je.at("Body",""));
     set(st::space.bodyType, je.at("BodyType",""));
+    ai::resetCompassDetects();
 }
 
 void parseEvent_CarrierJump(spGameEvent& ge) {
@@ -571,6 +573,7 @@ void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
         st::space.stationType = "SpaceConstructionDepot";
     if (auto ss = gal::getCurrentStarSystem())
         ss->addStation(ge);
+    ai::resetCompassDetects();
 }
 
 void parseEvent_ApproachSettlement(spGameEvent& ge) {
@@ -599,6 +602,7 @@ void parseEvent_SupercruiseExit(spGameEvent& ge) {
     st::space.bodyId = je.at("BodyID",0).as_integer();
     set(st::space.bodyName, je.at("Body",""));
     set(st::space.bodyType, je.at("BodyType",""));
+    ai::resetCompassDetects();
 }
 
 void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {

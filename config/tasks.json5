@@ -1,25 +1,86 @@
 [
   {
-    "templ": "tsk-repeat",
-    "name": "Стройка Gulyaev City разгрузка авика",
-    "tasks": [
+    "templ": "tsk-debug-ship-stats",
+    "name": "Debug: keep course",
+    "test": "KeepCourse",
+    "value": 1,
+    "speed": 0
+  },
+  {
+    "templ": "tsk-debug-ship-stats",
+    "name": "Debug: orient towards",
+    "test": "OrientTowards",
+    "value": 0.2,
+    "speed": 50
+  },
+  {
+    "templ": "tsk-debug-ship-stats",
+    "name": "Debug: pitch curve",
+    "test": "PitchCurve",
+    "speed": 0
+  },
+  {
+    "templ": "tsk-market-buy-constr",
+    "name": "Покупки для Sweet Relay",
+    "system": "Col 285 Sector XK-O d6-69",
+    "dock": "Orbital Construction Site: Sweet Relay",
+    "mode": "ExceptLittleFirst"
+  },
+  {
+    "templ": "tsk-trade-loop",
+    "name": "Стройка Sweet Relay металлы",
+    "markets": [
       {
-        "templ": "tsk-travel",
+        "templ": "tsk-trade-at",
         "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Daimonio tou Sokrati VFT-85B"
+        "dock": "Gromov City",
+        "tasks": [
+          {
+            "templ": "tsk-market-buy-constr",
+            "system": "Col 285 Sector XK-O d6-69",
+            "dock": "Orbital Construction Site: Sweet Relay",
+            "mode": "ExceptBulkFirst"
+          }
+        ]
       },
       {
-        "templ": "tsk-market-buy-constr",
+        "templ": "tsk-trade-at",
         "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Gulyaev City"
+        "dock": "Orbital Construction Site: Sweet Relay",
+        "tasks": [
+          {
+            "templ": "tsk-constr-unload"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "templ": "tsk-trade-loop",
+    "name": "Стройка Sweet Relay мелочёвка",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector XK-O d6-69",
+        "dock": "Godwin Town",
+        "tasks": [
+          {
+            "templ": "tsk-market-buy-constr",
+            "system": "Col 285 Sector XK-O d6-69",
+            "dock": "Orbital Construction Site: Sweet Relay",
+            "mode": "ExceptLittleFirst"
+          }
+        ]
       },
       {
-        "templ": "tsk-travel",
+        "templ": "tsk-trade-at",
         "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Gulyaev City"
-      },
-      {
-        "templ": "tsk-constr-unload"
+        "dock": "Orbital Construction Site: Sweet Relay",
+        "tasks": [
+          {
+            "templ": "tsk-constr-unload"
+          }
+        ]
       }
     ]
   },
@@ -29,8 +90,8 @@
     "markets": [
       {
         "templ": "tsk-trade-at",
-        "system": "Col 285 Sector FU-K b23-4",
-        "dock": "Paf - Olive",
+        "system": "Col 285 Sector SK-E c12-24",
+        "dock": "Lawty Depot",
         "tasks": [
           {
             "templ": "tsk-market-buy-constr",
@@ -71,8 +132,8 @@
     "markets": [
       {
         "templ": "tsk-trade-at",
-        "system": "Col 285 Sector IX-T d3-56",
-        "dock": "Yamamoto Construction",
+        "system": "Col 285 Sector QU-F c11-17",
+        "dock": "Gutierrez Industrial Works",
         "tasks": [
           {
             "templ": "tsk-market-buy",
@@ -82,8 +143,8 @@
       },
       {
         "templ": "tsk-trade-at",
-        "system": "Col 285 Sector IX-T d3-56",
-        "dock": "Daimonio tou Sokrati VFT-85B",
+        "system": "Col 285 Sector QU-F c11-17",
+        "dock": "909 VSO K5N-3VG",
         "tasks": [
           {
             "templ": "tsk-market-sell-all"

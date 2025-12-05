@@ -100,6 +100,13 @@ void Capturer::InitCapturers() {
     DefaultCapturer = new CapturerWin32(nullptr, nullptr, nullptr);
 }
 
+void Capturer::shutdown() {
+    if (useOpenCL())
+        cv::directx::ocl::finish();
+    D3dContext.Release();
+    D3dDevice.Release();
+}
+
 Capturer* Capturer::getEDCapturer(HWND hwnd) {
     if (!DefaultCapturer)
         InitCapturers();

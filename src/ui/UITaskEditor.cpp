@@ -405,10 +405,16 @@ json5pp::value TextCtrl::value() {
     if (text.empty())
         return {};
     std::string s = toUtf8(text);
-    if (type == ai::Param::Int)
-        return std::stoll(s);
-    if (type == ai::Param::Real)
-        return std::stod(s);
+    if (type == ai::Param::Int) {
+        int64_t result = 0;
+        if (std::from_chars(s.c_str(), s.c_str()+s.size(), result).ec == std::errc{})
+            return result;
+    }
+    if (type == ai::Param::Real) {
+        double result = 0;
+        if (std::from_chars(s.c_str(), s.c_str()+s.size(), result).ec == std::errc{})
+            return result;
+    }
     if (type == ai::Param::Commodity) {
         auto* com = Cfg.getCommodityByName(s, false);
         if (com)

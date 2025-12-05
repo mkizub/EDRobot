@@ -360,6 +360,12 @@ void CapturerWinRT::copyTexture(FrameWinRT* frame, winrt::Windows::Graphics::Cap
         virtual HRESULT __stdcall GetInterface(GUID const &id, void **object) = 0;
     };
 
+    {
+        auto frame_tp = std::chrono::high_resolution_clock::time_point(captureFrame.SystemRelativeTime());
+        auto elapsed_since_start = frame_tp - hpcStartTimestamp;
+        auto utc_tp = utcStartTimestamp + elapsed_since_start;
+        frame->timestamp = std::chrono::time_point_cast<Timestamp::duration>(utc_tp);
+    }
     auto access = captureFrame.Surface().as<IDirect3DDxgiInterfaceAccess>();
     winrt::com_ptr<ID3D11Texture2D> texture;
     access->GetInterface(winrt::guid_of<ID3D11Texture2D>(), texture.put_void());

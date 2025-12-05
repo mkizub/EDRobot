@@ -7,6 +7,7 @@
 
 
 #include <utility>
+#include <span>
 
 #include "Types.h"
 #include "Task.h"
@@ -19,7 +20,7 @@ void disableAutoTurn();
 int getNavRoutePosition();
 
 struct CourseLocker {
-    CourseLocker(double pitch, bool without_roll=false);
+    explicit CourseLocker(double pitch, bool without_roll=false);
     ~CourseLocker();
 
     void requestPitchRoll(double pitch, bool without_roll=false);
@@ -32,9 +33,10 @@ struct CourseLockerPause {
 };
 
 class BaseAutopilotTask : public Task {
-public:
-    BaseAutopilotTask(const TaskTemplate& templ_) : Task(templ_) {}
+protected:
+    explicit BaseAutopilotTask(const TaskTemplate& templ_) : Task(templ_) {}
 
+public:
     void relogin();
 
     void orientRollStep(double delta, int max_time_ms=5000);
@@ -59,15 +61,29 @@ protected:
 
 class TaskDebugAutopilot : public BaseAutopilotTask {
 public:
-    TaskDebugAutopilot(const TaskTemplate& templ);
+    explicit TaskDebugAutopilot(const TaskTemplate& templ);
     bool run() final;
-
-    bool accelForward(double seconds);
-    bool accelReverse(double seconds);
 
     std::string test;
     std::string target;
-    double value {1};
+};
+
+class TaskDebugShipStats : public BaseAutopilotTask {
+public:
+    explicit TaskDebugShipStats(const TaskTemplate& templ);
+    bool run() final;
+
+    bool accelForward();
+    bool accelReverse();
+    bool forwardDist();
+    bool rotateAxis(Axis& axis);
+    bool rotateCurve(Axis& axis);
+    bool rotateCurveTest(Axis& axis, const std::vector<float>& speedPercents, std::vector<float>& rotScaleTable);
+
+    std::string test;
+    std::optional<double> value;
+    std::optional<double> duration;
+    std::optional<int> speed;
 };
 
 
@@ -84,7 +100,7 @@ public:
 
     std::string fromDock;
     int notAutoPilotCounter {};
-    float pitchBeforeAutopilot;
+    float pitchBeforeAutopilot {};
 };
 
 class EnterCruiseStep : public BaseAutopilotStep {
@@ -107,7 +123,7 @@ public:
     std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, CHARGE, HYPERSPACE, AVOID_STAR, FLY_AWAY, DONE
+        READY, MASSLOCKED, CHARGE, HYPERSPACE, AVOID_STAR, FLY_AWAY, DONE
     } status {READY};
 
     std::string destSystem;
@@ -152,11 +168,12 @@ public:
 
     void updateSafeDist();
     bool getDockDistance();
-    bool flyTowardsTarget();
-    bool flyTowardsStep();
+    void flyTowardsTarget();
+    void flyTowardsStep();
+    void sleep_waiting_dist(int period);
 
-    const double dock_req_dist {7500};
-    double safe_dist {dock_req_dist-200};
+    const dist_t dock_req_dist = 7500_m;
+    dist_t safe_dist = dock_req_dist - 200_m;
 
 };
 
@@ -169,13 +186,11 @@ public:
     bool normalizeOrientation();
     bool flyTowardsTarget();
     bool checkYaw();
-
-    dist_t dist_m;
 };
 
 class NavDockSelect : public BaseAutopilotStep {
 public:
-    NavDockSelect(gal::spEntity dock={}) : dock(dock) {}
+    explicit NavDockSelect(gal::spEntity dock={}) : dock(std::move(dock)) {}
     bool run() override;
     std::string getTitle() override;
 
@@ -187,7 +202,7 @@ public:
 
 class NavBodySelect : public BaseAutopilotStep {
 public:
-    NavBodySelect(gal::spEntity body={}) : body(body) {}
+    explicit NavBodySelect(gal::spEntity body={}) : body(std::move(body)) {}
     std::string getTitle() override;
     bool run() override;
 
@@ -220,7 +235,7 @@ public:
 
 class CruiseToSignal : public BaseCruiseStep {
 public:
-    CruiseToSignal(dist_t req_dist) {
+    explicit CruiseToSignal(dist_t req_dist) {
         requiredDist = req_dist;
     }
     bool run() override;
@@ -228,7 +243,7 @@ public:
 
 class CruiseToDistStep : public BaseCruiseStep {
 public:
-    CruiseToDistStep(dist_t min_dist, dist_t max_dist)
+    explicit CruiseToDistStep(dist_t min_dist, dist_t max_dist)
             : minDist(min_dist)
             , maxDist(max_dist)
     {}
@@ -242,9 +257,8 @@ class DiveUnderPlanetStep : public BaseAutopilotStep {
 public:
     DiveUnderPlanetStep() = default;
     bool run() override;
-    bool orient_roll(float requiredRoll);
-    bool orient_pitch(int pitchGoal);
-    bool fly_dive(int pitchGoal);
+    bool orient_pitch(float pitchGoal);
+    bool fly_dive(float pitchGoal);
 
     bool toPort {};
     int keepCruisePitch {};
@@ -312,7 +326,7 @@ public:
 
 class TaskTravel : public BaseAutopilotTask {
 public:
-    TaskTravel(const TaskTemplate& templ);
+    explicit TaskTravel(const TaskTemplate& templ);
     std::string getTitle() override;
     bool run() final;
 
@@ -322,7 +336,7 @@ public:
 
 class Autopilot : public BaseAutopilotTask {
 public:
-    Autopilot(const TaskTemplate& templ);
+    explicit Autopilot(const TaskTemplate& templ);
     std::string getTitle() override;
     bool run() final;
 };

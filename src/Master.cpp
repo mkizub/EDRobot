@@ -380,16 +380,22 @@ Master::Master() {
 }
 
 Master::~Master() {
+}
+
+void Master::shutdown() {
     kbd::stop();
     kbd::release_vJoy();
     ai::shutdown();
+    mCompassDetector.reset();
+    mClassifyEnv.clear();
     if (mCapturer) {
         mCapturer->stop();
         mCapturer = nullptr;
+        Capturer::shutdown();
     }
     ocr::shutdown();
+    Cfg.shutdown();
 }
-
 
 void Master::loop() {
     TRY {
@@ -506,8 +512,11 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
     auto cmd = keyMapping.find(std::make_pair(toLower(name),flags));
     if (cmd != keyMapping.end()) {
         LOG(INFO) << "Command " << enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
-        if (cmd->second == Command::Pause)
+        if (cmd->second == Command::Pause) {
             ai::toggleDebugPause();
+            if (ai::isDebugPause())
+                UIManager::showMainDialog();
+        }
         else
             self.pushCommand(cmd->second);
     } else {
@@ -1299,8 +1308,10 @@ bool Master::detectEDState(DetectLevel level) {
         mLastUIState.valid = false;
         return false;
     }
-    Timestamp timestamp = std::chrono::utc_clock::now();
-    mLastUIState.timestamp = timestamp;
+    //auto utc_now = std::chrono::utc_clock::now();
+    //auto time_delta = std::chrono::duration_cast<std::chrono::milliseconds>(utc_now - mClassifyEnv.mFrame->timestamp);
+    //LOG(INFO) << std::format("Captured frame delta: {}ms", time_delta.count());
+    mLastUIState.timestamp = mClassifyEnv.mFrame->timestamp;
     mLastUIState.guiFocus = st::guiFocus;
     mLastUIState.valid = true;
     if (level == DetectLevel::None) {
@@ -1325,7 +1336,7 @@ bool Master::detectEDState(DetectLevel level) {
         if (!st::destination.name.empty()) {
             mCompassDetector->match(mClassifyEnv);
             CompassInfo compass {};
-            compass.timestamp = timestamp;
+            compass.timestamp = mClassifyEnv.mFrame->timestamp;
             compass.hemisphere = mCompassDetector->lastHemisphere;
             compass.targetPitch = (float) mCompassDetector->lastTgtPitch;
             compass.targetYaw = (float) mCompassDetector->lastTgtYaw;
@@ -1336,12 +1347,7 @@ bool Master::detectEDState(DetectLevel level) {
                 compass.nav_target_dist = mCompassDetector->lastNavDist;
             st::compass = compass;
 
-            if (mCompassDetector->navTargetFound && mCompassDetector->lastNavDist.valid()) {
-                if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name))
-                    st::autopilot.distanceToDock = mCompassDetector->lastNavDist;
-                else if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name))
-                    st::autopilot.distanceToBody = mCompassDetector->lastNavDist;
-            }
+            ai::reportCompassDetect(compass);
         } else {
             mCompassDetector->clear();
             st::compass = {};

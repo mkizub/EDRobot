@@ -9,35 +9,116 @@
 #include "../Keyboard.h"
 #include "../ShipStats.h"
 
+#include <boost/circular_buffer.hpp>
+
+Axis pitchAxis(Axis::Pitch);
+Axis yawAxis(Axis::Yaw);
+Axis rollAxis(Axis::Roll);
+
+static GameKey mouseResetKey;
+
+void Axis::resetAll(bool reset_mouse) {
+    kbd::axis(pitchAxis.bindings, 0, true);
+    pitchAxis.value = 0;
+    pitchAxis.start = {};
+    pitchAxis.stop = {};
+    kbd::axis(yawAxis.bindings, 0, true);
+    yawAxis.value = 0;
+    yawAxis.start = {};
+    yawAxis.stop = {};
+    kbd::axis(rollAxis.bindings, 0, true);
+    rollAxis.value = 0;
+    rollAxis.start = {};
+    rollAxis.stop = {};
+    if (reset_mouse && mouseResetKey.device == GameKey::Device::vJoy)
+        kbd::post(mouseResetKey, Cfg.getDefaultKeyHoldTime()); // post to not wait
+}
+
+double Axis::timeScaleFor(double val) const {
+    auto ship = eddb::getShipStats();
+    if (!ship)
+        return 1;
+    auto abs_val = std::abs(val);
+    if (abs_val >= 1)
+        return 1;
+    double rot_scale = ship->getRotationScale(type, st::autopilot.speed_set_to.value_or(50));
+    double time_scale = rot_scale * std::pow(abs_val, -0.2);
+    return std::max(time_scale, abs_val);
+}
+
+double Axis::valueScaleFor(double val) const {
+    auto ship = eddb::getShipStats();
+    if (!ship)
+        return val;
+    auto abs_val = std::abs(val);
+    double rot_scale = ship->getRotationScale(type, st::autopilot.speed_set_to.value_or(50));
+    double val_scale = std::pow(abs_val*rot_scale, -0.2)*rot_scale;
+    return std::clamp(val_scale*val, -1.0, +1.0);
+}
+
+
+void Axis::set(double val, int duration) {
+    if (val == 0) {
+        reset();
+        return;
+    }
+    auto utc_now = std::chrono::utc_clock::now();
+    if (!start.time_since_epoch().count())
+        start = utc_now;
+    value = std::clamp(val, -1.0, +1.0);
+#if 1
+    kbd::axis(bindings, valueScaleFor(value), false);
+    stop = utc_now + std::chrono::milliseconds(duration);
+#else
+    kbd::axis(bindings, value, false);
+    stop = utc_now + std::chrono::milliseconds(duration*timeScaleFor(value));
+#endif
+}
+
+void Axis::setRaw(double val, int duration) {
+    if (val == 0) {
+        reset();
+        return;
+    }
+    value = std::clamp(val, -1.0, +1.0);
+    kbd::axis(bindings, value, false);
+    auto utc_now = std::chrono::utc_clock::now();
+    if (!start.time_since_epoch().count())
+        start = utc_now;
+    stop = utc_now + std::chrono::milliseconds(duration);
+}
+
+void Axis::reset() {
+    value = 0;
+    kbd::axis(bindings, 0, false);
+    start = {};
+    stop = {};
+}
+
+bool Axis::active() const {
+    return value != 0 && start.time_since_epoch().count() && stop.time_since_epoch().count();
+}
+
+
 namespace ai {
 
-namespace trk {
-    struct Axis {
-        KeyBindings bindings;
-        double value;
-    };
-    std::thread turnThread;
-    std::mutex turnMutex;
-    std::condition_variable turnCond;
+extern std::thread turnThread;
+extern std::mutex turnMutex;
+extern std::condition_variable turnCond;
 
+namespace {
     std::atomic_bool isWorking;
     std::atomic_bool isLoopWaiting;
     std::atomic_bool isActive;
 
     double requestedPitch;
     bool disableRoll;
-
-    Axis pitchAxis;
-    Axis yawAxis;
-    Axis rollAxis;
 }
 
-using namespace trk;
-
 void turn_loop();
-void turn_step();
-void resetTurnAxis();
+std::chrono::duration<double> turn_step();
 void request_pitch_roll(double pitch, bool without_roll);
+
 
 CourseLocker::CourseLocker(double pitch, bool without_roll) {
     request_pitch_roll(pitch, without_roll);
@@ -63,11 +144,11 @@ CourseLockerPause::~CourseLockerPause() {
 }
 
 
-void setAxisBindings(Axis& axis, const char* name, bool invert) {
-    const KeyBindings& orig = Cfg.getGameKeyBindings(name);
+void setAxisBindings(Axis& axis, bool invert) {
+    const KeyBindings& orig = Cfg.getGameKeyBindings(std::string(axis.name()) + "AxisRaw");
     axis.bindings = orig;
     if (!(orig.mode == KeyBindings::Axis || orig.mode == KeyBindings::AxisInv))
-        throw std::domain_error(std::format("Bad bindings for {}, vJoy axis required", name));
+        throw std::domain_error(std::format("Bad bindings for {}, vJoy axis required", axis.name()));
     if (invert) {
         if (axis.bindings.mode == KeyBindings::Axis)
             axis.bindings.mode = KeyBindings::AxisInv;
@@ -78,10 +159,17 @@ void setAxisBindings(Axis& axis, const char* name, bool invert) {
 
 void init_ship_tracker() {
     isWorking = true;
-    setAxisBindings(pitchAxis, "PitchAxisRaw", true);
-    setAxisBindings(yawAxis, "YawAxisRaw", false);
-    setAxisBindings(rollAxis, "RollAxisRaw", false);
-    resetTurnAxis();
+    setAxisBindings(pitchAxis, true);
+    setAxisBindings(yawAxis, false);
+    setAxisBindings(rollAxis, false);
+
+    auto& kb = Cfg.getGameKeyBindings("MouseReset");
+    if (kb.primary.device == GameKey::vJoy)
+        mouseResetKey = kb.primary;
+    else if (kb.secondary.device == GameKey::vJoy)
+        mouseResetKey = kb.secondary;
+
+    Axis::resetAll();
     turnThread = std::thread(&turn_loop);
 }
 void shutdown_ship_tracker() {
@@ -92,18 +180,9 @@ void shutdown_ship_tracker() {
     kbd::reset_vJoy();
 }
 
-void resetTurnAxis() {
-    kbd::axis(pitchAxis.bindings, 0, true);
-    pitchAxis.value = 0;
-    kbd::axis(yawAxis.bindings, 0, true);
-    yawAxis.value = 0;
-    kbd::axis(rollAxis.bindings, 0, true);
-    rollAxis.value = 0;
-}
-
 void disableAutoTurn() {
     isActive = false;
-    resetTurnAxis();
+    Axis::resetAll(true);
     turnCond.notify_one();
 }
 
@@ -116,43 +195,124 @@ void request_pitch_roll(double pitch, bool without_roll) {
     else
         requestedPitch = pitch;
     disableRoll = without_roll;
+    Axis::resetAll(true);
     isActive = true;
     turnCond.notify_one();
 }
 
-void set_axis(double speed, double delta, Axis& axis) {
-    double value = 0;
-    double seconds = std::abs(delta / speed);
-    if (seconds > 0.03125)
-        value = std::copysign(std::min(1.0, seconds), delta);
-    kbd::axis(axis.bindings, value, axis.value == 0);
-    axis.value = value;
+struct CompassDist {
+    Timestamp timestamp;
+    dist_t dist;
+};
+boost::circular_buffer<CompassDist> buffer(4);
+std::string buffer_target_name;
+
+void resetCompassDetects() {
+    buffer.clear();
+    buffer_target_name = st::destination.name;
+    st::autopilot.distanceToDock = {};
+    st::autopilot.distanceToBody = {};
+    st::autopilot.distanceToTarget = {};
 }
+
+static inline bool in_range(dist_t d1, dist_t d2) {
+    if (!d1 || !d2)
+        return false;
+    double rel = d1.get_km() / d2.get_km();
+    return (rel >= 0.5 && rel <= 2.0);
+}
+
+void approximateCompassDistance(CompassInfo& compass) {
+
+    if (st::destination.name != buffer_target_name) {
+        buffer.clear();
+        if (st::autopilot.destDock && st::autopilot.destDock->nameEq(buffer_target_name))
+            st::autopilot.distanceToDock = {};
+        else if (st::autopilot.destBody && st::autopilot.destBody->nameEq(buffer_target_name))
+            st::autopilot.distanceToBody = {};
+        st::autopilot.distanceToTarget = {};
+        buffer_target_name = st::destination.name;
+    }
+
+    // clear outdated entries
+    while (!buffer.empty() && (buffer.front().timestamp+5s) < compass.timestamp)
+        buffer.pop_front();
+
+    dist_t& d2t = st::autopilot.distanceToTarget;
+    dist_t d = compass.nav_target_dist;
+    if (d) {
+        bool in_prev_range = in_range(d, d2t);
+
+        // check it match prev entries
+        int buffer_rate = d.conf;
+        for (int i=int(buffer.size())-1; i >= 0; i--) {
+            auto& cd = buffer[i];
+            if (in_range(d, cd.dist))
+                buffer_rate += cd.dist.conf;
+            else
+                buffer_rate -= cd.dist.conf;
+        }
+
+        buffer.push_back({compass.timestamp, d});
+
+        if (in_prev_range || buffer_rate >= 0) {
+            d2t = d;
+            if (in_prev_range && buffer_rate > 0)
+                LOG(INFO) << std::format("Target dist ( both  ): {} (conf {})", d.to_string(), int(d.conf));
+            else if (buffer_rate > 0)
+                LOG(INFO) << std::format("Target dist (history): {} (conf {})", d.to_string(), int(d.conf));
+            else if (in_prev_range)
+                LOG(INFO) << std::format("Target dist ( prev  ): {} (conf {})", d.to_string(), int(d.conf));
+            else
+                LOG(INFO) << std::format("Target dist ( first ): {} (conf {})", d.to_string(), int(d.conf));
+
+            if (st::autopilot.destDock && st::autopilot.destDock->nameEq(buffer_target_name))
+                st::autopilot.distanceToDock = d2t;
+            else if (st::autopilot.destBody && st::autopilot.destBody->nameEq(buffer_target_name))
+                st::autopilot.distanceToBody = d2t;
+        } else {
+            LOG(INFO) << std::format("Target dist (ignored): {} (conf {})", d.to_string(), int(d.conf));
+        }
+    }
+}
+
+void reportCompassDetect(CompassInfo& compass) {
+    approximateCompassDistance(compass);
+    if (isActive)
+        turnCond.notify_one();
+}
+
+static int compassLostCounter;
 
 void turn_loop() {
     SetThreadDescription(GetCurrentThread(), L"ShitTracker loop");
 
     LOG(INFO) << "Starting ship tracker";
+    std::chrono::duration<double> wait_dur = 0ms;
     while (isWorking) {
         {
             std::unique_lock<std::mutex> lock(turnMutex);
             isLoopWaiting = true;
-            turnCond.wait_for(lock, isActive ? 650ms : 1min);
+            if (!isActive)
+                wait_dur = 1min;
+            else if (wait_dur > 650ms)
+                wait_dur = 650ms;
+            turnCond.wait_for(lock, wait_dur);
             isLoopWaiting = false;
             if (!isWorking)
                 break;
-            if (!isActive) {
-                resetTurnAxis();
+            if (!isActive)
                 continue;
-            }
         }
         try {
-            turn_step();
+            wait_dur = turn_step();
         } catch(const std::exception& ex) {
             kbd::reset_vJoy();
             if (dynamic_cast<const interrupted_error*>(&ex)) {
                 LOG(ERROR) << "Ship tracker interrupted";
                 isActive = false;
+                Axis::resetAll(true);
+                compassLostCounter = 0;
             } else {
                 LOG(ERROR) << "Exception in ship tracker: " << ex.what();
             }
@@ -161,43 +321,118 @@ void turn_loop() {
     LOG(INFO) << "Exiting ship tracker";
 }
 
-void turn_step() {
+inline double normalizeAngle(double angle) {
+    if (angle > 180) angle =  360 - angle;
+    if (angle < -180) angle = 360 + angle;
+    return angle;
+}
+
+double update_axis(Axis& axis, double delta, double max_speed) {
+    if (std::abs(delta) < 0.1) {
+        axis.reset();
+        return 2.0;
+    }
+
+    double time_at_max_speed = std::abs(delta) / max_speed;
+
+    auto utc_now = std::chrono::utc_clock::now();
+    double time = std::chrono::duration_cast<std::chrono::duration<double>>(axis.stop - utc_now).count();
+
+    if (!axis.active() || std::signbit(delta) != std::signbit(axis.value) || time < 0) {
+        time = std::max({2.0, time_at_max_speed});
+        double value = std::copysign(time_at_max_speed / time, delta);
+//        LOG(INFO) << std::format("KeepCourse: set {} {:.3f}, start seconds {:.2f}", axis.name, value, time);
+        axis.set(value, int(time * 1000));
+        return time;
+    }
+
+    double miss = delta - time_at_max_speed * std::abs(axis.value) * time;
+    if (std::abs(miss) < 0.5)
+        return time;
+
+    double max_value = std::abs(delta) < 5 ? 0.5 : 1.0;
+    // change axis.value keeping the same time if possible
+    double new_speed = delta / time;
+    if (std::abs(new_speed) <= (max_speed*max_value)) {
+        double value = std::clamp(new_speed / max_speed, -max_value, +max_value);
+//        LOG(INFO) << std::format("KeepCourse: set {} {:.3f}, keep seconds {:.2f}", axis.name, value, time);
+        axis.set(value, int(time * 1000));
+        return time;
+    }
+    // set new axis.value and time
+    time = std::abs(delta) / (max_speed * max_value);
+    new_speed = delta / time;
+    double value = std::clamp(new_speed / max_speed, -max_value, +max_value);
+//    LOG(INFO) << std::format("KeepCourse: set {} {:.3f}, seconds {:.2f}", axis.name, value, time);
+    axis.set(value, int(time * 1000));
+    return time;
+}
+
+std::chrono::duration<double> turn_step() {
+    bool forceScreenDetect = false;
+
+repeat_step:
     if (isDebugPause()) {
-        resetTurnAxis();
-        return;
+        Axis::resetAll();
+        compassLostCounter = 0;
+        return 1s;
     }
 
     auto shipStats = eddb::getShipStats();
     if (!shipStats) {
         LOG(ERROR) << "Unsupported or unknown ship";
-        resetTurnAxis();
         isActive = false;
-        return;
+        Axis::resetAll();
+        compassLostCounter = 0;
+        return 1min;
     }
 
     if (st::guiFocus != GuiFocus::None) {
-        resetTurnAxis();
-        return;
+        Axis::resetAll();
+        compassLostCounter = 0;
+        return 1s;
     }
 
-    if (st::compass.timestamp < std::chrono::utc_clock::now() - 150ms) {
+    bool hasActiveAxis = pitchAxis.active() || yawAxis.active() || rollAxis.active();
+    const auto compass_age = hasActiveAxis ? 150ms : 1000ms;
+
+#ifdef NDEBUG
+    const auto max_wait_age = hasActiveAxis ? 250ms : 1000ms;
+#else
+    const auto max_wait_age = 1000ms;
+#endif
+    auto utc_now = std::chrono::utc_clock::now();
+    if (forceScreenDetect || !st::compass.hemisphere || st::compass.timestamp < utc_now - compass_age) {
         std::promise<bool> promise;
         std::future<bool> future = promise.get_future();
         Mgr.pushDetectRequest(std::move(promise), { DetectLevel::Screen });
-        auto status = future.wait_for(250ms);
+        auto status = future.wait_for(max_wait_age);
         if (status != std::future_status::ready) {
-            resetTurnAxis();
-            return;
+            LOG(WARNING) << "KeepCourse: screen detect request status: " << enum_name<std::future_status>(status);
+            Axis::resetAll();
+            return compass_age;
         }
+        utc_now = std::chrono::utc_clock::now();
     }
     CompassInfo compass = st::compass;
-    auto compassElapsed = std::chrono::utc_clock::now() - compass.timestamp;
-    if (!compass.hemisphere || compassElapsed > 250ms) {
-        resetTurnAxis();
-        return;
+    auto compassElapsed = utc_now - compass.timestamp;
+//    LOG(INFO) << std::format("KeepCourse: time delta: {}ms, hemispere {}",
+//                             std::chrono::duration_cast<std::chrono::milliseconds>(compassElapsed).count(),
+//                             compass.hemisphere);
+    if (!compass.hemisphere || compassElapsed > max_wait_age) {
+        compassLostCounter += 1;
+        //LOG(INFO) << std::format("KeepCourse: compass trouble {}",compassLostCounter);
+        if (compassLostCounter >= 3) {
+            LOG(WARNING) << "KeepCourse: compass lost";
+            Axis::resetAll();
+            compassLostCounter = 1;
+        }
+        return compass_age;
+    } else {
+        compassLostCounter = 0;
     }
 
-    int speed_set_to = st::autopilot.speed_set_to.has_value() ? st::autopilot.speed_set_to.value() : 50;
+    int speed_set_to = st::autopilot.speed_set_to.value_or(50);
     double pitchSpeed = shipStats->getPitchSpeed(speed_set_to);
     double yawSpeed = shipStats->getYawSpeed(speed_set_to);
     //double rollSpeed = shipStats->getRollSpeed(speed_set_to);
@@ -207,16 +442,21 @@ void turn_step() {
     double expectedYaw = compass.targetYaw - timeDelta * yawSpeed * yawAxis.value;
     //double expectedRoll = compass.targetRoll - timeDelta * rollSpeed * rollAxis.value;
 
-    double delta_pitch = expectedPitch - requestedPitch;
-    if (delta_pitch > 180) delta_pitch = 360-delta_pitch;
-    if (delta_pitch < -180) delta_pitch = 360+delta_pitch;
-    double delta_yaw = expectedYaw;
+    double pitchDelta = normalizeAngle(expectedPitch - requestedPitch);
+    double hemiYaw = expectedYaw;
+    if (compass.hemisphere < 0) {
+        if (hemiYaw > 0)
+            hemiYaw = 180 - hemiYaw;
+        else
+            hemiYaw = -180 - hemiYaw;
+    }
+    double yawDelta = normalizeAngle(hemiYaw);
 
-    if (!compass.has_nav_target) {
-        if (std::abs(delta_pitch) < 4)
-            delta_pitch = 0;
-        if (std::abs(delta_yaw) < 4)
-            delta_yaw = 0;
+    if (compass.hemisphere < 0) {
+        if (std::abs(pitchDelta) < 5)
+            pitchDelta = 0;
+        if (std::abs(yawDelta) < 5)
+            yawDelta = 0;
     }
 
 //    LOG(INFO) << std::format("KeepCourse: time delta: {}ms, {}/{}, p {:.1f}, y {:.1f}, r {:.1f}, a {:.1f}",
@@ -224,10 +464,22 @@ void turn_step() {
 //                             compass.targetPitch, compass.targetYaw, compass.targetRoll, compass.targetAngle);
 //    LOG(INFO) << std::format("KeepCourse: pitch from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
 //                             compass.targetPitch, expectedPitch, pitchSpeed, pitchAxis.value);
+//    LOG(INFO) << std::format("KeepCourse: yaw   from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
+//                             compass.targetYaw, expectedYaw, yawSpeed, yawAxis.value);
 
-    set_axis(pitchSpeed, delta_pitch, pitchAxis);
-    set_axis(yawSpeed, delta_yaw, yawAxis);
-    //set_axis(rollSpeed, 0, rollAxis);
+    double pitchSleep = update_axis(pitchAxis, pitchDelta, pitchSpeed);
+    double yawSleep = update_axis(yawAxis, yawDelta, yawSpeed);
+    rollAxis.reset();
+
+    double sleep = std::min({2.0, pitchSleep, yawSleep});
+    if (std::abs(pitchDelta) <= 8 || std::abs(yawDelta) <= 8)
+        sleep *= 0.5;
+    if (sleep < 0.15) {
+        forceScreenDetect = true;
+        goto repeat_step;
+    }
+
+    return std::chrono::duration<double>(sleep-0.05);
 }
 
 } //namespace ai

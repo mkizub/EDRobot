@@ -26,5 +26,8 @@
   }, {
     "name" : "curlcpp",
     "version>=" : "3.1#1"
+  }, {
+    "name" : "boost-circular-buffer",
+    "version>=" : "1.88.0"
   } ]
 }

@@ -476,7 +476,7 @@ void kbd_sleep(int milliseconds, bool precise) {
     if (milliseconds <= 0)
         return;
     if (milliseconds >= 75 && !precise) {
-        auto now = std::chrono::system_clock::now();
+        auto now = std::chrono::high_resolution_clock::now();
         auto until = now + std::chrono::milliseconds(milliseconds);
         while (now < until) {
             auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
@@ -484,7 +484,7 @@ void kbd_sleep(int milliseconds, bool precise) {
                 break;
             auto duration = std::min(std::chrono::milliseconds(500), left);
             std::this_thread::sleep_for(duration);
-            now = std::chrono::system_clock::now();
+            now = std::chrono::high_resolution_clock::now();
         }
         ai::check_interrupted();
         return;

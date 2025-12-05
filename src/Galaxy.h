@@ -80,6 +80,8 @@ struct NavType {
     const bool name_pattern;
     const std::vector<std::pair<Lang,std::string>> name_loc;
 
+    static NavType* findNavType(TypeNav type);
+    std::string get_nloc() const;
     bool match_name(const std::string& name) const;
     bool match_type(const std::string& type) const;
     bool match_icon(wchar_t ch, const std::string& icon) const;

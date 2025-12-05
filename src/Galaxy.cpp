@@ -247,6 +247,8 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
         parseUpdated(site, jb);
         parseBodyId(ss, site, jb);
         site->setName(name);
+        if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_loc.empty())
+            site->nloc = nt->get_nloc();
 
         if (jb["marketId"].is_integer())
             site->marketId = jb.at("marketId",0).as_int64();
@@ -275,7 +277,7 @@ void saveStarSystem(StarSystem* ss) {
         if (body->parentBodyId >= 0)
             jbo.emplace("parentBodyId", body->parentBodyId);
         if (body->main_star_distance.valid())
-            jbo.emplace("distanceToArrival", body->main_star_distance.get(dist_t::LS));
+            jbo.emplace("distanceToArrival", body->main_star_distance.get_ls());
         if (body->type == TypeNav::Star) {
             if (body->radius)
                 jbo.emplace("solarRadius", body->radius / 6.957e5);
@@ -312,7 +314,7 @@ void saveStarSystem(StarSystem* ss) {
         if (st->parentBodyId >= 0)
             jsto.emplace("parentBodyId", st->parentBodyId);
         if (st->main_star_distance.valid())
-            jsto.emplace("distanceToArrival", st->main_star_distance.get(dist_t::LS));
+            jsto.emplace("distanceToArrival", st->main_star_distance.get_ls());
         if (st->marketId)
             jsto.emplace("marketId", st->marketId);
         {
@@ -718,7 +720,7 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
     }
     if (je["DistFromStarLS"].is_number()) {
         double dist = je["DistFromStarLS"].as_number();
-        if (!dock->main_star_distance.valid() || std::round(dock->main_star_distance.get(dist_t::LS)) != std::round(dist)) {
+        if (!dock->main_star_distance || std::round(dock->main_star_distance.get_ls()) != std::round(dist)) {
             dock->main_star_distance = dist_t(dist_t::LS, dist);
             saved = false;
         }
@@ -807,6 +809,10 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
                 }
             }
         }
+        if (snloc.empty()) {
+            if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_loc.empty())
+                snloc = nt->get_nloc();
+        }
         checkType(site, typeNav, timestamp);
         checkName(site, sname, timestamp);
         checkNloc(site, snloc, timestamp);
@@ -837,6 +843,8 @@ void setMarketData(spMarket market) {
 }
 
 bool Entity::nameEq(const std::string& nm) const {
+    if (nm.empty())
+        return false;
     if (name == nm)
         return true;
     if (!nloc.empty() && nloc == nm)

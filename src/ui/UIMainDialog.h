@@ -21,8 +21,8 @@ public:
     bool show();
     bool hide();
     int initialize(wl::params& params);
-    int on_command_stop_new(wl::params& params);
-    int on_command_pause_resume(wl::params& params);
+    void on_command_stop_new(wl::params& params);
+    void on_command_pause_resume(wl::params& params);
 
     void update_curr_task();
 
@@ -33,6 +33,7 @@ public:
     wl::button btn_stop_new;
     wl::button btn_pause_resume;
     wl::button btn_watch;
+    wl::button btn_exit;
 
     UINT_PTR mUpdateTimerId {};
 };

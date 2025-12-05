@@ -146,6 +146,7 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
         }
     }
     assert (frame->valid());
+    frame->timestamp = Timestamp::clock::now();
 
 #ifdef EDROBOT_USE_OPENCL
     cv::Mat colorImage = frame->colorImage.getMat(cv::ACCESS_RW);

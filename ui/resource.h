@@ -8,20 +8,11 @@
 #define IDI_DIALOGS                     107
 #define IDI_SMALL                       108
 #define IDC_DIALOGS                     109
-#define IDD_SELLBOX                     130
-#define IDD_CALIBRATIONBOX              136
 #define IDD_ADD_TASK                    137
 #define IDD_ED_ROBOT                    138
-#define IDC_EDIT_SELLS                  1003
-#define IDC_EDIT_ITEMS                  1004
-#define IDC_EDIT_TOTAL                  1005
-#define IDC_STATIC_SELLS                1009
-#define IDC_STATIC_ITEMS                1010
 #define IDC_STATIC_1                    1011
 #define IDC_STATIC_2                    1012
-#define IDC_COMBO_ITEMS                 1013
 #define IDC_STATIC_AMOUNT               1014
-#define IDC_STATIC_TOTAL                1014
 #define IDC_COMBO_TEMPLATES             1015
 #define IDC_CURRENT_TASK                1016
 #define IDC_BUTTON_WATCH                1017
@@ -33,13 +24,8 @@
 #define ID_RUN                          1023
 #define ID_SAVE                         1024
 #define ID_DELETE                       1025
-#define ID_DEV_RELOADCONFIG             32776
-#define ID_DEV_SAVECONFIG               32777
-#define ID_DEV_SELECT_RECT              32778
-#define IDM_EXIT_APP                    32779
-#define ID_FILE_CALIBRATE               32780
+#define IDC_EXIT                        1027
 #define ID_SHOW_TOAST                   32781
-#define ID_DEVELOPER_DEBUGFINDALLSELLCOMMODITIES 32781
 #define ID_TRAY_ICON                    32782
 #define IDC_STATIC                      -1
 
@@ -50,7 +36,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        139
 #define _APS_NEXT_COMMAND_VALUE         32783
-#define _APS_NEXT_CONTROL_VALUE         1027
+#define _APS_NEXT_CONTROL_VALUE         1028
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

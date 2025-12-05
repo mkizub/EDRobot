@@ -63,7 +63,7 @@ extern std::string encodeShortcut(const std::string& name, unsigned flags);
 extern std::string formatTimestampString(Timestamp timestamp);
 extern bool parseTimestampString(const std::string& str, Timestamp& timestamp);
 extern bool parseTimestamp(const json5pp::value& value, Timestamp& timestamp);
-extern dist_t parseDist(std::wstring dist);
+extern dist_t parseDist(std::wstring dist, int conf);
 
 
 #endif //EDROBOT_UTILS_H

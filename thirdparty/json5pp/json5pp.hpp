@@ -403,7 +403,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a null
    */
-  null_type as_null() const
+  [[nodiscard]] null_type as_null() const
   {
     if (type != TYPE_NULL) { throw std::bad_cast(); }
     return nullptr;
@@ -414,7 +414,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a boolean
    */
-  boolean_type as_boolean() const
+  [[nodiscard]] boolean_type as_boolean() const
   {
     if (type != TYPE_BOOLEAN) { throw std::bad_cast(); }
     return content.boolean;
@@ -425,7 +425,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a number nor integer
    */
-  number_type as_number() const
+  [[nodiscard]] number_type as_number() const
   {
     if (type == TYPE_INTEGER) {
       return static_cast<number_type>(content.integer);
@@ -440,73 +440,43 @@ public:
    * 
    * @throws std::bad_cast if the value is not a number nor integer
    */
-  int32_t as_integer() const
-  {
-    if (type == TYPE_NUMBER) {
-      return static_cast<int64_t>(content.number);
-    } else if (type != TYPE_INTEGER) {
-      throw std::bad_cast();
-    }
-    return content.integer;
-  }
-
-  /**
-   * @brief Cast to integer number
-   *
-   * @throws std::bad_cast if the value is not a number nor integer
-   */
-  uint32_t as_unsigned() const
-  {
-    if (type == TYPE_NUMBER) {
-      return static_cast<uint64_t>(content.number);
-    } else if (type != TYPE_INTEGER) {
-      throw std::bad_cast();
-    }
-    return content.integer;
-  }
-
-  /**
-   * @brief Cast to integer number
-   *
-   * @throws std::bad_cast if the value is not a number nor integer
-   */
-  int64_t as_int64() const
-  {
-    if (type == TYPE_NUMBER) {
-      return static_cast<int64_t>(content.number);
-    } else if (type != TYPE_INTEGER) {
-      throw std::bad_cast();
-    }
-    return content.integer;
-  }
-
-  /**
-   * @brief Cast to integer number
-   *
-   * @throws std::bad_cast if the value is not a number nor integer
-   */
-  uint64_t as_uint64() const
-  {
-    if (type == TYPE_NUMBER) {
-      return static_cast<uint64_t>(content.number);
-    } else if (type != TYPE_INTEGER) {
-      throw std::bad_cast();
-    }
-    return content.integer;
-  }
-
-  /**
-   * @brief Cast to integer number
-   *
-   * @throws std::bad_cast if the value is not a number nor integer
-   */
-  int32_t as_int32() const
+  [[nodiscard]] int32_t as_integer() const
   {
     if (type == TYPE_NUMBER) {
       return static_cast<int32_t>(content.number);
     } else if (type != TYPE_INTEGER) {
       throw std::bad_cast();
     }
+    return static_cast<int32_t>(content.integer);
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  [[nodiscard]] uint32_t as_unsigned() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint32_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return static_cast<uint32_t>(content.integer);
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  [[nodiscard]] int64_t as_int64() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<int64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
     return content.integer;
   }
 
@@ -515,7 +485,37 @@ public:
    *
    * @throws std::bad_cast if the value is not a number nor integer
    */
-  uint32_t as_uint32() const
+  [[nodiscard]] uint64_t as_uint64() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return content.integer;
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  [[nodiscard]] int32_t as_int32() const
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<int32_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      throw std::bad_cast();
+    }
+    return static_cast<int32_t>(content.integer);
+  }
+
+  /**
+   * @brief Cast to integer number
+   *
+   * @throws std::bad_cast if the value is not a number nor integer
+   */
+  [[nodiscard]] uint32_t as_uint32() const
   {
     if (type == TYPE_NUMBER) {
       return static_cast<uint32_t>(content.number);
@@ -530,7 +530,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a string
    */
-  const string_type& as_string() const
+  [[nodiscard]] const string_type& as_string() const
   {
     if (type != TYPE_STRING) { throw std::bad_cast(); }
     return content.string;
@@ -541,7 +541,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a string
    */
-  string_type& as_string()
+  [[nodiscard]] string_type& as_string()
   {
     if (type != TYPE_STRING) { throw std::bad_cast(); }
     return content.string;
@@ -552,7 +552,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a array
    */
-  const array_type& as_array() const
+  [[nodiscard]] const array_type& as_array() const
   {
     if (type != TYPE_ARRAY) { throw std::bad_cast(); }
     return content.array;
@@ -563,7 +563,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a array
    */
-  array_type& as_array()
+  [[nodiscard]] array_type& as_array()
   {
     if (type != TYPE_ARRAY) { throw std::bad_cast(); }
     return content.array;
@@ -574,7 +574,7 @@ public:
    * 
    * @throws std::bad_cast if the value is not a object
    */
-  const object_type& as_object() const
+  [[nodiscard]] const object_type& as_object() const
   {
     if (type != TYPE_OBJECT) { throw std::bad_cast(); }
     return content.object;
@@ -585,9 +585,45 @@ public:
    * 
    * @throws std::bad_cast if the value is not a object
    */
-  object_type& as_object()
+  [[nodiscard]] object_type& as_object()
   {
     if (type != TYPE_OBJECT) { throw std::bad_cast(); }
+    return content.object;
+  }
+
+  /**
+   * @brief Cast to string, return "" if not string
+   */
+  [[nodiscard]] const string_type& asif_string() const noexcept
+  {
+    if (type != TYPE_STRING) {
+      static string_type dummy;
+      return dummy;
+    }
+    return content.string;
+  }
+
+  /**
+   * @brief Cast to array, return [] if not array
+   */
+  [[nodiscard]] const array_type& asif_array() const noexcept
+  {
+    if (type != TYPE_ARRAY) {
+      static array_type dummy;
+      return dummy;
+    }
+    return content.array;
+  }
+
+  /**
+   * @brief Cast to object, return {} if not object
+   */
+  [[nodiscard]] const object_type& asif_object() const noexcept
+  {
+    if (type != TYPE_OBJECT) {
+      static object_type dummy;
+      return dummy;
+    }
     return content.object;
   }
 

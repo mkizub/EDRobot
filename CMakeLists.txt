@@ -67,8 +67,6 @@ add_executable(EDRobot
         src/ai/NavList.cpp
         src/ai/NavList.h
         src/ai/ShipTracker.cpp
-        src/ai/TaskCalibrate.cpp
-        src/ai/TaskCalibrate.h
         src/ai/TaskDebug.cpp
         src/ai/TaskDebug.h
         src/ai/TradeTasks.cpp
@@ -88,8 +86,6 @@ add_executable(EDRobot
         src/ui/UIAddTask.h
         src/ui/UIMainDialog.cpp
         src/ui/UIMainDialog.h
-        src/ui/UICalibration.cpp
-        src/ui/UICalibration.h
         src/ui/UIDebug.cpp
         src/ui/UIDebug.h
         src/ui/UIDialog.cpp
@@ -204,7 +200,6 @@ install(FILES
         config/commodity-database.json5
         config/configuration.json5
         config/screens.json5
-        config/tasks.json5
         config/logging.conf
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)

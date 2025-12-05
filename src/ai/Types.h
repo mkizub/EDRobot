@@ -20,13 +20,9 @@ public:
         : failed(failed)
         , std::exception()
     {}
-    explicit nonlocal_return(bool failed, const char *message)
+    explicit nonlocal_return(bool failed, const std::string_view message)
         : failed(failed)
-        , std::exception(message)
-    {}
-    explicit nonlocal_return(bool failed, const std::string& message)
-        : failed(failed)
-        , std::exception(message.c_str())
+        , std::exception(message.data())
     {}
 
     const bool failed;

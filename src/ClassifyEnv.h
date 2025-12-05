@@ -14,7 +14,7 @@ struct ResolvedEnv;
 //
 class Frame {
 protected:
-    Frame(Capturer* owner, cv::Size size) : owner(owner), size(size) {}
+    Frame(Capturer* owner, cv::Size size) : owner(owner), size(size), timestamp{} {}
     virtual ~Frame() = default;
 public:
     virtual bool valid() const = 0;
@@ -24,6 +24,7 @@ public:
 
     const Capturer* const owner;
     const cv::Size size;
+    Timestamp timestamp;
 };
 struct FrameRecycler {
     FrameRecycler() = default;
@@ -176,7 +177,7 @@ struct ClassifiedRect {
         struct {
             cv::Rect referenceRect;   // originally expected rect in reference coordinates
             double scale; // detected scale for multi-scale templates, environment (screen) scale is not counted
-            int angle;  // detected rotation angle for multi-scale templates
+            float angle;  // detected rotation angle for multi-scale templates
             double match; // detector's match value
         } tdet;
         struct {

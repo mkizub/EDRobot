@@ -198,6 +198,7 @@ extern struct Autopilot {
     std::optional<int> speed_set_to;
     dist_t distanceToBody; // distance to the body
     dist_t distanceToDock; // distance to the dock
+    dist_t distanceToTarget; // distance to currently selected navigation target
 
     gal::spEntity destBody;
     gal::spEntity destDock;
