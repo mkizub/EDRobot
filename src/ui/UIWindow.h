@@ -26,8 +26,8 @@ protected:
     void resizeWindow(int dw, int dh, int min_size);
     void fitToMonitor(cv::Rect& windowRect);
 
-    HWND createWindow(const wchar_t* windowName, DWORD dwExStyle, DWORD dwStyle, cv::Rect rect);
-    HWND createWindow(const wchar_t* windowName, DWORD dwExStyle, DWORD dwStyle, int align, cv::Point offset, cv::Size size);
+    HWND createWindow(HMONITOR hMon, const wchar_t* windowName, DWORD dwExStyle, DWORD dwStyle, cv::Rect rect);
+    HWND createWindow(HMONITOR hMon, const wchar_t* windowName, DWORD dwExStyle, DWORD dwStyle, int align, cv::Point offset, cv::Size size);
     cv::Rect calcWindowRect(int align, cv::Point offset, cv::Size size);
 
     void show();

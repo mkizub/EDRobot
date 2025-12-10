@@ -97,6 +97,8 @@ namespace widget {
     class Screen;
 }
 
+extern std::thread::id main_thread_id;
+
 #include "Types.h"
 #include "Utils.h"
 #include "State.h"

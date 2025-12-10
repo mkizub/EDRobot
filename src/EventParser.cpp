@@ -700,7 +700,53 @@ void parseEvent_ColonisationContribution(spGameEvent& ge) {
 }
 void parseEvent_MarketBuy(spGameEvent& ge) {
     Cfg.marketEvent = ge;
+    auto& je = ge->data;
+
+    Timestamp cargo_timestamp;
+    if (st::currentCargo)
+        cargo_timestamp = st::currentCargo->timestamp;
+    auto* market = st::currentMarket.get();
+    if (!market || ge->timestamp <= market->timestamp)
+        return;
+
+    auto* commodity = Cfg.getCommodityById(je["Type"].asif_string());
+    auto count = je.at("Count",0).as_integer();
+    if (commodity) {
+        if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
+            commodity->ship.count += count;
+            commodity->ship.timestamp = ge->timestamp;
+        }
+        auto it = market->items.find(commodity);
+        if (it != market->items.end()) {
+            MarketLine &ml = it->second;
+            ml.stock = std::max(0, ml.stock - count);
+        }
+    }
 }
 void parseEvent_MarketSell(spGameEvent& ge) {
     Cfg.marketEvent = ge;
+    auto& je = ge->data;
+
+    Timestamp cargo_timestamp;
+    if (st::currentCargo)
+        cargo_timestamp = st::currentCargo->timestamp;
+    auto* market = st::currentMarket.get();
+    if (!market || ge->timestamp <= market->timestamp)
+        return;
+
+    auto* commodity = Cfg.getCommodityById(je["Type"].asif_string());
+    auto count = je.at("Count",0).as_integer();
+    if (commodity) {
+        if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
+            commodity->ship.count -= count;
+            commodity->ship.timestamp = ge->timestamp;
+        }
+        auto it = market->items.find(commodity);
+        if (it != market->items.end()) {
+            MarketLine &ml = it->second;
+            if (market->stationType != "FleetCarrier" && !ml.isConsumer)
+                ml.stock += count;
+            ml.demand = std::max(0, ml.demand - count);
+        }
+    }
 }

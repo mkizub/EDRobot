@@ -16,11 +16,6 @@ protected:
     explicit BaseMarketTask(const TaskTemplate& templ_) : Task(templ_) {}
 
 public:
-    bool clickButton(const char* btn);
-    bool moveToWidget(const char* widget);
-    void gotoMarketScreen(bool buy);
-    bool waitUiState(const std::string& state, std::chrono::seconds duration);
-    bool waitMarketEvent(std::chrono::seconds duration);
     bool enterTradeDialog(Commodity* commodity, std::string state, bool force);
     bool commitTradeDialog(Commodity* commodity, std::string state);
 

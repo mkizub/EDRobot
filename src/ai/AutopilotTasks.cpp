@@ -7,6 +7,7 @@
 #include "Task.h"
 #include "AIManager.h"
 #include "AutopilotTasks.h"
+#include "AIUtils.h"
 #include "../Galaxy.h"
 #include "../Keyboard.h"
 #include "../ShipStats.h"
@@ -154,64 +155,6 @@ int getNavRoutePosition() {
         return -1;
     return currIdx;
 }
-
-bool clickWidget(const char* btn, int delay_ms, int pause_ms) {
-    cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn);
-    if (rect.empty())
-        return false;
-    cv::Point pos = (rect.tl() + rect.br()) * 0.5;
-    return kbd::sendMouseClick(pos, delay_ms, pause_ms);
-}
-
-bool selectOnGalaxyMap(const std::string& systemName) {
-    ai::detectEDState(DetectLevel::Buttons);
-    if (ai::uiState.guiFocus != GuiFocus::GalaxyMap || !ai::uiState.match("scr-galaxy")) {
-        kbd::send("GalaxyMapOpen", 100, 1000);
-        utc_timer timer(10s);
-        do {
-            ai::sleep(1000);
-            ai::detectEDState(DetectLevel::Buttons);
-            if (ai::uiState.guiFocus == GuiFocus::GalaxyMap && ai::uiState.match("scr-galaxy"))
-                break;
-        } while (!timer.expired());
-        if (ai::uiState.guiFocus != GuiFocus::GalaxyMap || !ai::uiState.match("scr-galaxy"))
-            return false;
-    }
-    if (!clickWidget("lbl-search",100,500))
-        return false;
-    kbd::send("BackSpace", 100, 500);
-
-    pasteToClipboard(systemName);
-
-    int handle = kbd::post("CtrlLeft", 500);
-    ai::sleep(100);
-    kbd::send("v", 100, 300);
-    kbd::clearInput(handle);
-    ai::sleep(1000);
-
-    for (int entry=0; entry < 20; entry++) {
-        cv::Rect dd_rect = Mgr.resolveWidgetReferenceRect("lbl-drop-down");
-        cv::Point pos;
-        pos.x = dd_rect.x + dd_rect.width / 2;
-        pos.y = dd_rect.y + (entry+0.5)*28.65;
-        kbd::sendMouseClick(pos, 300, 100);
-        ai::sleep(3000);
-
-        clickWidget("btn-tgt-copy",300,500);
-        auto name = textFromClipboard();
-        if (name == systemName) {
-            clickWidget("btn-tgt-nav-to", 300, 1000);
-            clickWidget("btn-exit", 300, 500);
-            return true;
-        }
-
-        cv::Rect rect = Mgr.resolveWidgetReferenceRect("lbl-search");
-        pos = (rect.tl() + rect.br()) * 0.5;
-        kbd::sendMouseMove(pos, 500);
-    }
-    return false;
-}
-
 
 BaseAutopilotStep::BaseAutopilotStep()
     : task(nullptr)
@@ -991,6 +934,17 @@ bool DepartureStep::run() {
     if (!st::dockedAt.stationType.empty()) {
         if (gal::SPACE_CONSTR_DEPOT.match_type(st::dockedAt.stationType))
             fromSpaceConstruction = true;
+        else if (st::dockedAt.stationType == "SurfaceStation" && !fromDock.empty()) {
+            // bug in ED for newly constructed space stations
+            auto dock = gal::getCurrentStarSystem()->getDock(fromDock);
+            if (dock) {
+                if (dock->type == TypeNav::Orbis ||
+                    dock->type == TypeNav::Ocellus ||
+                    dock->type == TypeNav::Coriolis ||
+                    dock->type == TypeNav::AsteroidBase)
+                    fromStarPort = true;
+            }
+        }
         else if (gal::ORBIS.match_type(st::dockedAt.stationType) ||
                 gal::OCELLUS.match_type(st::dockedAt.stationType) ||
                 gal::CORIOLIS.match_type(st::dockedAt.stationType) ||
@@ -999,33 +953,13 @@ bool DepartureStep::run() {
     }
 
     if (st::ship.flags.docked) {
-        if (st::guiFocus != GuiFocus::None) {
-            LOG(INFO) << "Going to landing pad.";
-            status = GOING_TO_DOCK;
-            for (int i = 0; i < 10 && st::guiFocus != GuiFocus::None; i++) {
-                sendUiBack();
-                ai::detectEDState(DetectLevel::Screen);
-            }
-        }
-        ai::detectEDState(DetectLevel::Screen);
-        if (st::guiFocus != GuiFocus::None)
-            throw_trouble("Cannot get to landing pad");
+        gotoLandingPad(true);
 
-        LOG(INFO) << "Refuel...";
-        status = REFUEL;
-        sleep(500);
-        for (int i = 0; i < 4; i++)
-            kbd::send("UI_Up");
-        kbd::send("UI_Select", 0, 500); // refuel
-        kbd::send("UI_Right");
-        kbd::send("UI_Select", 0, 500); // repair
-        kbd::send("UI_Right");
-        kbd::send("UI_Select", 0, 500); // rearm
+        LOG(INFO) << "Takeoff...";
         kbd::send("UI_Down");
         kbd::send("UI_Down");
         kbd::send("UI_Select");
 
-        LOG(INFO) << "Takeoff...";
         // 20 seconds to leave landing pad
         timer = utc_timer(25s);
         status = TAKEOFF;
@@ -1064,7 +998,7 @@ bool DepartureStep::run() {
             task->relogin();
             return false;
         }
-        unsigned kh = kbd::post("SetSpeedZero", 1000);
+        unsigned kh = kbd::post("SetSpeedZero", 500);
         sleep(250);
         ai::detectEDState(DetectLevel::Screen);
         kbd::clearInput(kh);
@@ -1079,9 +1013,9 @@ bool DepartureStep::run() {
             notify_info("Auto-pilot off counter: {}", notAutoPilotCounter);
             if ((notAutoPilotCounter%3)==0 && fromStarPort && st::shipInfo.shipType == "panthermkii") {
                 setSpeed(-50, true);
-                sleep(500);
+                sleep(1000);
                 setSpeed(0, true);
-                sleep(2000);
+                kbd::send("SetSpeedZero", 2500);
             }
         }
     }
@@ -2745,7 +2679,7 @@ bool CruiseToDistStep::run() {
             status = DONE;
             return true;
         }
-        else if (currentDist < minDist) {
+        if (currentDist < minDist) {
             if (!flyAway) {
                 if (ai::uiState.guiFocus != GuiFocus::None) {
                     setSpeed(0);
@@ -2767,7 +2701,7 @@ bool CruiseToDistStep::run() {
                 status = DIST_FAR;
                 setSpeed(100);
             }
-        } else { // currentDist > minDist
+        } else { // currentDist > maxDist
             if (flyAway) {
                 setSpeed(0);
                 flyAway = false;
@@ -2782,7 +2716,7 @@ bool CruiseToDistStep::run() {
                 status = DIST_NEAR;
                 setSpeed(25);
             }
-            if (currentDist <= 50_ls) {
+            else if (currentDist <= 50_ls) {
                 status = DIST_FAR;
                 setSpeed(50);
                 sleep(100);
@@ -3870,6 +3804,8 @@ std::string TaskTravel::getTitle() {
 bool TaskTravel::run() {
     if (destSystemName.empty() || destDockName.empty())
         throw_failed("Destination system and dock required");
+
+    gotoLandingPad(true);
 
     if (gal::getCurrentStarSystem()->systemName != destSystemName) {
         bool change_route = false;

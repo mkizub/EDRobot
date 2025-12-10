@@ -6,6 +6,7 @@
 
 #include "TradeTasks.h"
 #include "AIManager.h"
+#include "AIUtils.h"
 #include "../EDWidget.h"
 #include "../FuzzyMatch.h"
 #include "../Keyboard.h"
@@ -23,93 +24,6 @@
 
 namespace ai {
 
-bool BaseMarketTask::clickButton(const char* btn) {
-    cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn);
-    if (rect.empty())
-        return false;
-    cv::Point pos = (rect.tl() + rect.br()) * 0.5;
-    return kbd::sendMouseClick(pos, 100, Cfg.getDefaultKeyAfterTime());
-}
-
-bool BaseMarketTask::moveToWidget(const char* widget) {
-    cv::Rect rect = Mgr.resolveWidgetReferenceRect(widget);
-    if (rect.empty())
-        return false;
-    cv::Point pos = (rect.tl() + rect.br()) * 0.5;
-    return kbd::sendMouseMove(pos, 300);
-}
-
-void BaseMarketTask::gotoMarketScreen(bool buy) {
-    if (!st::ship.flags.docked)
-        throw_trouble("Not docked");
-    for (int step=0; step < 20; step++) {
-        ai::detectEDState(DetectLevel::Buttons);
-        if (st::guiFocus == GuiFocus::None) {
-            for (int i = 0; i < 4; i++)
-                kbd::send("UI_Up");
-            kbd::send("UI_Down");
-            kbd::send("UI_Select");
-            if (st::dockedAt.stationType == "SpaceConstructionDepot" ||  st::dockedAt.stationType == "PlanetaryConstructionDepot")
-                waitUiState("scr-constr", 6s);
-            else
-                waitUiState("scr-services", 6s);
-            continue;
-        }
-        if (ai::uiState.match("scr-services")) {
-            clickButton("til-market");
-            waitUiState("scr-market:*", 5s);
-            continue;
-        }
-        if (ai::uiState.match("scr-constr")) {
-            return;
-        }
-        if (ai::uiState.match("scr-market:mod-buy")) {
-            if (buy) {
-                moveToWidget("lst-goods");
-                return;
-            }
-            // go to sell mode
-            clickButton("btn-to-sell");
-            if (waitUiState("scr-market:mod-buy", 2s))
-                kbd::send("UI_Right", 0, 300);
-            continue;
-        }
-        if (ai::uiState.match("scr-market:mod-sell")) {
-            if (!buy) {
-                moveToWidget("lst-goods");
-                return;
-            }
-            // go to sell mode
-            clickButton("btn-to-buy");
-            if (waitUiState("scr-market:mod-sell", 2s))
-                kbd::send("UI_Right", 0, 300);
-            continue;
-        }
-        kbd::send("UI_Back", 0, 1000);
-    }
-    throw_trouble("Cannot enter market");
-}
-
-bool BaseMarketTask::waitUiState(const std::string& state, std::chrono::seconds duration) {
-    utc_timer timer(duration);
-    do {
-        ai::detectEDState(DetectLevel::Buttons);
-        if (ai::uiState.match(state))
-            return true;
-        sleep(250);
-    } while (!timer.expired());
-    ai::detectEDState(DetectLevel::Buttons);
-    return ai::uiState.match(state);
-}
-
-bool BaseMarketTask::waitMarketEvent(std::chrono::seconds duration) {
-    utc_timer timer(duration);
-    while (!Cfg.marketEvent && !timer.expired()) {
-        sleep(250);
-    }
-    return bool(Cfg.marketEvent);
-}
-
 bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, bool force) {
     if (!commodity)
         return false;
@@ -119,6 +33,7 @@ bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, b
         return false;
     if(!force) {
         // check we trade required commodity
+        sleep(700);
         cv::Mat grayImage;
         ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
         auto lblCommodity = Master::getLabelCommodity(ai::rEnv, grayImage, "lbl-commodity");
@@ -311,8 +226,10 @@ bool TaskSell::run() {
         cv::Mat grayImage;
         ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (ai::uiState.match("scr-market:mod-sell")) {
-            if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInSellOrder()))
+            if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInSellOrder())) {
+                kbd::send("UI_Back");
                 throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
+            }
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
@@ -338,7 +255,6 @@ bool TaskSell::run() {
                         if (prevFocusedIdx == rowIdx)
                             forceTrade = true;
                         prevFocusedIdx = rowIdx;
-                        LOG(INFO) << "Pressing 'space'";
                         kbd::send("UI_Select", 0, 500);
                     } else {
                         prevFocusedIdx = -1;
@@ -592,8 +508,10 @@ bool TaskBuy::run() {
         cv::Mat grayImage;
         ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
         if (ai::uiState.match("scr-market:mod-buy")) {
-            if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInBuyOrder()))
+            if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInBuyOrder())) {
+                kbd::send("UI_Back");
                 throw_trouble("Cannot detect commodities in 'lst-goods', aborting");
+            }
             const ClassifiedRect* focusedRow = nullptr;
             const Commodity* focusedCommodity = nullptr;
             bool canTrade = false;
@@ -619,7 +537,6 @@ bool TaskBuy::run() {
                         if (prevFocusedIdx == rowIdx)
                             forceTrade = true;
                         prevFocusedIdx = rowIdx;
-                        LOG(INFO) << "Pressing 'space'";
                         kbd::send("UI_Select", 100, 500);
                     } else {
                         prevFocusedIdx = -1;
@@ -636,7 +553,7 @@ bool TaskBuy::run() {
                     missCount = 0;
                 else
                     missCount += 1;
-                if (missCount >= 3)
+                if (missCount >= 4)
                     throw_trouble("Too many fails");
                 continue;
             }
@@ -860,7 +777,7 @@ bool TaskBuyConstr::run() {
                     st.complete = true;
                 } else {
                     st.task->missCount += 1;
-                    if (st.task->missCount >= 3) {
+                    if (st.task->missCount >= 4) {
                         st.failed = true;
                         st.complete = true;
                     }
@@ -1109,8 +1026,21 @@ bool TradeLoopTask::run() {
     }
 
     int marketIdx = -1;
+    // check we are docked at some of stations
+    if (st::ship.flags.docked) {
+        gal::spEntity dock = getCurrDock();
+        if (dock) {
+            for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
+                auto &mi = markets[i];
+                if (dock->nameEq(mi.dock)) {
+                    marketIdx = i;
+                    break;
+                }
+            }
+        }
+    }
     // check we need to sell first
-    if (st::currentCargo && st::currentCargo->count > 0) {
+    if (marketIdx < 0 && st::currentCargo && st::currentCargo->count > 0) {
         // check we may sell something at designated market
         for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
             auto &mi = markets[i];
@@ -1132,15 +1062,15 @@ bool TradeLoopTask::run() {
             }
         }
     }
-    if (st::shipStats.cargo < st::shipStats.cargoCapacity) {
+    if (marketIdx < 0 && st::shipStats.cargo < st::shipStats.cargoCapacity) {
         // go to the market in current system to buy something
         for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
             auto &mi = markets[i];
             if (st::currentStarSystem == mi.system) {
                 if (mi.buy_all)
                     marketIdx = i;
-                if (!mi.buy_list.empty()) {
-                    for (auto* com : st::currentCargo->inventory) {
+                else if (!mi.buy_list.empty()) {
+                    for (auto* com : mi.buy_list) {
                         if (com && com->ship.count == 0) {
                             marketIdx = i;
                             break;
@@ -1154,8 +1084,8 @@ bool TradeLoopTask::run() {
             auto &mi = markets[i];
             if (mi.buy_all)
                 marketIdx = i;
-            if (!mi.buy_list.empty()) {
-                for (auto* com : st::currentCargo->inventory) {
+            else if (!mi.buy_list.empty()) {
+                for (auto* com : mi.buy_list) {
                     if (com && com->ship.count == 0) {
                         marketIdx = i;
                         break;
@@ -1186,6 +1116,7 @@ bool TradeLoopTask::run() {
                     if (!impl.id.empty()) {
                         if (!run_sub_step(impl.factory(impl)))
                             notify_warn("Trouble selling at market {}", mi.dock);
+                        sleep(1000); // read Status.json/Cargo.json
                     }
                 }
             }
@@ -1195,6 +1126,7 @@ bool TradeLoopTask::run() {
                     if (!impl.id.empty()) {
                         if (!run_sub_step(impl.factory(impl)))
                             notify_warn("Trouble buying at market {}", mi.dock);
+                        sleep(1000); // read Status.json/Cargo.json
                     }
                 }
             }

@@ -7,7 +7,11 @@
 
 INITIALIZE_EASYLOGGINGPP
 
+std::thread::id main_thread_id;
+
 int main(int argc, char *argv[]) {
+    main_thread_id = std::this_thread::get_id();
+
     START_EASYLOGGINGPP(argc, argv);
     el::Loggers::getLogger("OpenCV");
     //el::Configurations conf("logging.conf");
@@ -15,21 +19,11 @@ int main(int argc, char *argv[]) {
     el::Loggers::configureFromGlobal("logging.conf");
 
     Master& master = Master::getInstance();
-    int err = master.initialize(argc, argv);
-    if (!err) {
-        LOG(INFO) << "Initializing UI";
-        UIManager::initialize();
-        std::string msg1 = lc_format("Press '{0}' to popup EDRobot", Cfg.getShortcutFor(Command::Start));
-        std::string msg2 = lc_format("Press '{0}' to pause/stop", Cfg.getShortcutFor(Command::Stop));
-        std::string msg = msg1 + "\n\n" + msg2;
-        UIManager::showStartupDialog(msg);
-        Master::getInstance().loop();
-        LOG(INFO) << "Shutdown UI";
-        UIManager::shutdown();
-    }
+    if (master.initialize(argc, argv))
+        master.loop();
     master.shutdown();
     LOG(INFO) << "Shutdown";
     el::Loggers::flushAll();
-    return err;
+    return 0;
 }
 

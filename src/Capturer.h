@@ -14,18 +14,19 @@ struct ID3D11DeviceContext;
 
 class Capturer {
 public:
-    static struct ID3D11Device* getID3D11Device();
-    static struct ID3D11DeviceContext* getID3D11DeviceContext();
+    static struct ID3D11Device1* getID3D11Device();
+    static struct ID3D11DeviceContext1* getID3D11DeviceContext();
+    static bool flushID3D11DeviceContext();
 
     static Capturer* getEDCapturer(HWND hwnd);
+    static void resetEDCapturer();
+    static void restart();
     static void shutdown();
 
     virtual ~Capturer() = default;
 
     virtual bool start() {
         atomicIsStarted.exchange(true);
-        hpcStartTimestamp = std::chrono::high_resolution_clock::now();
-        utcStartTimestamp = std::chrono::utc_clock::now();
         return true;
     };
     virtual bool stop() {
@@ -38,13 +39,12 @@ public:
     cv::Rect getMonitorVirtualRect();
 
     [[nodiscard]] bool isStarted() { return atomicIsStarted.load(); }
-    [[nodiscard]] bool isDefaultCapturer() { return this == DefaultCapturer; }
 
-    virtual void recycle(Frame* frame) const = 0;
+    virtual bool recycle(Frame* frame) const = 0;
 
 protected:
     Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx);
-    virtual bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect);
+    virtual bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) = 0;
 
     // should be const, but I'm lazy to make all const_cast in the initializer
     double dpiScaleX;
@@ -52,6 +52,7 @@ protected:
     cv::Rect monitorVirtRect; // in virtual desktop coordinates
     cv::Rect windowVirtRect;
     cv::Rect captureVirtRect; // in virtual desktop coordinates
+    cv::Size captureSize;
     int titleHeight;
     int borderWidth;
     HMONITOR hMonitor;
@@ -59,20 +60,12 @@ protected:
     MONITORINFOEX monitorInfo;
     std::atomic<bool> atomicIsStarted;
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> hpcStartTimestamp;
-    std::chrono::time_point<std::chrono::utc_clock> utcStartTimestamp;
-
 private:
     friend class Master;
     friend class Configuration;
-    static std::vector<std::unique_ptr<class CapturerWin32>> Win32Capturers;
-    static std::vector<std::unique_ptr<class CapturerWinRT>> WinRTCapturers;
-    static std::vector<std::unique_ptr<class CapturerDXGI>> DXGICapturers;
-    static Capturer *DefaultCapturer;
+    static std::unique_ptr<Capturer> TheCapturer;
 
-    static void InitD3DDevice();
-    static void InitCapturers();
-    static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData);
+    static bool InitD3DDevice();
 };
 
 

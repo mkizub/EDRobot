@@ -52,7 +52,7 @@ bool UISelectRect::createWindow() {
         gSelectedRect = {center, size};
     }
 
-    UIWindow::createWindow(gWindowName, dwExStyle, dwStyle, gSelectedRect);
+    UIWindow::createWindow(hMonitor, gWindowName, dwExStyle, dwStyle, gSelectedRect);
     if (!hWnd)
         return false;
 

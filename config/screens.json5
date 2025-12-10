@@ -36,7 +36,7 @@
                 name: 'mod-less',
                 detect: [
                   // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
-                  { img: "at_market_sell_dialog-*.png", t: [0.6, 0.9], rect:[700, 170, 260, 100], ext: [0,30,0,20], name: "sdtl" },
+                  { img: "at_market_sell_dialog-*.png", t: [0.6, 0.9], rect:[715, 205, 242, 40], ext: [0,30,0,20], name: "sdtl" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[700, 714, 100, 100], ext: [0,30,10,70], name: "sdil" }
                 ],
                 have: [
@@ -50,7 +50,7 @@
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_sell_dialog-*.png", t: [0.6, 0.9], rect:[500, 170, 260, 100], ext: [0,30,0,20], name: "sdtm" },
+                  { img: "at_market_sell_dialog-*.png", t: [0.6, 0.9], rect:[515, 205, 242, 40], ext: [0,30,0,20], name: "sdtm" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[500, 714, 100, 100], ext: [0,30,10,70], name: "sdim" }
                 ],
                 have: [
@@ -82,7 +82,7 @@
                 name: 'mod-less',
                 detect: [
                   // at: for one-line 'lbl-commodity', thus ox/oy (offsets) are 0
-                  { img: "at_market_buy_dialog-*.png", t: [0.6, 0.9], rect:[704,185,240,95], ext: [0,30,0,20], name: "bdtl" },
+                  { img: "at_market_buy_dialog-*.png", t: [0.6, 0.9], rect:[715,218,215,40], ext: [0,30,0,20], name: "bdtl" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[707, 701, 100, 100], ext: [0,30,10,70], name: "bdil" }
                 ],
                 have: [
@@ -96,7 +96,7 @@
               {
                 name: 'mod-more',
                 detect: [
-                  { img: "at_market_buy_dialog-*.png", t: [0.6, 0.9], rect:[501, 185, 240, 95], ext: [0,30,0,20], name: "bdtm" },
+                  { img: "at_market_buy_dialog-*.png", t: [0.6, 0.9], rect:[713, 218, 215, 40], ext: [0,30,0,20], name: "bdtm" },
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[504, 701, 100, 100], ext: [0,30,10,70], name: "bdim" }
                 ],
                 have: [
@@ -171,7 +171,7 @@
     name: 'scr-services',
     status: { gui: 'Services', docked: true },
     detect: [
-      { tiles: [172,444,966,484], rows: [2,4], cols: 3, gap: 10, name: "dserv", t: [0.7, 0.9],
+      { tiles: [170,444,966,484], rows: [2,4], cols: 3, gap: 10, name: "dserv", t: [0.7, 0.9],
         icons: "services/dock-*.png", rect: [0,0,50,50], ext: [0,0,12,12],
         icon_align: "top-left"
       },
@@ -278,28 +278,25 @@
         lines: [
           {
             name: "detect-angle", line: [570,293, 970,285], ext: [1,150], delta: 10, prec: 1, votes: 350,
-            filter: [{ hsv_crop: { h: [10,40], s:[63,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 45 } }]
+            filter: [{ hsv_crop: { h: [10,40], s:[63,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 40, scale: 1.5 } }]
           },{
             name: "top-line", line: [234,250, 1300,237], ext: [300,120], delta: 2, prec: 0.125,
-            //votes: 1000, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate: 2, } }],
-            votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate_pos: 3, dilate_neg: 0 } }]
+            votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 40, scale: 1.5, dilate_pos: 3, dilate_neg: 0 } }]
           },{
-            name: "btm-line", line: [285,903, 1317,797], ext: [20,50], delta: [4,7], prec: 0.125,
-            votes: 900, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate: 2, } }],
-            //votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate_pos: 3, dilate_neg: 0, erode: 0 } }]
+            name: "btm-line", line: [285,903, 1317,797], ext: [20,20,20,100], delta: [4,7], prec: 0.125,
+            votes: 900, filter: [{ channel: 'red' }, { lines: { thr: 40, scale: 1.5, dilate: 2, } }],
           },{
             name: "btm-line-weak", line: [285,903, 1317,797], ext: [20,50], delta: [4,7], prec: 0.125,
-            votes: 800, filter: [{ hsv_crop: { h: [10,40], s:[128,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 30, dilate: 2, } }],
-            //votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 45, dilate_pos: 3, dilate_neg: 0, erode: 0 } }]
+            votes: 800, filter: [{ hsv_crop: { h: [10,40], s:[128,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 30, scale: 1.5, dilate: 2, } }],
           },{
             name: "nav-line", line: [372,272,1212,258], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
-            filter: [{ channel: 'red' }, { lines: { thr: 45 } }],
+            filter: [{ channel: 'red' }, { lines: { thr: 40, scale: 1.5 } }],
           },{
             name: "flt-line", line: [372,272,1212,258], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
-            filter: [{ channel: 'red' }, { lines: { thr: 35 } }],
+            filter: [{ channel: 'red' }, { lines: { thr: 30, scale: 1.5 } }],
           },{
             name: "flt-line2", line: [374,308,1213,290], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
-            filter: [{ channel: 'red' }, { lines: { thr: 35 } }],
+            filter: [{ channel: 'red' }, { lines: { thr: 30, scale: 1.5 } }],
           }
         ]
       },

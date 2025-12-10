@@ -534,7 +534,7 @@ void Redused::detect_rows() {
 void Redused::calc_threshold() {
     int threshold;
     if (list->header > 0) {
-        threshold = 70;
+        threshold = 60;
     } else {
         bool have_gaps = false;
         uint8_t max_threshold = 100;
@@ -714,7 +714,7 @@ bool Redused::normalize_rows() {
     return changed;
 }
 
-//#define DEBUG_LIST_DETECTOR 1
+#define DEBUG_LIST_DETECTOR 1
 
 bool List::detect(DetectParams& params) {
     ClassifyEnv& env = params.env;
@@ -739,9 +739,14 @@ bool List::detect(DetectParams& params) {
         rowTestRect.x += env.getScale() * row_test_bgn;
         rowTestRect.width = env.getScale() * (row_test_end - row_test_bgn);
     }
-    detect::HsvGrayCropFilter hsvFilter;
-    hsvFilter.rangesU.emplace_back(cv::Vec3b(10,100,30),cv::Vec3b(35,255,255));
+    detect::HsvValueCropFilter hsvFilter;
+    hsvFilter.rangesU.emplace_back(cv::Vec3b(5,100,30),cv::Vec3b(35,255,255));
     XMat testImage = hsvFilter.apply(env.getColorImage()(rowTestRect), {});
+#ifdef  DEBUG_LIST_DETECTOR
+    XMat origImage = env.getColorImage()(rowTestRect);
+    cv::Mat origImageDebug = toMat(origImage).clone();
+    cv::Mat testImageDebug = toMat(testImage).clone();
+#endif
     cv::reduce(testImage, reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
     cv::Mat reducedMat = toMat(reducedImage);
     Redused reduced(this, reducedMat.rows, reducedMat.data, env.getScale());
@@ -1069,9 +1074,9 @@ static int getIntValue(const std::string_view& view, const ResolvedEnv& env) {
     size_t dot = view.find('.');
     if (dot == std::string_view::npos) {
         if (equalsIgnoreCase(view, "ScreenWidth"))
-            return env.ReferenceScreenSize.width;
+            return ReferenceScreenSize.width;
         if (equalsIgnoreCase(view, "ScreenHeight"))
-            return env.ReferenceScreenSize.height;
+            return ReferenceScreenSize.height;
         LOG(ERROR) << "Unknown identifier in expression: " << view;
         return 0;
     }

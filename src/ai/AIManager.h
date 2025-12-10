@@ -15,7 +15,9 @@
 namespace ai {
 
 bool init();
+bool init_ship_tracker();
 bool shutdown();
+bool shutdown_ship_tracker();
 bool active();
 void stop();
 void interrupt();

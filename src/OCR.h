@@ -29,7 +29,7 @@ enum TextType {
     NUMERIC,
 };
 
-extern void init(const std::string& tessdata);
+extern bool init(const std::string& tessdata);
 extern void shutdown();
 // returns confidence 0..100, fill text, rect
 extern int ocrLine(TextType tt, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut);

@@ -291,7 +291,7 @@ Master& Master::getInstance() {
     return master;
 }
 
-int Master::initialize(int argc, char* argv[]) {
+bool Master::initialize(int argc, char* argv[]) {
     CLI::App options;
     options.allow_windows_style_options();
 
@@ -333,45 +333,61 @@ int Master::initialize(int argc, char* argv[]) {
         //LOG(INFO) << _("Hello world!");
     }
 
+    std::string error;
     TRY {
-        initializeInternal(ocr_dir);
+        error = initializeInternal(ocr_dir);
     } CATCH(const std::exception& e) {
         LOG(ERROR) << "Exception in initialization: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
-        return 1;
+        error = lc_format("Exception in initialization: {}", e.what());
     }
 
-    LOG(INFO) << lc_format("Press '{0}' to popup EDRobot", Cfg.getShortcutFor(Command::Start));
-    LOG(INFO) << lc_format("Press '{0}' to pause/stop", Cfg.getShortcutFor(Command::Stop));
-
-
-    return 0;
+    LOG(INFO) << "Initializing UI";
+    UIManager::initialize();
+    if (error.empty()) {
+        std::string msg1 = lc_format("Press '{0}' to popup EDRobot", Cfg.getShortcutFor(Command::Start));
+        std::string msg2 = lc_format("Press '{0}' to pause/stop", Cfg.getShortcutFor(Command::PauseResume));
+        std::string msg = msg1 + "\n\n" + msg2;
+        UIManager::showStartupDialog(msg);
+        return true;
+    } else {
+        std::string msg1 = _gt("Initialization error");
+        std::string msg = msg1 + "\n\n" + error;
+        UIManager::showStartupDialog(msg);
+        return false;
+    }
 }
-void Master::initializeInternal(std::string ocr_dir) {
+std::string Master::initializeInternal(std::string ocr_dir) {
 
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
     LOG(INFO) << "Loading configuration";
-    Cfg.load();
+    if (!Cfg.load())
+        return Cfg.getErrorMessage();
 
     ai::init();
+    if (!ai::init_ship_tracker())
+        return _gt("Missing required vJoy axis bindings for ship");
 
     if (ocr_dir.empty())
         ocr_dir = Cfg.mTesseractDataPath;
     if (ocr_dir.empty())
-        ocr_dir = "tessdata-fast";
-    ocr::init(ocr_dir);
+        ocr_dir = "tessdata";
+    if (!ocr::init(ocr_dir))
+        return _gt("OCR Tesseract initialization error");
 
     LOG(INFO) << "Initializing compass detector";
     mCompassDetector = std::make_unique<detect::CompassDetector>();
 
     LOG(INFO) << "Setup keyboard hooks";
-    kbd::acquire_vJoy();
+    if (!kbd::acquire_vJoy())
+        return _gt("vJoy driver not found or busy");
     std::vector<std::string> keys;
     for (auto& m : Cfg.keyMapping)
         keys.push_back(m.first.first);
     kbd::intercept(keys);
     kbd::start(tradingKbHook);
+    return "";
 }
 
 Master::Master() {
@@ -383,8 +399,10 @@ Master::~Master() {
 }
 
 void Master::shutdown() {
+    UIManager::shutdown();
     kbd::stop();
     kbd::release_vJoy();
+    ai::shutdown_ship_tracker();
     ai::shutdown();
     mCompassDetector.reset();
     mClassifyEnv.clear();
@@ -399,10 +417,7 @@ void Master::shutdown() {
 
 void Master::loop() {
     TRY {
-        LOG(INFO) << "Initializing screen capturers";
-        Capturer::InitCapturers();
-
-        LOG(INFO) << "Starting EDRobot task task_loop";
+        LOG(INFO) << "Starting EDRobot task loop";
         bool shutdown = false;
         while (!shutdown) {
             pCommand cmd;
@@ -414,17 +429,13 @@ void Master::loop() {
                 else
                     debugWindowUpdate();
                 break;
-            case Command::TaskFinished:
-                //clearCurrentTask();
-                break;
             case Command::Start:
                 UIManager::showMainDialog();
                 break;
-            case Command::Pause:
-                stopAITask();
-                break;
-            case Command::Resume:
-                resumeAITask();
+            case Command::PauseResume:
+                ai::toggleDebugPause();
+                if (ai::isDebugPause())
+                    UIManager::showMainDialog();
                 break;
             case Command::Stop:
                 stopAITask();
@@ -474,8 +485,11 @@ bool Master::isGameForeground() {
 }
 
 bool Master::setGameForeground() {
-    if (!hWndED)
-        Master::getCapturer();
+    if (!hWndED) {
+        if (main_thread_id == std::this_thread::get_id())
+            resetCapturer();
+        hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
+    }
     if (!hWndED)
         return false;
     if (hWndED == GetForegroundWindow())
@@ -486,8 +500,11 @@ bool Master::setGameForeground() {
 }
 
 bool Master::setGameMouseCapture() {
-    if (!hWndED)
-        Master::getCapturer();
+    if (!hWndED) {
+        if (main_thread_id == std::this_thread::get_id())
+            resetCapturer();
+        hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
+    }
     if (!hWndED)
         return false;
     if (hWndED != GetForegroundWindow()) {
@@ -506,24 +523,51 @@ bool Master::setGameMouseCapture() {
 void Master::tradingKbHook(int code, int scancode, int flags, const std::string& name) {
     (void)code;
     (void)scancode;
-    LOG(DEBUG) << "Key '"+encodeShortcut(name,flags)+"' pressed";
     Master& self = getInstance();
     auto keyMapping = Cfg.keyMapping;
-    auto cmd = keyMapping.find(std::make_pair(toLower(name),flags));
-    if (cmd != keyMapping.end()) {
-        LOG(INFO) << "Command " << enum_name(cmd->second) << " by key '"+encodeShortcut(name,flags)+"' pressed";
-        if (cmd->second == Command::Pause) {
+    auto key_map_it = keyMapping.find(std::make_pair(toLower(name),flags));
+    if (key_map_it != keyMapping.end()) {
+        LOG(DEBUG) << "Key '"+encodeShortcut(name,flags)+"' pressed";
+        Command cmd = key_map_it->second;
+        LOG(INFO) << "Command " << enum_name(cmd) << " by key '"+encodeShortcut(name,flags)+"' pressed";
+        if (cmd == Command::PauseResume) {
             ai::toggleDebugPause();
             if (ai::isDebugPause())
                 UIManager::showMainDialog();
+        } else {
+            switch (cmd) {
+            // not expected as keyboard shortcuts
+            case Command::NoOp:
+            case Command::DetectRequest:
+            case Command::DevRectScreenshot:
+            case Command::Shutdown:
+                break;
+            // global shortcuts
+            case Command::Start:
+            case Command::Stop:
+            case Command::DebugTemplates:
+            case Command::DebugWindow:
+            case Command::DebugStream:
+                self.pushCommand(cmd);
+                break;
+            case Command::PauseResume:
+                ai::toggleDebugPause();
+                if (ai::isDebugPause())
+                    UIManager::showMainDialog();
+                break;
+            // in-game shortcuts
+            case Command::Autopilot:
+            case Command::ResetCapturer:
+            case Command::DevRectSelect:
+                if (self.isGameForeground())
+                    self.pushCommand(cmd);
+                break;
+            }
         }
-        else
-            self.pushCommand(cmd->second);
-    } else {
-        if (Cfg.autoPause && ai::active()) {
-            LOG(INFO) << "Auto-pausing AI task because '"+encodeShortcut(name,flags)+"' pressed";
-            self.pushCommand(Command::Pause);
-        }
+    }
+    else if (Cfg.isAutoPause() && ai::isDebugPause() && self.isGameForeground()) {
+        LOG(INFO) << "Auto-paused because of key pressed";
+        ai::toggleDebugPause();
     }
 }
 
@@ -711,7 +755,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
             }
         }
     }
-     if (!first || !last)
+    if (!first || !last)
         return false;
     // check first and last match with table
     auto it_table_first = std::find_if(table.begin(), table.end(), [first](Commodity* c) { return c == first->u.lrow.commodity; });
@@ -788,17 +832,8 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
     return true;
 }
 
-bool Master::pauseAITask() {
-    ai::interrupt();
-    return true;
-}
-
-bool Master::resumeAITask() {
-    ai::resume();
-    return true;
-}
-
 bool Master::stopAITask() {
+    kbd::reset_vJoy();
     ai::interrupt();
     return true;
 }
@@ -1039,10 +1074,7 @@ bool Master::debugWindowUpdate() {
         detect::CompassDetector& c = *mCompassDetector.get();
         detect::ImageTemplate& ct = *c.compassDetector.get();
 
-        {
-            cv::Rect r = cEnv.cvtReferenceToCaptured(ct.matchRect);
-            cv::rectangle(debugImage, r, {96, 96, 96}, 2);
-        }
+        cv::rectangle(debugImage, ct.matchRect, {96, 96, 96}, 2);
 
         if (mCompassDetector->lastHemisphere) {
             cv::Point center = (ct.captureRect.tl() + ct.captureRect.br()) / 2;
@@ -1063,7 +1095,7 @@ bool Master::debugWindowUpdate() {
         }
 
         if (c.navTargetFound) {
-            cv::Point center = cEnv.cvtReferenceToCaptured(cEnv.ReferenceScreenCenter + c.lastNavTargetOffset);
+            cv::Point center = cEnv.cvtReferenceToCaptured(ReferenceScreenCenter + c.lastNavTargetOffset);
             int radius = c.navTargetReferenceRadius * cEnv.getScale();
             cv::circle(debugImage, center, radius, {255,255,0}, 2);
             if (c.lastNavDist.unit != dist_t::X) {
@@ -1089,11 +1121,11 @@ bool Master::debugWindowUpdate() {
             npd->lastRotRect.points(points); // bottomLeft, topLeft, topRight, bottomRight
             for (int j = 0; j < 4; j++)
                 cv::line(debugImage, points[j], points[(j+1) % 4], {160,160,160}, 1, cv::LINE_AA);
-            auto& topLine = npd->lastTopLine;
+            auto topLine = cEnv.cvtReferenceToCaptured(npd->lastTopLine);
             cv::line(debugImage, topLine.p0(), topLine.p1(), {200,200,200}, 1, cv::LINE_AA);
             cv::drawMarker(debugImage, topLine.p0(), {255,255,255}, 10);
             cv::drawMarker(debugImage, topLine.p1(), {255,255,255}, 10);
-            auto& btmLine = npd->lastBottomLine;
+            auto btmLine = cEnv.cvtReferenceToCaptured(npd->lastBottomLine);
             cv::line(debugImage, btmLine.p0(), btmLine.p1(), {200,200,200}, 1, cv::LINE_AA);
             cv::drawMarker(debugImage, btmLine.p0(), {255,255,255}, 10);
             cv::drawMarker(debugImage, btmLine.p1(), {255,255,255}, 10);
@@ -1188,11 +1220,11 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
         LOG(ERROR) << "Cannot capture screen for screenshot";
         return false;
     }
-    if ((rect & debugEnv.captureRect) != rect) {
+    if ((rect & debugEnv.clientRect) != rect) {
         LOG(ERROR) << "Cannot make screenshot because dev rect is beyond of game client area";
         return false;
     }
-    rect -= debugEnv.captureRect.tl();
+    rect -= debugEnv.clientRect.tl();
 
     //cv::Vec4b color = debugEnv.getColorImage().at<cv::Vec4b>( (rect.tl() + rect.br())/2 );
     //LOG(INFO) << "Selected rect BGRA color (center dot): " << color;
@@ -1299,6 +1331,8 @@ bool Master::setDetectStream(DetectLevel level) {
     return true;
 }
 bool Master::detectEDState(DetectLevel level) {
+    assert (main_thread_id == std::this_thread::get_id());
+
     auto startTime = std::chrono::high_resolution_clock::now();
 
     mLastUIState.clear();
@@ -1306,6 +1340,11 @@ bool Master::detectEDState(DetectLevel level) {
     if (!captureWindow(mClassifyEnv)) {
         LOG(ERROR) << "Cannot capture screen";
         mLastUIState.valid = false;
+        HWND hWnd = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
+        if (!hWnd || hWnd != hWndED) {
+            resetCapturer();
+            mDetectLevelStream = DetectLevel::None;
+        }
         return false;
     }
     //auto utc_now = std::chrono::utc_clock::now();
@@ -1365,6 +1404,7 @@ cv::Point Master::cvtReferenceToDesktop(const cv::Point& point) const {
 }
 
 Capturer* Master::getCapturer() {
+    assert (main_thread_id == std::this_thread::get_id());
     if (!hWndED) {
         HWND hWnd = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
         if (hWnd) {
@@ -1378,21 +1418,19 @@ Capturer* Master::getCapturer() {
             return nullptr;
         mCapturer->start();
     }
-//    std::string error;
-//    bool ok = Cfg.checkResolutionSupported(capturer->getCaptureRect().size(), error);
-//    if (!ok) {
-//        UIManager::showToast(_("Unsupported aspect ratio"), error);
-//        return false;
-//    }
     return mCapturer;
 }
 
 void Master::resetCapturer() {
+    assert (main_thread_id == std::this_thread::get_id());
     hWndED = nullptr;
     if (mCapturer) {
+        if (mClassifyEnv.mFrame)
+            const_cast<Capturer*&>(mClassifyEnv.mFrame->owner) = nullptr;
         mCapturer->stop();
         mCapturer = nullptr;
     }
+    Capturer::resetEDCapturer();
 }
 
 
@@ -1413,7 +1451,7 @@ bool Master::captureWindow(ClassifyEnv& env) {
         return false;
     cv::Rect captureRect = capturer->getCaptureRect();
     cv::Rect monitorRect = capturer->getMonitorVirtualRect();
-    env.init(monitorRect, captureRect, std::move(recycle));
+    env.init(monitorRect, captureRect, capturer->captureSize, std::move(recycle));
 
     int fps_millis = mStreamFramePoints.size() < 10 ? 3000 : 1000;
     auto now = std::chrono::steady_clock::now();

@@ -1,23 +1,124 @@
 [
   {
-    "templ": "tsk-debug-ship-stats",
-    "name": "Debug: keep course",
-    "test": "KeepCourse",
-    "value": 1,
-    "speed": 0
+    "templ": "tsk-trade-loop",
+    "name": "Торговля HIP 40900",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "HIP 40900",
+        "dock": "New Covenant Station",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all",
+            "except": [
+              "palladium",
+              "gold",
+              "silver"
+            ]
+          },
+          {
+            "templ": "tsk-market-buy-all",
+            "commodity": [
+              "palladium",
+              "gold",
+              "beryllium",
+              "silver",
+              "gallium",
+              "indium",
+              "tantalum",
+              "thorium"
+            ]
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "Wregoe SK-N c20-19",
+        "dock": "Serpent's Deception",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all",
+            "except": [
+              "cmmcomposite"
+            ]
+          },
+          {
+            "templ": "tsk-market-buy",
+            "commodity": "cmmcomposite"
+          }
+        ]
+      }
+    ]
   },
   {
-    "templ": "tsk-debug-ship-stats",
-    "name": "Debug: orient towards",
-    "test": "OrientTowards",
-    "value": 0.2,
-    "speed": 50
+    "templ": "tsk-trade-loop",
+    "name": "Загрузка авика драг.металлами HIP 40900",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "HIP 40900",
+        "dock": "New Covenant Station",
+        "tasks": [
+          {
+            "templ": "tsk-market-buy-all",
+            "commodity": [
+              "palladium",
+              "gold",
+              "beryllium",
+              "silver",
+              "gallium",
+              "indium",
+              "tantalum",
+              "thorium"
+            ]
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "HIP 40900",
+        "dock": "Daimonio tou Sokrati VFT-85B",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all"
+          }
+        ]
+      }
+    ]
   },
   {
-    "templ": "tsk-debug-ship-stats",
-    "name": "Debug: pitch curve",
-    "test": "PitchCurve",
-    "speed": 0
+    "templ": "tsk-trade-loop",
+    "name": "Торговый маршрут Gulyaev City <-> Paf - Olive",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector XK-O d6-69",
+        "dock": "Gulyaev City",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all"
+          },
+          {
+            "templ": "tsk-market-buy",
+            "commodity": "lepidolite"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector FU-K b23-4",
+        "dock": "Paf - Olive",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all"
+          },
+          {
+            "templ": "tsk-market-buy",
+            "commodity": "silver"
+          }
+        ]
+      }
+    ]
   },
   {
     "templ": "tsk-market-buy-constr",

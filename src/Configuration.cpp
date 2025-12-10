@@ -65,12 +65,12 @@ bool Configuration::load() {
 
     // initialize default keymapping
     keyMapping = {
-            {{"esc",         0},                      Command::Stop},
             {{"printscreen", 0},                      Command::Start},
-            {{"scrolllock",  0},                      Command::Resume},
-            {{"pause",       0},                      Command::Pause},
-            {{"printscreen", kbd::LCTRL | kbd::LALT}, Command::DebugTemplates},
+            {{"pause",       0},                      Command::PauseResume},
+            {{"esc",         0},                      Command::Stop},
+            {{"pause",       kbd::LCTRL},             Command::Stop},
             {{"a",           kbd::LALT},              Command::Autopilot},
+            {{"printscreen", kbd::LCTRL | kbd::LALT}, Command::DebugTemplates},
             {{"r",           kbd::LCTRL | kbd::LALT}, Command::DevRectSelect},
             {{"[",           kbd::LCTRL | kbd::LALT}, Command::DebugWindow},
             {{"\\",          kbd::LCTRL | kbd::LALT}, Command::DebugStream},
@@ -108,13 +108,13 @@ bool Configuration::load() {
         if (j_config.at("shortcuts").is_object()) {
             auto &obj = j_config.at("shortcuts");
             parseShortcutConfig(Command::Start, "start", obj);
-            parseShortcutConfig(Command::Pause, "pause", obj);
-            parseShortcutConfig(Command::Resume, "resume", obj);
+            parseShortcutConfig(Command::PauseResume, "pause", obj);
             parseShortcutConfig(Command::Stop, "stop", obj);
             parseShortcutConfig(Command::DebugTemplates, "debug-templates", obj);
             parseShortcutConfig(Command::DebugWindow, "debug-window", obj);
+            parseShortcutConfig(Command::DebugStream, "debug-stream", obj);
+            parseShortcutConfig(Command::ResetCapturer, "reset-capturer", obj);
             parseShortcutConfig(Command::DevRectSelect, "dev-rect-select", obj);
-            parseShortcutConfig(Command::Shutdown, "shutdown", obj);
         }
         if (auto tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
             mEDSettingsPath = toUtf16(tm.as_string());
@@ -147,7 +147,8 @@ bool Configuration::load() {
         std::filesystem::create_directories("cache/markets");
 
         LOG(INFO) << "Initializing D3D device";
-        Capturer::InitD3DDevice();
+        if (!Capturer::InitD3DDevice())
+            errorMessage = _gt("Error initializing DirectX");
     }
 
     {
@@ -159,19 +160,26 @@ bool Configuration::load() {
             screensRoot->addSubItem(widget_from_json(s, screensRoot));
         }
         //detect::NavPanelDetectLock lock("flt-line");
-        //detect::NavPanelDetector::standaloneTest("nav-panel-test-3.png", "scr-left-panel");
+        //detect::NavPanelDetector::standaloneTest("nav-panel-test-8.png", "scr-left-panel");
         //detect::NavPanelDetectLock lock("flt-line");
         //detect::NavPanelDetector::standaloneTest("nav-panel-left-filter.png", "scr-left-panel");
     }
 
     {
-        eddb::loadEDDB();
-        preloadGameJournal(); // game language & version
-        loadGameSettings(true);
-        loadPlayerOptions();
-        loadInputBindings();
+        if (!eddb::loadEDDB())
+            errorMessage = _gt("Failed to load ship database");
+        if (!preloadGameJournal())
+            errorMessage = _gt("Failed to load game journal");
+        if (!loadGameSettings(true))
+            errorMessage = _gt("Failed to load game settings");
+        if (!loadPlayerOptions())
+            errorMessage = _gt("Failed to load game player options");
+        if (!loadInputBindings())
+            errorMessage = _gt("Failed to load all required key bindings");
 
-        loadCommodityDatabase(); // initialization depends on game language
+        if (!loadCommodityDatabase())// initialization depends on game language
+            errorMessage = _gt("Failed to load commodity database");
+            ;
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
 
@@ -368,12 +376,14 @@ bool Configuration::loadGameSettings(bool initial) {
                 if (!initial && width != configScreenWidth)
                     needCapturerReset = true;
                 configScreenWidth = width;
+                scaledScreenWidth = width;
             }
             if (auto node = xml_node_find_tag(rootNode, "ScreenHeight", true); node && node->text) {
                 int height = atol(node->text);
                 if (!initial && height != configScreenHeight)
                     needCapturerReset = true;
                 configScreenHeight = height;
+                scaledScreenHeight = height;
             }
             if (auto node = xml_node_find_tag(rootNode, "FullScreen", true); node && node->text) {
                 FullScreenMode mode = (FullScreenMode) atoi(node->text);
@@ -381,8 +391,38 @@ bool Configuration::loadGameSettings(bool initial) {
                     needCapturerReset = true;
                 configFullScreen = mode;
             }
+            if (auto node = xml_node_find_tag(rootNode, "Monitor", true); node && node->text) {
+                int monitorId = atoi(node->text);
+                if (!initial && monitorId != configMonitorID)
+                    needCapturerReset = true;
+                configMonitorID = monitorId;
+            }
             xml_node_free(rootNode);
             rootNode = nullptr;
+
+            // downscale if resolution is 2048x1536 or 2560x1440 or above
+            if ((configScreenWidth >= 2048 && configScreenHeight >= 1440) || configScreenWidth*configScreenHeight >= 2048*1440) {
+                double x_scale = ReferenceScreenSize.width / double(configScreenWidth);
+                double y_scale = ReferenceScreenSize.height / double(configScreenHeight);
+                if (x_scale >= 1)
+                    x_scale = 0;
+                if (y_scale >= 1)
+                    y_scale = 0;
+                double scale = std::max(x_scale, y_scale);
+                if (scale == 0)
+                    scale = 0.75;
+                scaledScreenWidth = std::round(configScreenWidth*scale);
+                scaledScreenHeight = std::round(configScreenHeight*scale);
+                while ((scaledScreenWidth & 3) || (scaledScreenHeight & 3)) {
+                    scaledScreenWidth &= ~3;
+                    scaledScreenHeight &= ~3;
+                    x_scale = double(scaledScreenWidth) / ReferenceScreenSize.width;
+                    y_scale = double(scaledScreenHeight) / ReferenceScreenSize.height;
+                    scale = std::min(x_scale, y_scale);
+                    scaledScreenWidth = std::round(configScreenWidth*scale);
+                    scaledScreenHeight = std::round(configScreenHeight*scale);
+                }
+            }
         } else {
             ok = false;
             LOG(ERROR) << "Cannot parse " << filename;
@@ -516,19 +556,19 @@ bool Configuration::loadInputBindings() {
             filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
         rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
-            parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Up");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Down");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Left");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Right");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Select");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Back");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Toggle");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "CycleNextPanel");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPanel");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "CycleNextPage");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPage");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Up");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Down");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Left");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Right");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Select");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Back");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Toggle");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "CycleNextPanel");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPanel");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "CycleNextPage");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "CyclePreviousPage");
             xml_node_free(rootNode);
             rootNode = nullptr;
         } else {
@@ -545,43 +585,43 @@ bool Configuration::loadInputBindings() {
             filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
         rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
-            parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "RollLeftButton");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "RollRightButton");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "PitchUpButton");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "PitchDownButton");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "YawLeftButton");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "YawRightButton");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "LeftThrustButton");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "RightThrustButton");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "UpThrustButton");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "DownThrustButton");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardThrustButton");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardThrustButton");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardKey");
-            //parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardKey");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus100");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus75");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus50");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus25");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedZero");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed25");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed50");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed75");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed100");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "HyperSuperCombination");       // vJoy_1
-            parseKeyBindings(rootNode, mKeyBindingsMap, "Supercruise");                 // vJoy_2
-            parseKeyBindings(rootNode, mKeyBindingsMap, "Hyperspace");                  // vJoy_3
-            parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");               // vJoy_4
-            parseKeyBindings(rootNode, mKeyBindingsMap, "ToggleCargoScoop");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "DeployHardpointToggle");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "LandingGearToggle");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "TargetNextRouteSystem");       // vJoy_5
-            parseKeyBindings(rootNode, mKeyBindingsMap, "MouseReset");                  // vJoy_6
-            parseKeyBindings(rootNode, mKeyBindingsMap, "YawAxisRaw");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "PitchAxisRaw");
-            parseKeyBindings(rootNode, mKeyBindingsMap, "RollAxisRaw");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "RollLeftButton");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "RollRightButton");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "PitchUpButton");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "PitchDownButton");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "YawLeftButton");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "YawRightButton");
+            //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "LeftThrustButton");
+            //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "RightThrustButton");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UpThrustButton");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "DownThrustButton");
+            //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardThrustButton");
+            //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardThrustButton");
+            //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardKey");
+            //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardKey");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus100");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus75");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus50");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus25");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedZero");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed25");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed50");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed75");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeed100");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "HyperSuperCombination");       // vJoy_1
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "Supercruise");                 // vJoy_2
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "Hyperspace");                  // vJoy_3
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "GalaxyMapOpen");               // vJoy_4
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "ToggleCargoScoop");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "DeployHardpointToggle");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "LandingGearToggle");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "TargetNextRouteSystem");       // vJoy_5
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "MouseReset");                  // vJoy_6
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "YawAxisRaw");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "PitchAxisRaw");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "RollAxisRaw");
             configHeadlookSmoothing = getBoolNodeValue(rootNode, "HeadlookSmoothing");
             xml_node_free(rootNode);
             rootNode = nullptr;
@@ -681,22 +721,6 @@ std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
     os << "pips:[" << int(st.pips[0]) << "," << int(st.pips[1]) << "," << int(st.pips[2]) << "]";
     os << "}";
     return os;
-}
-
-bool Configuration::checkResolutionSupported(cv::Size gameSize, std::string& error) {
-    if (configFullScreen == FullScreenMode::Window)
-        return true;
-    cv::Size displaySize(configScreenWidth, configScreenHeight);
-    double cmp = gameSize.aspectRatio() - displaySize.aspectRatio();
-    if (std::abs(cmp) > 0.01) {
-        std::string msg = lc_format(
-                "In FullScreen/Borderless mode aspect ratio must match, but {0:.3f} != {1:.3f} for {2}x{3} and {4}x{5}",
-                gameSize.aspectRatio(), displaySize.aspectRatio(),
-                gameSize.width, gameSize.height, configScreenWidth, configScreenHeight);
-        LOG(ERROR) << msg;
-        return false;
-    }
-    return true;
 }
 
 std::string Configuration::getShortcutFor(Command cmd) const {
@@ -1587,6 +1611,7 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
     bool has_hsv_crop = jo.contains("hsv_crop");
     bool has_hsv_gray = jo.contains("hsv_gray");
     bool has_hsv_mask = jo.contains("hsv_mask");
+    bool has_hsv_cval = jo.contains("hsv_cval");
     if (has_hsv_crop || has_hsv_gray || has_hsv_mask) {
         json5pp::value jhsv;
         HsvMaskFilter* filter;
@@ -1597,6 +1622,10 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
         else if (has_hsv_gray) {
             jhsv = jf["hsv_gray"];
             filter = new HsvGrayCropFilter();
+        }
+        else if (has_hsv_cval) {
+            jhsv = jf["hsv_gray"];
+            filter = new HsvValueCropFilter();
         }
         else {
             jhsv = jf["hsv_mask"];

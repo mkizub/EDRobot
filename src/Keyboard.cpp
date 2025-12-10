@@ -7,6 +7,7 @@
 
 #include "Keyboard.h"
 #include "vjoy/vjoyinterface.h"
+#include "Capturer.h"
 
 namespace kbd
 {
@@ -75,7 +76,7 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { VK_SNAPSHOT,       0x54,           {"PrintScreen", "PrntScrn", "PrtScr", "PrtSc", "Snapshot"} },
         { VK_SCROLL,         0x46,           {"ScrollLock", "Scroll"} },
         { VK_F1,             0x46 | EXT_KEY, "CtrlBreak" },
-        { VK_PAUSE,          0x45,           "Pause"     },
+        { VK_PAUSE,          0x45,           {"Pause","Break"} },
         { VK_OEM_3,          0x29,           {"`", "Grave"} },
         { '1',               0x02 },
         { '2',               0x03 },
@@ -694,40 +695,28 @@ bool axis(const KeyBindings& bindings, double value, bool background) {
 }
 
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION) {
+    if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYUP)) {
         auto* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
-        if (wParam == WM_KEYUP || wParam == WM_SYSKEYDOWN) {
-            auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
-            //if (!isInjected)
-            //    LOG(INFO) << "keyboard hook key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
-            //else
-            //    LOG(INFO) << "keyboard hook ejected key up  : code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
-        } else if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYUP) {
-            auto vkCode = pKeyBoard->vkCode;
-            auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
-            if (!isInjected && INTERCEPT_VK_KEY_SET.contains(vkCode)) {
-                //LOG(INFO) << "keyboard hook key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
-                int flags = 0;
-                if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) flags |= LSHIFT;
-                if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) flags |= RSHIFT;
-                if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) flags |= LCTRL;
-                if (GetAsyncKeyState(VK_RCONTROL) & 0x8000) flags |= RCTRL;
-                if (GetAsyncKeyState(VK_LMENU) & 0x8000) flags |= LALT;
-                if (GetAsyncKeyState(VK_RMENU) & 0x8000) flags |= RALT;
-                if (GetAsyncKeyState(VK_LWIN) & 0x8000) flags |= LWIN;
-                if (GetAsyncKeyState(VK_RWIN) & 0x8000) flags |= RWIN;
-                std::string keyName;
-                const auto& it = US_QWERTY_MAPPING_VK_TO_NAME.find(vkCode);
-                if (it != US_QWERTY_MAPPING_VK_TO_NAME.end())
-                    keyName = it->second.names[0];
-                else
-                    keyName = unknownKeyName;
-                if (vkCode==VK_ESCAPE)
-                    reset_vJoy();
-                keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags, keyName);
-            } else {
-                //LOG(INFO) << "keyboard hook ejected key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
-            }
+        auto vkCode = pKeyBoard->vkCode;
+        auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
+        if (!isInjected && (Cfg.isAutoPause() || INTERCEPT_VK_KEY_SET.contains(vkCode))) {
+            //LOG(INFO) << "keyboard hook key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
+            int flags = 0;
+            if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) flags |= LSHIFT;
+            if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) flags |= RSHIFT;
+            if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) flags |= LCTRL;
+            if (GetAsyncKeyState(VK_RCONTROL) & 0x8000) flags |= RCTRL;
+            if (GetAsyncKeyState(VK_LMENU) & 0x8000) flags |= LALT;
+            if (GetAsyncKeyState(VK_RMENU) & 0x8000) flags |= RALT;
+            if (GetAsyncKeyState(VK_LWIN) & 0x8000) flags |= LWIN;
+            if (GetAsyncKeyState(VK_RWIN) & 0x8000) flags |= RWIN;
+            std::string keyName;
+            const auto& it = US_QWERTY_MAPPING_VK_TO_NAME.find(vkCode);
+            if (it != US_QWERTY_MAPPING_VK_TO_NAME.end())
+                keyName = it->second.names[0];
+            else
+                keyName = unknownKeyName;
+            keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags, keyName);
         }
     }
     return CallNextHookEx(keyboardHook, nCode, wParam, lParam);

@@ -6,7 +6,7 @@
 
 #include "UIDebug.h"
 
-#include <d2d1.h>
+#include <d2d1_3.h>
 
 static std::weak_ptr<UIDebug> gInstance;
 static const wchar_t* gWindowClass = L"DebugWindowClass";
@@ -95,30 +95,50 @@ void UIDebug::setDebugOverlay(const cv::Mat& overlay) {
 const DWORD dwExStyle = 0;
 const DWORD dwStyle = WS_OVERLAPPEDWINDOW;
 
-bool UIDebug::createWindow() {
-    HWND hWndED = FindWindow(Master::ED_WINDOW_CLASS, Master::ED_WINDOW_NAME);
-    RECT windowRect;
-    if (GetWindowRect(hWndED, &windowRect)) {
-        RECT clientRect;
-        if (GetClientRect(hWndED, &clientRect)) {
-            mGameSize.width = clientRect.right - clientRect.left;
-            mGameSize.height = clientRect.bottom - clientRect.top;
-        } else {
-            mGameSize.width = 1920;
-            mGameSize.height = 1080;
+struct MonitorChoice {
+    HMONITOR hEDMonitor;
+    HMONITOR hDebugMonitor;
+    int debugMonitorSize;
+};
+static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
+    UNREFERENCED_PARAMETER(lprcMonitor);
+    MonitorChoice* mc = (MonitorChoice*)dwData;
+    if (hMonitor == mc->hEDMonitor)
+        return TRUE;
+    MONITORINFOEX monitorInfoEx;
+    monitorInfoEx.cbSize = sizeof(MONITORINFOEX);
+    if (GetMonitorInfo(hMonitor, &monitorInfoEx)) {
+        int w = monitorInfoEx.rcMonitor.right - monitorInfoEx.rcMonitor.left;
+        int h = monitorInfoEx.rcMonitor.bottom - monitorInfoEx.rcMonitor.top;
+        int sz = w*h;
+        if (sz > mc->debugMonitorSize) {
+            mc->hDebugMonitor = hMonitor;
+            mc->debugMonitorSize = sz;
         }
-    } else {
-        mGameSize.width = 1920;
-        mGameSize.height = 1080;
+    }
+    return TRUE;
+}
+
+bool UIDebug::createWindow() {
+    mGameSize = Cfg.getCaptureDisplaySize();
+    HMONITOR hDebugMonitor {};
+    if (GetSystemMetrics(SM_CMONITORS) > 1) {
+        HWND hWndED = FindWindow(Master::ED_WINDOW_CLASS, Master::ED_WINDOW_NAME);
+        if (hWndED) {
+            HMONITOR hEDMonitor = MonitorFromWindow(hWndED, MONITOR_DEFAULTTONEAREST);
+            MonitorChoice mc {hEDMonitor};
+            EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, (LPARAM)&mc);
+            hDebugMonitor = mc.hDebugMonitor;
+        }
     }
     mOutputSize.width = mGameSize.width * mOutputScale;
     mOutputSize.height = mGameSize.height * mOutputScale;
-    windowRect = {0, 0, mOutputSize.width, mOutputSize.height};
+    RECT windowRect {0, 0, mOutputSize.width, mOutputSize.height};
 
     AdjustWindowRectEx(&windowRect, dwStyle, FALSE, dwExStyle);
     int adjW = windowRect.right - windowRect.left;
     int adjH = windowRect.bottom - windowRect.top;
-    UIWindow::createWindow(gWindowName, dwExStyle, dwStyle, ALIGN_TOP|ALIGN_RIGHT, {0, 0}, {adjW, adjH});
+    UIWindow::createWindow(hDebugMonitor, gWindowName, dwExStyle, dwStyle, ALIGN_TOP|ALIGN_RIGHT, {0, 0}, {adjW, adjH});
     if (!hWnd)
         return false;
 

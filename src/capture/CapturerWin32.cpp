@@ -17,7 +17,7 @@ public:
 };
 
 FrameWin32::FrameWin32(CapturerWin32* owner)
-        : Frame(owner, owner->captureVirtRect.size())
+        : Frame(owner, owner->captureSize)
 {
     colorImage.create(size, CV_8UC4);
 }
@@ -26,46 +26,42 @@ bool FrameWin32::valid() const {
     return !colorImage.empty();
 }
 
-CapturerWin32::CapturerWin32(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor)
-        : Capturer(hMonitor, monitorInfoEx)
-        , isHdcScreenCreated(hdcMonitor == nullptr)
-        , hdcMem(nullptr)
-        , hBitmap(nullptr)
-        , bitmapInfoHeader{}
+CapturerWin32::CapturerWin32(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx)
+    : Capturer(hMonitor, monitorInfoEx)
+    , hdcScreen(CreateDC(NULL, monitorInfoEx->szDevice, NULL, NULL))
+    , hdcMem(nullptr)
+    , hBitmap(nullptr)
+    , bitmapInfoHeader{}
+    , recycledFrames(3)
 {
-    if (monitorInfoEx) {
-        hdcScreen = hdcMonitor;
-        if (!hdcScreen) {
-            hdcScreen = CreateDC(monitorInfo.szDevice, nullptr, nullptr, nullptr);
-        }
-    } else {
-        hdcScreen = GetDC(nullptr);
-    }
 }
 
 CapturerWin32::~CapturerWin32() {
     CapturerWin32::stop();
-    if (isHdcScreenCreated)
-        ReleaseDC(nullptr, hdcScreen);
+    DeleteDC(hdcScreen);
 }
 
-void CapturerWin32::recycle(Frame *p) const {
+bool CapturerWin32::recycle(Frame *p) const {
     std::unique_lock<std::mutex> lock(mCaptureMutex);
-    if (!p || recycledFrames.size() >= 3)
-        return;
+    if (!p || recycledFrames.full())
+        return false;
+    assert(p->owner == this);
     auto it = std::find(recycledFrames.begin(), recycledFrames.end(), p);
     if (it != recycledFrames.end())
-        return;
-    assert(p->owner == this);
-    recycledFrames.push_back(p);
+        recycledFrames.push_back(p);
+    return true;
 }
 
 bool CapturerWin32::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) {
     if (!hWnd)
         return false;
+    auto gameSize = Cfg.getConfigDisplaySize();
+    if (gameSize.width > clientRect.width || gameSize.height > clientRect.height)
+        return false;
     this->hWndED = hWnd;
     this->windowVirtRect = windowRect;
     this->captureVirtRect = clientRect;
+    this->captureSize = Cfg.getCaptureDisplaySize();
     this->titleHeight = clientRect.y - windowRect.y;
     this->borderWidth = clientRect.x - windowRect.x;
     return true;
@@ -74,11 +70,11 @@ bool CapturerWin32::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect
 bool CapturerWin32::start() {
     stop();
     hdcMem = CreateCompatibleDC(hdcScreen);
-    hBitmap = CreateCompatibleBitmap(hdcScreen, captureVirtRect.width, captureVirtRect.height);
+    hBitmap = CreateCompatibleBitmap(hdcScreen, captureSize.width, captureSize.height);
     memset(&bitmapInfoHeader, 0, sizeof(bitmapInfoHeader));
     bitmapInfoHeader.bV5Size = sizeof(BITMAPV5HEADER);
-    bitmapInfoHeader.bV5Width = captureVirtRect.width;
-    bitmapInfoHeader.bV5Height = -captureVirtRect.height;  // Negative height to flip the image vertically
+    bitmapInfoHeader.bV5Width = captureSize.width;
+    bitmapInfoHeader.bV5Height = -captureSize.height;  // Negative height to flip the image vertically
     bitmapInfoHeader.bV5Planes = 1;
     bitmapInfoHeader.bV5BitCount = 32;
     bitmapInfoHeader.bV5Compression = BI_RGB;
@@ -112,7 +108,7 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
         RECT windowRECT;
         BOOL ok = GetWindowRect(hWndED, &windowRECT);
         if (!ok) {
-            LOG_IF(!this->isDefaultCapturer(),ERROR) << "Cannot get window for capturer";
+            LOG(ERROR) << "Cannot get window rect for capturer";
         } else {
             cv::Rect wRect = fromRECT(windowRECT);
             if (wRect != windowVirtRect) {
@@ -127,7 +123,20 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
     cv::Rect blitRect = captureVirtRect;
     blitRect &= monitorVirtRect;
     blitRect -= monitorVirtRect.tl();
-    int ok = BitBlt(hdcMem, 0, 0, blitRect.width, blitRect.height, hdcScreen, blitRect.x, blitRect.y, SRCCOPY);
+    BOOL ok;
+    if (this->captureSize != captureVirtRect.size()) {
+        int captWidth = captureSize.width * blitRect.width / captureVirtRect.width;
+        int captHeight = captureSize.height * blitRect.height / captureVirtRect.height;
+        ok = StretchBlt(hdcMem, 0, 0, captWidth, captHeight,
+                        hdcScreen, blitRect.x, blitRect.y, blitRect.width, blitRect.height,
+                        SRCCOPY);
+        blitRect.width = captWidth;
+        blitRect.height = captHeight;
+    } else {
+        ok = BitBlt(hdcMem, 0, 0, blitRect.width, blitRect.height,
+                    hdcScreen, blitRect.x, blitRect.y,
+                    SRCCOPY);
+    }
     if (!ok) {
         LOG(ERROR) << "BitBlt failed: " << getErrorMessage();
         return {};
@@ -135,7 +144,7 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
 
     std::unique_lock<std::mutex> lock(mCaptureMutex);
     FrameWin32* frame;
-    if (recycle && recycle->owner == this && recycle->size == captureVirtRect.size()) {
+    if (recycle && recycle->owner == this && recycle->size == this->captureSize) {
         frame = (FrameWin32*)recycle.release();
     } else {
         if (recycledFrames.empty()) {
@@ -154,12 +163,11 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
     cv::Mat& colorImage = frame->colorImage;
 #endif
     int lines = 0;
-    if (blitRect.size() == captureVirtRect.size()) {
+    if (blitRect.size() == this->captureSize) {
         lines = GetDIBits(hdcMem, hBitmap, 0, blitRect.height, colorImage.data,
                               (BITMAPINFO *) &bitmapInfoHeader, DIB_RGB_COLORS);
         LOG_IF(lines != blitRect.height, ERROR) << "GetDIBits failed: " << getErrorMessage();
     } else {
-        frame->colorImage.setTo(cv::Vec4b::zeros());
         cv::Point orig;
         if (captureVirtRect.x < monitorVirtRect.x)
             orig.x = monitorVirtRect.x - captureVirtRect.x;

@@ -8,38 +8,40 @@
 
 ResolvedEnv& ResolvedEnv::operator=(const ResolvedEnv& other) {
     const_cast<cv::Rect&>(monitorRect) = other.monitorRect;
-    const_cast<cv::Rect&>(captureRect) = other.captureRect;
-    const_cast<cv::Rect&>(captureCrop) = other.captureCrop;
+    const_cast<cv::Rect&>(clientRect) = other.clientRect;
+    const_cast<cv::Size&>(frameSize) = other.frameSize;
+    const_cast<cv::Rect&>(frameCrop) = other.frameCrop;
     classified = other.classified;
     inWarpMode_ = false;
     needScaling_ = other.needScaling_;
     scaleToCaptured_ = other.scaleToCaptured_;
-    captureCenter = other.captureCenter;
+    frameCenter = other.frameCenter;
     return *this;
 }
 
 ResolvedEnv::ResolvedEnv() {
     cv::Rect r {0, 0, ReferenceScreenSize.width, ReferenceScreenSize.height};
-    init(r, r);
+    init(r, r, ReferenceScreenSize);
 }
 
-void ResolvedEnv::init(const cv::Rect& monRect, const cv::Rect& captRect) {
+void ResolvedEnv::init(const cv::Rect& monRect, const cv::Rect& clntRect, const cv::Size& frmSize) {
     const_cast<cv::Rect&>(monitorRect) = monRect;
-    const_cast<cv::Rect&>(captureRect) = captRect;
-    const_cast<cv::Rect&>(captureCrop) = cv::Rect(cv::Point(), captureRect.size());
+    const_cast<cv::Rect&>(clientRect) = clntRect;
+    const_cast<cv::Size &>(frameSize) = frmSize;
+    const_cast<cv::Rect&>(frameCrop) = cv::Rect(cv::Point(), frmSize);
     classified.clear();
     inWarpMode_ = false;
     isDebugMatch_ = false;
-    if (captureRect.size() != ReferenceScreenSize) {
-        double x_scale = double(captureRect.width) / ReferenceScreenSize.width;
-        double y_scale = double(captureRect.height) / ReferenceScreenSize.height;
+    if (frmSize != ReferenceScreenSize) {
+        double x_scale = double(frmSize.width) / ReferenceScreenSize.width;
+        double y_scale = double(frmSize.height) / ReferenceScreenSize.height;
         scaleToCaptured_ = std::min(x_scale, y_scale);
         needScaling_ = true;
     } else {
         needScaling_ = false;
         scaleToCaptured_ = 1;
     }
-    captureCenter = cv::Point(captureRect.size()) / 2;
+    frameCenter = cv::Point(frmSize) / 2;
     warpRect = {};
     warpMatrix = cv::Matx33d::eye();
     unWarpMatrix = cv::Matx33d::eye();
@@ -79,7 +81,7 @@ void ClassifyEnv::init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* gr
     mGrayImage = grayImage ? toXMat(*grayImage) : XMat();
     if (!mDebugOverlay.empty())
         mDebugOverlay = cv::Mat();
-    ResolvedEnv::init(rEnv.monitorRect, rEnv.captureRect);
+    ResolvedEnv::init(rEnv.monitorRect, rEnv.clientRect, rEnv.frameSize);
     mWarpTransform.reset();
     if (!mWarpedColorImage.empty())
         mWarpedColorImage.release();
@@ -87,15 +89,15 @@ void ClassifyEnv::init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* gr
         mWarpedGrayImage.release();
 }
 
-void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFrame&& frame) {
+void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, const cv::Size& frmSize, upFrame&& frame) {
     assert (frame);
-    assert (captRect.size() == frame->size);
+    assert (frame->size == frmSize);
     mFrame.swap(frame);
     mColorImage.release();
     mGrayImage.release();
     if (!mDebugOverlay.empty())
         mDebugOverlay.release();
-    ResolvedEnv::init(monRect, captRect);
+    ResolvedEnv::init(monRect, captRect, frmSize);
     mWarpTransform.reset();
     if (!mWarpedColorImage.empty())
         mWarpedColorImage.release();
@@ -105,12 +107,13 @@ void ClassifyEnv::init(const cv::Rect& monRect, const cv::Rect& captRect, upFram
 
 void ResolvedEnv::clear() {
     const_cast<cv::Rect&>(monitorRect) = cv::Rect();
-    const_cast<cv::Rect&>(captureRect) = cv::Rect();
-    const_cast<cv::Rect&>(captureCrop) = cv::Rect();
+    const_cast<cv::Rect&>(clientRect) = cv::Rect();
+    const_cast<cv::Size&>(frameSize) = cv::Size();
+    const_cast<cv::Rect&>(frameCrop) = cv::Rect();
     inWarpMode_ = false;
     needScaling_ = false;
     scaleToCaptured_ = 1;
-    captureCenter = ReferenceScreenCenter;
+    frameCenter = ReferenceScreenCenter;
     classified.clear();
     warpRect = {};
     warpMatrix = cv::Matx33d::eye();
@@ -158,7 +161,7 @@ const XMat& ClassifyEnv::getGrayImage() const {
 cv::Mat& ClassifyEnv::getDebugImage() const {
     if (!mDebugOverlay.empty())
         return mDebugOverlay;
-    mDebugOverlay = cv::Mat(captureRect.size(), CV_8UC4, cv::Vec4b::zeros());
+    mDebugOverlay = cv::Mat(frameSize, CV_8UC4, cv::Vec4b::zeros());
     return mDebugOverlay;
 }
 
@@ -186,7 +189,7 @@ void ClassifyEnv::warpPerspective(const spEvalTransform& transform) {
 }
 
 cv::Point ResolvedEnv::cvtReferenceToDesktop(const cv::Point& point) const {
-    return monitorRect.tl() + captureRect.tl() + cvtReferenceToCaptured(point);
+    return monitorRect.tl() + clientRect.tl() + cvtReferenceToCaptured(point);
 }
 
 template<typename _Tp>

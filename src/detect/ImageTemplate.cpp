@@ -450,9 +450,9 @@ XMat ErodeFilter::apply(XMat image, Params params) {
     return out;
 }
 
-XMat HsvMaskFilter::apply(XMat image, Params params) {
+void HsvMaskFilter::calcMask(XMat image, XMat& mask, XMat& hsv) {
     if (rangesU.empty())
-        return {};
+        return;
     if (rangesF.empty()) {
         for (auto& r : rangesU) {
             cv::Vec3b min = r.first;
@@ -462,10 +462,9 @@ XMat HsvMaskFilter::apply(XMat image, Params params) {
             rangesF.emplace_back(minF, maxF);
         }
     }
-    XMat hsv;
     cv::cvtColor(image, hsv, cv::COLOR_BGR2HSV);
     //cv::Mat tmp_hsv = hsv.getMat(cv::ACCESS_READ).clone();
-    XMat mask(image.rows, image.cols, CV_8UC1);
+    mask.create(image.rows, image.cols, CV_8UC1);
     if (hsv.depth() == CV_8U)
         cv::inRange(hsv, rangesU.front().first, rangesU.front().second, mask);
     else
@@ -486,11 +485,17 @@ XMat HsvMaskFilter::apply(XMat image, Params params) {
             cv::bitwise_or(accum, toMat(m), accum);
         }
     }
+}
+
+XMat HsvMaskFilter::apply(XMat image, Params params) {
+    XMat mask, hsv;
+    calcMask(image, mask, hsv);
     return mask;
 }
 
 XMat HsvColorCropFilter::apply(XMat image, Params params) {
-    XMat mask = HsvMaskFilter::apply(image, params);
+    XMat mask, hsv;
+    calcMask(image, mask, hsv);
     if (mask.empty())
         return {};
     XMat masked;
@@ -499,13 +504,26 @@ XMat HsvColorCropFilter::apply(XMat image, Params params) {
 }
 
 XMat HsvGrayCropFilter::apply(XMat image, Params params) {
-    XMat mask = HsvMaskFilter::apply(image, params);
+    XMat mask, hsv;
+    calcMask(image, mask, hsv);
     if (mask.empty())
         return {};
     XMat gray;
     cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
     XMat masked;
     gray.copyTo(masked, mask);
+    return masked;
+}
+
+XMat HsvValueCropFilter::apply(XMat image, Params params) {
+    XMat mask, hsv;
+    calcMask(image, mask, hsv);
+    if (mask.empty())
+        return {};
+    std::vector<XMat> channels;
+    cv::split(hsv, channels);
+    XMat masked;
+    channels[2].copyTo(masked, mask);
     return masked;
 }
 
@@ -637,10 +655,10 @@ cv::Rect ImageTemplate::makeOptimalMatchRect(cv::Rect r) {
 
 double ImageTemplate::match(ClassifyEnv &env) {
     XMat gameImage = channels == 1 ? env.getGrayImage() : env.getColorImage();
-    return match(env, gameImage, {});
+    return match(env, gameImage, nullptr);
 }
 
-double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point gameImageOffset) {
+double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameImageOffset) {
     lastMatch = 0;
     if (refEvalRect)
         refOrig = refEvalRect->calcReferenceRect(env).tl();
@@ -654,7 +672,10 @@ double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point gameImag
 
     int ext = Master::getInstance().getSearchRegionExtent();
     cv::Rect refRect(refOrig, refSize);
-    captureRect = env.cvtReferenceToCaptured(refRect + gameImageOffset);
+    if (!gameImageOffset)
+        captureRect = env.cvtReferenceToCaptured(refRect);
+    else
+        captureRect = refRect + *gameImageOffset;
     matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
                          captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
     matchRect = makeOptimalMatchRect(matchRect);

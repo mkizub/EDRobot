@@ -112,9 +112,7 @@ public:
 
     bool load();
     void shutdown();
-    void setCalibrationResult(const std::array<cv::Vec3b,4>& buttonBGR, const std::array<cv::Vec3b,4>& lstRowBGR);
-    bool saveCalibration() const;
-    bool checkResolutionSupported(cv::Size gameSize, std::string& error);
+    std::string getErrorMessage() const { return errorMessage; }
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
@@ -138,8 +136,11 @@ public:
     std::vector<Commodity*> getAllKnownCommodities();
 
     const KeyBindings& getGameKeyBindings(const std::string& name) const;
+    bool isAutoPause() const { return autoPause; }
 
     double getConfigFOV() const { return configFOV; }
+    cv::Size getConfigDisplaySize() const { return {configScreenWidth, configScreenHeight}; }
+    cv::Size getCaptureDisplaySize() const { return {scaledScreenWidth, scaledScreenHeight}; }
     unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
 
     bool isHeadlookSmoothing() const { return configHeadlookSmoothing; }
@@ -169,6 +170,8 @@ private:
     void readJournalChanges(std::ifstream& journalStream, std::string& journalLine);
     spGameEvent parseEvent(const std::string& line);
 
+    std::string errorMessage;
+
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;
     HANDLE hShutdownEvent {};
     std::thread changeDirThread;
@@ -195,7 +198,10 @@ private:
     double configFOV = 56.249001; // Options/Graphics/Settings.xml: <FOV>1.200000</FOV>
     int configScreenWidth = 0;    // Options\Graphics\DisplaySettings.xml: <ScreenWidth>1920</ScreenWidth>
     int configScreenHeight = 0;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
+    int scaledScreenWidth = 0;    // downscaled configScreenWidth
+    int scaledScreenHeight = 0;   // downscaled configScreenHeight
     FullScreenMode configFullScreen = FullScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
+    int configMonitorID = 0;       // Options\Graphics\DisplaySettings.xml: <Monitor>2</Monitor>
     bool configHeadlookSmoothing = true;
     std::unordered_map<std::string,KeyBindings> mKeyBindingsMap;
 

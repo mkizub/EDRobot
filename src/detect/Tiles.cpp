@@ -28,7 +28,8 @@ TilesDetector::TilesDetector(const std::string& name, cv::Rect& tilesRect,
 
 double TilesDetector::match(ClassifyEnv &env) {
     cv::Rect captureRect = env.cvtReferenceToCaptured(mTilesRect);
-    XMat roiImage(env.getGrayImage(), captureRect);
+    ChannelFilter redFilter(ChannelFilter::red);
+    XMat roiImage = redFilter.apply(env.getColorImage(),{})(captureRect);
     if (roiImage.empty())
         return 0;
 
@@ -87,12 +88,14 @@ double TilesDetector::match(ClassifyEnv &env) {
 std::vector<TilesDetector::Range> TilesDetector::split(bool columns, uchar* reduced, int size, int gap, int& minThreshold) {
     int min_tile_size, max_tile_size;
     if (columns) {
-        min_tile_size = (size - (mMaxCols-1) * gap) / mMaxCols - 3;
-        max_tile_size = (size - gap * (mMinCols-1)) / mMinCols + 3;
+        min_tile_size = (size - gap * (mMaxCols-1)) / mMaxCols;
+        max_tile_size = (size - gap * (mMinCols-1)) * (mMaxCols-mMinCols+1) / mMaxCols;
     } else {
-        min_tile_size = (size - (mMaxRows-1) * gap) / mMaxRows - 3;
-        max_tile_size = (size - gap * (mMinRows-1)) / mMinRows + 3;
+        min_tile_size = (size - gap * (mMaxRows-1)) / mMaxRows * 96 / 100;
+        max_tile_size = (size - gap * (mMinRows-1)) * (mMaxRows-mMinRows+1) / mMaxRows;
     }
+    min_tile_size = min_tile_size * 96 / 100;
+    max_tile_size = max_tile_size * 104 / 100;
     int threshold = 35;
     {
         int min_count, max_count;
@@ -166,8 +169,9 @@ std::vector<TilesDetector::Range> TilesDetector::split(bool columns, uchar* redu
     for (int g=1; g < detectedGaps.size()-1; g++) {
         int b = detectedGaps[g].bgn;
         int e = detectedGaps[g].end;
-        if ((e - b) < gap*0.7 || (e - b) > gap*1.3)
-            return {};
+        if ((e - b) < gap*0.5 || (e - b) > gap*1.5) {
+            detectedGaps.erase(detectedGaps.begin()+g);
+        }
     }
 
     std::vector<Range> ranges;

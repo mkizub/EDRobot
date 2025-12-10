@@ -75,20 +75,16 @@ bool isDebugPause() {
     return isDebugPaused;
 }
 
-extern void init_ship_tracker();
-extern void shutdown_ship_tracker();
 bool init() {
     initTemplates();
     isWorking = true;
     taskThread = std::thread(&task_loop);
-    init_ship_tracker();
     return true;
 }
 
 bool shutdown() {
     isWorking = false;
     interrupt();
-    shutdown_ship_tracker();
     taskCond.notify_all();
     if (taskThread.joinable())
         taskThread.join();

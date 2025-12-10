@@ -203,6 +203,7 @@ public:
     HsvMaskFilter() {}
     std::vector<std::pair<cv::Vec3b,cv::Vec3b>> rangesU;
     std::vector<std::pair<cv::Vec3f,cv::Vec3f>> rangesF;
+    void calcMask(XMat image, XMat& mask, XMat& hsv);
     XMat apply(XMat image, Params params) override;
 };
 class HsvColorCropFilter : public HsvMaskFilter {
@@ -213,6 +214,11 @@ public:
 class HsvGrayCropFilter : public HsvMaskFilter {
 public:
     HsvGrayCropFilter() {}
+    XMat apply(XMat image, Params params) final;
+};
+class HsvValueCropFilter : public HsvMaskFilter {
+public:
+    HsvValueCropFilter() {}
     XMat apply(XMat image, Params params) final;
 };
 
@@ -248,7 +254,7 @@ public:
     void setTemplate(const std::string& filename);
 
     double match(ClassifyEnv& env) override;
-    double match(ClassifyEnv& env, XMat gameImage, cv::Point gameImageOffset);
+    double match(ClassifyEnv& env, XMat gameImage, cv::Point* gameImageOffset);
 
     static bool loadImageAndMask(const std::string& filename, XMat& image);
 

@@ -105,21 +105,24 @@ cv::Rect UIWindow::calcWindowRect(int align, cv::Point winOffset, cv::Size winSi
     }
     return winRect;
 }
-HWND UIWindow::createWindow(const wchar_t *windowName, DWORD dwExStyle, DWORD dwStyle, int align, cv::Point winOffset, cv::Size winSize) {
+HWND UIWindow::createWindow(HMONITOR hMon, const wchar_t *windowName, DWORD dwExStyle, DWORD dwStyle, int align, cv::Point winOffset, cv::Size winSize) {
+    hMonitor = hMon;
+    if (!hMonitor)
+        hMonitor = MonitorFromWindow(nullptr, MONITOR_DEFAULTTOPRIMARY);
     MONITORINFOEX monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
-    hMonitor = MonitorFromWindow(nullptr, MONITOR_DEFAULTTOPRIMARY);
     GetMonitorInfo(hMonitor, &monitorInfo);
     mMonitorFullRect = fromRECT(monitorInfo.rcMonitor);
     mMonitorWorkRect = fromRECT(monitorInfo.rcWork);
 
     cv::Rect winRect = calcWindowRect(align, winOffset, winSize);
 
-    return createWindow(windowName, dwExStyle, dwStyle, winRect);
+    return createWindow(hMonitor, windowName, dwExStyle, dwStyle, winRect);
 }
 
-HWND UIWindow::createWindow(const wchar_t *windowName, DWORD dwExStyle, DWORD dwStyle, cv::Rect rect) {
+HWND UIWindow::createWindow(HMONITOR hMon, const wchar_t *windowName, DWORD dwExStyle, DWORD dwStyle, cv::Rect rect) {
     SetThreadDescription(GetCurrentThread(), windowName);
+    hMonitor = hMon;
     if (!hMonitor) {
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(monitorInfo);

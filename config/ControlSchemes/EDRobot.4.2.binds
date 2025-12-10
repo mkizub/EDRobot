@@ -9,10 +9,10 @@
 		<Primary Device="Keyboard" Key="Key_Space" />
 		<Secondary Device="vJoy" Key="Joy_6" />
 	</MouseReset>
-	<MouseSensitivity Value="0.43562996" />
+	<MouseSensitivity Value="1.00000000" />
 	<MouseDecayRate Value="1.00000000" />
-	<MouseDeadzone Value="0.07242500" />
-	<MouseLinearity Value="1.15974998" />
+	<MouseDeadzone Value="0.00000000" />
+	<MouseLinearity Value="3.00000000" />
 	<MouseGUI Value="1" />
 	<BlockMouseDecay>
 		<Primary Device="{NoDevice}" Key="" />
@@ -611,7 +611,7 @@
 	<HeadlookMode Value="Bindings_HeadlookModeAccumulate" />
 	<HeadlookResetOnToggle Value="1" />
 	<HeadlookSensitivity Value="1.00000000" />
-	<HeadlookSmoothing Value="1" />
+	<HeadlookSmoothing Value="0" />
 	<HeadLookReset>
 		<Primary Device="{NoDevice}" Key="" />
 		<Secondary Device="{NoDevice}" Key="" />

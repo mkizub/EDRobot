@@ -8,6 +8,7 @@
 #define EDROBOT_CAPTURERDXGI_H
 
 #include "../Capturer.h"
+#include <boost/circular_buffer.hpp>
 
 #include <atlbase.h>
 
@@ -18,20 +19,20 @@ public:
     bool start() override;
     bool stop() override;
     upFrame capture(upFrame&& recycle) override;
-    void recycle(Frame* frame) const override;
+    bool recycle(Frame* frame) const override;
 
 private:
     friend class Capturer;
     friend class FrameDXGI;
-    CapturerDXGI(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor);
+    CapturerDXGI(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx);
     bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) override;
 
     CComPtr<IDXGIDevice> m_dxgiDevice {nullptr};
-    CComPtr<IDXGIAdapter> m_dxgiAdapter {nullptr};
-    CComPtr<IDXGIOutput1> m_dxgiOutput1 {nullptr};
     CComPtr<IDXGIOutputDuplication> m_outputDuplication {nullptr};
+    std::chrono::time_point<std::chrono::high_resolution_clock> hpcStartTimestamp;
+    Timestamp utcStartTimestamp;
 
-    mutable std::deque<Frame*> recycledFrames;
+    mutable boost::circular_buffer<Frame*> recycledFrames;
 
     mutable std::mutex mCaptureMutex;
     mutable std::condition_variable mCaptureCond;

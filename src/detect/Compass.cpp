@@ -117,12 +117,12 @@ double CompassDetector::match(ClassifyEnv &env) {
 
             // config FOV is Vertical for 16:9 aspect ratio
             {
-                double x_scale = double(env.captureRect.width) / env.ReferenceScreenSize.width;
-                double y_scale = double(env.captureRect.height) / env.ReferenceScreenSize.height;
+                double x_scale = double(env.frameSize.width) / ReferenceScreenSize.width;
+                double y_scale = double(env.frameSize.height) / ReferenceScreenSize.height;
                 double scale = std::min(x_scale, y_scale);
-                double d = env.ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
-                double y =  env.captureRect.height * 0.5 / scale; // half-height of screen scaled to reference
-                double x =  env.captureRect.width * 0.5 / scale; // half-width of screen scaled to reference
+                double d = ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
+                double y =  env.frameSize.height * 0.5 / scale; // half-height of screen scaled to reference
+                double x =  env.frameSize.width * 0.5 / scale; // half-width of screen scaled to reference
                 captureFovY = 2 * std::atan(y / d) * 180 / M_PI;
                 captureFovX = 2 * std::atan(x / d) * 180 / M_PI;
                 captureFovY = std::round(captureFovY * 65536) / 65536;
@@ -148,7 +148,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem(
                     "scr-cockpit");
             if (scr_cockpit) {
-                std::string res = std::format("{}x{}", env.captureRect.width, env.captureRect.height);
+                std::string res = std::format("{}x{}", env.frameSize.width, env.frameSize.height);
                 auto &varSet = scr_cockpit->varSetMap.at("undistort");
                 for (auto &vars: varSet) {
                     if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), res)) {
@@ -163,12 +163,12 @@ double CompassDetector::match(ClassifyEnv &env) {
             remapRect = ImageTemplate::makeOptimalMatchRect(remapRect);
             targetRemapRect = remapRect;
             navTargetRemapXY.create(remapRect.height, remapRect.width, CV_32FC2);
-            const int cx = env.ReferenceScreenCenter.x;
-            const int cy = env.ReferenceScreenCenter.y;
+            const int cx = ReferenceScreenCenter.x;
+            const int cy = ReferenceScreenCenter.y;
             const int dx = remapRect.x;
             const int dy = remapRect.y;
-            const int ccx = env.captureRect.width / 2;
-            const int ccy = env.captureRect.height / 2;
+            const int ccx = env.frameSize.width / 2;
+            const int ccy = env.frameSize.height / 2;
 
             const double A = fov_scale / cx;
             const double env_scale = env.getScale();
@@ -284,7 +284,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             cv::Point foundPos = nr.loc + cv::Point(nr.im->org_w, nr.im->org_h) / 2;
             navCapturePos = navTargetRemapXY.at<cv::Point2f>(foundPos);
             cv::Point referencePos = env.cvtCapturedToReference(navCapturePos);
-            lastNavTargetOffset = referencePos - env.ReferenceScreenCenter;
+            lastNavTargetOffset = referencePos - ReferenceScreenCenter;
             navTargetFound = true;
             lastHemisphere = 1;
         } else {
@@ -296,7 +296,7 @@ double CompassDetector::match(ClassifyEnv &env) {
 
         if (navTargetFound) {
             double fov = Cfg.getConfigFOV();
-            double d = env.ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
+            double d = ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
             double yaw = std::atan(lastNavTargetOffset.x / d) * 180 / M_PI;
             double pitch = -std::atan(lastNavTargetOffset.y / d) * 180 / M_PI;
             double angle = std::asin(std::min(1.0,cv::norm(lastNavTargetOffset) / d)) * 90 / M_PI_2;

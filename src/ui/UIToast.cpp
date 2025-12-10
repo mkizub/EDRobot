@@ -38,7 +38,7 @@ bool UIToast::createWindow() {
     DWORD dwExStyle = WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
     DWORD dwStyle = WS_POPUP | WS_DISABLED;
 
-    UIWindow::createWindow(gWindowName, dwExStyle, dwStyle, ALIGN_TOP|ALIGN_RIGHT, {40-300, 80}, {300, 150});
+    UIWindow::createWindow(NULL, gWindowName, dwExStyle, dwStyle, ALIGN_TOP|ALIGN_RIGHT, {40-300, 80}, {300, 150});
     if (!hWnd)
         return false;
 

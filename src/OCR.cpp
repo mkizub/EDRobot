@@ -21,7 +21,7 @@ static tesseract::TessBaseAPI* tesseractApi;
 //static tesseract::TessBaseAPI* tesseractApiTmp;
 //static cv::dnn_superres::DnnSuperResImpl dnnSuperRes;
 
-void init(const std::string& tessdata) {
+bool init(const std::string& tessdata) {
     LOG(INFO) << "Initializing Tesseract OCR for lang '" << enum_name<Lang>(st::lng) << "', tessdata: " << tessdata << "";
     const char* tesseractLang = "edr";
     tesseractApi = new tesseract::TessBaseAPI();
@@ -29,21 +29,11 @@ void init(const std::string& tessdata) {
     if (fail) {
         LOG(ERROR) << "Error: Could not initialize tesseract.";
         shutdown();
-    } else {
-        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE); // PSM_RAW_LINE
+        return false;
     }
-
-//    tesseractApiTmp = new tesseract::TessBaseAPI();
-//    fail = tesseractApiTmp->Init(tessdata.c_str(), "edr-s", tesseract::OEM_DEFAULT, nullptr, 0, 0, 0, true);
-//    if (fail) {
-//        LOG(ERROR) << "Error: Could not initialize tesseract.";
-//        shutdown();
-//    } else {
-//        tesseractApiTmp->SetPageSegMode(tesseract::PSM_SINGLE_LINE); // PSM_RAW_LINE
-//    }
-//
-//    dnnSuperRes.readModel("models/EDSR_x2.pb");
-//    dnnSuperRes.setModel("edsr", 2);
+    tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE); // PSM_RAW_LINE
+    tesseractApi->SetVariable("tessedit_do_invert", "0");
+    return true;
 }
 
 void shutdown() {

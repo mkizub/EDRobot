@@ -16,9 +16,9 @@ std::string NavPanelDetector::forceDetect;
 
 void NavPanelDetector::standaloneTest(std::string image_filename, std::string screen_name) {
     cv::Mat colorImage = cv::imread(image_filename, cv::IMREAD_UNCHANGED); // assume GRAY/BGR/BGRA
+    cv::Rect imageRect(cv::Point(), cv::Size(colorImage.cols, colorImage.rows));
     ResolvedEnv rEnv;
-    cv::Rect monitorRect(cv::Point(), rEnv.ReferenceScreenSize);
-    rEnv.init(monitorRect, monitorRect);
+    rEnv.init(imageRect, imageRect, imageRect.size());
     ClassifyEnv cEnv;
     cEnv.init(rEnv, &colorImage, nullptr);
 
@@ -91,14 +91,14 @@ static cv::Line2f rotateAround(cv::Line2f line, cv::Point2f anchor, float angle,
 static bool checkAnchors(ClassifyEnv &env, AnchorDetector *lan, AnchorDetector *ran, cv::Point& offset, XMat& roughImage) {
     lan->extendLT = offset;
     lan->extendRB = offset;
-    double match = lan->match(env, roughImage, offset);
+    double match = lan->match(env, roughImage, &offset);
     if (match < 0.4)
         return false;
     if (!ran)
         return true;
     ran->extendLT = offset;
     ran->extendRB = offset;
-    match = ran->match(env, roughImage, offset);
+    match = ran->match(env, roughImage, &offset);
     if (match < 0.4)
         return false;
     return true;
@@ -151,11 +151,12 @@ double NavPanelDetector::match(ClassifyEnv &env) {
     lastBottomLine = {};
     lastSelectedTab = {};
     topRefLine = top_line->referenceLine->calcReferenceLine(env);
+    auto topCaptLine = env.cvtReferenceToCaptured(topRefLine);
     {
         // rotate for anchor detection
-        const int roughExtW = 300;
-        const int roughExtH = 120;
-        int topWidth = topRefLine.length();
+        const int roughExtW = 300 * env.getScale();
+        const int roughExtH = 120 * env.getScale();
+        int topWidth = topCaptLine.length();
         float roughW = topWidth + roughExtW;
         float roughH = roughExtH;
         lastRotRect = {roughCenter, {roughW, roughH}, roughAngle};
@@ -224,20 +225,20 @@ double NavPanelDetector::match(ClassifyEnv &env) {
 #endif
         cv::Line2f roughTopLine;
         if (lan && ran) {
-            float topRefAnchorDist = ran->refOrig.x - lan->refOrig.x;
+            float topRefAnchorDist = (ran->refOrig.x - lan->refOrig.x) * env.getScale();
             float topDetAnchorDX = ran->matchedCaptureOffset.x - lan->matchedCaptureOffset.x;
             deltaScale = 1 + topDetAnchorDX / topRefAnchorDist;
-            roughTopLine = {lan->captureRect.tl() + lan->anchor_of * deltaScale,
-                            ran->captureRect.tl() + ran->anchor_of * deltaScale};
-            deltaAngle = roughAngle + roughTopLine.angle() - topRefLine.angle();
+            roughTopLine = {lan->captureRect.tl() + lan->anchor_of * deltaScale * env.getScale(),
+                            ran->captureRect.tl() + ran->anchor_of * deltaScale * env.getScale()};
+            deltaAngle = roughAngle + roughTopLine.angle() - topCaptLine.angle();
         }
         else if (lan) {
-            cv::Point2f p0 = lan->captureRect.tl() + lan->anchor_of;
-            cv::Point2f p1 = topRefLine.p1() - topRefLine.p0();
+            cv::Point2f p0 = lan->captureRect.tl() + lan->anchor_of * env.getScale();
+            cv::Point2f p1 = topCaptLine.p1() - topCaptLine.p0();
             p1 = p0 + rotateAround(p1, cv::Point2f(), -roughAngle, 1);
             roughTopLine = {p0, p1};
             deltaScale = 1;
-            deltaAngle = roughAngle + roughTopLine.angle() - topRefLine.angle();
+            deltaAngle = roughAngle + roughTopLine.angle() - topCaptLine.angle();
         }
         else {
             LOG(WARNING) << "Anchors for top line not found";
@@ -262,7 +263,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
             cv::Mat tabImage;
             cv::cvtColor(roughImage(tabsRect), tabImage, cv::COLOR_BGR2GRAY);
             for (auto &tab: mTabs) {
-                cv::Rect r = tab.rect;
+                cv::Rect r = env.scaleToCaptured(tab.rect);
                 if (r.empty())
                     continue;
                 r.x *= deltaScale;
@@ -290,18 +291,20 @@ double NavPanelDetector::match(ClassifyEnv &env) {
         cv::invertAffineTransform(roughAffineMatrix, backMatrix);
         std::array<cv::Point2f,2> arr {roughTopLine.p0(), roughTopLine.p1()};
         cv::transform(arr, arr, backMatrix);
-        lastTopLine = {arr[0], arr[1]};
-        topLeftOffset = cv::Point2f(topRefLine.p0()) - arr[0];
+        lastTopLine = env.cvtCapturedToReference(cv::Line2f{arr[0], arr[1]});
+        topLeftOffset = env.scaleToReference(cv::Point2f(topCaptLine.p0()) - arr[0]);
 #ifdef DEBUG_DETECTOR
-        cv::line(debugImage, lastTopLine.p0(), lastTopLine.p1(), {200,200,200}, 1, cv::LINE_AA);
-        cv::drawMarker(debugImage, lastTopLine.p0(), {255,255,255}, 10);
-        cv::drawMarker(debugImage, lastTopLine.p1(), {255,255,255}, 10);
+        auto captTopLine = env.cvtReferenceToCaptured(lastTopLine);
+        cv::line(debugImage, captTopLine.p0(), captTopLine.p1(), {200,200,200}, 1, cv::LINE_AA);
+        cv::drawMarker(debugImage, captTopLine.p0(), {255,255,255}, 10);
+        cv::drawMarker(debugImage, captTopLine.p1(), {255,255,255}, 10);
 #endif
     }
 
     approximate_bottom_line(env);
+    auto captBottomLine = env.cvtReferenceToCaptured(lastBottomLine);
 #ifdef DEBUG_DETECTOR
-    cv::line(debugImage, lastBottomLine.p0(), lastBottomLine.p1(), {64,64,64}, 1, cv::LINE_AA);
+    cv::line(debugImage, captBottomLine.p0(), captBottomLine.p1(), {64,64,64}, 1, cv::LINE_AA);
 #endif
     LineDetector *btm_line = getLineDetector("btm-line");
     btm_line->detectEdgesMode = -1;
@@ -312,19 +315,21 @@ double NavPanelDetector::match(ClassifyEnv &env) {
         btmMatch = btm_line->match(env, lastBottomLine, XMat());
     }
     if (btmMatch > 0) {
-        lastBottomLine = btm_line->detectedLine;
-        transform->transformSrc[2] = lastBottomLine.p1();
+        captBottomLine = btm_line->detectedLine;
+        lastBottomLine = env.cvtCapturedToReference(btm_line->detectedLine);
+        transform->transformSrc[2] = captBottomLine.p1();
         if (mPanelName == "scr-left-panel")
-            transform->transformSrc[2] += cv::Point2f(10,0);
-        transform->transformSrc[3] = lastBottomLine.p0();
+            transform->transformSrc[2] += cv::Point2f(10*env.getScale(),0);
+        transform->transformSrc[3] = captBottomLine.p0();
 #ifdef DEBUG_DETECTOR
         for (int j = 0; j < 4; j++)
             cv::line(debugImage, transform->transformSrc[j], transform->transformSrc[(j+1) % 4], {160,160,160}, 1, cv::LINE_AA);
 #endif
     } else {
 #ifdef DEBUG_DETECTOR
-        cv::line(debugImage, lastTopLine.p0(), lastBottomLine.p0(), {64,64,64}, 1, cv::LINE_AA);
-        cv::line(debugImage, lastTopLine.p1(), lastBottomLine.p1(), {64,64,64}, 1, cv::LINE_AA);
+        captBottomLine = env.cvtReferenceToCaptured(lastBottomLine);
+        cv::line(debugImage, lastTopLine.p0(), captBottomLine.p0(), {64,64,64}, 1, cv::LINE_AA);
+        cv::line(debugImage, lastTopLine.p1(), captBottomLine.p1(), {64,64,64}, 1, cv::LINE_AA);
 #endif
     }
 
@@ -344,20 +349,21 @@ bool NavPanelDetector::match_flt_line(const char* lineName, cv::Line& detectedLi
     cv::Line fltRefLine = flt_line->referenceLine->calcReferenceLine(env);
     cv::Line fltAltLine = {cv::Point(), fltRefLine.p1()-fltRefLine.p0()};
     fltAltLine = rotateAround(fltAltLine, cv::Point(), -roughAngle, 1);
-    fltAltLine += lan->captureRect.tl() - lan->refOrig;
+    fltAltLine += env.scaleToReference(lan->captureRect.tl()) - lan->refOrig;
     if (strcmp(lineName, "flt-line2") == 0)
-        fltAltLine += cv::Point(0,38);
+        fltAltLine += cv::Point(0,38*env.getScale());
 
 #ifdef DEBUG_DETECTOR
-    cv::line(debugRough, fltAltLine.p0(), fltAltLine.p1(), {160, 160, 160});
+    auto captAltLine = env.scaleToCaptured(fltAltLine);
+    cv::line(debugRough, captAltLine.p0(), captAltLine.p1(), {160, 160, 160});
 #endif
     flt_line->detectEdgesMode = 1;
     double lineMatch = flt_line->match(env, fltAltLine, roughImage);
     if (lineMatch >= 0.5 && !flt_line->detectedLine.empty()) {
         detectedLine = flt_line->detectedLine;
-        deltaScale = detectedLine.length() / fltRefLine.length();
+        deltaScale = detectedLine.length() / (fltRefLine.length()*env.getScale());
     } else {
-        detectedLine = fltAltLine;
+        detectedLine = env.scaleToCaptured(fltAltLine);
         deltaScale = 1;
     }
     deltaAngle = roughAngle + detectedLine.angle() - topRefLine.angle();
@@ -365,17 +371,17 @@ bool NavPanelDetector::match_flt_line(const char* lineName, cv::Line& detectedLi
     cv::line(debugRough, detectedLine.p0(), detectedLine.p1(), {160, 160, 160});
 #endif
 
-    cv::Point tl = lan->captureRect.tl() + lan->anchor_of*deltaScale;
+    cv::Point tl = lan->captureRect.tl() + lan->anchor_of*deltaScale*env.getScale();
     cv::Point tr_anchor = topRefLine.p1() - fltRefLine.p1();
     tr_anchor = rotateAround(tr_anchor, {}, -roughAngle, deltaScale);
-    cv::Point tr = detectedLine.p1() + tr_anchor;
+    cv::Point tr = detectedLine.p1() + env.scaleToCaptured(tr_anchor);
 
     cv::Matx23d backMatrix;
     cv::invertAffineTransform(roughAffineMatrix, backMatrix);
     std::array<cv::Point2f,2> points {tl, tr};
     cv::transform(points, points, backMatrix);
-    lastTopLine = {points[0], points[1]};
-    topLeftOffset = cv::Point2f(topRefLine.p0()) - points[0];
+    lastTopLine = env.cvtCapturedToReference(cv::Line2f{points[0], points[1]});
+    topLeftOffset = cv::Point2f(topRefLine.p0() - lastTopLine.p0());
 
     return lineMatch >= 0.5;
 }
@@ -400,15 +406,18 @@ double NavPanelDetector::match_dialog(ClassifyEnv& env, float roughAngle, XMat& 
     }
 
 #ifdef DEBUG_DETECTOR
-    cv::line(debugImage, lastTopLine.p0(), lastTopLine.p1(), {200,200,200}, 1, cv::LINE_AA);
-    cv::drawMarker(debugImage, lastTopLine.p0(), {255,255,255}, 10);
-    cv::drawMarker(debugImage, lastTopLine.p1(), {255,255,255}, 10);
+    auto captTopLine = env.cvtReferenceToCaptured(lastTopLine);
+    cv::line(debugImage, captTopLine.p0(), captTopLine.p1(), {200,200,200}, 1, cv::LINE_AA);
+    cv::drawMarker(debugImage, captTopLine.p0(), {255,255,255}, 10);
+    cv::drawMarker(debugImage, captTopLine.p1(), {255,255,255}, 10);
 #endif
     approximate_bottom_line(env);
 #ifdef DEBUG_DETECTOR
-    cv::line(debugImage, lastTopLine.p0(), lastBottomLine.p0(), {64,64,64}, 1, cv::LINE_AA);
-    cv::line(debugImage, lastTopLine.p1(), lastBottomLine.p1(), {64,64,64}, 1, cv::LINE_AA);
-    cv::line(debugImage, lastBottomLine.p0(), lastBottomLine.p1(), {64,64,64}, 1, cv::LINE_AA);
+    captTopLine = env.cvtReferenceToCaptured(lastTopLine);
+    auto captBotLine = env.cvtReferenceToCaptured(lastBottomLine);
+    cv::line(debugImage, captTopLine.p0(), captBotLine.p0(), {64,64,64}, 1, cv::LINE_AA);
+    cv::line(debugImage, captTopLine.p1(), captBotLine.p1(), {64,64,64}, 1, cv::LINE_AA);
+    cv::line(debugImage, captBotLine.p0(), captBotLine.p1(), {64,64,64}, 1, cv::LINE_AA);
 #endif
 
     std::string name = "nav_panel:";
@@ -434,12 +443,14 @@ void NavPanelDetector::approximate_bottom_line(ClassifyEnv& env) {
     btmLeft = rotateAround(btmLeft, lastTopLine.p0(), deltaAngle, deltaScale);
     btmRight = rotateAround(btmRight, lastTopLine.p0(), deltaAngle, deltaScale);
     lastBottomLine = {btmLeft, btmRight};
-    transform->transformSrc[0] = lastTopLine.p0();
-    transform->transformSrc[1] = lastTopLine.p1();
-    transform->transformSrc[2] = lastBottomLine.p1();
+    auto captTopLine = env.cvtReferenceToCaptured(lastTopLine);
+    auto captBotLine = env.cvtReferenceToCaptured(lastBottomLine);
+    transform->transformSrc[0] = captTopLine.p0();
+    transform->transformSrc[1] = captTopLine.p1();
+    transform->transformSrc[2] = captBotLine.p1();
     if (mPanelName == "scr-left-panel")
-        transform->transformSrc[2] += cv::Point2f(10,0);
-    transform->transformSrc[3] = lastBottomLine.p0();
+        transform->transformSrc[2] += cv::Point2f(10*env.getScale(),0);
+    transform->transformSrc[3] = captBotLine.p0();
 }
 
 } // namespace detect

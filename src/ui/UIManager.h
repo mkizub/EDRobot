@@ -8,8 +8,6 @@
 #define EDROBOT_UIMANAGER_H
 
 class UIToast;
-class UISellInput;
-class UICalibration;
 class UISelectRect;
 class UIMainDialog;
 

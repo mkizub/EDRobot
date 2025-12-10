@@ -144,40 +144,52 @@ CourseLockerPause::~CourseLockerPause() {
 }
 
 
-void setAxisBindings(Axis& axis, bool invert) {
+bool setAxisBindings(Axis& axis, bool invert) {
     const KeyBindings& orig = Cfg.getGameKeyBindings(std::string(axis.name()) + "AxisRaw");
     axis.bindings = orig;
-    if (!(orig.mode == KeyBindings::Axis || orig.mode == KeyBindings::AxisInv))
-        throw std::domain_error(std::format("Bad bindings for {}, vJoy axis required", axis.name()));
+    if (!(orig.mode == KeyBindings::Axis || orig.mode == KeyBindings::AxisInv)) {
+        LOG(ERROR) << std::format("Bad bindings for {}, vJoy axis required", axis.name());
+        return false;
+    }
     if (invert) {
         if (axis.bindings.mode == KeyBindings::Axis)
             axis.bindings.mode = KeyBindings::AxisInv;
         else
             axis.bindings.mode = KeyBindings::Axis;
     }
+    return true;
 }
 
-void init_ship_tracker() {
+bool init_ship_tracker() {
     isWorking = true;
-    setAxisBindings(pitchAxis, true);
-    setAxisBindings(yawAxis, false);
-    setAxisBindings(rollAxis, false);
+    bool ok = true;
+    ok &= setAxisBindings(pitchAxis, true);
+    ok &= setAxisBindings(yawAxis, false);
+    ok &= setAxisBindings(rollAxis, false);
 
     auto& kb = Cfg.getGameKeyBindings("MouseReset");
     if (kb.primary.device == GameKey::vJoy)
         mouseResetKey = kb.primary;
     else if (kb.secondary.device == GameKey::vJoy)
         mouseResetKey = kb.secondary;
+    else {
+        LOG(ERROR) << "Bad bindings for MouseReset, vJoy button required";
+        ok = false;
+    }
+    if (!ok)
+        return false;
 
     Axis::resetAll();
     turnThread = std::thread(&turn_loop);
+    return true;
 }
-void shutdown_ship_tracker() {
+bool shutdown_ship_tracker() {
     isWorking = false;
     turnCond.notify_all();
     if (turnThread.joinable())
         turnThread.join();
     kbd::reset_vJoy();
+    return true;
 }
 
 void disableAutoTurn() {

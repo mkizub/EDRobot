@@ -8,6 +8,7 @@
 #define EDROBOT_CAPTURERWIN32_H
 
 #include "../Capturer.h"
+#include <boost/circular_buffer.hpp>
 
 class CapturerWin32 final : public Capturer {
 public:
@@ -17,22 +18,21 @@ public:
     bool stop() override;
     upFrame capture(upFrame&& recycle) override;
 
-    void recycle(Frame* frame) const override;
+    bool recycle(Frame* frame) const override;
 
 private:
     friend class Capturer;
     friend class FrameWin32;
 
-    CapturerWin32(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx, HDC hdcMonitor);
+    CapturerWin32(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx);
     bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) override;
 
-    bool isHdcScreenCreated;
     HDC hdcScreen;
     HDC hdcMem;
     HBITMAP hBitmap;
     BITMAPV5HEADER bitmapInfoHeader;
 
-    mutable std::deque<Frame*> recycledFrames;
+    mutable boost::circular_buffer<Frame*> recycledFrames;
     mutable std::mutex mCaptureMutex;
 
 };

@@ -4,9 +4,8 @@
 
 #include "../pch.h"
 
-#include <d3d11.h>
-#include <dxgi.h>
-#include <dxgi1_2.h>
+#include <d3d11_4.h>
+#include <dxgi1_6.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <dwmapi.h>
@@ -20,64 +19,60 @@
 #include <shellscalingapi.h>
 
 
-static CComPtr<ID3D11Device> D3dDevice;
-static CComPtr<ID3D11DeviceContext> D3dContext;
+static CComPtr<ID3D11Device1> D3dDevice;
+static CComPtr<ID3D11DeviceContext1> D3dContext;
+static CComPtr<ID3D11Query> D3dQuery;
 
-std::vector<std::unique_ptr<CapturerWin32>> Capturer::Win32Capturers;
-std::vector<std::unique_ptr<CapturerWinRT>> Capturer::WinRTCapturers;
-std::vector<std::unique_ptr<CapturerDXGI>> Capturer::DXGICapturers;
-Capturer* Capturer::DefaultCapturer;
+std::unique_ptr<Capturer> Capturer::TheCapturer;
 
 
-ID3D11Device* Capturer::getID3D11Device() {
+ID3D11Device1* Capturer::getID3D11Device() {
+    assert (main_thread_id == std::this_thread::get_id());
     return D3dDevice;
 }
-ID3D11DeviceContext* Capturer::getID3D11DeviceContext() {
+ID3D11DeviceContext1* Capturer::getID3D11DeviceContext() {
+    assert (main_thread_id == std::this_thread::get_id());
     return D3dContext;
+}
+
+bool Capturer::flushID3D11DeviceContext() {
+    assert (main_thread_id == std::this_thread::get_id());
+    if (!D3dQuery || !D3dContext)
+        return false;
+    D3dContext->End(D3dQuery);
+    D3dContext->Flush();
+    while (S_OK != D3dContext->GetData(D3dQuery, nullptr, 0, 0)) {
+        std::this_thread::yield(); // Optionally, yield while waiting
+    }
+    return true;
 }
 
 void Frame::recycle(Frame* p) {
     if (!p)
         return;
-    if (p->owner) {
-        p->owner->recycle(p);
-    } else {
+    if (!p->owner || !p->owner->recycle(p))
         delete p;
-    }
 }
 
-BOOL CALLBACK Capturer::MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
-    UNREFERENCED_PARAMETER(lprcMonitor);
-    UNREFERENCED_PARAMETER(dwData);
-    MONITORINFOEX monitorInfoEx;
-    monitorInfoEx.cbSize = sizeof(MONITORINFOEX);
-    if (GetMonitorInfo(hMonitor, &monitorInfoEx)) {
-        if (!Cfg.isCapturerDXGIDisabled())
-            DXGICapturers.push_back(std::unique_ptr<CapturerDXGI>(new CapturerDXGI(hMonitor, &monitorInfoEx, hdcMonitor)));
-        if (!Cfg.isCapturerWin32Disabled())
-            Win32Capturers.push_back(std::unique_ptr<CapturerWin32>(new CapturerWin32(hMonitor, &monitorInfoEx, hdcMonitor)));
-        if (!Cfg.isCapturerWinRTDisabled())
-            WinRTCapturers.push_back(std::unique_ptr<CapturerWinRT>(new CapturerWinRT(hMonitor, &monitorInfoEx, hdcMonitor)));
-    }
-    return TRUE;
-}
-
-void Capturer::InitD3DDevice() {
+bool Capturer::InitD3DDevice() {
+    assert (main_thread_id == std::this_thread::get_id());
     if (!D3dDevice) {
         static const D3D_FEATURE_LEVEL featureLevels[] = {
                 D3D_FEATURE_LEVEL_11_1,
                 D3D_FEATURE_LEVEL_11_0,
-                D3D_FEATURE_LEVEL_10_1,
-                D3D_FEATURE_LEVEL_10_0,
-                D3D_FEATURE_LEVEL_9_1
         };
         D3D_FEATURE_LEVEL featureLevel;
-        HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                                       featureLevels, std::size(featureLevels), D3D11_SDK_VERSION,
-                                       &D3dDevice, &featureLevel, &D3dContext);
+        CComPtr<ID3D11Device> device;
+        HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+                               D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                               featureLevels, std::size(featureLevels), D3D11_SDK_VERSION,
+                               &device, &featureLevel, NULL);
+        if (SUCCEEDED(hr))
+            hr = device->QueryInterface(IID_PPV_ARGS(&D3dDevice));
         if (FAILED(hr)) {
-            LOG(ERROR) << "Failed to create D3D11 device" << getErrorMessage(hr);
+            LOG(ERROR) << "Failed to create D3D11 device: " << getErrorMessage(hr);
         } else {
+            D3dDevice->GetImmediateContext1(&D3dContext);
             if (useOpenCL()) {
                 cv::directx::ocl::initializeContextFromD3D11Device(D3dDevice);
                 LOG(INFO) << "Using OpenCL device: " << cv::ocl::Context::getDefault().device(0).name();
@@ -86,42 +81,62 @@ void Capturer::InitD3DDevice() {
             }
         }
     }
-}
+    if (!D3dQuery && D3dDevice) {
+        D3D11_QUERY_DESC queryDesc = {};
+        queryDesc.Query = D3D11_QUERY_EVENT;
+        queryDesc.MiscFlags = 0;
+        D3dDevice->CreateQuery(&queryDesc, &D3dQuery);
+    }
 
-void Capturer::InitCapturers() {
-    DefaultCapturer = nullptr;
-    Win32Capturers.clear();
-    WinRTCapturers.clear();
-
-    SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-
-    EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)nullptr);
-
-    DefaultCapturer = new CapturerWin32(nullptr, nullptr, nullptr);
+    return bool(D3dDevice);
 }
 
 void Capturer::shutdown() {
+    assert (main_thread_id == std::this_thread::get_id());
     if (useOpenCL())
         cv::directx::ocl::finish();
+    D3dQuery.Release();
     D3dContext.Release();
     D3dDevice.Release();
+    TheCapturer.reset();
+}
+
+void Capturer::resetEDCapturer() {
+    assert (main_thread_id == std::this_thread::get_id());
+    TheCapturer.reset();
+}
+
+void Capturer::restart() {
+//    if (useOpenCL())
+//        cv::directx::ocl::finish();
+//    D3dQuery.Release();
+//    D3dContext.Release();
+//    D3dDevice.Release();
+//    TheCapturer.reset();
+//    InitD3DDevice();
 }
 
 Capturer* Capturer::getEDCapturer(HWND hwnd) {
-    if (!DefaultCapturer)
-        InitCapturers();
+    assert (main_thread_id == std::this_thread::get_id());
+    if (!hwnd)
+        return nullptr;
+    if (TheCapturer) {
+        if (TheCapturer->hWndED == hwnd)
+            return TheCapturer.get();
+        TheCapturer.reset();
+    }
 
     HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
     if (!hMonitor) {
         LOG(ERROR) << "Could not get monitor handle.";
-        return DefaultCapturer;
+        return nullptr;
     }
 
     MONITORINFOEX monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
     if (!GetMonitorInfo(hMonitor, &monitorInfo)) {
         LOG(ERROR) << "Could not get monitor information.";
-        return DefaultCapturer;
+        return nullptr;
     }
 
     RECT windowRect;
@@ -129,9 +144,7 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
     BOOL ok = hwnd && GetWindowRect(hwnd, &windowRect);
     if (!ok) {
         LOG(ERROR) << "Cannot get window for capturer";
-        captureRect = monitorInfo.rcMonitor;
-        DefaultCapturer->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect));
-        return DefaultCapturer;
+        return nullptr;
     }
     bool fullscreen;
     {
@@ -149,39 +162,41 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
             captureRect = monitorInfo.rcMonitor;
         }
     }
+    // for window, try WinRT capturer first
+    if (!fullscreen && !Cfg.isCapturerWinRTDisabled()) {
+        auto c = std::unique_ptr<Capturer>(new CapturerWinRT(hMonitor, &monitorInfo));
+        if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
+            TheCapturer.swap(c);
+            return TheCapturer.get();
+        }
+    }
+    // otherwice try DXGI capturer as fast and releable
     if (!Cfg.isCapturerDXGIDisabled()) {
-        for (auto& c : DXGICapturers) {
-            if (c->hMonitor == hMonitor && c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect)))
-                return c.get();
+        auto c = std::unique_ptr<Capturer>(new CapturerDXGI(hMonitor, &monitorInfo));
+        if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
+            TheCapturer.swap(c);
+            return TheCapturer.get();
         }
     }
-    if (!Cfg.isCapturerWin32Disabled()) {
-        for (auto& c : Win32Capturers) {
-            if (c->hMonitor == hMonitor && c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect)))
-                return c.get();
-        }
-    }
+    // less optimal for fullscreen
     if (!Cfg.isCapturerWinRTDisabled()) {
-        for (auto& c : WinRTCapturers) {
-            if (c->hMonitor == hMonitor && c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect)))
-                return c.get();
+        auto c = std::unique_ptr<Capturer>(new CapturerWinRT(hMonitor, &monitorInfo));
+        if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
+            TheCapturer.swap(c);
+            return TheCapturer.get();
+        }
+    }
+    // fallback to Win32 (bitmap)
+    if (!Cfg.isCapturerWin32Disabled()) {
+        auto c = std::unique_ptr<Capturer>(new CapturerWin32(hMonitor, &monitorInfo));
+        if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
+            TheCapturer.swap(c);
+            return TheCapturer.get();
         }
     }
 
     LOG(ERROR) << "Cannot find capturer for monitor " << monitorInfo.szDevice;
-    DefaultCapturer->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect));
-    return DefaultCapturer;
-}
-
-bool Capturer::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) {
-    if (this != DefaultCapturer)
-        return false;
-    this->hWndED = hWnd;
-    this->windowVirtRect = windowRect;
-    this->captureVirtRect = clientRect;
-    this->titleHeight = clientRect.y - windowRect.y;
-    this->borderWidth = clientRect.x - windowRect.x;
-    return true;
+    return nullptr;
 }
 
 Capturer::Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx)
@@ -191,6 +206,7 @@ Capturer::Capturer(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx)
     , hWndED(nullptr)
     , monitorInfo {}
     , titleHeight {}
+    , borderWidth {}
 {
     if (monitorInfoEx) {
         memcpy(&monitorInfo, monitorInfoEx, sizeof(monitorInfo));

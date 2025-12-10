@@ -29,7 +29,7 @@ add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
 add_compile_options(/Zc:__cplusplus /await /utf-8 /Zi)
-add_link_options(/DEBUG)
+add_link_options(/DEBUG /PDBCOMPRESS)
 
 add_executable(EDRobot
         EDRobot.manifest
@@ -62,15 +62,24 @@ add_executable(EDRobot
         src/Utils.cpp
         src/Utils.h
 
+        src/ai/AIManager.cpp
+        src/ai/AIManager.h
+        src/ai/AIUtils.cpp
+        src/ai/AIUtils.h
         src/ai/AutopilotTasks.cpp
         src/ai/AutopilotTasks.h
         src/ai/NavList.cpp
         src/ai/NavList.h
         src/ai/ShipTracker.cpp
+        src/ai/Task.cpp
+        src/ai/Task.h
+        src/ai/TaskTemplate.cpp
+        src/ai/TaskTemplate.h
         src/ai/TaskDebug.cpp
         src/ai/TaskDebug.h
         src/ai/TradeTasks.cpp
         src/ai/TradeTasks.h
+        src/ai/Types.h
 
         src/detect/Detector.h
         src/detect/Detector.cpp
@@ -128,19 +137,6 @@ add_executable(EDRobot
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
 )
-#target_sources(EDRobot PUBLIC
-#        FILE_SET CXX_MODULES FILES
-#        src/ai/ai.ixx
-#)
-target_sources(EDRobot PUBLIC
-        src/ai/AIManager.cpp
-        src/ai/TaskTemplate.cpp
-        src/ai/Task.cpp
-        src/ai/AIManager.h
-        src/ai/TaskTemplate.h
-        src/ai/Task.h
-        src/ai/Types.h
-)
 
 
 target_precompile_headers(EDRobot PUBLIC src/pch.h)
@@ -192,8 +188,7 @@ install(TARGETS EDRobot RUNTIME_DEPENDENCIES
 )
 install(DIRECTORY config/templates DESTINATION "." FILES_MATCHING PATTERN "*.png")
 install(DIRECTORY config/locales DESTINATION ".")
-install(DIRECTORY config/tessdata-best DESTINATION ".")
-install(DIRECTORY config/tessdata-fast DESTINATION ".")
+install(DIRECTORY config/tessdata DESTINATION ".")
 install(DIRECTORY config/ControlSchemes DESTINATION ".")
 install(FILES
         config/eddb.json5

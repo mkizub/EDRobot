@@ -18,10 +18,8 @@ enum class DetectLevel {
 };
 enum class Command {
     NoOp,
-    TaskFinished,
     Start,
-    Pause,
-    Resume,
+    PauseResume,
     Stop,
     Autopilot,
     DebugTemplates,
@@ -82,7 +80,7 @@ public:
 
     static Master& getInstance();
 
-    int initialize(int argc, char* argv[]);
+    bool initialize(int argc, char* argv[]);
     void shutdown();
     void loop();
     bool isGameForeground();
@@ -116,7 +114,7 @@ private:
     Master();
     ~Master();
 
-    void initializeInternal(std::string ocr_dir);
+    std::string initializeInternal(std::string ocr_dir);
 
     static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
 
@@ -128,8 +126,6 @@ private:
     Capturer* getCapturer();
     void resetCapturer();
 
-    bool pauseAITask();
-    bool resumeAITask();
     bool stopAITask();
     bool autopilotAITask();
 
