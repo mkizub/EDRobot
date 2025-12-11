@@ -183,26 +183,7 @@ static cv::Mat scaleImage(cv::Mat& image, double scale, bool force) {
 //    return scaledImage;
 }
 
-int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Rect* rectOut) {
-    assert (cr.cdt == ClsDetType::ListRow);
-    const widget::List* lst = cr.u.lrow.list;
-    if (lst->tabs.size() <= tab)
-        return 0;
-    auto& t = lst->tabs[tab];
-    if (t.tab_right <= t.tab_left || t.ocr_bot <= 0)
-        return 0;
-    double scale = (ocr::ASCENT+ocr::DESCENT) / double(t.ocr_bot-t.ocr_top) / rEnv.getScale();
-    cv::Rect capturedRect = cr.u.lrow.capturedRect;
-    capturedRect.x += int(t.tab_left * rEnv.getScale());
-    capturedRect.width = int((t.tab_right - t.tab_left) * rEnv.getScale());
-    cv::Mat rowImage(grayImage, capturedRect);
-    cv::Mat scaledImage = scaleImage(rowImage, scale, cr.u.lrow.ws != WState::Focused);
-    if (cr.u.lrow.ws != WState::Focused)
-        cv::bitwise_not(scaledImage, scaledImage);
-    int ocr_top = t.ocr_top * scale - ocr::LEADING;
-    cv::Rect ocrRect {0, ocr_top-3, scaledImage.cols, ocr::LINE_HEIGHT+4};
-    ocrRect &= cv::Rect(0, 0, scaledImage.cols, scaledImage.rows);
-    cv::Mat ocrImage(scaledImage, ocrRect);
+int tryOcrRowText(TextType tt, const cv::Mat& ocrImage, std::string& text, cv::Rect* rectOut) {
     {
         int histSize = 256;
         float range[]{0, 256}; //the upper boundary is exclusive
@@ -248,6 +229,62 @@ int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, c
     }
     int conf = ocr::ocrLine(tt, "(list row)", ocrImage, text, rectOut);
     return conf;
+}
+
+int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Rect* rectOut) {
+    assert (cr.cdt == ClsDetType::ListRow);
+    const widget::List* lst = cr.u.lrow.list;
+    if (lst->tabs.size() <= tab)
+        return 0;
+    auto& t = lst->tabs[tab];
+    if (t.tab_right <= t.tab_left || t.ocr_bot <= 0)
+        return 0;
+    double scale = (ocr::ASCENT+ocr::DESCENT) / double(t.ocr_bot-t.ocr_top) / rEnv.getScale();
+    cv::Rect capturedRect = cr.u.lrow.capturedRect;
+    capturedRect.x += int(t.tab_left * rEnv.getScale());
+    capturedRect.width = int((t.tab_right - t.tab_left) * rEnv.getScale());
+    cv::Mat rowImage(grayImage, capturedRect);
+    cv::Mat scaledImage = scaleImage(rowImage, scale, cr.u.lrow.ws != WState::Focused);
+    if (cr.u.lrow.ws != WState::Focused)
+        cv::bitwise_not(scaledImage, scaledImage);
+    cv::Rect cropRect {0, 0, scaledImage.cols, scaledImage.rows};
+    struct TryOCR {
+        std::string text;
+        cv::Rect rect;
+        int conf;
+    };
+    std::vector<TryOCR> tries;
+    int ocr_top = t.ocr_top * scale - ocr::LEADING;
+    cv::Rect ocrRect {0, ocr_top-3, scaledImage.cols, ocr::LINE_HEIGHT+6};
+    cv::Mat ocrImage(scaledImage, ocrRect & cropRect);
+    TryOCR main = {};
+    main.conf = tryOcrRowText(tt, scaledImage(ocrRect & cropRect), main.text, &main.rect);
+    if (main.conf >= 90) {
+        text = main.text;
+        if (rectOut)
+            *rectOut = main.rect;
+        return main.conf;
+    }
+    tries.push_back(main);
+    if (ocrRect.y > 2) {
+        TryOCR above = {};
+        above.conf = tryOcrRowText(tt, scaledImage((ocrRect + cv::Point(0,-3)) & cropRect), above.text, &above.rect);
+        tries.push_back(above);
+    }
+    if ((ocrRect.y+ocrRect.height) < cropRect.height-2) {
+        TryOCR below = {};
+        below.conf = tryOcrRowText(tt, scaledImage((ocrRect + cv::Point(0,+3)) & cropRect), below.text, &below.rect);
+        tries.push_back(below);
+    }
+    int bestIdx = 0;
+    for (int i=1; i < tries.size(); i++) {
+        if (tries[i].conf > tries[bestIdx].conf)
+            bestIdx = i;
+    }
+    text = tries[bestIdx].text;
+    if (rectOut)
+        *rectOut = tries[bestIdx].rect;
+    return tries[bestIdx].conf;
 }
 
 int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Mat& dumpImage) {

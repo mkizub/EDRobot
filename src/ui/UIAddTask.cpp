@@ -27,6 +27,10 @@ UIAddTask::UIAddTask() {
         EndDialog(hwnd(), IDOK);
         return 0;
     });
+    on_command(IDCANCEL, [this](wl::params params) {
+        EndDialog(hwnd(), IDCANCEL);
+        return 0;
+    });
     on_command(ID_SAVE, [this](wl::params params) {
         on_template_save();
         return 0;

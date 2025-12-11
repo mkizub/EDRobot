@@ -95,12 +95,14 @@ bool NavList::parseNavRow(const cv::Mat &grayImage, const ResolvedEnv& rEnv, con
     cv::Rect rectOut;
     std::string text;
     int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, cr, 0, text, &rectOut);
-    if (ocr_conf < 60)
+    if (ocr_conf < 30)
         text.clear();
     std::wstring wtext = toUtf16(text);
     bool ok = parseNavName(wtext, nle);
     nle.parsed = true;
     nle.ocr_conf = ocr_conf;
+    if (nle.icon == gal::STAR.charOCR || nle.icon == gal::BODY.charOCR || nle.icon == gal::LAND.charOCR)
+        nle.ocr_conf *= 0.8; // they have mostly the same name, different in a few last chars
     double indent = (rectOut.x - 3.0) / double(25);
     nle.indent = (int) std::round(indent);
     if (cr.u.lrow.ws == WState::Focused)
@@ -759,6 +761,57 @@ gal::spEntity NavList::focusNearestBody(dist_t* dist) {
         }
     }
     return {};
+}
+
+bool NavList::focusDockBody() {
+    if (!st::autopilot.destDock)
+        return false;
+    for (int retry=0; retry < 7; retry++) {
+        int focusIdx;
+        cv::Mat grayImage;
+        std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
+        if (rows.empty())
+            continue;
+
+        int destDockIndent = -1;
+        bool bodyFound = false;
+        for (int idx=0; idx < list.size() && destDockIndent < 0; idx++) {
+            parseNavRow(grayImage, ai::rEnv, *rows[idx], idx);
+            guessNavItem(idx);
+            gal::spEntity item = list[idx].item;
+            if (item && item == st::autopilot.destDock) {
+                destDockIndent = list[idx].indent;
+                for (int j=idx-1; j >= 0; j--) {
+                    if (list[j].indent == destDockIndent-1) {
+                        if (list[j].focused)
+                            return true;
+                        int count = j - focusIdx;
+                        if (count > 0) {
+                            for (int i=0; i < count; i++)
+                                kbd::send("UI_Down");
+                        } else {
+                            for (int i=0; i < -count; i++)
+                                kbd::send("UI_Up");
+                        }
+                        st::autopilot.isDestDockFocused = false;
+                        st::autopilot.isDestBodyFocused = false;
+                        bodyFound = true;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        if (bodyFound) {
+            ai::sleep(300);
+            continue;
+        }
+        // not found in current page, scroll page up
+        int hold = 300 + 8*50;
+        kbd::send("UI_Up", hold);
+        ai::sleep(300);
+    }
+    return false;
 }
 
 bool NavList::focusTopEntry() {

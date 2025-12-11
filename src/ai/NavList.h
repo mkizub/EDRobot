@@ -45,6 +45,7 @@ public:
     bool focusDestBody();
     bool focusDestination(int& focusIdx);
     gal::spEntity focusNearestBody(dist_t* dist=nullptr);
+    bool focusDockBody();
     bool focusTopEntry();
 
     bool selectFocused();

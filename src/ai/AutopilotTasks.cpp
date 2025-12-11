@@ -953,16 +953,17 @@ bool DepartureStep::run() {
     }
 
     if (st::ship.flags.docked) {
+        status = REFUEL;
         gotoLandingPad(true);
 
         LOG(INFO) << "Takeoff...";
+        // 20 seconds to leave landing pad
+        timer = utc_timer(25s);
+        status = TAKEOFF;
         kbd::send("UI_Down");
         kbd::send("UI_Down");
         kbd::send("UI_Select");
 
-        // 20 seconds to leave landing pad
-        timer = utc_timer(25s);
-        status = TAKEOFF;
         while (st::ship.flags.docked && !timer.expired()) {
             sleep(1000);
             ai::detectEDState(DetectLevel::Screen);
@@ -1642,17 +1643,7 @@ bool BaseDockStep::autopilot() {
     if (st::ship.flags.docked) {
         status = REFUEL;
         sleep(2000);
-        ai::detectEDState(DetectLevel::Screen);
-        if (ai::uiState.guiFocus == GuiFocus::None) {
-            LOG(INFO) << "Refuel...";
-            for (int i = 0; i < 4; i++)
-                kbd::send("UI_Up");
-            kbd::send("UI_Select", 0, 500); // refuel
-            kbd::send("UI_Right");
-            kbd::send("UI_Select", 0, 500); // repair
-            kbd::send("UI_Right");
-            kbd::send("UI_Select", 0, 500); // rearm
-        }
+        gotoLandingPad(true);
     }
 
     return true;
@@ -1795,7 +1786,7 @@ bool DockSpaceStation::run() {
         }
         // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
         if (de->event == "DockingDenied") {
-            auto reason = de->data["Reason"].as_string();
+            auto reason = de->data["Reason"].asif_string();
             if (reason == "NoSpace") {
                 LOG(ERROR) << "DockingDenied reason: NoSpace, waiting...";
                 sleep(5000);
@@ -1808,6 +1799,11 @@ bool DockSpaceStation::run() {
                 flyTowardsTarget();
                 continue;
             }
+            // if (reason == "TooLarge" || reason == "Hostile" || reason == "Offences")
+
+            // all others are fatal
+            LOG(ERROR) << "DockingDenied reason: " << reason << ", aborting...";
+            throw_failed("Docking impossible, reason: {}", reason);
         }
         // all others are fatal
         throw_failed("Unknown docking event: {}", de->event);
@@ -2654,7 +2650,7 @@ bool CruiseToDistStep::run() {
                         notify_warn("Cannot see target mark");
                         useNavList = true;
                         failCount = 0;
-                        setSpeed(75);
+                        setSpeed(25);
                     }
                     else if (ai::compassInfo.hemisphere < 0 || std::abs(ai::compassInfo.targetAngle) > 10) {
                         setSpeed(0);
@@ -2692,14 +2688,9 @@ bool CruiseToDistStep::run() {
                 course.requestPitchRoll(180);
                 task->orientAwayFromTarget(5);
                 continue;
-            }
-            if (currentDist < minDist * 0.75) {
+            } else {
                 status = DIST_NEAR;
-                setSpeed(25);
-            }
-            else {
-                status = DIST_FAR;
-                setSpeed(100);
+                setSpeed(75);
             }
         } else { // currentDist > maxDist
             if (flyAway) {
@@ -2805,6 +2796,8 @@ bool DiveUnderPlanetStep::run() {
     for (int fails=0; fails < 20; fails++) {
         if ((fails % 8) == 7) {
             status = FLY_DIVE;
+            if (st::guiFocus != GuiFocus::None)
+                sendUiBack();
             setSpeed(50);
             task->orientPitchStep(70);
             timer = utc_timer(20s);
@@ -2847,6 +2840,7 @@ bool DiveUnderPlanetStep::run() {
             sendUiBack();
             targetIsDock = true;
             targetIsBody = false;
+        try_visible_again:
             // oriented towards body, but dock is selected target
             ai::detectEDState(DetectLevel::Screen);
             bool dockIsVisible = ai::compassInfo.has_nav_target;
@@ -2855,21 +2849,22 @@ bool DiveUnderPlanetStep::run() {
                 visible_body_angle = std::atan(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;
             // nav target is not visible if obscured by body or is out of FOV
             if (!dockIsVisible) {
-                if (ai::compassInfo.hemisphere < 0)
+                if (ai::compassInfo.hemisphere < 0) {
                     dockIsVisible = true;
-                if (ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle >= visible_body_angle)
+                } else if (ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle >= visible_body_angle*1.2f) {
                     dockIsVisible = true;
+                } else if (ai::compassInfo.targetRoll < 0) {
+                    task->orientRollByTarget(0, 15, 10000);
+                    goto try_visible_again;
+                }
             }
             float to_body_center_angle = std::numeric_limits<float>::quiet_NaN();
             if (ai::compassInfo.hemisphere) {
                 to_body_center_angle = ai::compassInfo.targetAngle;
                 if (toPort && !std::isnan(visible_body_angle))
                     to_body_center_angle = std::min(to_body_center_angle, visible_body_angle);
-                if (ai::compassInfo.hemisphere > 0) {
+                if (ai::compassInfo.hemisphere > 0)
                     disk_part = to_body_center_angle / visible_body_angle;
-                    //if (disk_part <= 1)
-                    //    dockIsVisible = true;
-                }
             }
             if (dockIsVisible) {
                 if (toPort) {
@@ -2953,8 +2948,6 @@ bool DiveUnderPlanetStep::run() {
             }
             if (ai::compassInfo.hemisphere > 0) {
                 disk_part = to_body_center_angle / visible_body_angle;
-                //if (disk_part <= 1)
-                //    dockIsVisible = true;
             }
             // oriented towards dock, but body is selected target
             if (dockIsVisible) {
@@ -3703,6 +3696,22 @@ bool CruiseAndDock::run() {
                 throw_trouble("Cannot cruise to dock/body");
         }
 
+        if (!st::autopilot.destBody && st::autopilot.destDock->parentBodyId < 0) {
+            if (task->nl.focusDockBody()) {
+                if (task->nl.selectFocused()) {
+                    sleep(1000); // wait for Status.json
+                    int bodyId = st::destination.bodyId;
+                    st::autopilot.destDock->parentBodyId = bodyId;
+                    auto starSystem = gal::getCurrentStarSystem();
+                    starSystem->saved = false;
+                    gal::saveStarSystem(starSystem.get());
+                    st::autopilot.destBody = starSystem->getBodyById(bodyId);
+                    if (st::autopilot.destBody)
+                        continue; // run CruiseToDistStep again
+                }
+            }
+        }
+
         int exitCruisePitch = 0;
         if (!skip_dive) {
             if (st::autopilot.destBody && st::autopilot.destDock) {
@@ -3805,7 +3814,9 @@ bool TaskTravel::run() {
     if (destSystemName.empty() || destDockName.empty())
         throw_failed("Destination system and dock required");
 
-    gotoLandingPad(true);
+    if (st::ship.flags.docked) {
+        gotoLandingPad(true);
+    }
 
     if (gal::getCurrentStarSystem()->systemName != destSystemName) {
         bool change_route = false;

@@ -160,7 +160,7 @@ bool Configuration::load() {
             screensRoot->addSubItem(widget_from_json(s, screensRoot));
         }
         //detect::NavPanelDetectLock lock("flt-line");
-        //detect::NavPanelDetector::standaloneTest("nav-panel-test-8.png", "scr-left-panel");
+        //detect::NavPanelDetector::standaloneTest("nav-panel-test-9.png", "scr-left-panel");
         //detect::NavPanelDetectLock lock("flt-line");
         //detect::NavPanelDetector::standaloneTest("nav-panel-left-filter.png", "scr-left-panel");
     }

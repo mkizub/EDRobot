@@ -69,7 +69,7 @@ ConstTransform* NavPanelDetector::getTransform() {
     return transform;
 }
 
-//#define DEBUG_DETECTOR 1
+#define DEBUG_DETECTOR 1
 
 static cv::Point2f rotateAround(cv::Point2f point, cv::Point2f anchor, float angle, float scale) {
     cv::Point2f delta = point - anchor;
@@ -225,9 +225,11 @@ double NavPanelDetector::match(ClassifyEnv &env) {
 #endif
         cv::Line2f roughTopLine;
         if (lan && ran) {
-            float topRefAnchorDist = (ran->refOrig.x - lan->refOrig.x) * env.getScale();
-            float topDetAnchorDX = ran->matchedCaptureOffset.x - lan->matchedCaptureOffset.x;
-            deltaScale = 1 + topDetAnchorDX / topRefAnchorDist;
+            cv::Line refLine {lan->refOrig, ran->refOrig};
+            cv::Line detLine {lan->captureRect.tl(), ran->captureRect.tl()};
+            double len1 = detLine.length();
+            double len2 = refLine.length() * env.getScale();
+            deltaScale = len1 / len2;
             roughTopLine = {lan->captureRect.tl() + lan->anchor_of * deltaScale * env.getScale(),
                             ran->captureRect.tl() + ran->anchor_of * deltaScale * env.getScale()};
             deltaAngle = roughAngle + roughTopLine.angle() - topCaptLine.angle();

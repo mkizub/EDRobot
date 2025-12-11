@@ -115,6 +115,10 @@ int UIMainDialog::initialize(wl::params &params) {
 }
 
 bool UIMainDialog::show() {
+    struct ClipboardLocker {
+        ClipboardLocker() { OpenClipboard(NULL); }
+        ~ClipboardLocker() { CloseClipboard(); }
+    } locker;
     ShowWindow(this->hwnd(), SW_RESTORE);
     SetForegroundWindow(this->hwnd());
     BringWindowToTop(this->hwnd());
@@ -309,5 +313,10 @@ void UIMainDialog::update_curr_task() {
             dist = st::autopilot.distanceToDock.to_string();
         lbl_status.set_text(toUtf16(lc_format("{}: speed {}%, distance {}", space, spd, dist)));
     }
-    mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
+    if (IsWindowVisible(hwnd())) {
+        mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
+    } else {
+        KillTimer(this->hwnd(), mUpdateTimerId);
+        mUpdateTimerId = {};
+    }
 }

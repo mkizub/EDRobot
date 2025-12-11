@@ -1,5 +1,11 @@
 [
   {
+    "templ": "tsk-travel",
+    "name": "Debug: Полёт к станции",
+    "system": "Wregoe KA-B b41-1",
+    "dock": "Mason City"
+  },
+  {
     "templ": "tsk-trade-loop",
     "name": "Торговля HIP 40900",
     "markets": [
