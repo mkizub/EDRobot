@@ -12,12 +12,15 @@
 class UIStartupDialog : public UIDialog {
     friend class UIManager;
 
-    UIStartupDialog(const std::string &message);
+    UIStartupDialog(const std::string &message, std::string latest_version, std::string latest_url);
 
     int getDialogResId() final;
     bool onInitDialog(HWND hDlg) final;
+    bool onCommand(HWND hDlg, WPARAM wParam) final;
 
     std::wstring mMessage;
+    std::wstring mVersion;
+    std::wstring mVersionUrl;
 };
 
 

@@ -46,13 +46,21 @@ INT_PTR CALLBACK UIDialog::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LP
     case WM_SYSCOMMAND:
     case WM_COMMAND:
         uiDialog = (UIDialog*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
-        if (uiDialog->onCommand(hDlg, LOWORD(wParam)))
+        if (uiDialog->onCommand(hDlg, wParam))
             return (INT_PTR) TRUE;
         if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
             EndDialog(hDlg, LOWORD(wParam));
             return (INT_PTR) TRUE;
         }
         break;
+    case WM_CTLCOLORSTATIC:
+        if (GetDlgCtrlID((HWND)lParam) == IDC_VERSION) {
+            HBRUSH retVal = (HBRUSH) GetStockObject(HOLLOW_BRUSH);
+            SetTextColor( (HDC)wParam, RGB(63,63,255) );
+            SetTextColor( (HDC)wParam, RGB(63,63,255) );
+            SetBkMode( (HDC)wParam, TRANSPARENT);
+            return (BOOL)retVal;
+        }
     }
     return (INT_PTR) FALSE;
 }

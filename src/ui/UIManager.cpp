@@ -67,8 +67,8 @@ void UIManager::uiThreadLoop() {
     uiMain.winmain_run(hInstance, SW_HIDE);
 }
 
-bool UIManager::showStartupDialog(const std::string &message) {
-    UIStartupDialog dlg(message);
+bool UIManager::showStartupDialog(const std::string &message, std::string latest_version, std::string latest_url) {
+    UIStartupDialog dlg(message, latest_version, latest_url);
     return dlg.show();
 }
 

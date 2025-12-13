@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release RelWithDebInfo)
 
-project(EDRobot)
+project(EDRobot VERSION 0.8.0)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -140,6 +140,7 @@ add_executable(EDRobot
 
 
 target_precompile_headers(EDRobot PUBLIC src/pch.h)
+target_compile_definitions(EDRobot PUBLIC "EDROBOT_VERSION=\"${PROJECT_VERSION}\"" )
 target_include_directories(EDRobot PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(EDRobot PRIVATE "${VCPKG_INSTALLED_DIR}/x64-windows/include")
 target_include_directories(EDRobot PRIVATE thirdparty)

@@ -25,6 +25,7 @@
 #define ID_SAVE                         1024
 #define ID_DELETE                       1025
 #define IDC_EXIT                        1027
+#define IDC_VERSION                     1028
 #define ID_SHOW_TOAST                   32781
 #define ID_TRAY_ICON                    32782
 #define IDC_STATIC                      -1
@@ -36,7 +37,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        139
 #define _APS_NEXT_COMMAND_VALUE         32783
-#define _APS_NEXT_CONTROL_VALUE         1028
+#define _APS_NEXT_CONTROL_VALUE         1029
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

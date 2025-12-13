@@ -37,6 +37,7 @@ BEGIN
     ICON            IDI_DIALOGS,IDC_STATIC,14,14,20,20
     LTEXT           "Press 'Print Screen' key to start selling\nPress 'Esc' to stop",IDC_STATIC_1,42,14,173,54,SS_NOPREFIX
     DEFPUSHBUTTON   "OK",IDOK,165,68,50,14,WS_GROUP
+    CONTROL         "Version: 1.0.0",IDC_VERSION,"Static",SS_SIMPLE | SS_NOTIFY | WS_GROUP,21,72,111,9
 END
 
 IDD_ADD_TASK DIALOGEX 0, 0, 209, 178

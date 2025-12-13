@@ -23,6 +23,7 @@
 #include "opencv2/core/utils/logger.hpp"
 #include <CLI11/CLI11.hpp>
 #include <magic_enum/magic_enum.hpp>
+#include <curl_easy.h>
 
 #ifndef NDEBUG
 #include <cpptrace/cpptrace.hpp>
@@ -93,6 +94,90 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
     static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
     el::base::Writer(elLevel, file, line, func).construct(cvLogger) << msg;
 }
+
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
+static std::string curlRequestGithubLatest() {
+    json5pp::value result;
+    std::string readBuffer;
+
+    std::string url = "https://api.github.com/repos/mkizub/EDRobot/releases/latest";
+    std::string ua = std::format("EDRobot {} {}", EDROBOT_VERSION, curl_version());
+
+    CURL* curl = curl_easy_init();
+    if (!curl)
+        return {};
+
+    // Set URL and perform the request
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3);
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Accept: application/vnd.github+json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, ua.c_str());
+    char errbuf[CURL_ERROR_SIZE] = {};
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK)
+        LOG(ERROR) << "Curl error: " << errbuf;
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK)
+        return {};
+
+    return readBuffer;
+}
+
+static std::pair<std::string,std::string> getLatestVersionAndUrl() {
+    auto path = std::filesystem::path("cache/rel-latest.json");
+    json5pp::value latest;
+    if (std::filesystem::exists(path)) {
+        auto file_file_tp = std::filesystem::last_write_time(path);
+        auto file_sys_tp = std::chrono::clock_cast<std::chrono::system_clock>(file_file_tp);
+        std::chrono::sys_days file_days{std::chrono::floor<std::chrono::days>(file_sys_tp)};
+        std::chrono::sys_days now_days{std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())};
+        if (file_days >= now_days) {
+            std::ifstream ifs_latest(path.string());
+            latest = json5pp::parse(ifs_latest);
+        }
+    }
+
+    if (latest.empty()) {
+        auto resp = curlRequestGithubLatest();
+        if (!resp.empty()) {
+            std::ofstream ofs_latest(path.string(), std::ios::trunc | std::ios::binary);
+            ofs_latest << resp;
+            ofs_latest.close();
+            try {
+                latest = json5pp::parse5(resp);
+            } catch (const json5pp::syntax_error& ex) {
+                LOG(ERROR) << ex.what();
+            }
+        }
+    }
+
+    if (!latest.empty()) {
+        auto tag = latest["tag_name"];
+        auto url = latest["html_url"];
+        if (tag.is_string() && tag.as_string().starts_with("rel-")) {
+            return {tag.as_string().substr(4), url.asif_string()};
+        }
+    }
+    return {};
+}
+
 }
 
 void UIState::clear() {
@@ -347,12 +432,13 @@ bool Master::initialize(int argc, char* argv[]) {
         std::string msg1 = lc_format("Press '{0}' to popup EDRobot", Cfg.getShortcutFor(Command::Start));
         std::string msg2 = lc_format("Press '{0}' to pause/stop", Cfg.getShortcutFor(Command::PauseResume));
         std::string msg = msg1 + "\n\n" + msg2;
-        UIManager::showStartupDialog(msg);
+        auto latest = getLatestVersionAndUrl();
+        UIManager::showStartupDialog(msg, latest.first, latest.second);
         return true;
     } else {
         std::string msg1 = _gt("Initialization error");
         std::string msg = msg1 + "\n\n" + error;
-        UIManager::showStartupDialog(msg);
+        UIManager::showStartupDialog(msg, EDROBOT_VERSION, "");
         return false;
     }
 }

@@ -13,7 +13,7 @@ protected:
 
     virtual int getDialogResId() = 0;
     virtual bool onInitDialog(HWND hDlg) = 0;
-    virtual bool onCommand(HWND hDlg, WORD cmd) { return false; }
+    virtual bool onCommand(HWND hDlg, WPARAM wParam) { return false; }
 
     static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 };
