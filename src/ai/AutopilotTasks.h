@@ -339,6 +339,8 @@ public:
     explicit Autopilot(const TaskTemplate& templ);
     std::string getTitle() override;
     bool run() final;
+
+    std::string destName;
 };
 
 } // namespace ai

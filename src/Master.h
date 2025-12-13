@@ -83,7 +83,7 @@ public:
     bool initialize(int argc, char* argv[]);
     void shutdown();
     void loop();
-    bool isGameForeground();
+    bool isGameForeground() const;
     bool setGameForeground();
     bool setGameMouseCapture();
     bool setDetectStream(DetectLevel);

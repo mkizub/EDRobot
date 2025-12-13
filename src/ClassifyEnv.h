@@ -336,6 +336,7 @@ protected:
 struct ClassifyEnv : public ResolvedEnv {
     ClassifyEnv() = default;
     void init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* grayImage);
+    void init(XMat colorImage);
     void init(const cv::Rect& monitorRect, const cv::Rect& clientRect, const cv::Size& frameSize, upFrame&& frame);
     void warpPerspective(const spEvalTransform& transform);
     void clear();

@@ -1,27 +1,31 @@
 [
   {
-    "templ": "tsk-travel",
-    "name": "Debug: Полёт к станции",
-    "system": "Wregoe KA-B b41-1",
-    "dock": "Mason City"
+    "templ": "tsk-debug-ship-stats",
+    "name": "Debug: ship stats Curier",
+    "test": "Roll",
+    "value": 1,
+    "duration": 11.6148,
+    "speed": 100
   },
   {
     "templ": "tsk-trade-loop",
-    "name": "Торговля HIP 40900",
+    "name": "Разгрузка драг.металлов с авика",
     "markets": [
       {
         "templ": "tsk-trade-at",
-        "system": "HIP 40900",
-        "dock": "New Covenant Station",
+        "system": "Dheneb",
+        "dock": "Henson Gateway",
         "tasks": [
           {
-            "templ": "tsk-market-sell-all",
-            "except": [
-              "palladium",
-              "gold",
-              "silver"
-            ]
-          },
+            "templ": "tsk-market-sell-all"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "Dheneb",
+        "dock": "Daimonio tou Sokrati VFT-85B",
+        "tasks": [
           {
             "templ": "tsk-market-buy-all",
             "commodity": [
@@ -34,23 +38,6 @@
               "tantalum",
               "thorium"
             ]
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Wregoe SK-N c20-19",
-        "dock": "Serpent's Deception",
-        "tasks": [
-          {
-            "templ": "tsk-market-sell-all",
-            "except": [
-              "cmmcomposite"
-            ]
-          },
-          {
-            "templ": "tsk-market-buy",
-            "commodity": "cmmcomposite"
           }
         ]
       }

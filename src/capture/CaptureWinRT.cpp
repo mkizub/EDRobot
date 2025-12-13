@@ -76,6 +76,12 @@ const XMat& FrameWinRT::getImage() const {
         Capturer::getID3D11DeviceContext()->Unmap(mStagingTexture.get(), 0);
     }
 #endif
+    if (cv::Size(colorImage.cols,colorImage.rows) != this->size) {
+        // need rescaling
+        XMat tmp;
+        cv::resize(colorImage, tmp, this->size);
+        colorImage = tmp;
+    }
     colorImageValid = true;
     return colorImage;
 }
@@ -279,8 +285,8 @@ void CapturerWinRT::copyTexture(FrameWinRT* frame, winrt::Windows::Graphics::Cap
     texture->GetDesc(&texture_desc);
     if (!frame->mStagingTexture || !frame->stagingTextureValid) {
         frame->mStagingTextureDesc = texture_desc;
-        frame->mStagingTextureDesc.Width = captureSize.width;
-        frame->mStagingTextureDesc.Height = captureSize.height;
+        frame->mStagingTextureDesc.Width = captureVirtRect.width;
+        frame->mStagingTextureDesc.Height = captureVirtRect.height;
 #ifdef EDROBOT_USE_OPENCL
         frame->mStagingTextureDesc.Usage = D3D11_USAGE_DEFAULT;
         frame->mStagingTextureDesc.CPUAccessFlags = 0;
@@ -299,14 +305,14 @@ void CapturerWinRT::copyTexture(FrameWinRT* frame, winrt::Windows::Graphics::Cap
         frame->stagingTextureValid = true;
     }
 
-    if (texture_desc.Width == captureSize.width && texture_desc.Height == captureSize.height) {
+    if (texture_desc.Width == captureVirtRect.width && texture_desc.Height == captureVirtRect.height) {
         getID3D11DeviceContext()->CopyResource(frame->mStagingTexture.get(), texture.get());
     } else {
         D3D11_BOX sourceRegion;
-        sourceRegion.left = (texture_desc.Width - captureSize.width)/2;
-        sourceRegion.right = sourceRegion.left + captureSize.width;
+        sourceRegion.left = (texture_desc.Width - captureVirtRect.width)/2;
+        sourceRegion.right = sourceRegion.left + captureVirtRect.width;
         sourceRegion.top = titleHeight;
-        sourceRegion.bottom = titleHeight + captureSize.height;
+        sourceRegion.bottom = titleHeight + captureVirtRect.height;
         sourceRegion.front = 0;
         sourceRegion.back = 1;
         getID3D11DeviceContext()->CopySubresourceRegion1(frame->mStagingTexture.get(), 0, 0, 0, 0, texture.get(), 0, &sourceRegion, D3D11_COPY_DISCARD);

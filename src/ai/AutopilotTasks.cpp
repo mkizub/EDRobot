@@ -372,7 +372,7 @@ bool BaseAutopilotTask::orientAwayFromTargetStep(double precision, int max_time_
     }
 
     double pitchDelta = normalizeAngle(180-ai::compassInfo.targetPitch);
-    double yawDelta = normalizeAngle(hemiYaw);
+    double yawDelta = front ? hemiYaw : -hemiYaw;
     if (std::abs(pitchDelta) > precision || std::abs(yawDelta) > precision) {
         sendOrientAxis(pitchDelta, yawDelta, 0, max_time_ms);
         return false;
@@ -2853,8 +2853,11 @@ bool DiveUnderPlanetStep::run() {
                     dockIsVisible = true;
                 } else if (ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle >= visible_body_angle*1.2f) {
                     dockIsVisible = true;
-                } else if (ai::compassInfo.targetRoll < 0) {
-                    task->orientRollByTarget(0, 15, 10000);
+                } else if (ai::compassInfo.targetRoll < -100) {
+                    task->orientRollByTarget(-60, 15, 10000);
+                    goto try_visible_again;
+                } else if (ai::compassInfo.targetRoll > 100) {
+                    task->orientRollByTarget(60, 15, 10000);
                     goto try_visible_again;
                 }
             }
@@ -3606,17 +3609,20 @@ bool CruiseAndDock::run() {
 
     int noCompassCount = 0;
     while (!at_dest_dock) {
+        bool relaxed_min_dist = false;
         if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
             notify_error("Unexpected close to body: {}", st::shipAtBody.bodyName);
             setSpeed(0);
             status = LEAVE_BODY;
             if (!run_sub_step(new LeaveBodyStep))
                 throw_trouble("Cannot leave body");
+            relaxed_min_dist = true;
         }
         else if (!st::ship.flags.cruise) {
             status = ENTER_CRUISE;
             if (!run_sub_step(new EnterCruiseStep))
                 throw_trouble("Cannot enter cruise");
+            relaxed_min_dist = true;
         }
 
         if (st::autopilot.destBody && st::autopilot.destBody->type == TypeNav::Planet) {
@@ -3633,13 +3639,13 @@ bool CruiseAndDock::run() {
         dist_t max_dist = 2.0_ls;
         if (st::autopilot.destBody) {
             if (toPort) {
-                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 4);
+                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * (relaxed_min_dist ? 2 : 4));
                 max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 10);
             } else if (st::autopilot.destBody->type == TypeNav::Planet) {
-                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 4);
+                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * (relaxed_min_dist ? 2 : 4));
                 max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 15);
             } else if (st::autopilot.destBody->type == TypeNav::Star) {
-                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 5).convertTo(dist_t::LS);
+                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * (relaxed_min_dist ? 3 : 5)).convertTo(dist_t::LS);
                 max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 10).convertTo(dist_t::LS);
             }
         }
@@ -3711,6 +3717,9 @@ bool CruiseAndDock::run() {
                 }
             }
         }
+
+        if (!st::ship.flags.cruise)
+            continue;
 
         int exitCruisePitch = 0;
         if (!skip_dive) {
@@ -3885,11 +3894,13 @@ bool Autopilot::run() {
     }
 
     if (!st::autopilot.destDock && !st::autopilot.destBody) {
-        if (st::destination.name.empty())
+        if (destName.empty() && st::destination.name.empty())
             throw_failed("No destination dock selected");
+        if (destName.empty())
+            destName = st::destination.name;
 
         auto starSystem = gal::getCurrentStarSystem();
-        gal::spEntity dest = starSystem->getEntity(st::destination.name);
+        gal::spEntity dest = starSystem->getEntity(destName);
         if (dest) {
             if (isBody(dest->type))
                 st::autopilot.setDestBody(dest);
@@ -3897,7 +3908,7 @@ bool Autopilot::run() {
                 st::autopilot.setDestDock(dest);
         } else {
             nl.discoverSelected();
-            dest = starSystem->getEntity(st::destination.name);
+            dest = starSystem->getEntity(destName);
             if (dest) {
                 if (isBody(dest->type))
                     st::autopilot.setDestBody(dest);
@@ -3926,7 +3937,7 @@ bool Autopilot::run() {
     if (!st::autopilot.destDock && !st::autopilot.destBody) {
         if (!run_sub_step(new CruiseToSignal(0.9_ls)))
             throw_trouble("Cannot cruise to signal");
-        if (st::destination.name.empty())
+        if (destName.empty())
             throw_failed("No destination dock selected");
         nl.discoverSelected();
         return false;

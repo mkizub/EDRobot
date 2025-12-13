@@ -50,20 +50,20 @@ double TilesDetector::match(ClassifyEnv &env) {
     for (auto &tile: tiles) {
         cv::Rect matchRect;
         if (mIconAlign == TopLeft) {
-            int w = imagesOrig[0].templImageU.cols + Cfg.getSearchRegionExtent();
-            int h = imagesOrig[0].templImageU.rows + Cfg.getSearchRegionExtent();
+            int w = (refSize.width + Cfg.getSearchRegionExtent()) * env.getScale();
+            int h = (refSize.height + Cfg.getSearchRegionExtent()) * env.getScale();
             matchRect = {tile.x, tile.y, w, h};
         } else {
-            int w = imagesOrig[0].templImageU.cols + 2*Cfg.getSearchRegionExtent();
-            int h = imagesOrig[0].templImageU.rows + 2*Cfg.getSearchRegionExtent();
+            int w = (refSize.width + 2*Cfg.getSearchRegionExtent()) * env.getScale();
+            int h = (refSize.height + 2*Cfg.getSearchRegionExtent()) * env.getScale();
             int x = tile.x + tile.width/2 - w/2;
             int y = tile.y + tile.height/2 - h/2;
             matchRect = {cv::Point(x,y), cv::Size(w, h)};
         }
-        matchRect.x -= extendLT.x;
-        matchRect.y -= extendLT.y;
-        matchRect.width += extendLT.x + extendRB.x;
-        matchRect.height += extendLT.y + extendRB.y;
+        matchRect.x -= extendLT.x * env.getScale();
+        matchRect.y -= extendLT.y * env.getScale();
+        matchRect.width += (extendLT.x + extendRB.x) * env.getScale();
+        matchRect.height += (extendLT.y + extendRB.y) * env.getScale();
         matchRect &= tile;
         MatchResult ir;
         ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, roiImage(matchRect), imagesPrepared, ir);

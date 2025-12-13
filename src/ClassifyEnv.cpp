@@ -60,6 +60,11 @@ public:
 #endif
         }
     }
+    FrameTmp(cv::Size size, XMat cImage)
+            : Frame(nullptr, size)
+    {
+        colorImage = cImage;
+    }
     ~FrameTmp() override = default;
     bool valid() const override { return true; }
     const XMat& getImage() const override { return colorImage; }
@@ -82,6 +87,25 @@ void ClassifyEnv::init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* gr
     if (!mDebugOverlay.empty())
         mDebugOverlay = cv::Mat();
     ResolvedEnv::init(rEnv.monitorRect, rEnv.clientRect, rEnv.frameSize);
+    mWarpTransform.reset();
+    if (!mWarpedColorImage.empty())
+        mWarpedColorImage.release();
+    if (!mWarpedGrayImage.empty())
+        mWarpedGrayImage.release();
+}
+
+void ClassifyEnv::init(XMat warpedImage) {
+    cv::Size sz {warpedImage.cols, warpedImage.rows};
+    upFrame fr(new FrameTmp(sz, warpedImage));
+    mFrame.swap(fr);
+    mColorImage = warpedImage;
+    mGrayImage.release();
+    if (!mDebugOverlay.empty())
+        mDebugOverlay.release();
+    cv::Rect rect(0,0,warpedImage.cols,warpedImage.rows);
+    ResolvedEnv::init(rect, rect, rect.size());
+    needScaling_ = false;
+    scaleToCaptured_ = 1;
     mWarpTransform.reset();
     if (!mWarpedColorImage.empty())
         mWarpedColorImage.release();

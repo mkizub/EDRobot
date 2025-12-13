@@ -480,13 +480,17 @@ void Master::loop() {
     }
 }
 
-bool Master::isGameForeground() {
-    return hWndED && hWndED == GetForegroundWindow();
+bool Master::isGameForeground() const {
+    if (!hWndED) {
+        HWND wnd = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
+        return wnd && wnd == GetForegroundWindow();
+    }
+    return hWndED == GetForegroundWindow();
 }
 
 bool Master::setGameForeground() {
     if (!hWndED) {
-        if (main_thread_id == std::this_thread::get_id())
+        if (mCapturer && main_thread_id == std::this_thread::get_id())
             resetCapturer();
         hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
     }
@@ -501,7 +505,7 @@ bool Master::setGameForeground() {
 
 bool Master::setGameMouseCapture() {
     if (!hWndED) {
-        if (main_thread_id == std::this_thread::get_id())
+        if (mCapturer && main_thread_id == std::this_thread::get_id())
             resetCapturer();
         hWndED = FindWindow(ED_WINDOW_CLASS, ED_WINDOW_NAME);
     }
@@ -529,40 +533,36 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
     if (key_map_it != keyMapping.end()) {
         LOG(DEBUG) << "Key '"+encodeShortcut(name,flags)+"' pressed";
         Command cmd = key_map_it->second;
-        LOG(INFO) << "Command " << enum_name(cmd) << " by key '"+encodeShortcut(name,flags)+"' pressed";
-        if (cmd == Command::PauseResume) {
+        switch (cmd) {
+        // not expected as keyboard shortcuts
+        case Command::NoOp:
+        case Command::DetectRequest:
+        case Command::DevRectScreenshot:
+        case Command::Shutdown:
+            break;
+        // global shortcuts
+        case Command::Start:
+        case Command::Stop:
+        case Command::DebugTemplates:
+        case Command::DebugWindow:
+        case Command::DebugStream:
+            LOG(INFO) << "Command " << enum_name(cmd) << " by key '"+encodeShortcut(name,flags)+"' pressed";
+            self.pushCommand(cmd);
+            break;
+        case Command::PauseResume:
             ai::toggleDebugPause();
             if (ai::isDebugPause())
                 UIManager::showMainDialog();
-        } else {
-            switch (cmd) {
-            // not expected as keyboard shortcuts
-            case Command::NoOp:
-            case Command::DetectRequest:
-            case Command::DevRectScreenshot:
-            case Command::Shutdown:
-                break;
-            // global shortcuts
-            case Command::Start:
-            case Command::Stop:
-            case Command::DebugTemplates:
-            case Command::DebugWindow:
-            case Command::DebugStream:
+            break;
+        // in-game shortcuts
+        case Command::Autopilot:
+        case Command::ResetCapturer:
+        case Command::DevRectSelect:
+            if (self.isGameForeground()) {
+                LOG(INFO) << "Command " << enum_name(cmd) << " by key '" + encodeShortcut(name, flags) + "' pressed";
                 self.pushCommand(cmd);
-                break;
-            case Command::PauseResume:
-                ai::toggleDebugPause();
-                if (ai::isDebugPause())
-                    UIManager::showMainDialog();
-                break;
-            // in-game shortcuts
-            case Command::Autopilot:
-            case Command::ResetCapturer:
-            case Command::DevRectSelect:
-                if (self.isGameForeground())
-                    self.pushCommand(cmd);
-                break;
             }
+            break;
         }
     }
     else if (Cfg.isAutoPause() && ai::isDebugPause() && self.isGameForeground()) {
@@ -1488,14 +1488,20 @@ void Master::processDetectRequest(pCommand &cmd) {
                     c->request.compass->nav_target_dist = {};
             }
             if (c->request.colorImage) {
-                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
+                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid) {
                     *c->request.colorImage = toMat(mClassifyEnv.getWarpedColorImage()).clone();
+                    c->request.rEnv->needScaling_ = false;
+                    c->request.rEnv->scaleToCaptured_ = 1;
+                }
                 else
                     *c->request.colorImage = toMat(mClassifyEnv.getColorImage()).clone();
             }
             if (c->request.grayImage) {
-                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid)
+                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid) {
                     *c->request.grayImage = toMat(mClassifyEnv.getWarpedGrayImage()).clone();
+                    c->request.rEnv->needScaling_ = false;
+                    c->request.rEnv->scaleToCaptured_ = 1;
+                }
                 else
                     *c->request.grayImage = toMat(mClassifyEnv.getGrayImage()).clone();
             }

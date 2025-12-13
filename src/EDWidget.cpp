@@ -190,9 +190,14 @@ bool Mode::detect(DetectParams& params) {
 bool Label::detect(DetectParams& params) {
     cv::Rect r = params.env.calcReferenceRect(this->rect);
     if (ocr_bot > 0) {
-        int reference_line_height = (int) std::round(ocr::LINE_HEIGHT * double(ocr_bot - ocr_top) / double(ocr::ASCENT+ocr::DESCENT));
+        double scale = double(ocr_bot - ocr_top) / double(ocr::ASCENT+ocr::DESCENT);
+        int reference_line_height = (int) std::round(ocr::LINE_HEIGHT * scale);
         int lines = (int) std::round(double(r.height) / double(reference_line_height));
-        r.height = lines * reference_line_height;
+        //r.height = lines * reference_line_height;
+        //if (lines > 1) {
+        //    r.x -= (int) std::round(scale*ocr::LEADING/2);
+        //    //r.height += (int) std::round(scale*ocr::LEADING);
+        //}
     }
     params.env.classified.emplace_back(ClsDetType::Widget, params.env.isWarpMode(), this->name, r);
     ClassifiedRect& clsLblRect = params.env.classified.back();
@@ -233,12 +238,17 @@ bool BaseButton::detect(DetectParams& params) {
         cv::Rect extendR = {expectedR.tl() - extendLT, expectedR.br() + extendRB};
         cv::Rect matchR = env.cvtReferenceToCaptured(extendR);
 
-        cv::Vec3b hsvColorMin {5, 127, 30};
-        cv::Vec3b hsvColorMax {30, 255, 255};
-        XMat hsvImage;
-        cv::cvtColor(env.getColorImage()(matchR), hsvImage, cv::COLOR_BGR2HSV);
-        XMat thrImage;
-        cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
+        //cv::Vec3b hsvColorMin {5, 127, 30};
+        //cv::Vec3b hsvColorMax {30, 255, 255};
+        //XMat hsvImage;
+        //cv::cvtColor(env.getColorImage()(matchR), hsvImage, cv::COLOR_BGR2HSV);
+        //XMat thrImage;
+        //cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
+        XMat grayImage = env.getGrayImage()(matchR);
+        detect::LaplacianFilter laplFilter(5);
+        XMat laplImage = laplFilter.apply(grayImage, {});
+        detect::ThresholdFilter thrFilter;
+        XMat thrImage = thrFilter.apply(laplImage, {});
 
         std::vector<std::vector<cv::Point>> contours;
         cv::findContoursLinkRuns(thrImage, contours);

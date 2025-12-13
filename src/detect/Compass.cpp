@@ -195,12 +195,9 @@ double CompassDetector::match(ClassifyEnv &env) {
 
     bool can_use_compass = !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
     double compassMatch = 0;
-    if (can_use_compass) {
+    if (can_use_compass)
         compassMatch = compassDetector->match(env);
-        if (compassMatch < 0.5 || compassDetector->lastTemplatedx < 0)
-            can_use_compass = false;
-    }
-    if (can_use_compass) {
+    if (compassMatch >= 0.5) {
         //
         // Detect compass dot
         //
@@ -314,7 +311,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             lastTgtAngle = angle;
         }
 
-        if (navTargetFound && lastTgtPitch >= -10 && lastTgtPitch <= +20 && lastTgtYaw >= -25 && lastTgtYaw <= +25) {
+        if (can_use_compass && navTargetFound && lastTgtPitch >= -10 && lastTgtPitch <= +20 && lastTgtYaw >= -25 && lastTgtYaw <= +25) {
             //startTime = std::chrono::high_resolution_clock::now();
 
 //            float cx = env.ReferenceScreenCenter.x;
@@ -338,7 +335,10 @@ double CompassDetector::match(ClassifyEnv &env) {
 //            affineMatrix.val[2] += (scaledSz - sz) * 0.5;
 //            affineMatrix.val[5] += (scaledSz - sz) * 0.5;
 
-            cv::Rect srcRect {(int)std::round(navCapturePos.x-sz*0.5f), (int)std::round(navCapturePos.y-sz*0.5f), 2*sz, sz};
+            cv::Rect srcRect {(int)std::round(navCapturePos.x-sz*0.5*env.getScale()),
+                              (int)std::round(navCapturePos.y-sz*0.5*env.getScale()),
+                              (int)std::round(2*sz*env.getScale()),
+                              (int)std::round(sz*env.getScale())};
             env.cropToCapture(srcRect);
             XMat targetImage (env.getColorImage(), srcRect);
             XMat normImage;

@@ -243,6 +243,7 @@ int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, c
     cv::Rect capturedRect = cr.u.lrow.capturedRect;
     capturedRect.x += int(t.tab_left * rEnv.getScale());
     capturedRect.width = int((t.tab_right - t.tab_left) * rEnv.getScale());
+    capturedRect &= cv::Rect(0,0,grayImage.cols,grayImage.rows);
     cv::Mat rowImage(grayImage, capturedRect);
     cv::Mat scaledImage = scaleImage(rowImage, scale, cr.u.lrow.ws != WState::Focused);
     if (cr.u.lrow.ws != WState::Focused)

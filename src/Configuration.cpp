@@ -401,7 +401,7 @@ bool Configuration::loadGameSettings(bool initial) {
             rootNode = nullptr;
 
             // downscale if resolution is 2048x1536 or 2560x1440 or above
-            if ((configScreenWidth >= 2048 && configScreenHeight >= 1440) || configScreenWidth*configScreenHeight >= 2048*1440) {
+            if (/*(configScreenWidth > 2560 && configScreenHeight > 1536) ||*/ configScreenWidth*configScreenHeight > 4050*1024) {
                 double x_scale = ReferenceScreenSize.width / double(configScreenWidth);
                 double y_scale = ReferenceScreenSize.height / double(configScreenHeight);
                 if (x_scale >= 1)

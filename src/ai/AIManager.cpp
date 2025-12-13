@@ -261,6 +261,7 @@ void task_loop() {
         {
             std::unique_lock<std::mutex> lock(taskMutex);
             isLoopWaiting = true;
+            bool wasActive = active(); // auto-stop capturing
             // TODO: auto-resume after 30 seconds, need UI check-box and keyboard watchdog
             taskCond.wait_for(lock, 30s, []() {
                 return !isWorking || (activeTask && !isInterrupted);
@@ -268,6 +269,8 @@ void task_loop() {
             isLoopWaiting = false;
             if (!isWorking)
                 break;
+            if (!wasActive && !active())
+                Mgr.pushCommand(Command::ResetCapturer);
             if (isInterrupted) {
                 LOG(INFO) << "ai::task_loop(): steel interrupted";
                 continue;
