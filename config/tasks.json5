@@ -1,11 +1,59 @@
 [
   {
-    "templ": "tsk-debug-ship-stats",
-    "name": "Debug: ship stats Curier",
-    "test": "Roll",
-    "value": 1,
-    "duration": 11.6148,
-    "speed": 100
+    "templ": "tsk-trade-loop",
+    "name": "Стройка Techno Mineralogic",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 359 Sector GL-X d1-21",
+        "dock": "Stheno",
+        "tasks": [
+          {
+            "templ": "tsk-market-buy-constr",
+            "system": "Col 359 Sector GL-X d1-21",
+            "dock": "Planetary Construction Site: Techno Mineralogic Installation",
+            "mode": "ExceptLittleFirst"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 359 Sector GL-X d1-21",
+        "dock": "Planetary Construction Site: Techno Mineralogic Installation",
+        "tasks": [
+          {
+            "templ": "tsk-constr-unload"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "templ": "tsk-trade-loop",
+    "name": "Загрузка тритием",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector MG-H b25-5",
+        "dock": "Kozyry Sanctuary",
+        "tasks": [
+          {
+            "templ": "tsk-market-buy",
+            "commodity": "tritium"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector MG-H b25-5",
+        "dock": "909 VSO K5N-3VG",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all"
+          }
+        ]
+      }
+    ]
   },
   {
     "templ": "tsk-trade-loop",

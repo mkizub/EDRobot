@@ -196,18 +196,23 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
         parseUpdated(body, jb);
         parseBodyId(ss, body, jb);
 
-        body->setName(jb["name"].as_string());
+        if (jb["name"].is_string())
+            body->setName(jb["name"].as_string());
         if (jb["distanceToArrival"].is_number())
             body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_number());
         if (body->type == TypeNav::Star) {
-            body->radius = jb["solarRadius"].as_number() * 6.957e5; // KM
+            if (jb["radius"].is_number())
+                body->radius = jb["radius"].as_number(); // KM
+            else if (jb["solarRadius"].is_number())
+                body->radius = jb["solarRadius"].as_number() * 6.957e5; // KM
             if (jb["spectralClass"].is_string())
                 body->code = jb["spectralClass"].as_string();
             if (jb["isMainStar"].is_boolean())
                 body->special = jb["isMainStar"].as_boolean();
         }
         else if (body->type == TypeNav::Planet) {
-            body->radius = jb["radius"].as_number(); // KM
+            if (jb["radius"].is_number())
+                body->radius = jb["radius"].as_number(); // KM
             if (jb["isLandable"].is_boolean())
                 body->special = jb["isLandable"].as_boolean();
         }
@@ -216,7 +221,7 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
 
     //std::string lng = toLower(std::string(enum_name<Lang>(Cfg.lng)));
     for (auto& jb : jsystem["stations"].as_array()) {
-        std::string name = jb["name"].as_string();
+        std::string name = jb["name"].asif_string();
         spEntity site(new Entity);
         std::string type;
         if (jb["type"].is_string())
@@ -264,31 +269,33 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
 void saveStarSystem(StarSystem* ss) {
     if (!ss)
         return;
+    std::sort(ss->bodies.begin(), ss->bodies.end(), [](const spEntity& a, const spEntity& b) {
+        return a->bodyId < b->bodyId;
+    });
     json5pp::value jbodies = json5pp::array({});
     json5pp::value jstations = json5pp::array({});
     for (auto& body : ss->bodies) {
         json5pp::value jb {
                 {"type", std::string(enum_name<TypeNav>(body->type))},
-                {"name", body->name},
         };
         auto& jbo = jb.as_object();
+        if (body->type != TypeNav::Barycenter && !body->name.empty())
+            jbo.emplace("name", body->name);
         if (body->bodyId >= 0)
             jbo.emplace("bodyId", body->bodyId);
         if (body->parentBodyId >= 0)
             jbo.emplace("parentBodyId", body->parentBodyId);
         if (body->main_star_distance.valid())
-            jbo.emplace("distanceToArrival", body->main_star_distance.get_ls());
+            jbo.emplace("distanceToArrival", std::round(body->main_star_distance.get_ls()*10.0)/10.0);
+        if (body->radius)
+            jbo.emplace("radius", std::round(body->radius*1000.0)/1000.0);
         if (body->type == TypeNav::Star) {
-            if (body->radius)
-                jbo.emplace("solarRadius", body->radius / 6.957e5);
             if (body->special)
                 jbo.emplace("isMainStar", true);
             if (!body->code.empty())
                 jbo.emplace("spectralClass", body->code);
         }
         else if (body->type == TypeNav::Planet) {
-            if (body->radius)
-                jbo.emplace("radius", body->radius);
             if (body->special)
                 jbo.emplace("isLandable", true);
             if (!body->code.empty())
@@ -314,7 +321,7 @@ void saveStarSystem(StarSystem* ss) {
         if (st->parentBodyId >= 0)
             jsto.emplace("parentBodyId", st->parentBodyId);
         if (st->main_star_distance.valid())
-            jsto.emplace("distanceToArrival", st->main_star_distance.get_ls());
+            jsto.emplace("distanceToArrival", std::round(st->main_star_distance.get_ls()*10.0)/10.0);
         if (st->marketId)
             jsto.emplace("marketId", st->marketId);
         {
@@ -340,7 +347,7 @@ void saveStarSystem(StarSystem* ss) {
 
     std::filesystem::path fp("cache/systems/"+ss->systemName+".json");
     std::ofstream ofs(fp);
-    ofs << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jout;
+    ofs << std::setprecision(15) << std::defaultfloat << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jout;
     ofs.close();
 
     ss->saved = true;
@@ -380,6 +387,7 @@ static spStarSystem loadStarSystem(const std::string& name) {
         auto jsystem = json5pp::parse5(ifs);
         return fromEDDN(jsystem, true);
     } catch (...) {
+        LOG(ERROR) << "Error while loading cached star system: " << name;
         return loadStarSystemFromNetwork(name);
     }
 }
@@ -443,7 +451,7 @@ spEntity StarSystem::getEntity(const std::string& nm) {
 }
 
 spEntity StarSystem::getBodyById(int bodyId) {
-    if (bodyId <= 0)
+    if (bodyId < 0)
         return {};
     for (auto& b : this->bodies) {
         if (b->bodyId >= 0 && b->bodyId == bodyId)
@@ -867,6 +875,7 @@ bool Entity::nameEq(const std::string& nm) const {
     case TypeNav::SpaceStation:
     case TypeNav::Orbis:
     case TypeNav::Ocellus:
+    case TypeNav::Dodec:
     case TypeNav::Coriolis:
     case TypeNav::AsteroidBase:
     case TypeNav::SpaceOutpost:
@@ -935,6 +944,7 @@ bool Entity::setName(const std::string& nm) {
     case TypeNav::SpaceStation:
     case TypeNav::Orbis:
     case TypeNav::Ocellus:
+    case TypeNav::Dodec:
     case TypeNav::Coriolis:
     case TypeNav::AsteroidBase:
     case TypeNav::SpaceOutpost:

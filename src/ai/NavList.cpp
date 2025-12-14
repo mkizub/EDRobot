@@ -272,7 +272,7 @@ gal::spEntity NavList::guessNavItem(int idx) {
                 continue;
             bool typeMatch = false;
             if ((int(s->type) & int(TypeNav::SpaceStation)) == int(TypeNav::SpaceStation)) {
-                if (s->type == TypeNav::Orbis || s->type == TypeNav::Ocellus)
+                if (s->type == TypeNav::Orbis || s->type == TypeNav::Ocellus || s->type == TypeNav::Dodec)
                     typeMatch = (nle.icon == gal::ORBIS.charOCR);
                 else if (s->type == TypeNav::Coriolis)
                     typeMatch = (nle.icon == gal::CORIOLIS.charOCR);

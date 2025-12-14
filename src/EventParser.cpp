@@ -101,6 +101,8 @@ void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge);
 void parseEvent_ApproachSettlement(spGameEvent& ge);
 void parseEvent_SupercruiseExit(spGameEvent& ge);
 void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
+void parseEvent_Scan(spGameEvent& ge);
+void parseEvent_ScanBaryCentre(spGameEvent& ge);
 void parseEvent_ApproachBody(spGameEvent& ge);
 void parseEvent_LeaveBody(spGameEvent& ge);
 
@@ -135,6 +137,8 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"ApproachSettlement", parseEvent_ApproachSettlement},
         {"SupercruiseExit", parseEvent_SupercruiseExit},
         {"FSSSignalDiscovered", parseEvent_FSSSignalDiscovered},
+        {"Scan", parseEvent_Scan},
+        {"ScanBaryCentre", parseEvent_ScanBaryCentre},
         {"ApproachBody", parseEvent_ApproachBody},
         {"LeaveBody", parseEvent_LeaveBody},
 };
@@ -241,6 +245,7 @@ bool Configuration::loadGameStatus() {
         st::shipAtBody.altitude = j["Altitude"].as_number();
         st::shipAtBody.heading = j["Heading"].as_number();
         st::shipAtBody.planetRadius = j["PlanetRadius"].as_number();
+        //LOG(INFO) << "Body: " << st::shipAtBody.bodyName << "; alt: " << std::round(st::shipAtBody.altitude/1000) << "km; radius: " << std::round(st::shipAtBody.planetRadius/1000) << "km";
     } else {
         st::shipAtBody.nearBody = false;
     }
@@ -630,6 +635,130 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
         }
         allFSSSignalEvents.push_back(ge);
     }
+}
+
+void parseEvent_Scan(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    auto starSystem = je["StarSystem"].asif_string();
+    int64_t address = je.at("SystemAddress",0).as_int64();
+    int bodyId = je["BodyID"].as_integer();
+    gal::spStarSystem ss = gal::getStarSystem(starSystem, address);
+    auto body = ss->getBodyById(bodyId);
+    if (!body) {
+        body = std::make_shared<gal::Entity>();
+        body->bodyId = bodyId;
+        ss->bodies.push_back(body);
+        ss->saved = false;
+    }
+    if (je["StarType"].is_string()) {
+        if (body->type != TypeNav::Star) {
+            body->type = TypeNav::Star;
+            ss->saved = false;
+        }
+        std::string code = je["StarType"].as_string();
+        if (je["Subclass"].is_integer())
+            code += std::to_string(je["Subclass"].as_integer());
+        if (body->code != code) {
+            body->code = code;
+            ss->saved = false;
+        }
+    } else {
+        if (body->type != TypeNav::Planet) {
+            body->type = TypeNav::Planet;
+            ss->saved = false;
+        }
+        bool landable = (bool)je["Landable"];
+        if (landable != body->special) {
+            body->special = landable;
+            ss->saved = false;
+        }
+        if (je["Parents"].is_array()) {
+            auto b = body;
+            for (auto jp : je["Parents"].as_array()) {
+                TypeNav p_type = TypeNav::Error;
+                int p_id = -1;
+                if (jp["Null"].is_integer()) {
+                    p_type = TypeNav::Barycenter;
+                    p_id = jp["Null"].as_integer();
+                }
+                else if (jp["Star"].is_integer()) {
+                    p_type = TypeNav::Star;
+                    p_id = jp["Star"].as_integer();
+                }
+                else if (jp["Planet"].is_integer()) {
+                    p_type = TypeNav::Planet;
+                    p_id = jp["Planet"].as_integer();
+                }
+                else if (jp["Ring"].is_integer()) {
+                    p_type = TypeNav::Ring;
+                    p_id = jp["Ring"].as_integer();
+                }
+                else if (jp["AsteroidCluster"].is_integer()) {
+                    p_type = TypeNav::AsteroidCluster;
+                    p_id = jp["AsteroidCluster"].as_integer();
+                }
+                if (p_type == TypeNav::Error || p_id < 0)
+                    break;
+                if (b->parentBodyId != p_id) {
+                    b->parentBodyId = p_id;
+                    ss->saved = false;
+                }
+                auto p = ss->getBodyById(p_id);
+                if (!p) {
+                    p = std::make_shared<gal::Entity>();
+                    p->type = p_type;
+                    p->bodyId = p_id;
+                    ss->bodies.push_back(p);
+                    ss->saved = false;
+                }
+                b = p;
+            }
+        }
+    }
+    if (auto& nm=je["Bodyname"]; nm.is_string() && nm.as_string() != body->name) {
+        body->name = nm.as_string();
+        ss->saved = false;
+    }
+    if (auto bd=je["DistanceFromArrivalLS"]; bd.is_number()) {
+        double dist_ls = bd.as_number();
+        if (std::round(body->main_star_distance.get_ls()) != std::round(dist_ls)) {
+            body->main_star_distance = dist_t(dist_t::LS, dist_ls);
+            ss->saved = false;
+        }
+    }
+    if (auto& br = je["Radius"]; br.is_number()) {
+        double r = std::round(br.as_number()) / 1000.0; // meters->kilometers
+        if (body->radius != r) {
+            body->radius = r;
+            ss->saved = false;
+        }
+    }
+    if (!ss->saved)
+        gal::saveStarSystem(ss.get());
+}
+
+void parseEvent_ScanBaryCentre(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    auto starSystem = je["StarSystem"].asif_string();
+    int64_t address = je.at("SystemAddress",0).as_int64();
+    int bodyId = je["BodyID"].as_integer();
+    gal::spStarSystem ss = gal::getStarSystem(starSystem, address);
+    auto body = ss->getBodyById(bodyId);
+    if (!body) {
+        body = std::make_shared<gal::Entity>();
+        body->type = TypeNav::Barycenter;
+        body->bodyId = bodyId;
+        ss->bodies.push_back(body);
+        ss->saved = false;
+    }
+    else if (body->type != TypeNav::Barycenter) {
+        body->type = TypeNav::Barycenter;
+        ss->saved = false;
+    }
+    if (!ss->saved)
+        gal::saveStarSystem(ss.get());
 }
 
 void parseEvent_ApproachBody(spGameEvent& ge) {

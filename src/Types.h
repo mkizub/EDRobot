@@ -53,10 +53,11 @@ enum class TypeNav {
     SpaceStation            = 0x27,   // generic type
     Orbis                   = 0x28,
     Ocellus                 = 0x29,
-    Coriolis                = 0x2A,
-    AsteroidBase            = 0x2B,
-    SpaceOutpost            = 0x2C,
-    SpaceInstallation       = 0x2D,
+    Dodec                   = 0x2A,
+    Coriolis                = 0x2B,
+    AsteroidBase            = 0x2C,
+    SpaceOutpost            = 0x2D,
+    SpaceInstallation       = 0x2E,
     SpaceConstrDepot        = 0x2F,
     Megaship                = 0x30,   // generic type
     StationMegaShip         = 0x31,

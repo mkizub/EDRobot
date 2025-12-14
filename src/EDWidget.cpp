@@ -261,7 +261,7 @@ bool BaseButton::detect(DetectParams& params) {
                 cv::Rect bbox = cv::boundingRect(approx);
                 bbox &= cv::Rect(cv::Point(),matchR.size());
                 if (bbox.width > captureR.width*0.9 && bbox.height > captureR.height*0.9 &&
-                    bbox.width < captureR.width*1.1 && bbox.height < captureR.height*1.2)
+                    bbox.width < captureR.width*1.1 && bbox.height < captureR.height*1.1)
                 {
                     captureR = {matchR.tl() + bbox.tl(), bbox.size()};
                     detectedR = env.cvtCapturedToReference(captureR);

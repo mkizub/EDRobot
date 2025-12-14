@@ -150,6 +150,8 @@ public:
     bool canDock();
     spGameEvent requestDockingPermit();
     bool autopilot();
+    void flyTowardsStep();
+    void sleep_waiting_dist(int period);
 
     std::string getTitle() override;
     std::string getStatus() override;
@@ -159,6 +161,9 @@ public:
 
     std::string toDock;
     std::string lastDockingStatus;
+
+    const dist_t dock_req_dist = 7500_m;
+    dist_t safe_dist = dock_req_dist - 200_m;
 };
 
 class DockSpaceStation : public BaseDockStep {
@@ -169,12 +174,6 @@ public:
     void updateSafeDist();
     bool getDockDistance();
     void flyTowardsTarget();
-    void flyTowardsStep();
-    void sleep_waiting_dist(int period);
-
-    const dist_t dock_req_dist = 7500_m;
-    dist_t safe_dist = dock_req_dist - 200_m;
-
 };
 
 class DockPlanetPort : public BaseDockStep {
@@ -184,7 +183,8 @@ public:
 
     dist_t getDockDistance(bool force);
     bool normalizeOrientation();
-    bool flyTowardsTarget();
+    bool flyTowardsTarget(dist_t dist);
+    bool flyAlongSurface();
     bool checkYaw();
 };
 

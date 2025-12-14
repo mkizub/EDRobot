@@ -857,6 +857,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::SpaceStation:
     case TypeNav::Orbis:
     case TypeNav::Ocellus:
+    case TypeNav::Dodec:
     case TypeNav::Coriolis:
     case TypeNav::AsteroidBase:
     case TypeNav::SpaceInstallation:

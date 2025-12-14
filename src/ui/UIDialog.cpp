@@ -59,7 +59,7 @@ INT_PTR CALLBACK UIDialog::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LP
             SetTextColor( (HDC)wParam, RGB(63,63,255) );
             SetTextColor( (HDC)wParam, RGB(63,63,255) );
             SetBkMode( (HDC)wParam, TRANSPARENT);
-            return (BOOL)retVal;
+            return (INT_PTR) retVal;
         }
     }
     return (INT_PTR) FALSE;

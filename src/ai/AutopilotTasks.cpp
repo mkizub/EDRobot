@@ -371,7 +371,11 @@ bool BaseAutopilotTask::orientAwayFromTargetStep(double precision, int max_time_
         return false;
     }
 
-    double pitchDelta = normalizeAngle(180-ai::compassInfo.targetPitch);
+    double pitchDelta;
+    if (ai::compassInfo.targetPitch < 0)
+        pitchDelta = normalizeAngle(180-ai::compassInfo.targetPitch);
+    else
+        pitchDelta = normalizeAngle(-180+ai::compassInfo.targetPitch);
     double yawDelta = front ? hemiYaw : -hemiYaw;
     if (std::abs(pitchDelta) > precision || std::abs(yawDelta) > precision) {
         sendOrientAxis(pitchDelta, yawDelta, 0, max_time_ms);
@@ -473,6 +477,7 @@ void BaseAutopilotTask::initNavFilter() {
     case TypeNav::SpaceStation:
     case TypeNav::Orbis:
     case TypeNav::Ocellus:
+    case TypeNav::Dodec:
     case TypeNav::Coriolis:
     case TypeNav::AsteroidBase:
     case TypeNav::SpaceConstrDepot:
@@ -940,6 +945,7 @@ bool DepartureStep::run() {
             if (dock) {
                 if (dock->type == TypeNav::Orbis ||
                     dock->type == TypeNav::Ocellus ||
+                    dock->type == TypeNav::Dodec ||
                     dock->type == TypeNav::Coriolis ||
                     dock->type == TypeNav::AsteroidBase)
                     fromStarPort = true;
@@ -947,6 +953,7 @@ bool DepartureStep::run() {
         }
         else if (gal::ORBIS.match_type(st::dockedAt.stationType) ||
                 gal::OCELLUS.match_type(st::dockedAt.stationType) ||
+                gal::DODEC.match_type(st::dockedAt.stationType) ||
                 gal::CORIOLIS.match_type(st::dockedAt.stationType) ||
                 gal::MINER_BASE.match_type(st::dockedAt.stationType))
             fromStarPort = true;
@@ -1532,6 +1539,7 @@ bool BaseDockStep::canDock() {
     case TypeNav::SpaceStation:
     case TypeNav::Orbis:
     case TypeNav::Ocellus:
+    case TypeNav::Dodec:
     case TypeNav::Coriolis:
     case TypeNav::AsteroidBase:
     case TypeNav::SpaceOutpost:
@@ -1919,7 +1927,7 @@ void DockSpaceStation::flyTowardsTarget() {
     setSpeed(0);
 }
 
-void DockSpaceStation::flyTowardsStep() {
+void BaseDockStep::flyTowardsStep() {
     if (st::autopilot.distanceToDock < dock_req_dist)
         return;
     // distance to fly for auto-docking
@@ -1976,13 +1984,13 @@ void DockSpaceStation::flyTowardsStep() {
     sleep_waiting_dist(break_time*1000 + 500);
 }
 
-void DockSpaceStation::sleep_waiting_dist(int milliseconds) {
+void BaseDockStep::sleep_waiting_dist(int milliseconds) {
     if (milliseconds <= 0)
         return;
     auto& dd = st::autopilot.distanceToDock;
     int prev_dist = 100000;
-    if (dd <= 7400_m)
-        prev_dist = (int)dd.get(dist_t::M);
+    if (dd <= safe_dist)
+        prev_dist = (int)dd.get_m();
     auto now = std::chrono::high_resolution_clock::now();
     auto until = now + std::chrono::milliseconds(milliseconds);
     while (now < until) {
@@ -1994,9 +2002,9 @@ void DockSpaceStation::sleep_waiting_dist(int milliseconds) {
             left = 250ms;
         std::this_thread::sleep_for(left);
         now = std::chrono::high_resolution_clock::now();
-        if (dd <= 7400_m) {
-            int dist = (int)dd.get(dist_t::M);
-            if (dist < prev_dist && prev_dist <= 7400)
+        if (dd <= safe_dist) {
+            int dist = (int)dd.get_m();
+            if (dist < prev_dist && prev_dist <= safe_dist.get_m())
                 return;
             prev_dist = dist;
         }
@@ -2043,7 +2051,7 @@ bool DockPlanetPort::run() {
         // if we are close enough (or don't know the distance) - request docking permit
         dist_t dist = getDockDistance(true);
         if (!dist || dist > 7_km) {
-            flyTowardsTarget();
+            flyTowardsTarget(dist);
             continue;
         }
         de = requestDockingPermit();
@@ -2081,8 +2089,6 @@ bool DockPlanetPort::run() {
             }
             if (reason == "Distance") {
                 LOG(ERROR) << "DockingDenied reason: Distance, flying towards station...";
-                // need to get close
-                flyTowardsTarget();
                 continue;
             }
         }
@@ -2128,6 +2134,28 @@ dist_t DockPlanetPort::getDockDistance(bool force) {
         return st::autopilot.distanceToDock;
     }
     return {};
+}
+
+bool DockPlanetPort::flyTowardsTarget(dist_t dist ) {
+    setSpeed(0);
+    bool need_surface_align = false;
+    while (dist && dist > 12_km) {
+        need_surface_align = true;
+        while (st::guiFocus != GuiFocus::None)
+            sendUiBack();
+        safe_dist = 12_km;
+        CourseLocker course(0);
+        flyTowardsStep();
+        safe_dist = 7400_m;
+        dist = st::autopilot.distanceToDock;
+    }
+    if (need_surface_align) {
+        setSpeed(0);
+        normalizeOrientation();
+    }
+    flyAlongSurface();
+    setSpeed(0);
+    return true;
 }
 
 bool DockPlanetPort::checkYaw() {
@@ -2184,7 +2212,7 @@ bool DockPlanetPort::normalizeOrientation() {
             task->orientRollStep(roll-180, 5000);
             continue;
         }
-        if (std::abs(pitch+90) > 5) {
+        if (std::abs(pitch+90) > 15) {
             task->orientPitchStep(pitch+90, 5000);
             continue;
         }
@@ -2195,17 +2223,15 @@ bool DockPlanetPort::normalizeOrientation() {
     return true;
 }
 
-bool DockPlanetPort::flyTowardsTarget() {
+bool DockPlanetPort::flyAlongSurface() {
     status = APPROACH;
-    for (int step=0;;step++) {
+    for (int step=0; step < 20; step++) {
         if (st::guiFocus != GuiFocus::None) {
             sendUiBack();
-            step = 0;
             continue;
         }
         if ((step % 10) == 0) {
             checkYaw();
-            step = 0;
             continue;
         }
         if (st::shipAtBody.altitude < 2000) {
@@ -2246,6 +2272,7 @@ bool DockPlanetPort::flyTowardsTarget() {
     }
     return true;
 }
+
 
 
 bool NavDockSelect::run() {
@@ -2846,7 +2873,7 @@ bool DiveUnderPlanetStep::run() {
             bool dockIsVisible = ai::compassInfo.has_nav_target;
             float visible_body_angle = std::numeric_limits<float>::quiet_NaN();
             if (dist_body)
-                visible_body_angle = std::atan(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;
+                visible_body_angle = std::asin(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;
             // nav target is not visible if obscured by body or is out of FOV
             if (!dockIsVisible) {
                 if (ai::compassInfo.hemisphere < 0) {
@@ -2875,8 +2902,9 @@ bool DiveUnderPlanetStep::run() {
                     float alphaO = std::numeric_limits<float>::quiet_NaN();
                     if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius > 0) {
                         const double angleEntry = 50;
+                        const double oA = 500+st::autopilot.destBody->radius*0.415; // orbit enter altitude
                         double dP = dist_body.get_km();
-                        double dO = st::autopilot.destBody->radius + 1400;
+                        double dO = st::autopilot.destBody->radius + (500+st::autopilot.destBody->radius*0.415);
                         double xP = sqrt(dP * dP + dO * dO - 2 * dP * dO * std::cos(angleEntry * M_PI / 180));
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
@@ -2886,13 +2914,13 @@ bool DiveUnderPlanetStep::run() {
                         if (!std::isnan(alphaO))
                             cruisePitch = std::max(1.f, alphaO - to_body_center_angle);
                         keepCruisePitch = cruisePitch;
-                    } else if (disk_part < 0.6) {
-                        if (!std::isnan(alphaO)) {
-                            task->orientRollByTarget(0, 3);
-                            cruisePitch = std::clamp(alphaO + to_body_center_angle, 1.f, 25.f);
-                            task->orientPitchStep(-cruisePitch, 10000);
-                        }
-                        keepCruisePitch = cruisePitch;
+                    //} else if (disk_part < 0.6) {
+                    //    if (!std::isnan(alphaO)) {
+                    //        task->orientRollByTarget(0, 3);
+                    //        cruisePitch = std::clamp(alphaO + to_body_center_angle, 1.f, 25.f);
+                    //        task->orientPitchStep(-cruisePitch, 10000);
+                    //    }
+                    //    keepCruisePitch = cruisePitch;
                     } else {
                         task->orientRollByTarget(0, 5);
                         task->orientPitchStep(to_body_center_angle, 10000);
@@ -2942,7 +2970,7 @@ bool DiveUnderPlanetStep::run() {
             dist_t dist_body = st::autopilot.distanceToBody;
             float visible_body_angle = std::numeric_limits<float>::quiet_NaN();
             if (dist_body)
-                visible_body_angle = std::atan(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;
+                visible_body_angle = std::asin(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;
             float to_body_center_angle = std::numeric_limits<float>::quiet_NaN();
             if (ai::compassInfo.hemisphere != 0) {
                 to_body_center_angle = ai::compassInfo.targetAngle;
@@ -2966,7 +2994,7 @@ bool DiveUnderPlanetStep::run() {
                     if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius > 0) {
                         const double angleEntry = 50;
                         double dP = dist_body.get_km();
-                        double dO = st::autopilot.destBody->radius + 1400;
+                        double dO = st::autopilot.destBody->radius + (500+st::autopilot.destBody->radius*0.415);
                         double xP = sqrt(dP * dP + dO * dO - 2 * dP * dO * std::cos(angleEntry * M_PI / 180));
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
@@ -2976,13 +3004,13 @@ bool DiveUnderPlanetStep::run() {
                         if (!std::isnan(alphaO))
                             cruisePitch = std::max(1.f, alphaO - to_body_center_angle);
                         keepCruisePitch = cruisePitch;
-                    } else if (disk_part < 0.6) {
-                        if (!std::isnan(alphaO)) {
-                            task->orientRollByTarget(180, 3);
-                            cruisePitch = std::clamp(alphaO + to_body_center_angle, 1.f, 25.f);
-                            task->orientPitchStep(-cruisePitch, 10000);
-                        }
-                        keepCruisePitch = cruisePitch;
+                    //} else if (disk_part < 0.6) {
+                    //    if (!std::isnan(alphaO)) {
+                    //        task->orientRollByTarget(180, 3);
+                    //        cruisePitch = std::clamp(alphaO + to_body_center_angle, 1.f, 25.f);
+                    //        task->orientPitchStep(-cruisePitch, 10000);
+                    //    }
+                    //    keepCruisePitch = cruisePitch;
                     } else {
                         task->orientRollByTarget(0, 5);
                         keepCruisePitch = 0;
@@ -3390,7 +3418,7 @@ bool ExitCruiseToPlanet::run() {
 
     bool distance_verified = false;
     double prev_dist_km = 0;
-    for (int retry=0; retry < 15; retry++) {
+    for (int retry=0; retry < 40; retry++) {
         ai::detectEDState(DetectLevel::Screen);
         auto ai_dist = ai::compassInfo.nav_target_dist;
         if (ai_dist) {
@@ -3584,7 +3612,7 @@ std::string CompleteNavRoute::getStatus() {
 bool CruiseAndDock::run() {
     if (!st::autopilot.destDock)
         throw_failed("No destination dock");
-    bool toPort = (int(st::autopilot.destDock->type) & int(TypeNav::PlanetaryThing)) != 0;
+    bool toPort = isPlanetarySite(st::autopilot.destDock->type);
 
     if (st::ship.flags.docked) {
         if (!st::dockedAt.stationName.empty() && st::autopilot.destDock->nameEq(st::dockedAt.stationName)) {
@@ -3629,7 +3657,7 @@ bool CruiseAndDock::run() {
             if (!st::autopilot.destBody->nameEq(st::destination.name) || !st::autopilot.isDestBodyFocused || !st::autopilot.isDestBodyTargeted)
                 run_sub_step(new NavBodySelect);
         }
-        else if (st::autopilot.destDock) {
+        if (st::autopilot.destDock && !st::autopilot.isDestBodyTargeted) {
             if (!st::autopilot.destDock->nameEq(st::destination.name) || !st::autopilot.isDestDockFocused || !st::autopilot.isDestDockTargeted)
                 run_sub_step(new NavDockSelect);
         }
@@ -3638,15 +3666,14 @@ bool CruiseAndDock::run() {
         dist_t min_dist = 0.5_ls;
         dist_t max_dist = 2.0_ls;
         if (st::autopilot.destBody) {
-            if (toPort) {
-                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * (relaxed_min_dist ? 2 : 4));
-                max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 10);
-            } else if (st::autopilot.destBody->type == TypeNav::Planet) {
-                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * (relaxed_min_dist ? 2 : 4));
-                max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 15);
+            if (toPort || st::autopilot.destBody->type == TypeNav::Planet) {
+                auto radius = std::max(1000.0, st::autopilot.destBody->radius);
+                min_dist = dist_t(dist_t::KM, radius * (relaxed_min_dist ? 2 : 4)).convertTo(dist_t::MM);
+                max_dist = dist_t(dist_t::KM, radius * 10).convertTo(dist_t::MM);
             } else if (st::autopilot.destBody->type == TypeNav::Star) {
-                min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * (relaxed_min_dist ? 3 : 5)).convertTo(dist_t::LS);
-                max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 10).convertTo(dist_t::LS);
+                auto radius = std::max((1_ls).get_km(), st::autopilot.destBody->radius);
+                min_dist = dist_t(dist_t::KM, radius * (relaxed_min_dist ? 3 : 5)).convertTo(dist_t::LS);
+                max_dist = dist_t(dist_t::KM, radius * 10).convertTo(dist_t::LS);
             }
         }
 
@@ -3858,13 +3885,17 @@ bool TaskTravel::run() {
     }
 
     int bodyId = st::autopilot.destDock->parentBodyId;
-    if (bodyId > 0) {
+    if (bodyId >= 0) {
         auto body = starSystem->getBodyById(bodyId);
-        if (!body)
-            throw_failed("Cannot find body id: {0} in system {1}", bodyId, starSystem->systemName);
-        st::autopilot.setDestBody(body);
-        if (!st::autopilot.destBody)
-            throw_failed("Not a body: {}", body->name);
+        if (!body) {
+            LOG(ERROR) << std::format("Cannot find body id: {0} in system {1}" , bodyId, starSystem->systemName);
+            st::autopilot.destDock->parentBodyId = -1;
+        } else if (!isBody(body->type)) {
+            LOG(ERROR) << std::format("Not a star/planet body id: {0} in system {1}" , bodyId, starSystem->systemName);
+            st::autopilot.destDock->parentBodyId = -1;
+        } else {
+            st::autopilot.setDestBody(body);
+        }
     }
 
     initNavFilter();
@@ -3922,13 +3953,17 @@ bool Autopilot::run() {
             assert(dest->bodyId == bodyId);
         else if (dest && isSpaceStation(dest->type))
             bodyId = dest->parentBodyId;
-        if (bodyId > 0) {
+        if (bodyId >= 0 && isSpaceStation(dest->type)) {
             auto body = starSystem->getBodyById(bodyId);
-            if (!body)
-                throw_failed("Cannot find body id: {0} in system {1}" , bodyId, starSystem->systemName);
-            st::autopilot.setDestBody(body);
-            if (!st::autopilot.destBody)
-                throw_failed("Not a body: {}", body->name);
+            if (!body) {
+                LOG(ERROR) << std::format("Cannot find body id: {0} in system {1}" , bodyId, starSystem->systemName);
+                dest->parentBodyId = -1;
+            } else if (!isBody(body->type)) {
+                LOG(ERROR) << std::format("Not a star/planet body id: {0} in system {1}" , bodyId, starSystem->systemName);
+                dest->parentBodyId = -1;
+            } else {
+                st::autopilot.setDestBody(body);
+            }
         }
     }
 

@@ -95,6 +95,7 @@ extern NavType LAND;
 extern NavType BELT;
 extern NavType ORBIS;
 extern NavType OCELLUS;
+extern NavType DODEC;
 extern NavType CORIOLIS;
 extern NavType MINER_BASE;
 extern NavType SPACE_OUTPOST;

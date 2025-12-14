@@ -63,6 +63,12 @@ NavType OCELLUS {
         {"nav_select_icon_ocellus.png"},
         { "Ocellus", "StationBernalSphere", "Ocellus Starport" }
 };
+NavType DODEC {
+        u'\u2707', // ✇
+        TypeNav::Dodec,
+        {"nav_select_icon_dodec.png"},
+        { "Dodec", "StationDodec", "Dodec Starport" }
+};
 NavType CORIOLIS {
         u'\u26CB', // ⛋
         TypeNav::Coriolis,
@@ -227,6 +233,7 @@ const std::vector<NavType*> ALL_NAV_TYPES {
         &BELT, // ⛬
         &ORBIS, // ✇
         &OCELLUS, // ✇
+        &DODEC, // ✇
         &CORIOLIS, // ⛋
         &MINER_BASE, // ⭖
         &SPACE_OUTPOST, // ⧰

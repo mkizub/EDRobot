@@ -276,47 +276,45 @@ void task_loop() {
                 continue;
             }
         }
-        task_step();
-        kbd::reset_vJoy();
-        disableAutoTurn();
         st::autopilot = {};
+        if (activeTask) {
+            task_step();
+        } else {
+            LOG(INFO) << "ai::task_loop(): no active task";
+        }
     }
     LOG(INFO) << "Exiting ai task loop";
 }
 
 
 void task_step() {
-    st::autopilot = {};
+    Mgr.setGameForeground();
     disableAutoTurn();
-    if (!activeTask) {
-        LOG(INFO) << "ai::task_loop(): no active task";
-        return;
+    LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getTitle();
+    bool ok = false;
+    bool failed = false;
+    TRY {
+        activeTask->prevSubStep.reset();
+        activeTask->currSubStep.reset();
+        ok = activeTask->run();
+    } CATCH (const std::exception& ex) {
+        kbd::reset_vJoy();
+        if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex))
+            activeTask->failed = failed = nlr->failed;
+        else if (dynamic_cast<const interrupted_error*>(&ex))
+            ;
+        else
+            LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
     }
-    if (activeTask) {
-        Mgr.setGameForeground();
-        LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getTitle();
-        bool ok = false;
-        bool failed = false;
-        TRY {
-            activeTask->prevSubStep.reset();
-            activeTask->currSubStep.reset();
-            ok = activeTask->run();
-        } CATCH (const std::exception& ex) {
-            kbd::reset_vJoy();
-            if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex))
-                activeTask->failed = failed = nlr->failed;
-            else if (dynamic_cast<const interrupted_error*>(&ex))
-                ;
-            else
-                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
-        }
-        if (ok || failed) {
-            lastTask.reset();
-            lastTask.swap(activeTask);
-        }
-        LOG(INFO) << "ai::task_loop(): active task: " << (isInterrupted ? "interrupted" : failed ? "failed" : ok ? "passed" : "not complete");
-        return;
+    if (ok || failed) {
+        lastTask.reset();
+        lastTask.swap(activeTask);
     }
+    LOG(INFO) << "ai::task_loop(): active task: " << (isInterrupted ? "interrupted" : failed ? "failed" : ok ? "passed" : "not complete");
+    kbd::reset_vJoy();
+    disableAutoTurn();
+    st::autopilot = {};
+    return;
 }
 
 const bool detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
