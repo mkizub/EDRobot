@@ -92,24 +92,27 @@ double ReferDetector::match(ClassifyEnv &env) {
     return 0;
 }
 
-bool Histogram::calc(ClassifyEnv &env) {
-    cv::Rect rect = mRect;
-    rect = env.cvtReferenceToCaptured(rect);
-    env.cropToCapture(rect);
-    if (rect.empty())
-        return false;
-    if (mMode == Mode::Gray) {
-        cv::Mat subImage(toMat(env.getGrayImage()), rect);
-        return calc(subImage);
+#ifdef EDROBOT_USE_OPENCL
+bool Histogram::calc(XMat image) {
+    if (mMode == Mode::Gray && image.channels() > 1) {
+        XMat grayImage;
+        cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+        return calc(toMat(grayImage));
     } else {
-        cv::Mat subImage(toMat(env.getColorImage()), rect);
-        return calc(subImage);
+        return calc(toMat(image));
     }
 }
+#endif
+
 bool Histogram::calc(cv::Mat image) {
     // TODO: optimize for OpenCL (split to channels and use InputArrayOfArrays)
     int colorPlanes;
     if (mMode == Mode::Gray) {
+        if (image.channels() > 1) {
+            cv::Mat grayImage;
+            cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+            image = grayImage;
+        }
         colorPlanes = 1;
         int histSize = 256/mBin;
         float range[]{0, 256}; //the upper boundary is exclusive

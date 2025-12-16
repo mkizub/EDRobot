@@ -305,7 +305,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
     return false;
 }
 
-void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
+void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* grayImage) {
     json5pp::value parsed, args;
     try {
         std::stringstream in(step);
@@ -318,7 +318,10 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* co
         LOG(ERROR) << "Failed to execute " << step;
         throw nonlocal_return(false, "hardcoded task_step failed");
     }
-    ai::detectEDState(level, colorImage, grayImage);
+    if (grayImage)
+        ai::detectEDStateGrayIm(level, *grayImage);
+    else
+        ai::detectEDState(level);
 }
 
 bool Step::Message::expired() const {

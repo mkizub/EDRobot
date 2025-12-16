@@ -76,14 +76,15 @@ public:
     enum class Mode {
         Gray, Hsv, Luv, BGR
     };
-    Histogram(Mode mode, const cv::Rect rect, int bin=8) : mMode(mode), mRect(rect), mBin(bin) {}
+    Histogram(Mode mode, int bin=8) : mMode(mode), mBin(bin) {}
 
-    bool calc(ClassifyEnv& env);
+#ifdef EDROBOT_USE_OPENCL
+    bool calc(XMat image);
+#endif
     bool calc(cv::Mat image);
 
     Mode mMode;
     cv::Vec3b mLastColor;
-    cv::Rect mRect;
     int mBin;
 };
 

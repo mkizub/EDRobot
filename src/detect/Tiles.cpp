@@ -64,18 +64,25 @@ double TilesDetector::match(ClassifyEnv &env) {
         matchRect.y -= extendLT.y * env.getScale();
         matchRect.width += (extendLT.x + extendRB.x) * env.getScale();
         matchRect.height += (extendLT.y + extendRB.y) * env.getScale();
+        int opt_w = cv::getOptimalDFTSize(matchRect.width);
+        int opt_h = cv::getOptimalDFTSize(matchRect.height);
+        if (matchRect.width != opt_w || matchRect.height != opt_h) {
+            int opt_l = std::max(0, matchRect.x  - (opt_w - matchRect.width) / 2);
+            int opt_t = std::max(0, matchRect.y - (opt_h - matchRect.height) / 2);
+            matchRect = {opt_l, opt_t, opt_w, opt_h};
+        }
         matchRect &= tile;
         MatchResult ir;
         ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, roiImage(matchRect), imagesPrepared, ir);
         cv::Rect detectedRect = env.cvtCapturedToReference(tile + captureRect.tl());
         if (!name.empty() && ir.im && ir.value >= threshold_min) {
-            env.classified.emplace_back(ClsDetType::Tile, env.isWarpMode(), name + ":" + ir.im->name, detectedRect);
+            env.classified.emplace_back(ClsDetType::Tile, false, name + ":" + ir.im->name, detectedRect);
             env.classified.back().u.tile.icon = ir.im->name.c_str();
             LOG(DEBUG) << "TilesDetector matched result: " << std::setprecision(3) << ir.value
                        << " for " << ir.im->name
                        << " rect " << detectedRect;
         } else {
-            env.classified.emplace_back(ClsDetType::Tile, env.isWarpMode(), name + ":", detectedRect);
+            env.classified.emplace_back(ClsDetType::Tile, false, name + ":", detectedRect);
             env.classified.back().u.tile.icon = nullptr;
             LOG(DEBUG) << "TilesDetector matched failed: " << std::setprecision(3) << ir.value
                        << " for " << (ir.im ? ir.im->name : "all")

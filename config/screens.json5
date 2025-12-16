@@ -43,7 +43,7 @@
                   { name: 'btn-cancel', action: 'close', rect: [714,"848+sdil.oy",242,38] },
                   { name: 'btn-more', action: 'mod-more', rect: [965,"848+sdil.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [714,"575+sdil.oy",494,60] },
-                  { name: 'spn-amount', rect: [714,"348+sdil.oy",494,60], ext: [5,25,5,25] },
+                  { name: 'spn-amount', rect: [714,"348+sdil.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [777,"298+sdtl.oy",428,"spn-amount.y - 306-sdtl.oy"], ocr_top: 6, ocr_bot: 38}
                 ]
               },
@@ -57,7 +57,7 @@
                   { name: 'btn-cancel', action: 'close', rect: [509,"848+sdim.oy",242,38] },
                   { name: 'btn-more', action: 'mod-less', rect: [762,"848+sdim.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"575+sdim.oy",490,60] },
-                  { name: 'spn-amount', rect: [510,"349+sdim.oy",493,59], ext: [5,25,5,25] },
+                  { name: 'spn-amount', rect: [510,"349+sdim.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [573,"298+sdtm.oy",430,"spn-amount.y - 306-sdtm.oy"], ocr_top: 6, ocr_bot: 38},
                   { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"809+sdim.oy",382,76] },
                   { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,350,"482+sdim.oy"] }
@@ -89,7 +89,7 @@
                   { name: 'btn-cancel', action: 'close', rect: [712,"832+bdil.oy",242,38] },
                   { name: 'btn-more', action: 'mod-more', rect: [964,"832+bdil.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [712,"560+bdil.oy",490,60] },
-                  { name: 'spn-amount', rect: [712,"360+bdil.oy",496,60], ext: [5,25,5,25] },
+                  { name: 'spn-amount', rect: [712,"360+bdil.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [778,"312+bdtl.oy",432,"spn-amount.y - 320-bdtl.oy"], ocr_top: 6, ocr_bot: 38 },
                 ]
               },
@@ -103,7 +103,7 @@
                   { name: 'btn-cancel', action: 'close', rect: [509,"832+bdim.oy",242,38] },
                   { name: 'btn-more', action: 'mod-less', rect: [761,"832+bdim.oy",242,38] },
                   { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"560+bdim.oy",490,60] },
-                  { name: 'spn-amount', rect: [510,"360+bdim.oy",494,62], ext: [5,25,5,25] },
+                  { name: 'spn-amount', rect: [510,"360+bdim.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [573,"312+bdtm.oy",432,"spn-amount.y - 320-bdtm.oy"], ocr_top: 6, ocr_bot: 38 },
                   { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"796+bdim.oy",382,76] },
                   { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,310,350,"486+bdim.oy"] }

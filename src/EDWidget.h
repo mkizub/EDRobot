@@ -25,8 +25,8 @@ struct Widget {
 
     struct DetectParams {
         ClassifyEnv& env;
+        ClassifyEnv* warpedEnv;
         UIState& uiState;
-        Master& master;
         DetectLevel level;
     };
     virtual bool detect(DetectParams& params) = 0;
@@ -125,6 +125,7 @@ struct Screen : public BaseDialog {
         , status(std::move(status))
     {}
     bool detect(DetectParams& params) final;
+    bool detectWidgets(DetectParams& params);
 
     bool checkStatus() const;
     const json5pp::value status;

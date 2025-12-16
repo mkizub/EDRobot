@@ -34,6 +34,20 @@ struct FrameRecycler {
 };
 typedef std::unique_ptr<Frame,FrameRecycler> upFrame;
 
+class FrameWarp : public Frame {
+public:
+    FrameWarp(cv::Size size, XMat cImage)
+            : Frame(nullptr, size)
+    {
+        colorImage = cImage;
+    }
+    ~FrameWarp() override = default;
+    bool valid() const override { return true; }
+    const XMat& getImage() const override { return colorImage; }
+
+    XMat colorImage;
+};
+
 // Point evaluator
 class EvalPoint {
 public:
@@ -209,96 +223,95 @@ struct ClassifiedRect {
 const cv::Size ReferenceScreenSize {1920, 1080};
 const cv::Point ReferenceScreenCenter {1920/2, 1080/2};
 
+// in configuration all numbers are specified for reference screen size
+// actual window size and position on image (screenshot)
 struct ResolvedEnv {
-    // in configuration all numbers are specified for reference screen size
-    // actual window size and position on image (screenshot)
-    const cv::Rect monitorRect;
-    const cv::Rect clientRect;
-    const cv::Size frameSize;
 
     ResolvedEnv();
-    ResolvedEnv& operator=(const ResolvedEnv& other);
-    void init(const cv::Rect& monitoRect, const cv::Rect& clientRect, const cv::Size& frameSize);
+    ResolvedEnv& operator=(const ResolvedEnv& other) = default;
+    void init(const cv::Rect& frameRect, double scale);
     void clear();
-    bool isWarpMode() const { return inWarpMode_; }
-    void setWarpMode(bool on) { inWarpMode_ = on; }
 
     // a list of classified detected rects
-    std::vector<ClassifiedRect> classified;
+    mutable std::vector<ClassifiedRect> classified;
 
-    bool needScaling() const { return needScaling_ && !inWarpMode_; }
-    double getScale() const { return needScaling() ? scaleToCaptured_ : 1.0; }
+    double getScale() const { return scaleToCaptured_; }
 
     void cropToCapture(cv::Rect& rect) {
-        if (inWarpMode_)
-            rect &= warpRect;
-        else
-            rect &= frameCrop;
+        rect &= frameCrop;
     }
 
     cv::Point2f scaleToCaptured(const cv::Point2f& point) const {
-        return needScaling() ? point * scaleToCaptured_ : point;
+        if (!needScale_)
+            return point;
+        return point * scaleToCaptured_;
     }
     cv::Point scaleToCaptured(const cv::Point& point) const {
-        return needScaling() ? point * scaleToCaptured_ : point;
+        if (!needScale_)
+            return point;
+        return point * scaleToCaptured_;
     }
     cv::Size  scaleToCaptured(const cv::Size& size) const {
-        if (!needScaling())
+        if (!needScale_)
             return size;
         return {int(size.width * scaleToCaptured_), int(size.height * scaleToCaptured_)};
     }
     cv::Rect scaleToCaptured(const cv::Rect& rect) const {
-        if (!needScaling())
+        if (!needScale_)
             return rect;
         return {rect.tl() * scaleToCaptured_, rect.br() * scaleToCaptured_};
     }
     cv::Line scaleToCaptured(const cv::Line& line) const {
-        if (!needScaling())
+        if (!needScale_)
             return line;
         return {line.p0() * scaleToCaptured_, line.p1() * scaleToCaptured_};
     }
     cv::Point scaleToReference(const cv::Point& point) const {
-        return needScaling() ? point / scaleToCaptured_ : point;
+        if (!needScale_)
+            return point;
+        return point / scaleToCaptured_;
     }
     cv::Size  scaleToReference(const cv::Size& size) const {
-        if (!needScaling())
+        if (!needScale_)
             return size;
         return {int(size.width / scaleToCaptured_), int(size.height / scaleToCaptured_)};
     }
 
-    cv::Point cvtReferenceToDesktop(const cv::Point& point) const;
-
     template<typename _Tp>
     cv::Point_<_Tp> cvtReferenceToCaptured(const cv::Point_<_Tp>& point) const {
-        if (!needScaling_ || inWarpMode_)
+        if (!needScale_)
             return point;
-        cv::Point_<_Tp> relative = point - cv::Point_<_Tp>(ReferenceScreenCenter);
-        relative *= scaleToCaptured_;
-        return relative + cv::Point_<_Tp>(frameCenter);
+        return point * scaleToCaptured_;
     }
     template<typename _Tp>
     cv::Rect_<_Tp>  cvtReferenceToCaptured(const cv::Rect_<_Tp>& rect) const {
+        if (!needScale_)
+            return rect;
         return cv::Rect_<_Tp>(cvtReferenceToCaptured(rect.tl()), cvtReferenceToCaptured(rect.br()));
     }
     template<typename _Tp>
     cv::Line_<_Tp>  cvtReferenceToCaptured(const cv::Line_<_Tp>& line) const {
+        if (!needScale_)
+            return line;
         return cv::Line_<_Tp>(cvtReferenceToCaptured(line.p0()), cvtReferenceToCaptured(line.p1()));
     }
 
     template<typename _Tp>
     cv::Point_<_Tp> cvtCapturedToReference(const cv::Point_<_Tp>& point) const{
-        if (!needScaling_ || inWarpMode_)
+        if (!needScale_)
             return point;
-        cv::Point_<_Tp> relative = point - cv::Point_<_Tp>(frameCenter);
-        relative /= scaleToCaptured_;
-        return relative + cv::Point_<_Tp>(ReferenceScreenCenter);
+        return point / scaleToCaptured_;
     }
     template<typename _Tp>
     cv::Rect_<_Tp>  cvtCapturedToReference(const cv::Rect_<_Tp>& rect) const {
+        if (!needScale_)
+            return rect;
         return cv::Rect_<_Tp>(cvtCapturedToReference(rect.tl()), cvtCapturedToReference(rect.br()));
     }
     template<typename _Tp>
     cv::Line_<_Tp>  cvtCapturedToReference(const cv::Line_<_Tp>& line) const {
+        if (!needScale_)
+            return line;
         return cv::Line_<_Tp>(cvtCapturedToReference(line.p0()), cvtCapturedToReference(line.p1()));
     }
 
@@ -313,52 +326,36 @@ struct ResolvedEnv {
         return cvtReferenceToCaptured(calcReferenceRect(er));
     }
 
+    void setDebugMatch(bool on) { isDebugMatch_ = on; }
+    bool isDebugMatch() const { return isDebugMatch_; }
+protected:
+    cv::Rect frameRect;
+    cv::Rect frameCrop;
+    // reference-to-captured scale
+    bool needScale_ {false};
+    bool needCrop_ {false};
+    bool isDebugMatch_ {false};
+    double scaleToCaptured_ {1};
+};
+
+struct ClassifyEnv : public ResolvedEnv {
+    ClassifyEnv() = default;
+    void init(upFrame&& frame);
+    void init(XMat warpedImage, double scale=1.0);
+    void init(XMat warpedImage, const cv::Matx33d& unWarpMatrix);
+
+    [[nodiscard]] const XMat& getColorImage() const;
+
     template<typename _Tp>
     cv::Point_<_Tp> unWarp(const cv::Point_<_Tp> point) const;
     template<typename _Tp>
     std::array<cv::Point_<_Tp>,4> unWarp(const cv::Rect_<_Tp>& rect) const;
 
-    bool isDebugMatch() const { return isDebugMatch_; }
-protected:
-    friend class Master;
-    cv::Rect frameCrop;
-    // reference-to-captured scale
-    bool inWarpMode_ {false};
-    bool needScaling_ {false};
-    bool isDebugMatch_ {false};
-    double scaleToCaptured_ {1};
-    cv::Point frameCenter;
-    cv::Rect warpRect;
-    cv::Matx33d warpMatrix;
-    cv::Matx33d unWarpMatrix;
-};
-
-struct ClassifyEnv : public ResolvedEnv {
-    ClassifyEnv() = default;
-    void init(const ResolvedEnv& rEnv, cv::Mat* colorImage, cv::Mat* grayImage);
-    void init(XMat colorImage);
-    void init(const cv::Rect& monitorRect, const cv::Rect& clientRect, const cv::Size& frameSize, upFrame&& frame);
-    void warpPerspective(const spEvalTransform& transform);
-    void clear();
-
-    [[nodiscard]] const XMat& getColorImage() const;
-
-    [[nodiscard]] const XMat& getGrayImage() const;
-
-    [[nodiscard]] const XMat& getWarpedColorImage() const;
-    [[nodiscard]] const XMat& getWarpedGrayImage() const;
-
-    [[nodiscard]] cv::Mat&       getDebugImage()   const;
 private:
     friend class Master;
     upFrame mFrame;
     mutable XMat mColorImage;
-    mutable XMat mGrayImage;
-    spEvalTransform mWarpTransform;
-    mutable XMat mWarpedColorImage;
-    mutable XMat mWarpedGrayImage;
-
-    mutable cv::Mat mDebugOverlay;
+    cv::Matx33d unWarpMatrix;
 };
 
 class TileRect : public EvalRect {

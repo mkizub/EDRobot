@@ -14,7 +14,6 @@
 #include "FuzzyMatch.h"
 #include "EDWidget.h"
 #include "OCR.h"
-#include "Galaxy.h"
 #include <fstream>
 #include <memory>
 #include <string>
@@ -46,7 +45,7 @@ Master& Mgr = Master::getInstance();
 
 const wchar_t Master::ED_WINDOW_NAME[] = L"Elite - Dangerous (CLIENT)";
 const wchar_t Master::ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
-const wchar_t Master::ED_WINDOW_EXE[] = L"EliteDangerous64.exe";
+//const wchar_t Master::ED_WINDOW_EXE[] = L"EliteDangerous64.exe";
 
 using namespace widget;
 
@@ -491,6 +490,7 @@ void Master::shutdown() {
     ai::shutdown_ship_tracker();
     ai::shutdown();
     mCompassDetector.reset();
+    mWarpedEnv.clear();
     mClassifyEnv.clear();
     if (mCapturer) {
         mCapturer->stop();
@@ -512,8 +512,6 @@ void Master::loop() {
             case Command::NoOp:
                 if (mDetectLevelStream != DetectLevel::None)
                     detectEDState(mDetectLevelStream);
-                else
-                    debugWindowUpdate();
                 break;
             case Command::Start:
                 UIManager::showMainDialog();
@@ -530,7 +528,7 @@ void Master::loop() {
                 autopilotAITask();
                 break;
             case Command::DebugTemplates:
-                debugTemplates(nullptr, nullptr);
+                debugDetectEDState();
                 break;
             case Command::DebugWindow:
                 debugWindow();
@@ -719,7 +717,6 @@ const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& gra
         LOG(ERROR) << "Widget '" << lbl_name << "' is not a label";
         return nullptr;
     }
-    Label* lbl = (Label*)widget;
     ClassifiedRect* cr = nullptr;
     for (auto& it : rEnv.classified) {
         if (it.cdt == ClsDetType::Widget && it.u.widg.widget == widget) {
@@ -731,8 +728,6 @@ const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& gra
         LOG(ERROR) << "Label '" << lbl_name << "' was not detected on screen";
         return nullptr;
     }
-
-    cv::Rect rect = rEnv.cvtReferenceToCaptured(cr->detectedRect);
 
     std::string text;
     int ocr_conf = ocr::ocrMarketLblText(grayImage, rEnv, *cr, text);
@@ -948,7 +943,6 @@ const Widget* Master::getCfgItem(std::string state) const {
     auto names = parseState(state);
     if (names.size() == 1 && !state.starts_with("scr-"))
         names = parseState(mLastUIState.path() + ":" + state);
-    int idx = 0;
     Widget* item = mScreensRoot.get();
     for (auto& name : names) {
         Widget* found = getItemByName(item, name);
@@ -965,147 +959,33 @@ const Widget* Master::getCfgItem(std::string state) const {
     return item;
 }
 
-Widget* Master::matchWithSubItems(Widget* item) {
-    if (!item)
-        return nullptr;
-    if (!item->oracle) {
-        for (Widget* m : item->have) {
-            if (m->tp == WidgetType::Mode) {
-                Widget* res = matchWithSubItems(m);
-                if (res)
-                    return res;
-            }
-        }
-        return nullptr;
+void Master::debugDetectEDState() {
+    ClassifyEnv debugEnv;
+    if (!captureWindow(debugEnv)) {
+        LOG(ERROR) << "Cannot capture screen for debug match";
+        return;
     }
-    if (matchItem(item)) {
-        if (item->tp == WidgetType::Screen) {
-            bool savedWarpMode = mClassifyEnv.isWarpMode();
-            widget::Screen *screen = static_cast<widget::Screen *>(item);
-            if (screen->transform) {
-                mClassifyEnv.warpPerspective(screen->transform);
-                mClassifyEnv.setWarpMode(screen->transform->valid);
-            }
-            for (Widget* i : item->have) {
-                Widget* res = matchWithSubItems(i);
-                if (res) {
-                    item = res;
-                    break;
-                }
-            }
-            mClassifyEnv.setWarpMode(savedWarpMode);
-            return item;
-        } else {
-            for (Widget *i: item->have) {
-                Widget *res = matchWithSubItems(i);
-                if (res)
-                    return res;
-            }
-        }
-        return item;
+    debugEnv.setDebugMatch(true);
+    if (st::guiFocus == GuiFocus::None)
+        mCompassDetector->match(debugEnv);
+    else
+        mCompassDetector->clear();
+    ClassifyEnv debugWarpedEnv;
+    for (auto widget: mScreensRoot->have) {
+        if (widget->tp != WidgetType::Screen)
+            continue;
+        widget::Screen* screen = static_cast<widget::Screen*>(widget);
+        if (!screen->checkStatus())
+            continue;
+        UIState uiState;
+        uiState.valid = true;
+        uiState.guiFocus = st::guiFocus;
+        uiState.screen = screen;
+        Widget::DetectParams params {debugEnv, &debugWarpedEnv, uiState, DetectLevel::ListRows};
+        screen->detect(params);
     }
-    return nullptr;
-}
-
-bool Master::matchItem(Widget* item) {
-    if (!item || !item->oracle)
-        return false;
-    return item->oracle->match(mClassifyEnv) >= 0.5;
-}
-
-bool Master::debugMatchItem(Widget* item, ClassifyEnv& env) {
-    if (!item)
-        return false;
-    if (!item->oracle) {
-        for (Widget* m : item->have) {
-            if (m->tp == WidgetType::Mode && m->oracle) {
-                if (m->oracle->match(env) >= 0.5)
-                    return true;
-            }
-        }
-        return false;
-    }
-    return item->oracle->match(env) >= 0.5;
-}
-
-widget::Widget* Master::debugTemplates(Widget* item, ClassifyEnv* env) {
-    if (!env) {
-        ClassifyEnv debugEnv;
-        if (!captureWindow(debugEnv)) {
-            LOG(ERROR) << "Cannot capture screen for debug match";
-            return nullptr;
-        }
-        debugEnv.isDebugMatch_ = true;
-        Widget* foundWidget = nullptr;
-        for (auto widget: mScreensRoot->have) {
-            if (widget->tp != WidgetType::Screen)
-                continue;
-            widget::Screen* screen = static_cast<widget::Screen*>(widget);
-            if (!screen || !screen->checkStatus())
-                continue;
-            auto w = debugTemplates(screen, &debugEnv);
-            if (st::guiFocus == GuiFocus::None)
-                mCompassDetector->match(debugEnv);
-            else
-                mCompassDetector->clear();
-            el::Loggers::flushAll();
-            if (w && !foundWidget) {
-                foundWidget = w;
-                if (screen->transform) {
-                    debugEnv.warpPerspective(screen->transform);
-                    if (screen->transform->valid) {
-                        cv::imwrite("warped-screen-color.png", debugEnv.getWarpedColorImage());
-                    }
-                }
-                UIState uiState;
-                uiState.valid = true;
-                uiState.guiFocus = st::guiFocus;
-                uiState.screen = screen;
-                Widget::DetectParams params {debugEnv, uiState, *this, DetectLevel::ListRows};
-                screen->detect(params);
-            }
-            //std::string fname = "debug-match-"+screen->name+".png";
-            //cv::imwrite(fname, env.debugImage);
-            //cv::imshow(fname, debugEnv.getDebugImage());
-            //cv::waitKey();
-        }
-        //cv::destroyAllWindows();
-        //mDuplicateToDebugWindow = UIManager::showDebugWindow();
-        if (mDuplicateToDebugWindow) {
-            if (!UIManager::postToDebugWindow(debugEnv.getColorImage(), debugEnv.getDebugImage()))
-                mDuplicateToDebugWindow = false;
-        }
-        debugEnv.clear();
-        el::Loggers::flushAll();
-        return foundWidget;
-    } else {
-        if (debugMatchItem(item, *env)) {
-            Widget* foundWidget = nullptr;
-            if (item->tp == WidgetType::Screen) {
-                bool savedWarpMode = env->isWarpMode();
-                widget::Screen *screen = static_cast<widget::Screen *>(item);
-                if (screen->transform) {
-                    env->warpPerspective(screen->transform);
-                    env->setWarpMode(screen->transform->valid);
-                }
-                for (Widget* i : item->have) {
-                    Widget* res = debugTemplates(i, env);
-                    if (res && !foundWidget)
-                        foundWidget = res;
-                }
-                env->setWarpMode(savedWarpMode);
-                return item;
-            } else {
-                for (Widget *i: item->have) {
-                    Widget *res = debugTemplates(i, env);
-                    if (res && !foundWidget)
-                        foundWidget = res;
-                }
-            }
-            return foundWidget ? foundWidget : item;
-        }
-        return nullptr;
-    }
+    UIManager::postToDebugWindow(debugEnv.getColorImage());
+    debugWindowUpdate(debugEnv, debugWarpedEnv);
 }
 
 bool Master::debugWindow() {
@@ -1115,11 +995,11 @@ bool Master::debugWindow() {
         return true;
     } else {
         mDuplicateToDebugWindow = false;
-        return true;
+        return false;
     }
 }
 
-bool Master::debugWindowUpdate() {
+bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
     double streamFPS = -1;
     if (mStreamFramePoints.size() > 2) {
         auto startTime = mStreamFramePoints.front();
@@ -1142,10 +1022,10 @@ bool Master::debugWindowUpdate() {
     if (!mDuplicateToDebugWindow || !mLastUIState.valid)
         return false;
 
-    ClassifyEnv& cEnv = mClassifyEnv;
-    cv::Mat& debugImage = cEnv.getDebugImage();
-    if (debugImage.empty())
-        return UIManager::postToDebugWindow(cEnv.getColorImage(), debugImage);
+    const XMat& colorImage = cEnv.getColorImage();
+    if (colorImage.empty())
+        return UIManager::postToDebugWindow(colorImage);
+    cv::Mat debugImage(colorImage.size(), CV_8UC4, cv::Vec4b::zeros());
 
     if (streamFPS > 0) {
         std::string text;
@@ -1249,14 +1129,8 @@ bool Master::debugWindowUpdate() {
                 color = {255, 255, 96};
                 thickness = 2;
             }
-            if (cr.warped) {
-                auto points = cEnv.unWarp(cr.detectedRect);
-                for (int j = 0; j < 4; j++)
-                    cv::line(debugImage, points[j], points[(j+1) % 4], color, thickness, cv::LINE_AA);
-            } else {
-                cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-                cv::rectangle(debugImage, r, color, thickness);
-            }
+            cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
+            cv::rectangle(debugImage, r, color, thickness);
         }
         if (cr.cdt == ClsDetType::ListRow) {
             cv::Scalar color = {255, 96, 96};
@@ -1265,14 +1139,33 @@ bool Master::debugWindowUpdate() {
                 color = {255, 255, 96};
                 thickness = 2;
             }
-            if (cr.warped) {
-                auto points = cEnv.unWarp(cr.detectedRect);
-                for (int j = 0; j < 4; j++)
-                    cv::line(debugImage, points[j], points[(j+1) % 4], color, thickness, cv::LINE_AA);
-            } else {
-                cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-                cv::rectangle(debugImage, r, color, thickness);
+            cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
+            cv::rectangle(debugImage, r, color, thickness);
+        }
+    }
+
+    for (auto& cr : wEnv.classified) {
+        if (cr.cdt == ClsDetType::Widget) {
+            cv::Scalar color = {255, 96, 96};
+            int thickness = 1;
+            if (cr.u.widg.ws == WState::Focused) {
+                color = {255, 255, 96};
+                thickness = 2;
             }
+            auto points = wEnv.unWarp(cr.detectedRect);
+            for (int j = 0; j < 4; j++)
+                cv::line(debugImage, points[j], points[(j+1) % 4], color, thickness, cv::LINE_AA);
+        }
+        if (cr.cdt == ClsDetType::ListRow) {
+            cv::Scalar color = {255, 96, 96};
+            int thickness = 1;
+            if (cr.u.lrow.ws == WState::Focused) {
+                color = {255, 255, 96};
+                thickness = 2;
+            }
+            auto points = wEnv.unWarp(cr.detectedRect);
+            for (int j = 0; j < 4; j++)
+                cv::line(debugImage, points[j], points[(j+1) % 4], color, thickness, cv::LINE_AA);
         }
     }
 
@@ -1302,15 +1195,15 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
         }
     }
     ClassifyEnv debugEnv;
-    if (!captureWindow(debugEnv)) {
+    if (!captureWindow(debugEnv) || !mCapturer) {
         LOG(ERROR) << "Cannot capture screen for screenshot";
         return false;
     }
-    if ((rect & debugEnv.clientRect) != rect) {
+    if ((rect & mCapturer->captureVirtRect) != rect) {
         LOG(ERROR) << "Cannot make screenshot because dev rect is beyond of game client area";
         return false;
     }
-    rect -= debugEnv.clientRect.tl();
+    rect -= mCapturer->captureVirtRect.tl();
 
     //cv::Vec4b color = debugEnv.getColorImage().at<cv::Vec4b>( (rect.tl() + rect.br())/2 );
     //LOG(INFO) << "Selected rect BGRA color (center dot): " << color;
@@ -1422,6 +1315,7 @@ bool Master::detectEDState(DetectLevel level) {
     auto startTime = std::chrono::high_resolution_clock::now();
 
     mLastUIState.clear();
+    mWarpedEnv.clear();
     // make screenshot
     if (!captureWindow(mClassifyEnv)) {
         LOG(ERROR) << "Cannot capture screen";
@@ -1442,12 +1336,12 @@ bool Master::detectEDState(DetectLevel level) {
     if (level == DetectLevel::None) {
         auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
-        debugWindowUpdate();
+        debugWindowUpdate(mClassifyEnv, mWarpedEnv);
         return true;
     }
 
     // detect screen and widget
-    Widget::DetectParams params {mClassifyEnv, mLastUIState, *this, level};
+    Widget::DetectParams params {mClassifyEnv, &mWarpedEnv, mLastUIState, level};
     mScreensRoot->detect(params);
     if (!st::ship.flags.docked && !st::ship.flags.fsd_jump && st::guiFocus == GuiFocus::None) {
         // detect autopilot
@@ -1481,12 +1375,19 @@ bool Master::detectEDState(DetectLevel level) {
 
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
     LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
-    debugWindowUpdate();
+    debugWindowUpdate(mClassifyEnv, mWarpedEnv);
     return true;
 }
 
 cv::Point Master::cvtReferenceToDesktop(const cv::Point& point) const {
-    return mClassifyEnv.cvtReferenceToDesktop(point);
+    Frame* frame = mClassifyEnv.mFrame.get();
+    if (!frame || !frame->owner)
+        return point;
+    cv::Point p = mClassifyEnv.frameRect.tl() + mClassifyEnv.cvtReferenceToCaptured(point);
+    if (Cfg.getCaptureDisplaySize() != Cfg.getConfigDisplaySize()) {
+        p *= double(Cfg.getConfigDisplaySize().width) / double(Cfg.getCaptureDisplaySize().width);
+    }
+    return mCapturer->captureVirtRect.tl() + p;
 }
 
 Capturer* Master::getCapturer() {
@@ -1535,9 +1436,7 @@ bool Master::captureWindow(ClassifyEnv& env) {
     recycle = capturer->capture(std::move(recycle));
     if (!recycle)
         return false;
-    cv::Rect captureRect = capturer->getCaptureRect();
-    cv::Rect monitorRect = capturer->getMonitorVirtualRect();
-    env.init(monitorRect, captureRect, capturer->captureSize, std::move(recycle));
+    env.init(std::move(recycle));
 
     int fps_millis = mStreamFramePoints.size() < 10 ? 3000 : 1000;
     auto now = std::chrono::steady_clock::now();
@@ -1558,10 +1457,19 @@ void Master::processDetectRequest(pCommand &cmd) {
         if (ok) {
             if (c->request.uiState)
                 *c->request.uiState = mLastUIState;
-            if (c->request.rEnv)
-                *c->request.rEnv = mClassifyEnv;
+            if (mLastUIState.screen && mLastUIState.screen->transform && mLastUIState.screen->transform->valid) {
+                if (c->request.rEnv)
+                    *c->request.rEnv = static_cast<ResolvedEnv&>(mWarpedEnv);
+                if (c->request.colorImage)
+                    *c->request.colorImage = toMat(mWarpedEnv.getColorImage()).clone();
+            } else {
+                if (c->request.rEnv)
+                    *c->request.rEnv = static_cast<ResolvedEnv&>(mClassifyEnv);
+                if (c->request.colorImage)
+                    *c->request.colorImage = toMat(mClassifyEnv.getColorImage()).clone();
+            }
             if (c->request.compass) {
-                c->request.compass->timestamp = mLastUIState.timestamp;;
+                c->request.compass->timestamp = mLastUIState.timestamp;
                 c->request.compass->hemisphere = mCompassDetector->lastHemisphere;
                 c->request.compass->targetPitch = (float) mCompassDetector->lastTgtPitch;
                 c->request.compass->targetYaw = (float) mCompassDetector->lastTgtYaw;
@@ -1572,24 +1480,6 @@ void Master::processDetectRequest(pCommand &cmd) {
                     c->request.compass->nav_target_dist = mCompassDetector->lastNavDist;
                 else
                     c->request.compass->nav_target_dist = {};
-            }
-            if (c->request.colorImage) {
-                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid) {
-                    *c->request.colorImage = toMat(mClassifyEnv.getWarpedColorImage()).clone();
-                    c->request.rEnv->needScaling_ = false;
-                    c->request.rEnv->scaleToCaptured_ = 1;
-                }
-                else
-                    *c->request.colorImage = toMat(mClassifyEnv.getColorImage()).clone();
-            }
-            if (c->request.grayImage) {
-                if (mClassifyEnv.mWarpTransform && mClassifyEnv.mWarpTransform->valid) {
-                    *c->request.grayImage = toMat(mClassifyEnv.getWarpedGrayImage()).clone();
-                    c->request.rEnv->needScaling_ = false;
-                    c->request.rEnv->scaleToCaptured_ = 1;
-                }
-                else
-                    *c->request.grayImage = toMat(mClassifyEnv.getGrayImage()).clone();
             }
         }
         c->promise.set_value(ok);

@@ -317,7 +317,7 @@ void task_step() {
     return;
 }
 
-const bool detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayImage) {
+bool detectEDStateReq(DetectRequest&& req) {
     check_interrupted();
 #ifdef NDEBUG
     std::chrono::milliseconds timeout = 1000ms;
@@ -329,7 +329,8 @@ const bool detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayIm
     uiState.valid = false;
     std::promise<bool> promise;
     std::future<bool> future = promise.get_future();
-    Mgr.pushDetectRequest(std::move(promise), {level, &uiState, &rEnv, &compassInfo, colorImage, grayImage});
+
+    Mgr.pushDetectRequest(std::move(promise), std::move(req));
     while (now < until) {
         check_interrupted();
         auto left = std::chrono::duration_cast<std::chrono::milliseconds>(until - now);
@@ -344,6 +345,18 @@ const bool detectEDState(DetectLevel level, cv::Mat* colorImage, cv::Mat* grayIm
         return false;
     bool ok = future.get();
     return ok && uiState.valid;
+}
+
+bool detectEDState(DetectLevel level) {
+    return detectEDStateReq({level, &ai::uiState, &ai::rEnv, &compassInfo});
+}
+
+bool detectEDStateGrayIm(DetectLevel level, cv::Mat& grayImage) {
+    cv::Mat colorImage;
+    if (!detectEDStateReq({level, &ai::uiState, &ai::rEnv, &compassInfo, &colorImage}))
+        return false;
+    cv::cvtColor(colorImage, grayImage, cv::COLOR_BGR2GRAY);
+    return true;
 }
 
 } // namespace ai

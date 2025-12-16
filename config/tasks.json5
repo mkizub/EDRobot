@@ -1,17 +1,46 @@
 [
   {
     "templ": "tsk-trade-loop",
-    "name": "Стройка Techno Mineralogic",
+    "name": "Стройка Bushkov Enterprise мелочёвка",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "HIP 93363",
+        "dock": "Bogacki Site",
+        "tasks": [
+          {
+            "templ": "tsk-market-buy-constr",
+            "system": "Col 285 Sector XK-O d6-69",
+            "dock": "Orbital Construction Site: Bushkov Enterprise",
+            "mode": "ExceptLittleFirst"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector XK-O d6-69",
+        "dock": "Orbital Construction Site: Bushkov Enterprise",
+        "tasks": [
+          {
+            "templ": "tsk-constr-unload"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "templ": "tsk-trade-loop",
+    "name": "Стройка Sisters Enterprise",
     "markets": [
       {
         "templ": "tsk-trade-at",
         "system": "Col 359 Sector GL-X d1-21",
-        "dock": "Stheno",
+        "dock": "Rivera Vision",
         "tasks": [
           {
             "templ": "tsk-market-buy-constr",
             "system": "Col 359 Sector GL-X d1-21",
-            "dock": "Planetary Construction Site: Techno Mineralogic Installation",
+            "dock": "Orbital Construction Site: Sisters Enterprise",
             "mode": "ExceptLittleFirst"
           }
         ]
@@ -19,7 +48,7 @@
       {
         "templ": "tsk-trade-at",
         "system": "Col 359 Sector GL-X d1-21",
-        "dock": "Planetary Construction Site: Techno Mineralogic Installation",
+        "dock": "Orbital Construction Site: Sisters Enterprise",
         "tasks": [
           {
             "templ": "tsk-constr-unload"
@@ -167,35 +196,6 @@
     "system": "Col 285 Sector XK-O d6-69",
     "dock": "Orbital Construction Site: Sweet Relay",
     "mode": "ExceptLittleFirst"
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Стройка Sweet Relay металлы",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Gromov City",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-constr",
-            "system": "Col 285 Sector XK-O d6-69",
-            "dock": "Orbital Construction Site: Sweet Relay",
-            "mode": "ExceptBulkFirst"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Sweet Relay",
-        "tasks": [
-          {
-            "templ": "tsk-constr-unload"
-          }
-        ]
-      }
-    ]
   },
   {
     "templ": "tsk-trade-loop",

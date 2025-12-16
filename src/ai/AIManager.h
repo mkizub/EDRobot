@@ -91,7 +91,8 @@ enum class CheckResult {
     Replan,
 };
 
-const bool detectEDState(DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
+bool detectEDState(DetectLevel level);
+bool detectEDStateGrayIm(DetectLevel level, cv::Mat& grayImage);
 
 bool gotoNavPage(const std::string &page_name, bool required=true);
 void rollBlindCompass();

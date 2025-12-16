@@ -209,7 +209,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
     for (;;) {
         sleep(500);
         cv::Mat grayImage;
-        ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+        ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
         if (!ai::uiState.match("scr-market:"+marketMode)) {
             if (ai::uiState.match("scr-market:"+marketMode+":dlg-trade:*")) {
                 kbd::send("UI_Back", 50, 1000);
@@ -265,7 +265,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
             hardcodedStep("[{key:'UI_Select', after:200},"
                           "{wait: 'scr-market:"+marketMode+":dlg-trade:*', during: 3000},"
                           "{sleep: 1000}]",
-                          DetectLevel::Buttons, nullptr, &grayImage);
+                          DetectLevel::Buttons, &grayImage);
             const Commodity* dlgCommodity = Master::getLabelCommodity(ai::rEnv, grayImage, "lbl-commodity");
             if (dlgCommodity != currCommodity) {
                 notify_progress_(MSG_WARN, "Dialog commodity mismatch");
@@ -505,7 +505,7 @@ bool TaskDebugFindAllNavPoints::run() {
     int failCount=0;
     if (unfocused) {
         cv::Mat grayImage;
-        ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+        ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
         for (auto &cr: ai::rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
                 continue;
@@ -524,7 +524,7 @@ bool TaskDebugFindAllNavPoints::run() {
             std::vector<int> rows_with_error;
             ClassifiedRect *focused = nullptr;
             cv::Mat grayImage;
-            ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+            ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
             for (auto &cr: ai::rEnv.classified) {
                 if (cr.cdt != ClsDetType::ListRow)
                     continue;
@@ -775,7 +775,7 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
     const gal::NavType* navType = nullptr;
     cv::Mat grayImage;
     kbd::send("UI_Select", 0, 1500);
-    ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
+    ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
     for (auto& cr : ai::rEnv.classified) {
         if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
             lbl_anchor = cr.text.substr(7);
@@ -788,7 +788,7 @@ bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
 
     kbd::send("UI_Back", 50, 1000);
 
-    ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage);
+    ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
     for (auto& cr : ai::rEnv.classified) {
         if (cr.cdt != ClsDetType::ListRow)
             continue;

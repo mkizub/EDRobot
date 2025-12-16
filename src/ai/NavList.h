@@ -48,7 +48,7 @@ public:
     bool focusDockBody();
     bool focusTopEntry();
 
-    bool selectFocused();
+    bool selectFocused(gal::Entity* dest);
     bool discoverSelected();
 
     dist_t getFocusedDist(int max_try);

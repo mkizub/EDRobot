@@ -14,7 +14,7 @@ namespace detect {
 
 CompassDetector::CompassDetector()
         : Detector()
-        , threshold_dot{0.5}
+        , threshold_dot{0.4}
         , lastHemisphere(0)
         , navTargetFound(false)
 {
@@ -110,6 +110,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             loadCompass();
         }
         double fov = Cfg.getConfigFOV();
+        XMat image = env.getColorImage();
         if (preprocessedFOV != fov) {
             compassDetector->preprocessedTemplateScale = 0;
             preprocessedDotsScale = 0;
@@ -117,12 +118,9 @@ double CompassDetector::match(ClassifyEnv &env) {
 
             // config FOV is Vertical for 16:9 aspect ratio
             {
-                double x_scale = double(env.frameSize.width) / ReferenceScreenSize.width;
-                double y_scale = double(env.frameSize.height) / ReferenceScreenSize.height;
-                double scale = std::min(x_scale, y_scale);
                 double d = ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
-                double y =  env.frameSize.height * 0.5 / scale; // half-height of screen scaled to reference
-                double x =  env.frameSize.width * 0.5 / scale; // half-width of screen scaled to reference
+                double y = image.rows * 0.5 / env.getScale(); // half-height of screen scaled to reference
+                double x = image.cols * 0.5 / env.getScale(); // half-width of screen scaled to reference
                 captureFovY = 2 * std::atan(y / d) * 180 / M_PI;
                 captureFovX = 2 * std::atan(x / d) * 180 / M_PI;
                 captureFovY = std::round(captureFovY * 65536) / 65536;
@@ -148,7 +146,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem(
                     "scr-cockpit");
             if (scr_cockpit) {
-                std::string res = std::format("{}x{}", env.frameSize.width, env.frameSize.height);
+                std::string res = std::format("{}x{}", image.cols, image.rows);
                 auto &varSet = scr_cockpit->varSetMap.at("undistort");
                 for (auto &vars: varSet) {
                     if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), res)) {
@@ -167,8 +165,8 @@ double CompassDetector::match(ClassifyEnv &env) {
             const int cy = ReferenceScreenCenter.y;
             const int dx = remapRect.x;
             const int dy = remapRect.y;
-            const int ccx = env.frameSize.width / 2;
-            const int ccy = env.frameSize.height / 2;
+            const int ccx = image.cols / 2;
+            const int ccy = image.rows / 2;
 
             const double A = fov_scale / cx;
             const double env_scale = env.getScale();

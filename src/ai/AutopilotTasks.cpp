@@ -1139,7 +1139,7 @@ bool EnterCruiseStep::run() {
 
         if (needToSelectNearest) {
             flyAwayFromNearest = true;
-            task->nl.selectFocused();
+            task->nl.selectFocused(nullptr);
             status = ORIENT;
             sendUiBack();
             task->orientAwayFromTarget(10);
@@ -1404,7 +1404,7 @@ bool LeaveBodyStep::run() {
     status = LOCK_BODY;
     if (!task->nl.focusNearestBody())
         throw_trouble("Cannot focus nearest body");
-    if (!task->nl.selectFocused())
+    if (!task->nl.selectFocused(nullptr))
         throw_trouble("Cannot select focused nearest body");
     fromBody = st::destination.name;
     status = ORIENT;
@@ -2292,7 +2292,7 @@ bool NavDockSelect::run() {
             notify_warn("Failed to find the dock in nav list");
             continue;
         }
-        if (!task->nl.selectFocused())
+        if (!task->nl.selectFocused(dock.get()))
             notify_warn("Failed to select the dock in nav list");
         sleep(500);
         if (dock->nameEq(st::destination.name)) {
@@ -2333,18 +2333,33 @@ bool NavBodySelect::run() {
     }
 
     status = SELECTING;
+    int missmatch = 0;
     for (int retry=0; retry < 3; retry++) {
         if (!task->nl.focusDestBody()) {
             notify_warn("Failed to find the body in nav list");
             continue;
         }
-        if (!task->nl.selectFocused())
+        if (!task->nl.selectFocused(body.get()))
             notify_warn("Failed to select the body in nav list");
         sleep(500);
+        if (!body->nameEq(st::destination.name)) {
+            sleep(1000);
+            std::atomic_signal_fence(std::memory_order_seq_cst);
+        }
         if (body->nameEq(st::destination.name)) {
             status = DONE;
             return true;
         }
+        if (missmatch >= 2) {
+            if (st::autopilot.destDock && st::autopilot.destDock->parentBodyId == body->bodyId) {
+                st::autopilot.destDock->parentBodyId = -1;
+                st::autopilot.destDock.reset();
+                throw_trouble("Missmatch dock and body");
+            }
+        }
+        st::autopilot.isDestBodyFocused = false;
+        st::autopilot.isDestDockFocused = false;
+        missmatch += 1;
     }
     status = FAILED;
     return false;
@@ -2878,7 +2893,7 @@ bool DiveUnderPlanetStep::run() {
             if (!dockIsVisible) {
                 if (ai::compassInfo.hemisphere < 0) {
                     dockIsVisible = true;
-                } else if (ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle >= visible_body_angle*1.2f) {
+                } else if (!toPort && ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle >= visible_body_angle*2) {
                     dockIsVisible = true;
                 } else if (ai::compassInfo.targetRoll < -100) {
                     task->orientRollByTarget(-60, 15, 10000);
@@ -3731,7 +3746,7 @@ bool CruiseAndDock::run() {
 
         if (!st::autopilot.destBody && st::autopilot.destDock->parentBodyId < 0) {
             if (task->nl.focusDockBody()) {
-                if (task->nl.selectFocused()) {
+                if (task->nl.selectFocused(st::autopilot.destDock.get())) {
                     sleep(1000); // wait for Status.json
                     int bodyId = st::destination.bodyId;
                     st::autopilot.destDock->parentBodyId = bodyId;

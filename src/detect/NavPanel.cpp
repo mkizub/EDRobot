@@ -15,16 +15,14 @@ std::string NavPanelDetector::forceDetect;
 
 
 void NavPanelDetector::standaloneTest(std::string image_filename, std::string screen_name) {
-    cv::Mat colorImage = cv::imread(image_filename, cv::IMREAD_UNCHANGED); // assume GRAY/BGR/BGRA
-    cv::Rect imageRect(cv::Point(), cv::Size(colorImage.cols, colorImage.rows));
-    ResolvedEnv rEnv;
-    rEnv.init(imageRect, imageRect, imageRect.size());
-    ClassifyEnv cEnv;
-    cEnv.init(rEnv, &colorImage, nullptr);
+    cv::Mat fileImage = cv::imread(image_filename, cv::IMREAD_UNCHANGED); // assume GRAY/BGR/BGRA
+    XMat debugImage = toXMat(fileImage);
+    ClassifyEnv debugEnv;
+    debugEnv.init(debugImage, 1);
 
     const widget::Screen *screen = (const widget::Screen *) Master::getInstance().getCfgItem(screen_name);
     auto det = dynamic_cast<NavPanelDetector*>(screen->oracle.get());
-    double match = det->match(cEnv);
+    double match = det->match(debugEnv);
     LOG(INFO) << std::format("NavPanelDetector::standaloneTest: {:.1f}", match);
 }
 
@@ -69,7 +67,10 @@ ConstTransform* NavPanelDetector::getTransform() {
     return transform;
 }
 
-#define DEBUG_DETECTOR 1
+//#define DEBUG_DETECTOR 1
+#if defined(DEBUG_DETECTOR) && defined(NDEBUG)
+# error "DEBUG_NAV_PANEL_DETECTOR in release build"
+#endif
 
 static cv::Point2f rotateAround(cv::Point2f point, cv::Point2f anchor, float angle, float scale) {
     cv::Point2f delta = point - anchor;
@@ -273,7 +274,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
                 r.y += r.x * sin_a;
                 //r.x += 0;
                 r &= cv::Rect(0, 0, tabImage.cols, tabImage.rows);
-                detect::Histogram hist(Histogram::Mode::Gray, {0, 0, r.width, r.height});
+                detect::Histogram hist(Histogram::Mode::Gray);
                 if (!r.empty() && hist.calc(tabImage(r))) {
                     uchar bg = hist.mLastColor[0];
                     if (bg >= 140 && bg > selectedTabValue) {

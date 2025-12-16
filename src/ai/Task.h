@@ -54,7 +54,7 @@ public:
     bool decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const;
     bool executeStep(const json5pp::value& step, const json5pp::value& args);
     bool executeWait(const json5pp::value& step, const json5pp::value& args);
-    void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* colorImage = nullptr, cv::Mat* grayImage = nullptr);
+    void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* grayImage = nullptr);
 
     int missCount {};
     bool failed {};

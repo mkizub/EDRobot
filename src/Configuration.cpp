@@ -423,6 +423,19 @@ bool Configuration::loadGameSettings(bool initial) {
                     scaledScreenHeight = std::round(configScreenHeight*scale);
                 }
             }
+            {
+                double x_scale = double(scaledScreenWidth) / ReferenceScreenSize.width;
+                double y_scale = double(scaledScreenHeight) / ReferenceScreenSize.height;
+                double scale = std::min(x_scale, y_scale);
+                cv::Point frameCenter {scaledScreenWidth / 2, scaledScreenHeight / 2};
+                cv::Point tl = cv::Point() - cv::Point(ReferenceScreenCenter);
+                tl *= scale;
+                tl += frameCenter;
+                cv::Point br = cv::Point(ReferenceScreenSize) - cv::Point(ReferenceScreenCenter);
+                br *= scale;
+                br += frameCenter;
+                croppedScreenRect = {tl, br};
+            }
         } else {
             ok = false;
             LOG(ERROR) << "Cannot parse " << filename;

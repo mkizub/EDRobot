@@ -209,7 +209,7 @@ std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage, int& focus
                 continue;
         if (ai::uiState.focused_name() != "lst-bodies")
             kbd::send("UI_Right");
-        if (!ai::detectEDState(DetectLevel::ListRows, nullptr, &grayImage))
+        if (!ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage))
             continue;
         rows.clear();
         for (auto &cr: ai::rEnv.classified) {
@@ -856,7 +856,7 @@ bool NavList::focusTopEntry() {
     return false;
 }
 
-bool NavList::selectFocused() {
+bool NavList::selectFocused(gal::Entity* dest) {
     for (int retry=0; retry < 3; retry++) {
         int focusIdx;
         cv::Mat grayImage;
@@ -892,7 +892,7 @@ bool NavList::discoverSelected() {
             detect::NavPanelDetectLock lock("nav-line");
             ai::sleep(1000);
             cv::Mat grayImage;
-            ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
+            ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
             for (auto &cr: ai::rEnv.classified) {
                 if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nav-line:")) {
                     nav_icon = cr.text.substr(7);
@@ -978,7 +978,7 @@ bool NavListScanTask::run() {
 
         gal::NavType* navType = nullptr;
         kbd::send("UI_Select", 0, 1500);
-        ai::detectEDState(DetectLevel::Buttons, nullptr, &grayImage);
+        ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
         for (auto& cr : ai::rEnv.classified) {
             if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
                 std::string lbl_anchor = cr.text.substr(7);
@@ -1002,7 +1002,7 @@ bool NavListScanTask::run() {
 
         kbd::send("UI_Back", 50, 1000);
 
-        nl.selectFocused();
+        nl.selectFocused(nullptr);
 
         for (int idx = 0; idx < nl.list.size(); idx++) {
             auto &nle = nl.list[idx];

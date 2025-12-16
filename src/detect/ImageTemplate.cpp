@@ -69,43 +69,6 @@ bool ImageTemplate::loadImageAndMask(const std::string &filename, XMat &image) {
     return true;
 }
 
-//double ImageTemplate::debugMatch(ClassifyEnv &env) {
-//    double value = match(env);
-//    LOG(INFO) << "ImageTemplate match result: " << std::setprecision(3) << value <<
-//              "[" << threshold_min << ":" << threshold_max << "] >> " << toResult(value) << " for " << filename <<
-//              "; offset: " << env.scaleToReference(matchedCaptureOffset);
-//    if (lastTemplatedx >= 0 && lastTemplatedx < imagesPrepared.size()) {
-//        auto& im = imagesPrepared[lastTemplatedx];
-//        LOG(INFO) << "ImageTemplate best match was at template: "
-//                  << std::format("index {} scale {:.6f} angle {} name {}", lastTemplatedx, im.scale, im.angle, im.name);
-//    }
-//    if (value >= threshold_max) {
-//        cv::Scalar color(96, 255, 96);
-//        cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
-//        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
-//        return 1;
-//    }
-//    if (value < threshold_min) {
-//        cv::Scalar color(96, 96, 255);
-//        cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
-//        cv::Point lt = matchRect.tl();
-//        cv::Point rb = matchRect.br();
-//        cv::line(env.getDebugImage(), lt, rb, color, 1);
-//        cv::Point lb = cv::Point(matchRect.tl().x, matchRect.br().y);
-//        cv::Point rt = cv::Point(matchRect.br().x, matchRect.tl().y);
-//        cv::line(env.getDebugImage(), lb, rt, color, 1);
-//        return 0;
-//    }
-//    double result = toResult(value);
-//    cv::Scalar color(96, 210, 210);
-//    cv::rectangle(env.getDebugImage(), captureRect.tl(), captureRect.br(), color, 1);
-//    cv::rectangle(env.getDebugImage(), matchRect.tl(), matchRect.br(), color, 1);
-//    cv::Point lt = matchRect.tl();
-//    cv::Point rb = matchRect.br();
-//    cv::line(env.getDebugImage(), lt, rb, color, 1);
-//    return result;
-//}
-
 double ImageTemplate::toResult(double matchValue) {
     if (matchValue >= threshold_max)
         return 1;
@@ -654,8 +617,7 @@ cv::Rect ImageTemplate::makeOptimalMatchRect(cv::Rect r) {
 }
 
 double ImageTemplate::match(ClassifyEnv &env) {
-    XMat gameImage = channels == 1 ? env.getGrayImage() : env.getColorImage();
-    return match(env, gameImage, nullptr);
+    return match(env, env.getColorImage(), nullptr);
 }
 
 double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameImageOffset) {
@@ -703,7 +665,7 @@ double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameIma
     }
     lastMatch = mr.value;
     if (!name.empty() && mr.value >= threshold_min) {
-        env.classified.emplace_back(ClsDetType::Detected, env.isWarpMode(), name,
+        env.classified.emplace_back(ClsDetType::Detected, false, name,
                                     refRect + env.scaleToReference(matchedCaptureOffset));
         env.classified.back().u.tdet.referenceRect = refRect;
         env.classified.back().u.tdet.scale = mr.im->scale;

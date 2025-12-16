@@ -141,6 +141,7 @@ public:
     double getConfigFOV() const { return configFOV; }
     cv::Size getConfigDisplaySize() const { return {configScreenWidth, configScreenHeight}; }
     cv::Size getCaptureDisplaySize() const { return {scaledScreenWidth, scaledScreenHeight}; }
+    cv::Rect getCroppedDisplayRect() const { return croppedScreenRect; }
     unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
 
     bool isHeadlookSmoothing() const { return configHeadlookSmoothing; }
@@ -200,6 +201,7 @@ private:
     int configScreenHeight = 0;   // Options\Graphics\DisplaySettings.xml: <ScreenHeight>1080</ScreenHeight>
     int scaledScreenWidth = 0;    // downscaled configScreenWidth
     int scaledScreenHeight = 0;   // downscaled configScreenHeight
+    cv::Rect croppedScreenRect;   // cropped to 16:9 scaledScreenWidth/scaledScreenHeight
     FullScreenMode configFullScreen = FullScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
     int configMonitorID = 0;       // Options\Graphics\DisplaySettings.xml: <Monitor>2</Monitor>
     bool configHeadlookSmoothing = true;

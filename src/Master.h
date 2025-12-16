@@ -63,7 +63,6 @@ struct DetectRequest {
     ResolvedEnv* rEnv;
     CompassInfo* compass;
     cv::Mat* colorImage;
-    cv::Mat* grayImage;
 };
 
 struct CommodityMatch {
@@ -130,14 +129,11 @@ private:
     bool autopilotAITask();
 
     bool captureWindow(ClassifyEnv& env);
-    widget::Widget* matchWithSubItems(widget::Widget* item);
     void processDetectRequest(pCommand& cmd);
-    bool matchItem(widget::Widget* item);
-    widget::Widget* debugTemplates(widget::Widget* item, ClassifyEnv* env);
-    bool debugMatchItem(widget::Widget* item, ClassifyEnv& env);
+    void debugDetectEDState();
     bool debugRectScreenshot(pCommand& cmd);
     bool debugWindow();
-    bool debugWindowUpdate();
+    bool debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv);
 
     std::unique_ptr<widget::Root> mScreensRoot;
     HWND hWndED;
@@ -145,6 +141,7 @@ private:
     Capturer* mCapturer {nullptr};
     UIState mLastUIState;
     ClassifyEnv mClassifyEnv;
+    ClassifyEnv mWarpedEnv;
     bool mDuplicateToDebugWindow {false};
     DetectLevel mDetectLevelStream {DetectLevel::None};
     std::deque<std::chrono::time_point<std::chrono::steady_clock>> mStreamFramePoints;

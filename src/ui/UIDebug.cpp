@@ -120,7 +120,7 @@ static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT l
 }
 
 bool UIDebug::createWindow() {
-    mGameSize = Cfg.getCaptureDisplaySize();
+    mGameSize = Cfg.getCroppedDisplayRect().size();
     HMONITOR hDebugMonitor {};
     if (GetSystemMetrics(SM_CMONITORS) > 1) {
         HWND hWndED = FindWindow(Master::ED_WINDOW_CLASS, Master::ED_WINDOW_NAME);

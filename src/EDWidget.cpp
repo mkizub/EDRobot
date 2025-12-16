@@ -104,12 +104,22 @@ bool Screen::detect(DetectParams& params) {
             return false;
     }
 
-    if (transform) {
-        params.env.warpPerspective(transform);
-        if (transform->valid)
-            params.env.setWarpMode(transform->valid);
+    if (transform && transform->calcTransform(params.env)) {
+        XMat frameImage = transform->transformImage(params.env.getColorImage());
+        cv::Matx33d unWarpMat = transform->transformMatrix;
+        unWarpMat = unWarpMat.inv();
+        params.warpedEnv->init(frameImage, unWarpMat);
+        DetectParams wared_params{*params.warpedEnv, nullptr, params.uiState, params.level};
+        for (auto& cr : params.env.classified) {
+            if (cr.cdt == ClsDetType::Detected && cr.text.starts_with("nav_panel:"))
+                params.warpedEnv->classified.push_back(cr);
+        }
+        return detectWidgets(wared_params);
     }
+    return detectWidgets(params);
+}
 
+bool Screen::detectWidgets(DetectParams& params) {
     bool modeMatch = true;
     for (auto mode: this->have) {
         if (!mode || !(mode->tp == WidgetType::Mode || mode->tp == WidgetType::Dialog))
@@ -118,19 +128,15 @@ bool Screen::detect(DetectParams& params) {
         if (modeMatch)
             break;
     }
-    if (!modeMatch) {
-        params.env.setWarpMode(false);
+    if (!modeMatch)
         return false;
-    }
     if (!params.uiState.screen)
         params.uiState.screen = this;
     if (!params.uiState.widget)
         params.uiState.widget = this;
 
-    if (params.level <= DetectLevel::Screen) {
-        params.env.setWarpMode(false);
+    if (params.level <= DetectLevel::Screen)
         return true;
-    }
 
     for (auto widget: this->have) {
         if (!widget || widget->tp == WidgetType::Mode || widget->tp == WidgetType::Dialog)
@@ -138,7 +144,6 @@ bool Screen::detect(DetectParams& params) {
         safeDetect(widget, params);
     }
 
-    params.env.setWarpMode(false);
     return true;
 }
 
@@ -189,6 +194,8 @@ bool Mode::detect(DetectParams& params) {
 
 bool Label::detect(DetectParams& params) {
     cv::Rect r = params.env.calcReferenceRect(this->rect);
+    if (r.empty())
+        return false;
     if (ocr_bot > 0) {
         double scale = double(ocr_bot - ocr_top) / double(ocr::ASCENT+ocr::DESCENT);
         int reference_line_height = (int) std::round(ocr::LINE_HEIGHT * scale);
@@ -199,7 +206,7 @@ bool Label::detect(DetectParams& params) {
         //    //r.height += (int) std::round(scale*ocr::LEADING);
         //}
     }
-    params.env.classified.emplace_back(ClsDetType::Widget, params.env.isWarpMode(), this->name, r);
+    params.env.classified.emplace_back(ClsDetType::Widget, !params.warpedEnv, this->name, r);
     ClassifiedRect& clsLblRect = params.env.classified.back();
     clsLblRect.u.widg.referenceRect = r;
     clsLblRect.u.widg.ws = WState::Unknown;
@@ -244,12 +251,14 @@ bool BaseButton::detect(DetectParams& params) {
         //cv::cvtColor(env.getColorImage()(matchR), hsvImage, cv::COLOR_BGR2HSV);
         //XMat thrImage;
         //cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
-        XMat grayImage = env.getGrayImage()(matchR);
+        detect::ChannelFilter channelFilter(detect::ChannelFilter::gray);
+        XMat grayImage = channelFilter.apply(env.getColorImage()(matchR), {});
         detect::LaplacianFilter laplFilter(5);
         XMat laplImage = laplFilter.apply(grayImage, {});
         detect::ThresholdFilter thrFilter;
         XMat thrImage = thrFilter.apply(laplImage, {});
 
+        bool detected = false;
         std::vector<std::vector<cv::Point>> contours;
         cv::findContoursLinkRuns(thrImage, contours);
         for (auto &cont: contours) {
@@ -260,25 +269,29 @@ bool BaseButton::detect(DetectParams& params) {
                 cv::approxPolyN(convex, approx, 4, 5, true);
                 cv::Rect bbox = cv::boundingRect(approx);
                 bbox &= cv::Rect(cv::Point(),matchR.size());
-                if (bbox.width > captureR.width*0.9 && bbox.height > captureR.height*0.9 &&
-                    bbox.width < captureR.width*1.1 && bbox.height < captureR.height*1.1)
+                if ((bbox.width+2) > captureR.width*0.95 && (bbox.height+2) > captureR.height*0.95 &&
+                    (bbox.width-4) < captureR.width*1.08 && (bbox.height-4) < captureR.height*1.08)
                 {
                     captureR = {matchR.tl() + bbox.tl(), bbox.size()};
                     detectedR = env.cvtCapturedToReference(captureR);
+                    detected = true;
                     break;
                 }
             }
         }
+        if (!detected)
+            return false;
     }
 
-    env.classified.emplace_back(ClsDetType::Widget, env.isWarpMode(), this->name, detectedR);
+    env.classified.emplace_back(ClsDetType::Widget, !params.warpedEnv, this->name, detectedR);
     ClassifiedRect& clsBtnRect = env.classified.back();
     clsBtnRect.u.widg.referenceRect = expectedR;
     clsBtnRect.u.widg.ws = WState::Unknown;
     clsBtnRect.u.widg.widget = this;
 
-    detect::Histogram histDet(detect::Histogram::Mode::Hsv, detectedR);
-    if (!histDet.calc(env))
+    detect::Histogram histDet(detect::Histogram::Mode::Hsv);
+    XMat detectImage = env.getColorImage()(captureR);
+    if (!histDet.calc(detectImage))
         return false;
     WState ws = WState::Unknown;
     if (histDet.mLastColor[2] > 10) { // not black
@@ -724,7 +737,10 @@ bool Redused::normalize_rows() {
     return changed;
 }
 
-#define DEBUG_LIST_DETECTOR 1
+//#define DEBUG_LIST_DETECTOR 1
+#if defined(DEBUG_LIST_DETECTOR) && defined(NDEBUG)
+# error "DEBUG_LIST_DETECTOR in release build"
+#endif
 
 bool List::detect(DetectParams& params) {
     ClassifyEnv& env = params.env;
@@ -734,7 +750,7 @@ bool List::detect(DetectParams& params) {
     if (listCapturedRect.empty())
         return false;
 
-    env.classified.emplace_back(ClsDetType::Widget, env.isWarpMode(), this->name, listReferenceRect);
+    env.classified.emplace_back(ClsDetType::Widget, !params.warpedEnv, this->name, listReferenceRect);
     ClassifiedRect& clsListRect = env.classified.back();
     clsListRect.u.widg.referenceRect = listReferenceRect;
     clsListRect.u.widg.ws = WState::Unknown;
@@ -819,7 +835,7 @@ bool List::detect(DetectParams& params) {
 #ifdef  DEBUG_LIST_DETECTOR
         cv::Mat rowImage = toMat(env.getGrayImage()(rowCapturedRect));
 #endif
-        env.classified.emplace_back(ClsDetType::ListRow, env.isWarpMode(), "", rowReferenceRect);
+        env.classified.emplace_back(ClsDetType::ListRow, !params.warpedEnv, "", rowReferenceRect);
         ClassifiedRect& clsRowRect = env.classified.back();
         clsRowRect.u.lrow.capturedRect = rowCapturedRect;
         clsRowRect.u.lrow.list = this;
@@ -1010,39 +1026,51 @@ ExprLine::ExprLine(const json5pp::value& src)
 }
 
 cv::Point ExprPoint::calcReferencePoint(const ResolvedEnv& env) const {
-    cv::Point point;
-    for (int i=0; i < 2; i++) {
-        int* ptr = &point.x;
-        if (holds_alternative<int>(astPoint[i]))
-            ptr[i] = std::get<int>(astPoint[i]);
-        else
-            ptr[i] = eval(std::get<spAst>(astPoint[i]), env);
+    try {
+        cv::Point point;
+        for (int i = 0; i < 2; i++) {
+            int *ptr = &point.x;
+            if (holds_alternative<int>(astPoint[i]))
+                ptr[i] = std::get<int>(astPoint[i]);
+            else
+                ptr[i] = eval(std::get<spAst>(astPoint[i]), env);
+        }
+        return point;
+    } catch (...) {
+        return {};
     }
-    return point;
 }
 
 cv::Rect ExprRect::calcReferenceRect(const ResolvedEnv& env) const {
-    cv::Rect rect;
-    for (int i=0; i < 4; i++) {
-        int* ptr = &rect.x;
-        if (holds_alternative<int>(astRect[i]))
-            ptr[i] = std::get<int>(astRect[i]);
-        else
-            ptr[i] = eval(std::get<spAst>(astRect[i]), env);
+    try {
+        cv::Rect rect;
+        for (int i = 0; i < 4; i++) {
+            int *ptr = &rect.x;
+            if (holds_alternative<int>(astRect[i]))
+                ptr[i] = std::get<int>(astRect[i]);
+            else
+                ptr[i] = eval(std::get<spAst>(astRect[i]), env);
+        }
+        return rect;
+    } catch (...) {
+        return {};
     }
-    return rect;
 }
 
 cv::Line ExprLine::calcReferenceLine(const ResolvedEnv& env) const {
-    cv::Line line;
-    for (int i=0; i < 4; i++) {
-        int* ptr = &line.x0;
-        if (holds_alternative<int>(astLine[i]))
-            ptr[i] = std::get<int>(astLine[i]);
-        else
-            ptr[i] = eval(std::get<spAst>(astLine[i]), env);
+    try {
+        cv::Line line;
+        for (int i = 0; i < 4; i++) {
+            int *ptr = &line.x0;
+            if (holds_alternative<int>(astLine[i]))
+                ptr[i] = std::get<int>(astLine[i]);
+            else
+                ptr[i] = eval(std::get<spAst>(astLine[i]), env);
+        }
+        return line;
+    } catch (...) {
+        return {};
     }
-    return line;
 }
 
 static peg::parser& init_parser() {
@@ -1088,7 +1116,7 @@ static int getIntValue(const std::string_view& view, const ResolvedEnv& env) {
         if (equalsIgnoreCase(view, "ScreenHeight"))
             return ReferenceScreenSize.height;
         LOG(ERROR) << "Unknown identifier in expression: " << view;
-        return 0;
+        throw std::runtime_error("Bad identifier");
     }
     const ClassifiedRect* cr = nullptr;
     const std::string_view& name = view.substr(0,dot);
@@ -1112,7 +1140,7 @@ static int getIntValue(const std::string_view& view, const ResolvedEnv& env) {
     }
     if (!cr) {
         LOG(ERROR) << "Identifier for detector '" << name << "' not found in classified rects";
-        return 0;
+        throw std::runtime_error("No widget found");
     }
     const std::string_view& field = view.substr(dot+1);
     if (field == "x" || field == "l" || field == "left")
@@ -1136,7 +1164,7 @@ static int getIntValue(const std::string_view& view, const ResolvedEnv& env) {
     if (field == "oy" || field == "offset_y")
         return offset.y;
     LOG(ERROR) << "Field " << field << " not known, use x,y,w,h,l,t,r,b and cx,cy, ox, oy";
-    return 0;
+    throw std::runtime_error("Field not known");
 }
 
 static int eval_ast(const spAst& ast, const ResolvedEnv& env) {

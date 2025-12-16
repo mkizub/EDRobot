@@ -227,7 +227,7 @@ double LineDetector::match(ClassifyEnv& env, cv::Line refLine, XMat gameImage) {
         lastDeltaScale = 1;
     }
 
-    ClassifiedRect& cr = env.classified.emplace_back(ClsDetType::LineDetected, env.isWarpMode(), name + ':', cv::Rect());
+    ClassifiedRect& cr = env.classified.emplace_back(ClsDetType::LineDetected, false, name + ':', cv::Rect());
     if (!detectedLine.empty()) {
         cr.u.ldet.referenceLine = env.cvtCapturedToReference(detectedLine);
         cr.u.ldet.scale = lastDeltaScale;
