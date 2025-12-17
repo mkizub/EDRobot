@@ -6,8 +6,6 @@
 #include "Detector.h"
 #include "Lines.h"
 
-#include <opencv2/ximgproc.hpp>
-
 #include <iomanip>
 
 namespace detect {

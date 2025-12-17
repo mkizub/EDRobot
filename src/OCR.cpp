@@ -11,8 +11,6 @@
 #include <tesseract/capi.h>
 #include <leptonica/allheaders.h>
 
-#include <opencv2/dnn_superres.hpp>
-
 namespace ocr {
 
 static std::mutex tesseractMutex;

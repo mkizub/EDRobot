@@ -13,10 +13,7 @@
 #include "../Galaxy.h"
 
 #include <tesseract/baseapi.h>
-#include <curlcpp/curl_easy.h>
-#include <curlcpp/curl_ios.h>
-#include <curlcpp/curl_exception.h>
-#include <curlcpp/curl_header.h>
+#include <curl/curl.h>
 
 namespace ai {
 
@@ -610,39 +607,57 @@ json5pp::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     if (!ss || ss->systemName.empty() || !ss->systemAddress)
         return nullptr;
-    std::ostringstream resp;
-    curl::curl_ios<std::ostringstream> writer(resp);
-    curl::curl_easy easy(writer);
+
+    std::string readBuffer;
+
+    CURL* curl = curl_easy_init();
+    if (!curl)
+        return {};
+
     std::string url = base_url;
     if (url.contains("www.edsm.net")) {
         std::string systemName = ss->systemName;
-        easy.escape(systemName);
-        url += "?systemName=" + systemName;
+        url += "?systemName=";
+        url += curl_easy_escape(curl, systemName.c_str(), systemName.length());
     } else {
         url += std::to_string(ss->systemAddress);
     }
-    easy.add<CURLOPT_URL>(url.c_str());
-    easy.add<CURLOPT_FOLLOWLOCATION>(1L);
-    easy.add<CURLOPT_HTTPGET>(1L);
-    easy.add<CURLOPT_TIMEOUT>(5);
-    try {
-        easy.perform();
-    } catch (const curl::curl_easy_exception& ex) {
-        LOG(ERROR) << "EDSM request error: " << ex.what();
-        return nullptr;
-        //ex.print_traceback();
-    }
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Accept: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);
+    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    char errbuf[CURL_ERROR_SIZE] = {};
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+    CURLcode res = curl_easy_perform(curl);
+
+    if (res != CURLE_OK)
+        LOG(ERROR) << "Curl error: " << errbuf;
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK)
+        return {};
+
     //LOG(INFO) << "EDSM responce: " << resp.str();
     try {
-        auto jresp = json5pp::parse5(resp.str());
+        auto jresp = json5pp::parse5(readBuffer);
         if (!jresp["record"]) {
             LOG(ERROR) << "Bad response, expecting 'record': " << jresp;
-            return nullptr;
+            return {};
         }
         return std::move(jresp["record"]);
     } catch (const json5pp::syntax_error& ex) {
         LOG(ERROR) << "Error parsing EDSM response: " << ex.what();
-        return nullptr;
+        return {};
     }
 }
 
@@ -655,7 +670,6 @@ json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, 
 
     // Set URL and perform the request
     curl_easy_setopt(curl, CURLOPT_URL, base_url);
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json; charset: utf-8");

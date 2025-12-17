@@ -185,7 +185,8 @@ public:
     bool normalizeOrientation();
     bool flyTowardsTarget(dist_t dist);
     bool flyAlongSurface();
-    bool checkYaw();
+
+    bool surface_aligned = false;
 };
 
 class NavDockSelect : public BaseAutopilotStep {

@@ -2031,7 +2031,8 @@ bool DockPlanetPort::run() {
 
 
     BlindLock blindLock(ROLL_BLIND_NONE);
-    normalizeOrientation();
+    if (st::autopilot.distanceToDock && st::autopilot.distanceToDock < 12_km)
+        normalizeOrientation();
 
     // clear expired docking event
     auto de = Cfg.dockingEvent;
@@ -2136,57 +2137,24 @@ dist_t DockPlanetPort::getDockDistance(bool force) {
     return {};
 }
 
-bool DockPlanetPort::flyTowardsTarget(dist_t dist ) {
+bool DockPlanetPort::flyTowardsTarget(dist_t dist) {
     setSpeed(0);
-    bool need_surface_align = false;
     while (dist && dist > 12_km) {
-        need_surface_align = true;
         while (st::guiFocus != GuiFocus::None)
             sendUiBack();
+        surface_aligned = false;
         safe_dist = 12_km;
         CourseLocker course(0);
         flyTowardsStep();
         safe_dist = 7400_m;
         dist = st::autopilot.distanceToDock;
     }
-    if (need_surface_align) {
+    if (!surface_aligned) {
         setSpeed(0);
         normalizeOrientation();
     }
     flyAlongSurface();
     setSpeed(0);
-    return true;
-}
-
-bool DockPlanetPort::checkYaw() {
-    if (st::guiFocus != GuiFocus::None)
-        sendUiBack();
-    task->orientPitchStep(-35, 5000);
-    for (int i=0; i < 5; i++) {
-        ai::detectEDState(DetectLevel::Screen);
-        if (!ai::compassInfo.hemisphere) {
-            LOG(WARNING) << "Compass not detected";
-            continue;
-        }
-        float yaw = ai::compassInfo.targetYaw;
-        if (std::abs(yaw) > 5)
-            task->orientYawStep(yaw, 5000);
-        break;
-    }
-    task->orientPitchStep(+30, 5000);
-    for (int i=0; i < 5; i++) {
-        ai::detectEDState(DetectLevel::Screen);
-        if (!ai::compassInfo.hemisphere) {
-            LOG(WARNING) << "Compass not detected";
-            continue;
-        }
-        float roll = ai::compassInfo.targetRoll;
-        if (std::abs(roll) < 165) {
-            task->orientRollStep(roll-180, 5000);
-            continue;
-        }
-        break;
-    }
     return true;
 }
 
@@ -2216,6 +2184,7 @@ bool DockPlanetPort::normalizeOrientation() {
             task->orientPitchStep(pitch+90, 5000);
             continue;
         }
+        surface_aligned = true;
         break;
     }
     if (!run_sub_step(new NavDockSelect))
@@ -2230,30 +2199,32 @@ bool DockPlanetPort::flyAlongSurface() {
             sendUiBack();
             continue;
         }
-        if ((step % 10) == 0) {
-            checkYaw();
-            continue;
-        }
         if (st::shipAtBody.altitude < 2000) {
             kbd::send("UpThrustButton", 3000, 500);
-            continue;
-        }
-        if (st::shipAtBody.altitude > 6500) {
-            kbd::send("DownThrustButton", 1000, 500);
             continue;
         }
         ai::detectEDState(DetectLevel::Screen);
         dist_t dist = getDockDistance((step % 10) == 0);
         if (dist && dist.get_m() < 7000)
             return true;
+        if (st::shipAtBody.altitude > 5000) {
+            kbd::send("DownThrustButton", 1000, 500);
+            continue;
+        }
         if (!ai::compassInfo.hemisphere) {
             LOG(WARNING) << "Compass not detected";
             step -= 1;
             continue;
         }
         float yaw = ai::compassInfo.targetYaw;
+        if (ai::compassInfo.hemisphere < 0) {
+            if (yaw > 0)
+                yaw = 180 - yaw;
+            else
+                yaw = -180 - yaw;
+        }
         float pitch = ai::compassInfo.targetPitch;
-        if ((pitch > -60 || pitch < -120) && std::abs(yaw) > 5) {
+        if ((pitch > -60 || pitch < -120) && std::abs(yaw) > 10) {
             task->orientYawStep(yaw, 5000);
             continue;
         }
@@ -2264,7 +2235,7 @@ bool DockPlanetPort::flyAlongSurface() {
             continue;
         }
         if (pitch < -110) {
-            setSpeed(-25);
+            setSpeed(-100);
             sleep(5000);
             setSpeed(0);
             continue;
@@ -3076,7 +3047,7 @@ bool DiveUnderPlanetStep::run() {
         if (dist_body_km < 2.25*st::autopilot.destBody->radius)
             return false; // need to fly away
         float angle_to_dive;
-        if (!std::isnan(disk_part) && disk_part > 0.6) {
+        if (!std::isnan(disk_part) && disk_part > 0.6 && !toPort) {
             angle_to_dive = 50;
         } else {
             angle_to_dive = std::asin(2*st::autopilot.destBody->radius / dist_body_km) * 180 / M_PI;
@@ -3963,19 +3934,21 @@ bool Autopilot::run() {
             }
         }
 
-        int bodyId = st::destination.bodyId;
+        int destBodyId = st::destination.bodyId;
         if (dest && isBody(dest->type))
-            assert(dest->bodyId == bodyId);
+            assert(dest->bodyId == destBodyId);
         else if (dest && isSpaceStation(dest->type))
-            bodyId = dest->parentBodyId;
-        if (bodyId >= 0 && isSpaceStation(dest->type)) {
-            auto body = starSystem->getBodyById(bodyId);
+            destBodyId = dest->parentBodyId;
+        if (destBodyId >= 0) {
+            auto body = starSystem->getBodyById(destBodyId);
             if (!body) {
-                LOG(ERROR) << std::format("Cannot find body id: {0} in system {1}" , bodyId, starSystem->systemName);
-                dest->parentBodyId = -1;
+                LOG(ERROR) << std::format("Cannot find body id: {0} in system {1}" , destBodyId, starSystem->systemName);
+                if (dest && isSite(dest->type))
+                    dest->parentBodyId = -1;
             } else if (!isBody(body->type)) {
-                LOG(ERROR) << std::format("Not a star/planet body id: {0} in system {1}" , bodyId, starSystem->systemName);
-                dest->parentBodyId = -1;
+                LOG(ERROR) << std::format("Not a star/planet body id: {0} in system {1}" , destBodyId, starSystem->systemName);
+                if (dest && isSite(dest->type))
+                    dest->parentBodyId = -1;
             } else {
                 st::autopilot.setDestBody(body);
             }

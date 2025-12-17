@@ -345,12 +345,13 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
         }
     }
 #ifdef EDROBOT_USE_OPENCL
-    //D3D11_TEXTURE2D_DESC texture_desc;
-    //texture->GetDesc(&texture_desc);
-    cv::directx::convertFromD3D11Texture2D(texture, frame->rawColorImage);
-    frame->rawColorImageValid = true;
-#else
-
+    if (useOpenCL()) {
+        cv::directx::convertFromD3D11Texture2D(texture, frame->rawColorImage);
+        frame->rawColorImageValid = true;
+        m_outputDuplication->ReleaseFrame();
+        return {(Frame*)frame, FrameRecycler()};
+    }
+#endif
     D3D11_TEXTURE2D_DESC texture_desc;
     texture->GetDesc(&texture_desc);
     if (!frame->mStagingTexture || !frame->stagingTextureValid) {
@@ -421,9 +422,8 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
         frame->stagingTextureMapped = false;
         frame->rawColorImageValid = true;
     }
-#endif
-    m_outputDuplication->ReleaseFrame();
 
+    m_outputDuplication->ReleaseFrame();
     return {(Frame*)frame, FrameRecycler()};
 }
 

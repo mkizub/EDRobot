@@ -3,6 +3,7 @@
   "default-key-after-time": 65,
   "search-region-extent": 10,
   "tesseract-data-path": "tessdata", // defaults to "tessdata"
+  //"force-dxgi-device": "AMD Radeon RX 6600", // defaults to first DXGI adapter, use device name or device id
   "capturer-DXGI-disabled": false, // preferred if full-screen/borderless mode
   "capturer-WinRT-disabled": false, // preferred if windowed mode
   "capturer-Win32-disabled": false, // fallback if DXGI/WinRT fail or disabled

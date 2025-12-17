@@ -11,6 +11,6 @@ set CMAKE="C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\C
 
 %CMAKE% -DCMAKE_BUILD_TYPE=Release -D "CMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
         -G Ninja -S . -B cmake-build\msvc\Release
-%CMAKE% --build cmake-build\msvc\Release
+%CMAKE% --build cmake-build\msvc\Release --target package
 
 endlocal

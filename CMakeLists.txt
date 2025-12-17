@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release RelWithDebInfo)
 
-project(EDRobot VERSION 0.8.2)
+project(EDRobot VERSION 0.8.3)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,7 +14,6 @@ find_package(OpenCV REQUIRED)
 #find_package(Gettext REQUIRED)
 find_library(GETTEXT_LIBRARIES intl iconv)
 find_package(CURL REQUIRED)
-find_package(curlcpp CONFIG REQUIRED)
 find_package(cpptrace CONFIG REQUIRED)
 add_library(vJoyInterface SHARED IMPORTED)
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION_RELEASE "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
@@ -148,7 +147,7 @@ target_include_directories(EDRobot PRIVATE thirdparty)
 target_link_libraries(EDRobot PRIVATE ${GETTEXT_LIBRARIES})
 target_link_libraries(EDRobot PRIVATE ${OpenCV_LIBS})
 target_link_libraries(EDRobot PRIVATE Tesseract::libtesseract)
-target_link_libraries(EDRobot PRIVATE curlcpp::curlcpp CURL::libcurl)
+target_link_libraries(EDRobot PRIVATE CURL::libcurl)
 target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1) # windowsapp
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot PRIVATE cpptrace::cpptrace)
@@ -200,3 +199,6 @@ install(FILES
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_FILE_NAME "EDRobot-${PROJECT_VERSION}")
+include(CPack)

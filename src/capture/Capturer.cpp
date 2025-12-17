@@ -57,27 +57,72 @@ void Frame::recycle(Frame* p) {
 bool Capturer::InitD3DDevice() {
     assert (main_thread_id == std::this_thread::get_id());
     if (!D3dDevice) {
+        HRESULT hr;
+        CComPtr<IDXGIAdapter1> dxgiAdapter1;
+        CComPtr<IDXGIFactory1> dxgiFactory1;
+        hr = CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory1));
+        if (FAILED(hr)) {
+            LOG(ERROR) << "Failed to create DXGI factory1: " << getErrorMessage(hr);
+        } else {
+            LOG(INFO) << "DXGI adapters:";
+            std::wstring forcedDxgiDevice = toUtf16(Cfg.getForcedDXGIDeviceName());
+            int forcedDxgiDeviceId = Cfg.getForcedDXGIDeviceId();
+            for (int i=0;; i++) {
+                CComPtr<IDXGIAdapter1> dxgiAdapterTmp;
+                hr = dxgiFactory1->EnumAdapters1(i, &dxgiAdapterTmp);
+                if (FAILED(hr))
+                    break;
+                DXGI_ADAPTER_DESC1 desc {};
+                dxgiAdapterTmp->GetDesc1(&desc);
+                bool forced = false;
+                if (!dxgiAdapter1) {
+                    if (forcedDxgiDeviceId == desc.DeviceId || forcedDxgiDevice == desc.Description) {
+                        dxgiAdapter1.Attach(dxgiAdapterTmp.Detach());
+                        forced = true;
+                    }
+                }
+                LOG(INFO) << std::format(L"DXGI adapter[{}]: device id: {}, name: '{}'{}", i,
+                                         desc.DeviceId, desc.Description,
+                                         (forced ? L" (force use this device)" : L""));
+            }
+        }
         static const D3D_FEATURE_LEVEL featureLevels[] = {
                 D3D_FEATURE_LEVEL_11_1,
                 D3D_FEATURE_LEVEL_11_0,
         };
         D3D_FEATURE_LEVEL featureLevel;
-        CComPtr<ID3D11Device> device;
-        HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+        CComPtr<ID3D11Device> d3dDeviceTmp;
+        hr = D3D11CreateDevice(dxgiAdapter1, dxgiAdapter1 ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, nullptr,
                                D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                                featureLevels, std::size(featureLevels), D3D11_SDK_VERSION,
-                               &device, &featureLevel, NULL);
+                               &d3dDeviceTmp, &featureLevel, NULL);
         if (SUCCEEDED(hr))
-            hr = device->QueryInterface(IID_PPV_ARGS(&D3dDevice));
+            hr = d3dDeviceTmp->QueryInterface(IID_PPV_ARGS(&D3dDevice));
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed to create D3D11 device: " << getErrorMessage(hr);
         } else {
             D3dDevice->GetImmediateContext1(&D3dContext);
             if (useOpenCL()) {
-                cv::directx::ocl::initializeContextFromD3D11Device(D3dDevice);
-                LOG(INFO) << "Using OpenCL device: " << cv::ocl::Context::getDefault().device(0).name();
+                cv::ocl::setUseOpenCL(true);
+                std::vector<cv::ocl::PlatformInfo> cl_platforms;
+                cv::ocl::getPlatfomsInfo(cl_platforms);
+                LOG(INFO) << "OpenCL platforms & devices:";
+                for (int i = 0; i < cl_platforms.size(); i++) {
+                    cv::ocl::PlatformInfo sdk = cl_platforms.at(i);
+                    for (int j = 0; j < sdk.deviceNumber(); j++) {
+                        cv::ocl::Device oclDevice;
+                        sdk.getDevice(oclDevice, j);
+                        LOG(INFO) << std::format("    Device[{}/{}]: '{}', version: '{}' {}",
+                                                 i, j, oclDevice.name(), oclDevice.version(),
+                                                 (oclDevice.available() ? "(available)" : "(not available)"));
+                    }
+                }
+                cv::ocl::Context& cl_context = cv::directx::ocl::initializeContextFromD3D11Device(D3dDevice);
+                LOG(INFO) << std::format("Using OpenCL device: name='{}', version='{}'",
+                                         cl_context.device(0).name(), cl_context.device(0).version());
             } else {
                 cv::ocl::setUseOpenCL(false);
+                LOG(INFO) << "OpenCL: disabled";
             }
         }
     }
@@ -104,16 +149,6 @@ void Capturer::shutdown() {
 void Capturer::resetEDCapturer() {
     assert (main_thread_id == std::this_thread::get_id());
     TheCapturer.reset();
-}
-
-void Capturer::restart() {
-//    if (useOpenCL())
-//        cv::directx::ocl::finish();
-//    D3dQuery.Release();
-//    D3dContext.Release();
-//    D3dDevice.Release();
-//    TheCapturer.reset();
-//    InitD3DDevice();
 }
 
 Capturer* Capturer::getEDCapturer(HWND hwnd) {
@@ -241,4 +276,3 @@ cv::Rect Capturer::getCaptureRect() {
 cv::Rect Capturer::getMonitorVirtualRect() {
     return monitorVirtRect;
 }
-

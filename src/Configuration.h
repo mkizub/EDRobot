@@ -113,6 +113,8 @@ public:
     bool load();
     void shutdown();
     std::string getErrorMessage() const { return errorMessage; }
+    std::string getForcedDXGIDeviceName() const { return forceDXGIDevice; }
+    int getForcedDXGIDeviceId() const { return forceDXGIDeviceId; }
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
@@ -180,6 +182,8 @@ private:
     int defaultKeyHoldTime = 35;
     int defaultKeyAfterTime = 50;
     int searchRegionExtent = 10;
+    std::string forceDXGIDevice;
+    int forceDXGIDeviceId = -1;
     bool capturerWin32Disabled = false;
     bool capturerWinRTDisabled = false;
     bool capturerDXGIDisabled = false;

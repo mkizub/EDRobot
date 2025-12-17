@@ -20,7 +20,6 @@ public:
 
     static Capturer* getEDCapturer(HWND hwnd);
     static void resetEDCapturer();
-    static void restart();
     static void shutdown();
 
     virtual ~Capturer() = default;

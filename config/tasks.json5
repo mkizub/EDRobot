@@ -1,12 +1,48 @@
 [
   {
+    "templ": "tsk-market-buy-constr",
+    "name": "Покупки для стройки Gandhi Gateway",
+    "system": "Col 285 Sector XK-O d6-69",
+    "dock": "Orbital Construction Site: Gandhi Gateway",
+    "mode": "ExceptLittleFirst"
+  },
+  {
+    "templ": "tsk-trade-loop",
+    "name": "Стройка Gandhi Gateway мелочёвка",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector XK-O d6-69",
+        "dock": "Gulyaev City",
+        "tasks": [
+          {
+            "templ": "tsk-market-buy-constr",
+            "system": "Col 285 Sector XK-O d6-69",
+            "dock": "Orbital Construction Site: Gandhi Gateway",
+            "mode": "ExceptLittleFirst"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "Col 285 Sector XK-O d6-69",
+        "dock": "Orbital Construction Site: Gandhi Gateway",
+        "tasks": [
+          {
+            "templ": "tsk-constr-unload"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "templ": "tsk-trade-loop",
     "name": "Стройка Bushkov Enterprise мелочёвка",
     "markets": [
       {
         "templ": "tsk-trade-at",
-        "system": "HIP 93363",
-        "dock": "Bogacki Site",
+        "system": "Col 285 Sector XK-O d6-81",
+        "dock": "Ryman Gateway",
         "tasks": [
           {
             "templ": "tsk-market-buy-constr",

@@ -122,6 +122,12 @@ bool Configuration::load() {
             mEDLogsPath = toUtf16(tm.as_string());
         if (auto tm = j_config.at("tesseract-data-path"); tm.is_string())
             mTesseractDataPath = tm.as_string();
+        if (auto &tm = j_config.at("force-dxgi-device")) {
+            if (tm.is_string())
+                forceDXGIDevice = tm.as_string();
+            if (tm.is_integer())
+                forceDXGIDeviceId = tm.as_integer();
+        }
         if (auto &tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
             capturerWin32Disabled = tm.as_boolean();
         if (auto &tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())

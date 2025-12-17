@@ -2,12 +2,15 @@
   "name" : "edrobot",
   "version-string" : "1.0.0",
   "builtin-baseline" : "9eb6e4b60ea5bdd60a87e8d2353d53882a32a3f3",
+  "configuration": {
+    "overlay-ports": [ "./overlay-ports/opencv4"]
+  },
   "dependencies" : [ {
     "name" : "cpptrace",
     "version>=" : "1.0.0"
   }, {
     "name" : "opencv4",
-    "features" : [ "win32ui", "highgui", "dnn", "contrib", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "fs", "world" ],
+    "features" : [ "win32ui", "highgui", "dnn", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "fs", "world" ],
     "default-features" : false
   }, {
     "name" : "gettext",
@@ -24,13 +27,7 @@
     "name" : "curl",
     "version>=" : "8.14.1"
   }, {
-    "name" : "curlcpp",
-    "version>=" : "3.1#1"
-  }, {
     "name" : "boost-circular-buffer",
     "version>=" : "1.88.0"
-  }, {
-    "name" : "opencl",
-    "version>=" : "2024.10.24"
   } ]
 }

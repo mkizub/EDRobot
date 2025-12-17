@@ -62,20 +62,24 @@ const XMat& FrameWinRT::getImage() const {
         return colorImage;
 
 #ifdef EDROBOT_USE_OPENCL
-    cv::directx::convertFromD3D11Texture2D(mStagingTexture.get(), colorImage);
-#else
-    D3D11_MAPPED_SUBRESOURCE stagingMappedTex {};
-    HRESULT hr = Capturer::getID3D11DeviceContext()->Map(mStagingTexture.get(), 0, D3D11_MAP_READ, 0, &stagingMappedTex);
-    if (FAILED(hr)) {
-        LOG(ERROR) << "CapturerDXGI Failed to map staging texture: " << getErrorMessage(hr);
-        colorImageValid = false;
-    } else {
-        cv::Mat mappedImage(mStagingTextureDesc.Height, mStagingTextureDesc.Width,
-                            CV_8UC4, stagingMappedTex.pData, stagingMappedTex.RowPitch);
-        cv::copyTo(mappedImage, colorImage, cv::noArray());
-        Capturer::getID3D11DeviceContext()->Unmap(mStagingTexture.get(), 0);
-    }
+    if (useOpenCL()) {
+        cv::directx::convertFromD3D11Texture2D(mStagingTexture.get(), colorImage);
+    } else
 #endif
+    {
+        D3D11_MAPPED_SUBRESOURCE stagingMappedTex{};
+        HRESULT hr = Capturer::getID3D11DeviceContext()->Map(mStagingTexture.get(), 0, D3D11_MAP_READ, 0,
+                                                             &stagingMappedTex);
+        if (FAILED(hr)) {
+            LOG(ERROR) << "CapturerDXGI Failed to map staging texture: " << getErrorMessage(hr);
+            colorImageValid = false;
+        } else {
+            cv::Mat mappedImage(mStagingTextureDesc.Height, mStagingTextureDesc.Width,
+                                CV_8UC4, stagingMappedTex.pData, stagingMappedTex.RowPitch);
+            cv::copyTo(mappedImage, colorImage, cv::noArray());
+            Capturer::getID3D11DeviceContext()->Unmap(mStagingTexture.get(), 0);
+        }
+    }
     if (cv::Size(colorImage.cols,colorImage.rows) != this->size) {
         // need rescaling
         XMat tmp;

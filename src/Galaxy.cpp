@@ -7,7 +7,7 @@
 #include "Galaxy.h"
 #include "ai/Types.h"
 
-#include <curl_easy.h>
+#include <curl/curl.h>
 
 namespace gal {
 

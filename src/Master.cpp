@@ -22,7 +22,7 @@
 #include "opencv2/core/utils/logger.hpp"
 #include <CLI11/CLI11.hpp>
 #include <magic_enum/magic_enum.hpp>
-#include <curl_easy.h>
+#include <curl/curl.h>
 
 #ifndef NDEBUG
 #include <cpptrace/cpptrace.hpp>
