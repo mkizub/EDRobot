@@ -3,13 +3,13 @@
     name: 'scr-market',
     status: { gui: 'Services', docked: true },
     have: [
-      { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
-      { name: 'btn-help', action: 'help', rect: [295,980,195,40] },
-      { name: 'btn-filter', action: 'dlg-filter', rect: [97,633,134,73] },
-      { name: 'btn-compare', action: 'dlg-compare', rect: [97,509,134,79] },
-      { name: 'btn-to-sell', action: 'mod-sell', rect: [96,316,133,129] },
-      { name: 'btn-to-buy',  action: 'mod-buy', rect: [96,177,133,129] },
-      { name: 'lst-goods', action: 'dlg-trade', rect: [250,252,1018,718],
+      { name: 'btn-exit', rect: [96,981,193,40] },
+      { name: 'btn-help', rect: [295,980,195,40] },
+      { name: 'btn-filter', rect: [97,633,134,73] },
+      { name: 'btn-compare', rect: [97,509,134,79] },
+      { name: 'btn-to-sell', rect: [96,316,133,129] },
+      { name: 'btn-to-buy',  rect: [96,177,133,129] },
+      { name: 'lst-goods', rect: [250,252,1018,718],
         row_height: 36, row_gap: 2, header: 38, row_test: [300,540],
         tabs: [
           {left:0,   right:114 },
@@ -40,9 +40,9 @@
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[700, 714, 100, 100], ext: [0,30,10,70], name: "sdil" }
                 ],
                 have: [
-                  { name: 'btn-cancel', action: 'close', rect: [714,"848+sdil.oy",242,38] },
-                  { name: 'btn-more', action: 'mod-more', rect: [965,"848+sdil.oy",242,38] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [714,"575+sdil.oy",494,60] },
+                  { name: 'btn-cancel', rect: [714,"848+sdil.oy",242,38] },
+                  { name: 'btn-more', rect: [965,"848+sdil.oy",242,38] },
+                  { name: 'btn-commit', rect: [714,"575+sdil.oy",494,60] },
                   { name: 'spn-amount', rect: [714,"348+sdil.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [777,"298+sdtl.oy",428,"spn-amount.y - 306-sdtl.oy"], ocr_top: 6, ocr_bot: 38}
                 ]
@@ -54,13 +54,13 @@
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[500, 714, 100, 100], ext: [0,30,10,70], name: "sdim" }
                 ],
                 have: [
-                  { name: 'btn-cancel', action: 'close', rect: [509,"848+sdim.oy",242,38] },
-                  { name: 'btn-more', action: 'mod-less', rect: [762,"848+sdim.oy",242,38] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"575+sdim.oy",490,60] },
+                  { name: 'btn-cancel', rect: [509,"848+sdim.oy",242,38] },
+                  { name: 'btn-more', rect: [762,"848+sdim.oy",242,38] },
+                  { name: 'btn-commit', rect: [512,"575+sdim.oy",490,60] },
                   { name: 'spn-amount', rect: [510,"349+sdim.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [573,"298+sdtm.oy",430,"spn-amount.y - 306-sdtm.oy"], ocr_top: 6, ocr_bot: 38},
-                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"809+sdim.oy",382,76] },
-                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1040,315,350,"482+sdim.oy"] }
+                  { name: 'btn-galaxy', rect: [1028,"809+sdim.oy",382,76] },
+                  { name: 'lst-markets', rect: [1040,315,350,"482+sdim.oy"] }
                 ]
               }
             ],
@@ -86,9 +86,9 @@
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[707, 701, 100, 100], ext: [0,30,10,70], name: "bdil" }
                 ],
                 have: [
-                  { name: 'btn-cancel', action: 'close', rect: [712,"832+bdil.oy",242,38] },
-                  { name: 'btn-more', action: 'mod-more', rect: [964,"832+bdil.oy",242,38] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [712,"560+bdil.oy",490,60] },
+                  { name: 'btn-cancel', rect: [712,"832+bdil.oy",242,38] },
+                  { name: 'btn-more', rect: [964,"832+bdil.oy",242,38] },
+                  { name: 'btn-commit', rect: [712,"560+bdil.oy",490,60] },
                   { name: 'spn-amount', rect: [712,"360+bdil.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [778,"312+bdtl.oy",432,"spn-amount.y - 320-bdtl.oy"], ocr_top: 6, ocr_bot: 38 },
                 ]
@@ -100,13 +100,13 @@
                   { img: "at_market_dialog.png",      t: [0.6, 0.8], rect:[504, 701, 100, 100], ext: [0,30,10,70], name: "bdim" }
                 ],
                 have: [
-                  { name: 'btn-cancel', action: 'close', rect: [509,"832+bdim.oy",242,38] },
-                  { name: 'btn-more', action: 'mod-less', rect: [761,"832+bdim.oy",242,38] },
-                  { name: 'btn-commit', action: ['commit', 'close'], rect: [512,"560+bdim.oy",490,60] },
+                  { name: 'btn-cancel', rect: [509,"832+bdim.oy",242,38] },
+                  { name: 'btn-more', rect: [761,"832+bdim.oy",242,38] },
+                  { name: 'btn-commit', rect: [512,"560+bdim.oy",490,60] },
                   { name: 'spn-amount', rect: [510,"360+bdim.oy",496,62], ext: [5,25,5,25] },
                   { name: 'lbl-commodity', rect: [573,"312+bdtm.oy",432,"spn-amount.y - 320-bdtm.oy"], ocr_top: 6, ocr_bot: 38 },
-                  { name: 'btn-galaxy', action: ['galaxy-map'], rect: [1028,"796+bdim.oy",382,76] },
-                  { name: 'lst-markets', action: ['galaxy-map'], rect: [1037,310,350,"486+bdim.oy"] }
+                  { name: 'btn-galaxy', rect: [1028,"796+bdim.oy",382,76] },
+                  { name: 'lst-markets', rect: [1037,310,350,"486+bdim.oy"] }
                 ]
               }
             ],
@@ -135,34 +135,35 @@
     status: { gui: 'GalaxyMap' },
     detect: true,
     have: [
-      { name: 'btn-my-bookmarks', rect: [76,169,44,44] },
-      { name: 'btn-my-constr',    rect: [76,226,44,44] },
-      { name: 'btn-my-fleet',     rect: [76,284,44,44] },
-      { name: 'btn-my-missions',  rect: [76,341,44,44] },
-      { name: 'btn-view-1',       rect: [76,410,44,44] },
-      { name: 'btn-view-2',       rect: [76,467,44,44] },
-      { name: 'btn-view-3',       rect: [76,525,44,44] },
-      { name: 'btn-view-4',       rect: [76,583,44,44] },
-      { name: 'btn-view-5',       rect: [76,640,44,44] },
-      { name: 'btn-star-size',    rect: [76,709,44,44] },
-      { name: 'btn-trade',        rect: [76,767,44,44] },
-      { name: 'btn-route',        rect: [76,835,44,44] },
-      { name: 'btn-filters',      rect: [76,893,44,44] },
+      //{ name: 'btn-my-bookmarks', rect: [76,169,44,44] },
+      //{ name: 'btn-my-constr',    rect: [76,226,44,44] },
+      //{ name: 'btn-my-fleet',     rect: [76,284,44,44] },
+      //{ name: 'btn-my-missions',  rect: [76,341,44,44] },
+      //{ name: 'btn-view-1',       rect: [76,410,44,44] },
+      //{ name: 'btn-view-2',       rect: [76,467,44,44] },
+      //{ name: 'btn-view-3',       rect: [76,525,44,44] },
+      //{ name: 'btn-view-4',       rect: [76,583,44,44] },
+      //{ name: 'btn-view-5',       rect: [76,640,44,44] },
+      //{ name: 'btn-star-size',    rect: [76,709,44,44] },
+      //{ name: 'btn-trade',        rect: [76,767,44,44] },
+      //{ name: 'btn-route',        rect: [76,835,44,44] },
+      //{ name: 'btn-filters',      rect: [76,893,44,44] },
       { name: 'btn-exit',         rect: [76,983,44,44] },
-      { name: 'btn-tgt-info',     rect: [1801,168,44,44] },
-      { name: 'btn-tgt-constr',   rect: [1801,226,44,44] },
-      { name: 'btn-tgt-xxx',      rect: [1801,283,44,44] },
-      { name: 'btn-tgt-trade',    rect: [1801,341,44,44] },
-      { name: 'btn-tgt-ships',    rect: [1801,399,44,44] },
-      { name: 'btn-tgt-missions', rect: [1801,456,44,44] },
-      { name: 'btn-tgt-friends',  rect: [1801,513,44,44] },
+      //{ name: 'btn-tgt-info',     rect: [1801,168,44,44] },
+      //{ name: 'btn-tgt-constr',   rect: [1801,226,44,44] },
+      //{ name: 'btn-tgt-pp',       rect: [1801,283,44,44] },
+      //{ name: 'btn-tgt-trade',    rect: [1801,341,44,44] },
+      //{ name: 'btn-tgt-ships',    rect: [1801,399,44,44] },
+      //{ name: 'btn-tgt-missions', rect: [1801,456,44,44] },
+      //{ name: 'btn-tgt-friends',  rect: [1801,513,44,44] },
       { name: 'btn-tgt-nav-to',   rect: [1801,582,44,44] },
-      { name: 'btn-tgt-select',   rect: [1801,640,44,44] },
-      { name: 'btn-tgt-bookmark', rect: [1801,697,44,44] },
-      { name: 'btn-tgt-system',   rect: [1801,755,44,44] },
-      { name: 'btn-tgt-xy',       rect: [1801,813,44,44] },
-      { name: 'btn-tgt-focus',    rect: [1801,881,44,44] },
-      { name: 'btn-tgt-copy',     rect: [1801,939,44,44] },
+      //{ name: 'btn-tgt-select',   rect: [1801,640,44,44] },
+      //{ name: 'btn-tgt-bookmark', rect: [1801,697,44,44] },
+      //{ name: 'btn-tgt-system',   rect: [1801,755,44,44] },
+      //{ name: 'btn-tgt-buy-data', rect: [1801,813,44,44] }, // may be missing
+      //{ name: 'btn-tgt-commodity',rect: [1801,813,44,44] },
+      //{ name: 'btn-tgt-focus',    rect: [1801,881,44,44] },
+      { name: 'btn-tgt-copy',     rect: [1801,939,44,44], ext: [2,2,2,66], icon: "galaxy/tgt-copy*.png" },
       { name: 'lbl-search',       rect: [691,112,475,28] },
       { name: 'lbl-drop-down',    rect: [689,143,544,74] }
     ]
@@ -173,32 +174,163 @@
     detect: [
       { tiles: [170,444,966,484], rows: [2,4], cols: 3, gap: 10, name: "dserv", t: [0.7, 0.9],
         icons: "services/dock-*.png", rect: [0,0,50,50], ext: [0,0,12,12],
+        method:'corr',
         icon_align: "top-left"
       },
       { tiles: [1165,771,584,158], rows: 1, cols: [3,4], gap: 16, name: "sserv", t: [0.7, 0.9],
         icons: "services/ship-*.png", rect: [0,0,90,80],
+        method:'corr',
         icon_align: "top-left"
       }
     ],
     have: [
-      { name: 'btn-exit', action: 'close', rect: [162,960,306,38] },
-      { name: 'til-market',      action: 'market',      icon: "dserv:dock-market" },
-      { name: 'til-mission',     action: 'missions',    icon: "dserv:dock-missions" },
-      { name: 'til-shipyard',    action: 'shipyard',    icon: "dserv:dock-shipyard" },
-      { name: 'til-univcart',    action: 'univcart',    icon: "dserv:dock-univcart" },
-      { name: 'til-contacts',    action: 'contacts',    icon: "dserv:dock-contacts" },
-      { name: 'til-crew',        action: 'crew',        icon: "dserv:dock-crew" },
-      { name: 'til-tritium',     action: 'tritium',     icon: "dserv:dock-tritium" },
-      { name: 'til-carriermgr',  action: 'carriermgr',  icon: "dserv:dock-carriermgr" },
-      { name: 'til-redempt',     action: 'redempt',     icon: "dserv:dock-redempt" },
-      { name: 'til-blackmarket', action: 'blackmarket', icon: "dserv:dock-blackmarket" },
-      { name: 'til-arch',        action: 'arch',        icon: "dserv:dock-arch" },
-      //{ name: 'til-news',        action: 'news',        row: 3, col: 0 },
+      { name: 'btn-exit', rect: [162,960,306,38] },
+      { name: 'til-market',      icon: "dserv:dock-market" },
+      { name: 'til-mission',     icon: "dserv:dock-missions" },
+      { name: 'til-shipyard',    icon: "dserv:dock-shipyard" },
+      { name: 'til-univcart',    icon: "dserv:dock-univcart" },
+      { name: 'til-contacts',    icon: "dserv:dock-contacts" },
+      { name: 'til-crew',        icon: "dserv:dock-crew" },
+      { name: 'til-tritium',     icon: "dserv:dock-tritium" },
+      { name: 'til-carriermgr',  icon: "dserv:dock-carriermgr" },
+      { name: 'til-redempt',     icon: "dserv:dock-redempt" },
+      { name: 'til-blackmarket', icon: "dserv:dock-blackmarket" },
+      { name: 'til-arch',        icon: "dserv:dock-arch" },
+      //{ name: 'til-news',        row: 3, col: 0 },
 
-      { name: 'til-outfitting',  action: 'outfitting',   icon: "sserv:ship-outfitting" },
-      { name: 'til-design',      action: 'design',       icon: "sserv:ship-design" },
-      { name: 'til-maintenance', action: 'maintenance',  icon: "sserv:ship-maintenance" },
-      { name: 'til-workshop',    action: 'workshop',     icon: "sserv:ship-workshop" },
+      { name: 'til-outfitting',  icon: "sserv:ship-outfitting" },
+      { name: 'til-design',      icon: "sserv:ship-design" },
+      { name: 'til-maintenance', icon: "sserv:ship-maintenance" },
+      { name: 'til-workshop',    icon: "sserv:ship-workshop" },
+    ]
+  },
+  {
+    name: 'scr-contacts',
+    status: { gui: 'Services', docked: true },
+    have: [
+      { name: 'mod-select',
+        detect: [
+          //{ img: "at_contacts_icon.png", t: [0.6, 0.8], rect:[451, 119, 90, 90] },
+          { img: "at_contacts_select-*.png", t: [0.6, 0.8], rect:[433, 100, 300, 130] },
+          {
+            tiles: [435,233,1038,616], rows: [2,5], cols: 2, gap: 4, name: 'contact',
+            size: [517,120], test: [140,90,60,20], merge: false,
+            rect: [138,4,360,28],
+            labels: {
+              'authority': ["Представитель администрации"],
+              'bonds': ["Контакт: боевые облигации"],
+              'black-market': ["Черный рынок"],
+              'power-play': ["Представитель державы"],
+              'resque': ["Контакт: поиск и спасение"],
+              'colonization': ["Колонизация системы"],
+              'factors':  ["Interstellar Factors"],
+              'mat-trader': ["Торговец материалами"],
+              'tech-broker': ["Техноброкер"],
+            }
+          }
+        ],
+        have: [
+          { name: 'lbl-title',        rect: [260,49,750,38], ocr_top: 6, ocr_bot: 37 },
+          { name: 'til-authority',    icon: 'contact:authority' },
+          { name: 'til-bonds',        icon: 'contact:bonds' },
+          { name: 'til-black-market', icon: 'contact:black-market' },
+          { name: 'til-power-play',   icon: 'contact:power-play' },
+          { name: 'til-resque',       icon: 'contact:resque' },
+          { name: 'til-colonization', icon: 'contact:colonization' },
+          { name: 'til-factors',      icon: 'contact:factors' },
+          { name: 'til-mat-trader',   icon: 'contact:mat-trader' },
+          { name: 'til-tech-broker',  icon: 'contact:tech-broker' },
+          { name: 'btn-back', rect: [435,943,312,38] },
+        ]
+      },
+      { name: 'dlg-authority',
+        detect: [
+          { img: "at_contacts_icon-dim.png", t: [0.6, 0.8], rect:[451, 119, 90, 90] },
+          { img: "contacts/at_authority-*.png", t: [0.6, 0.8], rect:[702, 117, 386, 40] },
+        ],
+        have: [
+          { name: 'btn-dividends',    rect: [582,231,60,60] },
+          { name: 'btn-intell-data',  rect: [582,301,60,60] },
+          { name: 'btn-codex',        rect: [582,371,60,60] },
+          { name: 'btn-bounty',       rect: [582,456,60,60] },
+          { name: 'btn-fine',         rect: [582,540,60,60] },
+          { name: 'btn-justice',      rect: [582,610,60,60] },
+          { name: 'btn-back',         rect: [582,913,60,60] },
+
+          { name: 'mod-dividends',
+            detect: 'btn-dividends',
+            have: [
+              { name: 'btn-commit',    rect: [651,913,60,694] }
+            ]
+          },
+          { name: 'mod-intell-data',
+            detect: 'btn-intell-data',
+            have: [
+              { name: 'btn-commit',    rect: [651,913,60,694] }
+            ]
+          },
+          { name: 'mod-codex',
+            detect: 'btn-codex',
+            have: [
+              { name: 'btn-commit',    rect: [651,913,60,694] }
+            ]
+          },
+          { name: 'mod-bounty',
+            detect: 'btn-bounty',
+            have: [
+              { name: 'btn-commit',    rect: [651,913,60,694] }
+            ]
+          },
+          { name: 'mod-fine',
+            detect: 'btn-fine',
+            have: [
+              { name: 'btn-commit',    rect: [651,913,60,694] }
+            ]
+          },
+          { name: 'mod-justice',
+            detect: 'btn-justice',
+            have: [
+              { name: 'btn-commit',    rect: [651,913,60,694] }
+            ]
+          }
+        ]
+      },
+      { name: 'dlg-power-play',
+        detect: [
+          { img: "at_contacts_icon-dim.png", t: [0.6, 0.8], rect:[451, 119, 90, 90] },
+          { img: "contacts/at_power_play-*.png", t: [0.6, 0.8], rect:[702, 117, 300, 40] },
+        ],
+        have: [
+          { name: 'btn-deliver-res',  rect: [578,231,60,60] },
+          { name: 'btn-acquire-res',  rect: [578,301,60,60] },
+          { name: 'btn-back',         rect: [578,914,58,58] },
+
+          { name: 'mod-deliver-res',
+            detect: { img: "contacts/at_pp_deliver_res-*.png", t: [0.6, 0.8], rect:[651, 237, 414, 36] },
+            have: [
+              { name: 'lst-deliver',  rect: [660,392,665,166], row_height: 53, row_gap: 3, row_test: [444,458],
+                tabs: [
+                  {left:0,   right:42 }, // icon
+                  {left:48,  right:458, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
+                  {left:498, right:620, ocr_top: 16, ocr_bot: 40, name: 'deliver' },
+                ]
+              }
+            ]
+          },
+          { name: 'mod-acquire-res',
+            detect: { img: "contacts/at_pp_acquire_res-*.png", t: [0.6, 0.8], rect:[651, 237, 390, 36] },
+            have: [
+              { name: 'lst-deliver',  rect: [660,392,665,166], row_height: 53, row_gap: 3, row_test: [444,458],
+                tabs: [
+                  {left:0,   right:42 }, // icon
+                  {left:48,  right:458, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
+                  {left:498, right:620, ocr_top: 16, ocr_bot: 40, name: 'acquire' },
+                ]
+              }
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -311,9 +443,9 @@
         name: "mod-nav-list",
         detect: "nav_panel:nav-list",
         have: [
-          { name: 'btn-filter', action: 'dlg-filter', rect: [11,219,104,60], ext: [5,25,5,15], icon: "templates/left/btn-nav-filter*.png" },
-          { name: 'btn-galaxy', action: 'galaxy-map', rect: [11,476,104,60] },
-          { name: 'btn-system', action: 'system-map', rect: [11,592,104,60] },
+          { name: 'btn-filter', rect: [11,219,104,60], ext: [5,25,5,15], icon: "left/btn-nav-filter*.png" },
+          { name: 'btn-galaxy', rect: [11,476,104,60] },
+          { name: 'btn-system', rect: [11,592,104,60] },
           { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",875,"btn-system.b - btn-filter.t + 3"],
             row_height: 36, row_gap: 3.55, row_test: [400,730],
             tabs: [
@@ -355,8 +487,8 @@
         detect: ["nav_panel:nav-select", {
           tiles: [152,512,884,66], rows: 1, cols: [2,6], gap: 6, name: 'dest', t: [0.7, 0.9],
           icons: 'left/ti-dest-*.png', rect: [0,0,40,40], // Y=520
+          method:'corr',
           icon_align: "center",
-          hud: true // try hard
         }],
         have: [
           { name: 'lbl-title',        rect: [260,49,750,38], ocr_top: 6, ocr_bot: 37 },
@@ -366,7 +498,7 @@
           { name: 'til-see-body',     icon: "dest:ti-dest-see-body" },
           { name: 'til-codex',        icon: "dest:ti-dest-codex" },
           { name: 'til-bookmark',     icon: "dest:ti-dest-bookmark" },
-          { name: 'btn-back', action: 'close', rect: [144,580,812,34] },
+          { name: 'btn-back', rect: [144,580,812,34] },
         ]
       },
       { name: 'dlg-filters',
@@ -473,10 +605,10 @@
 //      { img: "at_market.png", t: 0.7, rect:[92, 57, 50, 50] },
 //    ],
 //    have: [
-//      { name: 'btn-exit', action: 'close', rect: [96,981,193,40] },
-//      { name: 'btn-help', action: 'help', rect: [295,980,195,40] },
-//      { name: 'btn-filter', action: 'dlg-filter', rect: [97,167,134,73] },
-//      { name: 'lst-goods', action: 'dlg-setup', rect: [250,205,488,767] },
+//      { name: 'btn-exit', rect: [96,981,193,40] },
+//      { name: 'btn-help', rect: [295,980,195,40] },
+//      { name: 'btn-filter', rect: [97,167,134,73] },
+//      { name: 'lst-goods', rect: [250,205,488,767] },
 //    ]
 //  },
 ]

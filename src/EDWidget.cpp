@@ -206,7 +206,7 @@ bool Label::detect(DetectParams& params) {
         //    //r.height += (int) std::round(scale*ocr::LEADING);
         //}
     }
-    params.env.classified.emplace_back(ClsDetType::Widget, !params.warpedEnv, this->name, r);
+    params.env.classified.emplace_back(ClsDetType::Widget, this->name, r);
     ClassifiedRect& clsLblRect = params.env.classified.back();
     clsLblRect.u.widg.referenceRect = r;
     clsLblRect.u.widg.ws = WState::Unknown;
@@ -283,7 +283,7 @@ bool BaseButton::detect(DetectParams& params) {
             return false;
     }
 
-    env.classified.emplace_back(ClsDetType::Widget, !params.warpedEnv, this->name, detectedR);
+    env.classified.emplace_back(ClsDetType::Widget, this->name, detectedR);
     ClassifiedRect& clsBtnRect = env.classified.back();
     clsBtnRect.u.widg.referenceRect = expectedR;
     clsBtnRect.u.widg.ws = WState::Unknown;
@@ -750,7 +750,7 @@ bool List::detect(DetectParams& params) {
     if (listCapturedRect.empty())
         return false;
 
-    env.classified.emplace_back(ClsDetType::Widget, !params.warpedEnv, this->name, listReferenceRect);
+    env.classified.emplace_back(ClsDetType::Widget, this->name, listReferenceRect);
     ClassifiedRect& clsListRect = env.classified.back();
     clsListRect.u.widg.referenceRect = listReferenceRect;
     clsListRect.u.widg.ws = WState::Unknown;
@@ -835,7 +835,7 @@ bool List::detect(DetectParams& params) {
 #ifdef  DEBUG_LIST_DETECTOR
         cv::Mat rowImage = toMat(env.getGrayImage()(rowCapturedRect));
 #endif
-        env.classified.emplace_back(ClsDetType::ListRow, !params.warpedEnv, "", rowReferenceRect);
+        env.classified.emplace_back(ClsDetType::ListRow, "", rowReferenceRect);
         ClassifiedRect& clsRowRect = env.classified.back();
         clsRowRect.u.lrow.capturedRect = rowCapturedRect;
         clsRowRect.u.lrow.list = this;

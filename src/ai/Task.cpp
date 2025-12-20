@@ -114,7 +114,7 @@ static int get_int(const json5pp::value& val, const json5pp::value& args, int df
 
 bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const {
     if (pos.is_string()) {
-        cv::Rect rect = Mgr.resolveWidgetReferenceRect(pos.as_string());
+        cv::Rect rect = Mgr.resolveWidgetReferenceRect(pos.as_string(), ai::rEnv);
         if (rect.empty()) {
             LOG(ERROR) << "Widget '" << pos << "' not found in current state";
             return false;

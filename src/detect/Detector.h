@@ -83,6 +83,20 @@ public:
 #endif
     bool calc(cv::Mat image);
 
+    WState guessWState();
+#ifdef EDROBOT_USE_OPENCL
+    WState guessWState(XMat image) {
+        if (!calc(image))
+            return WState::Unknown;
+        return guessWState();
+    }
+#endif
+    WState guessWState(cv::Mat image) {
+        if (!calc(image))
+            return WState::Unknown;
+        return guessWState();
+    }
+
     Mode mMode;
     cv::Vec3b mLastColor;
     int mBin;
@@ -157,12 +171,12 @@ public:
 class LinesFilter : public ImageFilter {
 public:
 
-    explicit LinesFilter(bool vert, double gradient_scale=1, int gradient_threshold=45, int dilatePos=2, int dilateNeg=2, int erode=0);
+    explicit LinesFilter(bool vert, double gradient_scale=1, double gradient_threshold=45, int dilatePos=2, int dilateNeg=2, int erode=0);
     XMat apply(XMat image, Params params) final;
 
     const bool vert;
     double gradient_scale;
-    int gradient_threshold;
+    double gradient_threshold;
     int dilatePos; // dilate down for positive gradients
     int dilateNeg; // dilate up for negative gradients
     int erode; // erode after positive and negative (dilated) masks merged (bitwise and)
@@ -295,7 +309,7 @@ public:
     cv::Point matchedCaptureOffset;
     std::vector<double> testScales;
     std::vector<int> testAngles;
-    int lastTemplatedx;
+    MatchResult lastMatchResult;
     double lastMatch {0};
 };
 
@@ -374,39 +388,6 @@ public:
     dist_t lastNavDist;
 
     static void tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect);
-};
-
-class TilesDetector : public ImageTemplate {
-public:
-    TilesDetector(const std::string& name, cv::Rect& tilesRect, const std::string& icons, cv::Rect& iconsRect,
-                  int min_rows, int max_rows, int min_cols, int max_cols, int gap);
-    ~TilesDetector() override = default;
-
-    double match(ClassifyEnv& env) override;
-    std::vector<cv::Rect> detectColumns(XMat& roiImage, int gap);
-    std::vector<cv::Rect> detectRows(XMat& roiImage, int gap);
-
-    const std::string name;
-    cv::Rect mTilesRect;
-    std::vector<std::string> mIconFiles;
-    enum IconAlign {
-        Center, TopLeft
-    } mIconAlign;
-    bool hudTryHard {false};
-
-    std::vector<ClassifiedRect> mDetectedTiles;
-
-private:
-    struct Range {
-        int bgn, end, val;
-    };
-    std::vector<Range> split(bool columns, uchar* reduced, int size, int gap, int& threshold);
-
-    int mMinRows;
-    int mMaxRows;
-    int mMinCols;
-    int mMaxCols;
-    int mGap;
 };
 
 } // namespace detect

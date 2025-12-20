@@ -45,6 +45,8 @@ extern int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const Resol
 
 extern cv::Mat normalizeTargetDistText(const cv::Mat& grayImage);
 extern int ocrTargetDistText(const cv::Mat& grayImage, std::string& text);
+
+extern int ocrTileLblText(const cv::Mat& grayImage, WState ws, std::string& text);
 }
 
 #endif //EDROBOT_OCR_H

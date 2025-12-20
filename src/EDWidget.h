@@ -64,14 +64,11 @@ struct Button : public BaseButton {
 };
 
 struct TileBtn : public BaseButton {
-    TileBtn(const std::string& name, Widget* parent, const std::string& icon)
+    TileBtn(const std::string& name, Widget* parent, const std::string& tile_icon)
         : BaseButton(WidgetType::TileBtn, name, parent)
-        , icon(icon)
     {
-        rect = std::shared_ptr<EvalRect>(new TileRect(icon));
+        rect = std::shared_ptr<EvalRect>(new TileRect(tile_icon));
     }
-
-    const std::string icon;
 };
 
 struct Spinner : public BaseButton {

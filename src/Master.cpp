@@ -481,6 +481,13 @@ Master::Master() {
 }
 
 Master::~Master() {
+    mWarpedEnv.clear();
+    mClassifyEnv.clear();
+    if (mCapturer) {
+        mCapturer->stop();
+        mCapturer = nullptr;
+        Capturer::shutdown();
+    }
 }
 
 void Master::shutdown() {
@@ -520,6 +527,8 @@ void Master::loop() {
                 ai::toggleDebugPause();
                 if (ai::isDebugPause())
                     UIManager::showMainDialog();
+                else
+                    UIManager::hideMainDialog(false);
                 break;
             case Command::Stop:
                 stopAITask();
@@ -637,6 +646,8 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
             ai::toggleDebugPause();
             if (ai::isDebugPause())
                 UIManager::showMainDialog();
+            else
+                UIManager::hideMainDialog(false);
             break;
         // in-game shortcuts
         case Command::Autopilot:
@@ -923,13 +934,18 @@ bool Master::autopilotAITask() {
     return ai::autopilot();
 }
 
-cv::Rect Master::resolveWidgetReferenceRect(const std::string& name) const {
+cv::Rect Master::resolveWidgetReferenceRect(const std::string& name, const ResolvedEnv& rEnv) const {
     const Widget* item = getCfgItem(name);
     if (!item) {
         LOG(ERROR) << "Widget '" << name << "' not found";
         return {};
     }
-    auto r = mClassifyEnv.calcReferenceRect(item->rect);
+    for (auto& cr: rEnv.classified) {
+        if (cr.cdt == ClsDetType::Widget && cr.u.widg.widget == item) {
+            return cr.detectedRect;
+        }
+    }
+    auto r = rEnv.calcReferenceRect(item->rect);
     if (r.empty()) {
         LOG(ERROR) << "Widget has no rect";
         return {};

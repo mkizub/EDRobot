@@ -1,290 +1,45 @@
 [
   {
-    "templ": "tsk-market-buy-constr",
-    "name": "Покупки для стройки Gandhi Gateway",
-    "system": "Col 285 Sector XK-O d6-69",
-    "dock": "Orbital Construction Site: Gandhi Gateway",
-    "mode": "ExceptLittleFirst"
+    "templ": "tsk-debug-autopilot",
+    "name": "Debug: select Altair",
+    "test": "GalMapNavRoute",
+    "target": "Altair"
+  },
+  {
+    "templ": "tsk-travel",
+    "name": "Полёт к Mastracchio Orbital",
+    "system": "5 G. Capricorni",
+    "dock": "Mastracchio Orbital"
+  },
+  {
+    "templ": "tsk-travel",
+    "name": "Полёт к Lewis Dock",
+    "system": "LHS 3356",
+    "dock": "Lewis Dock"
   },
   {
     "templ": "tsk-trade-loop",
-    "name": "Стройка Gandhi Gateway мелочёвка",
+    "name": "LHS 3356",
     "markets": [
       {
         "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Gulyaev City",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-constr",
-            "system": "Col 285 Sector XK-O d6-69",
-            "dock": "Orbital Construction Site: Gandhi Gateway",
-            "mode": "ExceptLittleFirst"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Gandhi Gateway",
-        "tasks": [
-          {
-            "templ": "tsk-constr-unload"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Стройка Bushkov Enterprise мелочёвка",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-81",
-        "dock": "Ryman Gateway",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-constr",
-            "system": "Col 285 Sector XK-O d6-69",
-            "dock": "Orbital Construction Site: Bushkov Enterprise",
-            "mode": "ExceptLittleFirst"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Bushkov Enterprise",
-        "tasks": [
-          {
-            "templ": "tsk-constr-unload"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Стройка Sisters Enterprise",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 359 Sector GL-X d1-21",
-        "dock": "Rivera Vision",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-constr",
-            "system": "Col 359 Sector GL-X d1-21",
-            "dock": "Orbital Construction Site: Sisters Enterprise",
-            "mode": "ExceptLittleFirst"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 359 Sector GL-X d1-21",
-        "dock": "Orbital Construction Site: Sisters Enterprise",
-        "tasks": [
-          {
-            "templ": "tsk-constr-unload"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Загрузка тритием",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector MG-H b25-5",
-        "dock": "Kozyry Sanctuary",
+        "system": "5 G. Capricorni",
+        "dock": "Mastracchio Orbital",
         "tasks": [
           {
             "templ": "tsk-market-buy",
-            "commodity": "tritium"
+            "commodity": "hydrogenfuel"
           }
         ]
       },
       {
         "templ": "tsk-trade-at",
-        "system": "Col 285 Sector MG-H b25-5",
-        "dock": "909 VSO K5N-3VG",
+        "system": "LHS 3356",
+        "dock": "Pytheas Orbital",
         "tasks": [
           {
-            "templ": "tsk-market-sell-all"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Разгрузка драг.металлов с авика",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Dheneb",
-        "dock": "Henson Gateway",
-        "tasks": [
-          {
-            "templ": "tsk-market-sell-all"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Dheneb",
-        "dock": "Daimonio tou Sokrati VFT-85B",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-all",
-            "commodity": [
-              "palladium",
-              "gold",
-              "beryllium",
-              "silver",
-              "gallium",
-              "indium",
-              "tantalum",
-              "thorium"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Загрузка авика драг.металлами HIP 40900",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "HIP 40900",
-        "dock": "New Covenant Station",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-all",
-            "commodity": [
-              "palladium",
-              "gold",
-              "beryllium",
-              "silver",
-              "gallium",
-              "indium",
-              "tantalum",
-              "thorium"
-            ]
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "HIP 40900",
-        "dock": "Daimonio tou Sokrati VFT-85B",
-        "tasks": [
-          {
-            "templ": "tsk-market-sell-all"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Торговый маршрут Gulyaev City <-> Paf - Olive",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Gulyaev City",
-        "tasks": [
-          {
-            "templ": "tsk-market-sell-all"
-          },
-          {
-            "templ": "tsk-market-buy",
-            "commodity": "lepidolite"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector FU-K b23-4",
-        "dock": "Paf - Olive",
-        "tasks": [
-          {
-            "templ": "tsk-market-sell-all"
-          },
-          {
-            "templ": "tsk-market-buy",
-            "commodity": "silver"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-market-buy-constr",
-    "name": "Покупки для Sweet Relay",
-    "system": "Col 285 Sector XK-O d6-69",
-    "dock": "Orbital Construction Site: Sweet Relay",
-    "mode": "ExceptLittleFirst"
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Стройка Sweet Relay мелочёвка",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Godwin Town",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-constr",
-            "system": "Col 285 Sector XK-O d6-69",
-            "dock": "Orbital Construction Site: Sweet Relay",
-            "mode": "ExceptLittleFirst"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Sweet Relay",
-        "tasks": [
-          {
-            "templ": "tsk-constr-unload"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Стройка Gulyaev City без авика",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector SK-E c12-24",
-        "dock": "Lawty Depot",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy-constr",
-            "system": "Col 285 Sector XK-O d6-69",
-            "dock": "Orbital Construction Site: Gulyaev City"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Gulyaev City",
-        "tasks": [
-          {
-            "templ": "tsk-constr-unload"
+            "templ": "tsk-market-sell",
+            "commodity": "hydrogenfuel"
           }
         ]
       }
@@ -328,66 +83,6 @@
             "templ": "tsk-market-sell-all"
           }
         ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-repeat",
-    "name": "Стройка Gulyaev City",
-    "tasks": [
-      {
-        "templ": "tsk-travel",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Daimonio tou Sokrati VFT-85B"
-      },
-      {
-        "templ": "tsk-market-buy-constr",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Gulyaev City"
-      },
-      {
-        "templ": "tsk-travel",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Orbital Construction Site: Gulyaev City"
-      },
-      {
-        "templ": "tsk-constr-unload"
-      }
-    ]
-  },
-  {
-    "templ": "tsk-repeat",
-    "name": "Trade loop Золото-Лук.Головка",
-    "count": 10,
-    "duration": 300,
-    "tasks": [
-      {
-        "templ": "tsk-travel",
-        "system": "Col 285 Sector XK-O d6-69",
-        "dock": "Gromov City"
-      },
-      {
-        "templ": "tsk-market-sell-all",
-        "except": [
-          "gold",
-          "haematite"
-        ]
-      },
-      {
-        "templ": "tsk-market-buy",
-        "commodity": "gold"
-      },
-      {
-        "templ": "tsk-travel",
-        "system": "Col 285 Sector LS-Z a43-0",
-        "dock": "Habo Stad"
-      },
-      {
-        "templ": "tsk-market-sell-all"
-      },
-      {
-        "templ": "tsk-market-buy",
-        "commodity": "onionheadc"
       }
     ]
   }

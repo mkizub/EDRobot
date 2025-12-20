@@ -669,6 +669,12 @@ bool sendMouseWheel(int count) {
     return true;
 }
 
+cv::Point getMouseDesktopPos() {
+    POINT pnt {};
+    GetCursorPos(&pnt);
+    return cv::Point(pnt.x, pnt.y);
+}
+
 // value -1..1 for full-range axes, or 0..1 for others
 bool axis(const KeyBindings& bindings, double value, bool background) {
     if (!(bindings.mode == KeyBindings::Axis || bindings.mode == KeyBindings::AxisInv))

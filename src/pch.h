@@ -47,7 +47,7 @@ using namespace std::chrono_literals;
 
 #include "opencv2/opencv.hpp"
 #include "ed_opencv.h"
-#define EDROBOT_USE_OPENCL
+//#define EDROBOT_USE_OPENCL
 #ifdef EDROBOT_USE_OPENCL
 typedef cv::UMat XMat;
 extern bool g_DisableOpenCL;

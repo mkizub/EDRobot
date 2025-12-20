@@ -222,7 +222,7 @@ public:
     std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, DIST_BAD, DIST_FAR, DIST_NEAR, DIST_STOP, DONE
+        READY, DIST_BAD, DIST_HUGE, DIST_FAR, DIST_CLOSE, DIST_NEAR, DIST_STOP, DONE
     } status {READY};
 
     std::string destName;

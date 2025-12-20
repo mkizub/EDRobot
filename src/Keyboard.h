@@ -51,6 +51,7 @@ bool sendMouseClick(const cv::Point& point, int delay_ms, int pause_ms);
 bool sendMouseWheel(int count);
 bool sendMouseMoveTo(int x, int y, bool absolute, bool virtualDesk);
 bool sendMouseWheel(int count); // positive - forward, away from the user; negative - backward, toward the user
+cv::Point getMouseDesktopPos();
 // return inputId that can be used to clearInput()
 unsigned post(const std::string& name, int hold_ms);
 unsigned post(const GameKey& gk, int hold_ms);

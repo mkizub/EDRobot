@@ -67,6 +67,13 @@ void ResolvedEnv::clear() {
     classified.clear();
 }
 
+void ClassifyEnv::clear() {
+    ResolvedEnv::clear();
+    mColorImage.release();
+    unWarpMatrix = cv::Matx33d::eye();
+    mFrame.reset();
+}
+
 const XMat& ClassifyEnv::getColorImage() const {
     if (!mColorImage.empty())
         return mColorImage;

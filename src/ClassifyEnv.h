@@ -180,11 +180,10 @@ enum class ClsDetType {
 
 struct ClassifiedRect {
     ClassifiedRect() = default;
-    ClassifiedRect(ClsDetType cdt, bool warped, std::string txt, cv::Rect detRect)
-            : cdt(cdt), warped(warped), text(std::move(txt)), detectedRect(detRect), u{}
+    ClassifiedRect(ClsDetType cdt, std::string txt, cv::Rect detRect)
+            : cdt(cdt), text(std::move(txt)), detectedRect(detRect), u{}
     {}
     ClsDetType cdt;
-    bool warped;
     std::string text;         // name of Template that detected this rect, or a text recognized by OCR, etc
     cv::Rect detectedRect;    // actually detected rect in reference coordinates
     union {
@@ -203,7 +202,8 @@ struct ClassifiedRect {
             detect::LineDetector* detector;
         } ldet;
         struct {
-            const char* icon;
+            cv::Rect capturedRect;      // in captured coordinates
+            WState ws;                  // detected state for this tile
         } tile;
         struct {
             cv::Rect referenceRect;     // originally expected rect in reference coordinates
@@ -343,6 +343,7 @@ struct ClassifyEnv : public ResolvedEnv {
     void init(upFrame&& frame);
     void init(XMat warpedImage, double scale=1.0);
     void init(XMat warpedImage, const cv::Matx33d& unWarpMatrix);
+    void clear();
 
     [[nodiscard]] const XMat& getColorImage() const;
 

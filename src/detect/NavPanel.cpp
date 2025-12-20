@@ -339,7 +339,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
     std::string name = "nav_panel:";
     if (lastSelectedTab)
         name += lastSelectedTab->name;
-    env.classified.emplace_back(ClsDetType::Detected, true, name, cv::Rect(cv::Point(), transform->origSize));
+    env.classified.emplace_back(ClsDetType::Detected, name, cv::Rect(cv::Point(), transform->origSize));
     env.classified.back().u.tdet.referenceRect = {};
     env.classified.back().u.tdet.scale = deltaScale;
     env.classified.back().u.tdet.angle = deltaAngle;
@@ -426,7 +426,7 @@ double NavPanelDetector::match_dialog(ClassifyEnv& env, float roughAngle, XMat& 
     std::string name = "nav_panel:";
     if (lastSelectedTab)
         name += lastSelectedTab->name;
-    env.classified.emplace_back(ClsDetType::Detected, true, name, cv::Rect(cv::Point(), getTransform()->origSize));
+    env.classified.emplace_back(ClsDetType::Detected, name, cv::Rect(cv::Point(), getTransform()->origSize));
     env.classified.back().u.tdet.referenceRect = {};
     env.classified.back().u.tdet.scale = deltaScale;
     env.classified.back().u.tdet.angle = deltaAngle;

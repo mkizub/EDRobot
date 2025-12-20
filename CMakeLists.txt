@@ -89,6 +89,7 @@ add_executable(EDRobot
         src/detect/NavPanel.cpp
         src/detect/NavPanel.h
         src/detect/Tiles.cpp
+        src/detect/Tiles.h
 
         src/ui/UIAddTask.cpp
         src/ui/UIAddTask.h

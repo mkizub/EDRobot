@@ -65,6 +65,6 @@ struct NavPanelDetectLock {
     }
 };
 
-}
+} // namespace detect
 
 #endif //EDROBOT_NAVPANEL_H

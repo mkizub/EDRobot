@@ -291,7 +291,7 @@ XMat GradientFilter::apply(XMat image, Params params) {
     return out8U;
 }
 
-LinesFilter::LinesFilter(bool vert, double gradient_scale, int gradient_threshold, int dilatePos, int dilateNeg, int erode)
+LinesFilter::LinesFilter(bool vert, double gradient_scale, double gradient_threshold, int dilatePos, int dilateNeg, int erode)
         : vert(vert)
         , gradient_scale(gradient_scale)
         , gradient_threshold(gradient_threshold)
@@ -647,13 +647,12 @@ double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameIma
     if (gameImagePrepared.empty())
         return 0;
 
-    lastTemplatedx = -1;
-    MatchResult mr;
+    lastMatchResult = {};
+    auto& mr = lastMatchResult;
     matchTemplates(matchMethod, gameImagePrepared, imagesPrepared, mr);
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
     if (mr.value >= threshold_min) {
         LOG(DEBUG) << "ImageTemplate match result: " << std::setprecision(4) << mr.value << " for " << mr.im->name << " scale:" << mr.im->scale << ", took: " << elapsedTime.count() << "us";
-        lastTemplatedx = mr.index;
         matchedCaptureOffset = mr.loc - (captureRect.tl() - matchRect.tl());
         captureRect = {captureRect.tl() + matchedCaptureOffset, captureRect.br() + matchedCaptureOffset};
         if (mr.im->scale != 1) {
@@ -665,7 +664,7 @@ double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameIma
     }
     lastMatch = mr.value;
     if (!name.empty() && mr.value >= threshold_min) {
-        env.classified.emplace_back(ClsDetType::Detected, false, name,
+        env.classified.emplace_back(ClsDetType::Detected, name,
                                     refRect + env.scaleToReference(matchedCaptureOffset));
         env.classified.back().u.tdet.referenceRect = refRect;
         env.classified.back().u.tdet.scale = mr.im->scale;

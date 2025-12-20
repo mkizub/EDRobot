@@ -466,4 +466,15 @@ int ocrTargetDistText(const cv::Mat& grayImage, std::string& text) {
     return conf;
 }
 
+int ocrTileLblText(const cv::Mat& grayImage, WState ws, std::string& text) {
+    double scale = (ocr::ASCENT+ocr::DESCENT) / double(grayImage.rows);
+    cv::Mat scaledImage = scaleImage(const_cast<cv::Mat&>(grayImage), scale, true);
+    if (ws != WState::Focused)
+        cv::bitwise_not(scaledImage, scaledImage);
+    cv::Mat ocrImage = normalizeTargetDistText(scaledImage);
+    int conf = ocr::ocrLine(ocr::GENERIC, "(tile text)", ocrImage, text, nullptr);
+    return conf;
+}
+
+
 }

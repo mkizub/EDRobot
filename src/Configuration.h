@@ -106,7 +106,7 @@ class Configuration {
     Configuration();
     ~Configuration();
 public:
-    enum class FullScreenMode : int { Window, FullScreen, Borderless };
+    enum class GameScreenMode : int { Window, FullScreen, Borderless };
 
     static Configuration& getInstance();
 
@@ -118,6 +118,7 @@ public:
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
+    GameScreenMode getGameScreenMode() const { return configScreenMode; };
     int getUiScalePercents() const { return mUiScalePercents; }
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
@@ -155,7 +156,6 @@ private:
     friend class Master;
 
     void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
-    std::string filenameFromPreset(std::string base, std::string preset, const char* ext);
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
     bool parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag);
     bool loadGameSettings(bool initial);
@@ -206,7 +206,7 @@ private:
     int scaledScreenWidth = 0;    // downscaled configScreenWidth
     int scaledScreenHeight = 0;   // downscaled configScreenHeight
     cv::Rect croppedScreenRect;   // cropped to 16:9 scaledScreenWidth/scaledScreenHeight
-    FullScreenMode configFullScreen = FullScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
+    GameScreenMode configScreenMode = GameScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
     int configMonitorID = 0;       // Options\Graphics\DisplaySettings.xml: <Monitor>2</Monitor>
     bool configHeadlookSmoothing = true;
     std::unordered_map<std::string,KeyBindings> mKeyBindingsMap;

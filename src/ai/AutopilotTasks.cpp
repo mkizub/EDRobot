@@ -2720,18 +2720,18 @@ bool CruiseToDistStep::run() {
                 status = DIST_NEAR;
                 setSpeed(25);
             }
-            else if (currentDist <= 50_ls) {
-                status = DIST_FAR;
+            else if (currentDist <= 100_ls) {
+                status = DIST_CLOSE;
                 setSpeed(50);
                 sleep(100);
             }
-            else if (currentDist <= 300_ls) {
+            else if (currentDist <= 1000_ls) {
                 status = DIST_FAR;
                 setSpeed(75);
                 sleep(500);
             }
             else {
-                status = DIST_FAR;
+                status = DIST_HUGE;
                 setSpeed(100);
                 sleep(1000);
             }
@@ -2773,7 +2773,9 @@ std::string BaseCruiseStep::getStatus() {
     case READY:
         return {};
     case DIST_BAD: st=_gt("Dist bad"); break;
+    case DIST_HUGE: st=_gt("Dist huge"); break;
     case DIST_FAR: st=_gt("Dist far"); break;
+    case DIST_CLOSE: st=_gt("Dist close"); break;
     case DIST_NEAR: st=_gt("Dist near"); break;
     case DIST_STOP: st=_gt("Reached"); break;
     }

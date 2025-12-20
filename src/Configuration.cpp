@@ -11,9 +11,6 @@
 #include "Capturer.h"
 #include "ShipStats.h"
 #include "Galaxy.h"
-#include "detect/Detector.h"
-#include "detect/Lines.h"
-#include "detect/NavPanel.h"
 
 #include <dirlistener/ReadDirectoryChanges.h>
 #ifdef DEBUG
@@ -42,6 +39,7 @@ static detect::Detector* detector_from_json(const json5pp::value& j, widget::Wid
 static widget::Widget* widget_from_json(const json5pp::value& j, widget::Widget* parent);
 
 Configuration::Configuration()
+    : mCommodityDatabaseUpdated(true)
 {
 }
 
@@ -55,11 +53,11 @@ void Configuration::shutdown() {
         CloseHandle(hShutdownEvent);
         if (changeDirThread.joinable())
             changeDirThread.join();
-        hShutdownEvent = NULL;
+        hShutdownEvent = nullptr;
     }
 }
 
-
+static void debugNavPanel();
 
 bool Configuration::load() {
 
@@ -116,33 +114,32 @@ bool Configuration::load() {
             parseShortcutConfig(Command::ResetCapturer, "reset-capturer", obj);
             parseShortcutConfig(Command::DevRectSelect, "dev-rect-select", obj);
         }
-        if (auto tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
+        if (auto& tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
             mEDSettingsPath = toUtf16(tm.as_string());
-        if (auto tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
+        if (auto& tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
             mEDLogsPath = toUtf16(tm.as_string());
-        if (auto tm = j_config.at("tesseract-data-path"); tm.is_string())
+        if (auto& tm = j_config.at("tesseract-data-path"); tm.is_string())
             mTesseractDataPath = tm.as_string();
-        if (auto &tm = j_config.at("force-dxgi-device")) {
+        if (auto& tm = j_config.at("force-dxgi-device")) {
             if (tm.is_string())
                 forceDXGIDevice = tm.as_string();
             if (tm.is_integer())
                 forceDXGIDeviceId = tm.as_integer();
         }
-        if (auto &tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
             capturerWin32Disabled = tm.as_boolean();
-        if (auto &tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
             capturerWinRTDisabled = tm.as_boolean();
-        if (auto &tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
             capturerDXGIDisabled = tm.as_boolean();
-        if (auto &tm = j_config.at("vjoy-device-id"); tm.is_integer())
+        if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
             vJoyDeviceID = (uint8_t) tm.as_integer();
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
             openclDisabled = tm.as_boolean();
         g_DisableOpenCL = openclDisabled;
         if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
-            std::string dir = tm.as_string();
-            _putenv_s("OPENCV_OPENCL_CACHE_DIR", dir.c_str());
+            _putenv_s("OPENCV_OPENCL_CACHE_DIR", tm.as_string().c_str());
         } else {
             _putenv_s("OPENCV_OPENCL_CACHE_DIR", "cache");
         }
@@ -165,10 +162,7 @@ bool Configuration::load() {
         for (json5pp::value& s: j_screens) {
             screensRoot->addSubItem(widget_from_json(s, screensRoot));
         }
-        //detect::NavPanelDetectLock lock("flt-line");
-        //detect::NavPanelDetector::standaloneTest("nav-panel-test-9.png", "scr-left-panel");
-        //detect::NavPanelDetectLock lock("flt-line");
-        //detect::NavPanelDetector::standaloneTest("nav-panel-left-filter.png", "scr-left-panel");
+        debugNavPanel();
     }
 
     {
@@ -185,7 +179,6 @@ bool Configuration::load() {
 
         if (!loadCommodityDatabase())// initialization depends on game language
             errorMessage = _gt("Failed to load commodity database");
-            ;
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
 
@@ -227,9 +220,8 @@ void Configuration::parseShortcutConfig(Command command, const std::string& name
     }
 }
 
-std::string Configuration::filenameFromPreset(std::string dir, std::string preset, const char* ext) {
+static std::string filenameFromPreset(const std::string& dir, const std::string& preset, const char* ext) {
     namespace fs = std::filesystem;
-    std::string filename = dir + trim(preset);
 
     fs::path latestFilePath;
     auto latestWriteTime = fs::file_time_type::min(); // Initialize with the earliest possible time
@@ -392,10 +384,10 @@ bool Configuration::loadGameSettings(bool initial) {
                 scaledScreenHeight = height;
             }
             if (auto node = xml_node_find_tag(rootNode, "FullScreen", true); node && node->text) {
-                FullScreenMode mode = (FullScreenMode) atoi(node->text);
-                if (!initial && mode != configFullScreen)
+                auto mode = (GameScreenMode) atoi(node->text);
+                if (!initial && mode != configScreenMode)
                     needCapturerReset = true;
-                configFullScreen = mode;
+                configScreenMode = mode;
             }
             if (auto node = xml_node_find_tag(rootNode, "Monitor", true); node && node->text) {
                 int monitorId = atoi(node->text);
@@ -417,16 +409,16 @@ bool Configuration::loadGameSettings(bool initial) {
                 double scale = std::max(x_scale, y_scale);
                 if (scale == 0)
                     scale = 0.75;
-                scaledScreenWidth = std::round(configScreenWidth*scale);
-                scaledScreenHeight = std::round(configScreenHeight*scale);
+                scaledScreenWidth = (int)std::round(configScreenWidth*scale);
+                scaledScreenHeight = (int)std::round(configScreenHeight*scale);
                 while ((scaledScreenWidth & 3) || (scaledScreenHeight & 3)) {
                     scaledScreenWidth &= ~3;
                     scaledScreenHeight &= ~3;
                     x_scale = double(scaledScreenWidth) / ReferenceScreenSize.width;
                     y_scale = double(scaledScreenHeight) / ReferenceScreenSize.height;
                     scale = std::min(x_scale, y_scale);
-                    scaledScreenWidth = std::round(configScreenWidth*scale);
-                    scaledScreenHeight = std::round(configScreenHeight*scale);
+                    scaledScreenWidth = (int)std::round(configScreenWidth*scale);
+                    scaledScreenHeight = (int)std::round(configScreenHeight*scale);
                 }
             }
             {
@@ -1206,7 +1198,7 @@ bool Configuration::loadCommodityDatabase() {
         if (!jcc_it.first.contains("-order-"))
             continue;
         Lang l = jcc_it.first.ends_with("-en") ? Lang::EN : Lang::RU;
-        int64_t commodityOrder = 1;
+        int commodityOrder = 1;
         for (auto& jn : jcc_it.second.as_array()) {
             if (!jn.is_string())
                 continue;
@@ -1409,9 +1401,20 @@ void Configuration::readJournalChanges(std::ifstream& journalStream, std::string
 
 
 #include "detect/Detector.h"
+#include "detect/Lines.h"
+#include "detect/Tiles.h"
+#include "detect/NavPanel.h"
 
 using namespace widget;
 using namespace detect;
+
+static void debugNavPanel() {
+    //detect::NavPanelDetectLock lock("flt-line");
+    //detect::NavPanelDetector::standaloneTest("nav-panel-test-9.png", "scr-left-panel");
+    //detect::NavPanelDetectLock lock("flt-line");
+    //detect::NavPanelDetector::standaloneTest("nav-panel-left-filter.png", "scr-left-panel");
+}
+
 
 static cv::Vec3b color_from_json(const json5pp::value& v) {
     unsigned bgr = 0;
@@ -1424,7 +1427,7 @@ static cv::Vec3b color_from_json(const json5pp::value& v) {
         bgr = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
     }
     else if (v.is_string()) {
-        auto s = v.as_string();
+        auto& s = v.as_string();
         if (s.size() == 7 && s[0] == '#')
             bgr = std::stol(s.substr(1), nullptr, 16);
     }
@@ -1436,6 +1439,13 @@ static cv::Point point_from_json(const json5pp::value& v) {
     p.x = v[0].as_integer();
     p.y = v[1].as_integer();
     return p;
+}
+
+static cv::Size size_from_json(const json5pp::value& v) {
+    cv::Size sz;
+    sz.width = v[0].as_integer();
+    sz.height = v[1].as_integer();
+    return sz;
 }
 
 static cv::Rect rect_from_json(const json5pp::value& v) {
@@ -1553,7 +1563,7 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
     if (jo.contains("lines") && jf["lines"].is_object()) {
         bool vert = false;
         double scale = 1;
-        int threshold = 45;
+        double threshold = 45;
         int dilatePos = 2;
         int dilateNeg = 2;
         int erode = 0;
@@ -1672,7 +1682,7 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
                 min[2] = jv["v"][0].as_integer();
                 max[2] = jv["v"][1].as_integer();
             }
-            filter->rangesU.push_back(std::make_pair(min,max));
+            filter->rangesU.emplace_back(min,max);
         }
         if (filter->rangesU.empty())
             delete filter;
@@ -1800,7 +1810,7 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
         }
         else if (j.as_object().contains("tiles")) {
             cv::Rect tilesRect = rect_from_json(j["tiles"]);
-            cv::Rect iconsRect = rect_from_json(j["rect"]);
+            cv::Rect marksRect = rect_from_json(j["rect"]);
 
             std::string name = j["name"].as_string();
             int rows_min = 1;
@@ -1812,22 +1822,43 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
 
             int gap = j["gap"].as_integer();
 
-            std::string icons = "templates/"+j["icons"].as_string();
-
-            TilesDetector* tiles = new TilesDetector(name, tilesRect, icons, iconsRect,
+            TilesDetector* tiles = new TilesDetector(name, tilesRect, marksRect,
                                                      rows_min, rows_max, cols_min, cols_max, gap);
 
-            minmax_from_json(j["t"], tiles->threshold_min, tiles->threshold_max);
-            ext_from_json(j["ext"], tiles->extendLT, tiles->extendRB);
-            if (j["icon_align"].is_string()) {
-                auto& align = j["icon_align"].as_string();
-                if (toLower(align) == "center")
-                    tiles->mIconAlign = TilesDetector::IconAlign::Center;
-                else if (toLower(align) == "top-left")
-                    tiles->mIconAlign = TilesDetector::IconAlign::TopLeft;
+            if (j["size"].is_array())
+                tiles->mTileSize = size_from_json(j["size"]);
+            if (j["merge"].is_boolean())
+                tiles->mTryMerge = j["merge"].as_boolean();
+
+            if (j["icons"].is_string()) {
+                std::string icons = "templates/" + j["icons"].as_string();
+                ImageTemplate* templ = new ImageTemplate(icons, nullptr);
+                image_template_from_json(j, templ);
+                if (j["icon_align"].is_string()) {
+                    auto& align = j["icon_align"].as_string();
+                    if (toLower(align) == "center")
+                        tiles->mIconAlign = TilesDetector::IconAlign::Center;
+                    else if (toLower(align) == "top-left")
+                        tiles->mIconAlign = TilesDetector::IconAlign::TopLeft;
+                }
+                tiles->icons_detector = std::unique_ptr<ImageTemplate>(templ);
             }
-            if (j["hud"].is_boolean())
-                tiles->hudTryHard = j["hud"].as_boolean();
+            if (j["labels"].is_object()) {
+                FuzzyMatch fm;
+                for (auto& p : j["labels"].as_object()) {
+                    std::vector<std::wstring>& texts = tiles->labels[p.first];
+                    if (p.second.is_string()) {
+                        auto& txt = p.second.as_string();
+                        texts.push_back(fm.toOCR(toUtf16(txt)));
+                    } else if (p.second.is_array()) {
+                        for (auto& t : p.second.as_array()) {
+                            auto& txt = t.as_string();
+                            texts.push_back(fm.toOCR(toUtf16(txt)));
+                        }
+                    }
+                }
+            }
+
             return tiles;
         }
         else if (j.as_object().contains("best")) {
@@ -1950,7 +1981,7 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
         if (jo.contains("ext"))
             ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
         if (j["icon"].is_string())
-            btn->icon = j["icon"].as_string();
+            btn->icon = "templates/"+j["icon"].as_string();
     }
     else if (name.starts_with("spn-")) {
         auto btn = new Spinner(name, parent);

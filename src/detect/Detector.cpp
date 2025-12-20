@@ -184,4 +184,24 @@ bool Histogram::calc(cv::Mat image) {
     return true;
 }
 
+WState Histogram::guessWState() {
+    if (mMode == Mode::Hsv) {
+        if (mLastColor[1] < 80) // desaturated = disabled
+            return WState::Disabled;
+        else if (mLastColor[0] < 30) {// hue is near red = known color
+            if (mLastColor[2] > 180) // bright = focused
+                return WState::Focused;
+            else
+                return WState::Normal;
+        }
+    }
+    if (mMode == Mode::Gray) {
+        if (mLastColor[0] > 120)
+            return WState::Focused;
+        if (mLastColor[0] > 20)
+            return WState::Normal;
+    }
+    return WState::Unknown;
+}
+
 } // namespace detect
