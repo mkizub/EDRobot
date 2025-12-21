@@ -23,6 +23,7 @@ public:
 
     static bool showStartupDialog(const std::string& message, std::string latest_version, std::string latest_url);
     static bool showMainDialog();
+    static bool hideMainDialog(bool force);
     static bool showToast(const std::string& title, const std::string& text);
     static bool hasDebugWindow();
     static bool showDebugWindow();

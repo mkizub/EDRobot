@@ -27,9 +27,10 @@ public:
     ~NavPanelDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    bool match_flt_line(const char* lineName, cv::Line& detectedLine, ClassifyEnv& env, float roughAngle, XMat& roughImage, AnchorDetector *lan, cv::Mat& debugRough);
-    double match_dialog(ClassifyEnv& env, float roughAngle, XMat& roughImage, AnchorDetector *lan, cv::Mat& debugImage);
+    bool match_flt_line(const char* lineName, cv::Line& detectedLine, ClassifyEnv& env, float roughAngle, AnchorDetector *lan, cv::Mat& debugRough);
+    bool match_dialog(ClassifyEnv& env, float roughAngle, AnchorDetector *lan, cv::Mat& debugImage);
     void approximate_bottom_line(ClassifyEnv& env);
+    double fillResult(ClassifyEnv& env);
 
     LineDetector* getLineDetector(const char* name);
     AnchorDetector* getAnchorDetector(const char* name);
@@ -41,8 +42,6 @@ public:
     cv::Line lastBottomLine;
     const Tab* lastSelectedTab {};
 private:
-    friend struct NavPanelDetectLock;
-    static std::string forceDetect;
 
     const std::string mPanelName;
     std::vector<std::unique_ptr<LineDetector>> mLines;
@@ -53,18 +52,9 @@ private:
     float deltaAngle;
     cv::Point2f topLeftOffset;
     cv::Line topRefLine;
-    cv::Mat roughAffineMatrix;
+    cv::Matx23d roughAffineMatrix;
+    cv::Matx23d roughAffineInverted;
 };
-
-struct NavPanelDetectLock {
-    NavPanelDetectLock(std::string force) {
-        NavPanelDetector::forceDetect = force;
-    }
-    ~NavPanelDetectLock() {
-        NavPanelDetector::forceDetect.clear();
-    }
-};
-
 }
 
 #endif //EDROBOT_NAVPANEL_H

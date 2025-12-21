@@ -11,6 +11,7 @@
 #include <winlamb/dialog_main.h>
 #include <winlamb/label.h>
 #include <winlamb/button.h>
+#include <winlamb/checkbox.h>
 
 #include "../ai/AIManager.h"
 
@@ -19,10 +20,10 @@ public:
     UIMainDialog();
 
     bool show();
-    bool hide();
-    int initialize(wl::params& params);
-    void on_command_stop_new(wl::params& params);
-    void on_command_pause_resume(wl::params& params);
+    bool hide(bool force);
+    void initialize();
+    void on_command_stop_new();
+    void on_command_pause_resume();
 
     void update_curr_task();
 
@@ -30,6 +31,7 @@ public:
     wl::label lbl_curr_task;
     wl::label lbl_task_status;
     wl::label lbl_status;
+    wl::checkbox cb_keep_on_top;
     wl::button btn_stop_new;
     wl::button btn_pause_resume;
     wl::button btn_watch;

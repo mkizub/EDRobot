@@ -76,12 +76,12 @@ void extractLine(const cv::Mat& lineImage, int& y0, int& x0, int& x1, int minWid
 }
 
 double LineDetector::match(ClassifyEnv &env) {
-    cv::Line refLine = referenceLine->calcReferenceLine(env);
-    return match(env, refLine, XMat());
-}
-
-double LineDetector::match(ClassifyEnv& env, cv::Line refLine, XMat gameImage) {
     detectedLines.clear();
+    cv::Line refLine = withRefLine;
+    if (refLine.empty())
+        refLine = referenceLine->calcReferenceLine(env);
+    if (refLine.empty())
+        return 0;
     expectedLine = env.cvtReferenceToCaptured(refLine);
     cv::Point captureP0 = expectedLine.p0();
     cv::Point captureP1 = expectedLine.p1();
@@ -96,8 +96,7 @@ double LineDetector::match(ClassifyEnv& env, cv::Line refLine, XMat gameImage) {
     lastAvrgAngle = expectedLine.angle();
     lastDeltaAngle = 0;
 
-    if (gameImage.empty())
-        gameImage = env.getColorImage();
+    XMat gameImage = env.getColorImage();
     XMat imagePrepared = ImageTemplate::applyFilters(filters, gameImage(lineMatchRect));
     //cv::threshold(imagePrepared, imagePrepared, 127, 255, cv::THRESH_BINARY);
 

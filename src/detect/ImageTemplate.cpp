@@ -617,15 +617,14 @@ cv::Rect ImageTemplate::makeOptimalMatchRect(cv::Rect r) {
 }
 
 double ImageTemplate::match(ClassifyEnv &env) {
-    return match(env, env.getColorImage(), nullptr);
-}
-
-double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameImageOffset) {
     lastMatch = 0;
-    if (refEvalRect)
+    if (!withRefRect.empty())
+        refOrig = withRefRect.tl();
+    else if (refEvalRect)
         refOrig = refEvalRect->calcReferenceRect(env).tl();
     if (imagesOrig.empty() || refSize.empty() || !channels)
         return 0;
+    XMat gameImage = env.getColorImage();
     if (gameImage.empty())
         return 0;
     prepareImages(env);
@@ -634,10 +633,7 @@ double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameIma
 
     int ext = Master::getInstance().getSearchRegionExtent();
     cv::Rect refRect(refOrig, refSize);
-    if (!gameImageOffset)
-        captureRect = env.cvtReferenceToCaptured(refRect);
-    else
-        captureRect = refRect + *gameImageOffset;
+    captureRect = env.cvtReferenceToCaptured(refRect);
     matchRect = cv::Rect(captureRect.tl() - env.scaleToCaptured(extendLT + cv::Point(ext, ext)),
                          captureRect.br() + env.scaleToCaptured(extendRB + cv::Point(ext, ext)));
     matchRect = makeOptimalMatchRect(matchRect);
@@ -652,7 +648,7 @@ double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameIma
     matchTemplates(matchMethod, gameImagePrepared, imagesPrepared, mr);
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
     if (mr.value >= threshold_min) {
-        LOG(DEBUG) << "ImageTemplate match result: " << std::setprecision(4) << mr.value << " for " << mr.im->name << " scale:" << mr.im->scale << ", took: " << elapsedTime.count() << "us";
+        LOG(DEBUG) << std::format("ImageTemplate match result: {:.4f} ({:.4f}) for {} scale {:.4f}, took {}us", mr.value, toResult(mr.value), mr.im->name, mr.im->scale, elapsedTime.count());
         lastTemplatedx = mr.index;
         matchedCaptureOffset = mr.loc - (captureRect.tl() - matchRect.tl());
         captureRect = {captureRect.tl() + matchedCaptureOffset, captureRect.br() + matchedCaptureOffset};
@@ -661,16 +657,18 @@ double ImageTemplate::match(ClassifyEnv& env, XMat gameImage, cv::Point* gameIma
             captureRect.height = (int)std::round(captureRect.height * mr.im->scale);
         }
     } else {
-        LOG(DEBUG) << "ImageTemplate not found: " << std::setprecision(4) << mr.value << " for " << filename << ", took: " << elapsedTime.count() << "us";
+        LOG(DEBUG) << std::format("ImageTemplate not found: {:.4f} ({:.4f}) for '{}', took {}us", mr.value, toResult(mr.value), filename, elapsedTime.count());
     }
     lastMatch = mr.value;
-    if (!name.empty() && mr.value >= threshold_min) {
+    if (!name.empty() && name[0] != '@' && mr.value >= threshold_min) {
         env.classified.emplace_back(ClsDetType::Detected, false, name,
                                     refRect + env.scaleToReference(matchedCaptureOffset));
-        env.classified.back().u.tdet.referenceRect = refRect;
-        env.classified.back().u.tdet.scale = mr.im->scale;
-        env.classified.back().u.tdet.angle = mr.im->angle;
-        env.classified.back().u.tdet.match = lastMatch;
+        auto& tdet = env.classified.back().u.tdet;
+        tdet.referenceRect = refRect;
+        tdet.scale = mr.im->scale;
+        tdet.angle = mr.im->angle;
+        tdet.match = lastMatch;
+        tdet.matchRect = matchRect;
     }
     return toResult(mr.value);
 }

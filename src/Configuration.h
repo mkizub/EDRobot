@@ -106,7 +106,7 @@ class Configuration {
     Configuration();
     ~Configuration();
 public:
-    enum class FullScreenMode : int { Window, FullScreen, Borderless };
+    enum class GameScreenMode : int { Window, FullScreen, Borderless };
 
     static Configuration& getInstance();
 
@@ -118,6 +118,7 @@ public:
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
+    GameScreenMode getGameScreenMode() const { return configScreenMode; };
     int getUiScalePercents() const { return mUiScalePercents; }
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
@@ -206,7 +207,7 @@ private:
     int scaledScreenWidth = 0;    // downscaled configScreenWidth
     int scaledScreenHeight = 0;   // downscaled configScreenHeight
     cv::Rect croppedScreenRect;   // cropped to 16:9 scaledScreenWidth/scaledScreenHeight
-    FullScreenMode configFullScreen = FullScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
+    GameScreenMode configScreenMode = GameScreenMode::Window; // Options\Graphics\DisplaySettings.xml: <FullScreen>0</FullScreen>
     int configMonitorID = 0;       // Options\Graphics\DisplaySettings.xml: <Monitor>2</Monitor>
     bool configHeadlookSmoothing = true;
     std::unordered_map<std::string,KeyBindings> mKeyBindingsMap;

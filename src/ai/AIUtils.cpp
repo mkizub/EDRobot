@@ -4,35 +4,59 @@
 
 #include "../pch.h"
 #include "Types.h"
-#include "Task.h"
 #include "AIManager.h"
 #include "AIUtils.h"
 #include "../Keyboard.h"
 
 namespace ai {
 
-bool clickWidget(const char* btn, int delay_ms, int pause_ms) {
-    cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn);
+bool mouseMoveTo(cv::Point pos, double seconds) {
+    if (seconds <= 0.05)
+        return kbd::sendMouseMove(pos, 300);
+    auto dp0 = kbd::getMouseDesktopPos();
+    auto dp1 = Mgr.cvtReferenceToDesktop(pos);
+    using clock = std::chrono::high_resolution_clock;
+    auto dur = std::chrono::duration<double>(seconds);
+    auto start = clock::now();
+    auto until = start + dur;
+    auto now = start;
+    while (now < until) {
+        auto passed = std::chrono::duration_cast<std::chrono::duration<double>>(now-start);
+        int x = std::lerp(dp0.x, dp1.x, std::clamp(passed/dur, 0.,1.));
+        int y = std::lerp(dp0.y, dp1.y, std::clamp(passed/dur, 0.,1.));
+        kbd::sendMouseMoveTo(x,y, true, true);
+        sleep(50);
+        now = clock::now();
+    }
+    return kbd::sendMouseMove(pos, 50);
+}
+
+bool clickWidget(const char* btn, int delay_ms, int pause_ms, double seconds) {
+    cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn, ai::rEnv);
     if (rect.empty())
         return false;
     cv::Point pos = (rect.tl() + rect.br()) * 0.5;
+    if (seconds > 0)
+        mouseMoveTo(pos, seconds);
     return kbd::sendMouseClick(pos, delay_ms, pause_ms);
 }
 
-bool clickButton(const char* btn) {
-    cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn);
+bool clickButton(const char* btn, double seconds) {
+    cv::Rect rect = Mgr.resolveWidgetReferenceRect(btn, ai::rEnv);
     if (rect.empty())
         return false;
     cv::Point pos = (rect.tl() + rect.br()) * 0.5;
+    if (seconds > 0)
+        mouseMoveTo(pos, seconds);
     return kbd::sendMouseClick(pos, 100, Cfg.getDefaultKeyAfterTime());
 }
 
-bool moveToWidget(const char* widget) {
-    cv::Rect rect = Mgr.resolveWidgetReferenceRect(widget);
+bool moveToWidget(const char* widget, double seconds) {
+    cv::Rect rect = Mgr.resolveWidgetReferenceRect(widget, ai::rEnv);
     if (rect.empty())
         return false;
     cv::Point pos = (rect.tl() + rect.br()) * 0.5;
-    return kbd::sendMouseMove(pos, 300);
+    return mouseMoveTo(pos, seconds);
 }
 
 bool waitUiState(const std::string& state, std::chrono::seconds duration) {
@@ -85,7 +109,7 @@ bool selectOnGalaxyMap(const std::string& systemName) {
         if (ai::uiState.guiFocus != GuiFocus::GalaxyMap || !ai::uiState.match("scr-galaxy"))
             return false;
     }
-    if (!clickWidget("lbl-search",100,500))
+    if (!clickWidget("lbl-search",100,500,0.8))
         return false;
     kbd::send("BackSpace", 100, 500);
 
@@ -98,24 +122,26 @@ bool selectOnGalaxyMap(const std::string& systemName) {
     ai::sleep(1000);
 
     for (int entry=0; entry < 20; entry++) {
-        cv::Rect dd_rect = Mgr.resolveWidgetReferenceRect("lbl-drop-down");
+        cv::Rect dd_rect = Mgr.resolveWidgetReferenceRect("lbl-drop-down", ai::rEnv);
         cv::Point pos;
         pos.x = dd_rect.x + dd_rect.width / 2;
         pos.y = dd_rect.y + (entry+0.5)*28.65*ai::rEnv.getScale();
+        mouseMoveTo(pos, 0.3);
         kbd::sendMouseClick(pos, 300, 100);
-        ai::sleep(3000);
+        ai::sleep(1500);
+        ai::detectEDState(DetectLevel::Buttons);
 
-        clickWidget("btn-tgt-copy",300,500);
+        clickWidget("btn-tgt-copy",300,500,0.8);
         auto name = textFromClipboard();
         if (name == systemName) {
-            clickWidget("btn-tgt-nav-to", 500, 1000);
+            clickWidget("btn-tgt-nav-to", 500, 1000, 0.6);
             leaveScrGalaxy();
             return true;
         }
 
-        cv::Rect rect = Mgr.resolveWidgetReferenceRect("lbl-search");
+        cv::Rect rect = Mgr.resolveWidgetReferenceRect("lbl-search", ai::rEnv);
         pos = (rect.tl() + rect.br()) * 0.5;
-        kbd::sendMouseMove(pos, 500);
+        mouseMoveTo(pos, 0.8);
     }
     return false;
 }

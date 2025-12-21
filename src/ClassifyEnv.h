@@ -193,6 +193,7 @@ struct ClassifiedRect {
             double scale; // detected scale for multi-scale templates, environment (screen) scale is not counted
             float angle;  // detected rotation angle for multi-scale templates
             double match; // detector's match value
+            cv::Rect matchRect;   // template match rect in screen coordinates
         } tdet;
         struct {
             cv::Line2f referenceLine;
@@ -343,6 +344,7 @@ struct ClassifyEnv : public ResolvedEnv {
     void init(upFrame&& frame);
     void init(XMat warpedImage, double scale=1.0);
     void init(XMat warpedImage, const cv::Matx33d& unWarpMatrix);
+    void init(XMat warpedImage, const cv::Matx23d& unWarpMatrix);
 
     [[nodiscard]] const XMat& getColorImage() const;
 

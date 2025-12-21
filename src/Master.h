@@ -89,7 +89,7 @@ public:
     bool detectEDState(DetectLevel);
     const UIState& lastEDState() { return mLastUIState; }
     cv::Point cvtReferenceToDesktop(const cv::Point& point) const;
-    cv::Rect resolveWidgetReferenceRect(const std::string& name) const;
+    cv::Rect resolveWidgetReferenceRect(const std::string& name, const ResolvedEnv& rEnv) const;
     int getDefaultKeyHoldTime() const { return Cfg.defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return Cfg.defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return Cfg.searchRegionExtent; }
@@ -133,7 +133,7 @@ private:
     void debugDetectEDState();
     bool debugRectScreenshot(pCommand& cmd);
     bool debugWindow();
-    bool debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv);
+    bool debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv, UIState& uiState);
 
     std::unique_ptr<widget::Root> mScreensRoot;
     HWND hWndED;

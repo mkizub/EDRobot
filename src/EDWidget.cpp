@@ -111,8 +111,9 @@ bool Screen::detect(DetectParams& params) {
         params.warpedEnv->init(frameImage, unWarpMat);
         DetectParams wared_params{*params.warpedEnv, nullptr, params.uiState, params.level};
         for (auto& cr : params.env.classified) {
-            if (cr.cdt == ClsDetType::Detected && cr.text.starts_with("nav_panel:"))
+            if (cr.cdt == ClsDetType::Detected && cr.text.starts_with("nav_panel:")) {
                 params.warpedEnv->classified.push_back(cr);
+            }
         }
         return detectWidgets(wared_params);
     }
@@ -887,6 +888,17 @@ bool Screen::checkStatus() const {
         if (key == "docked") {
             if (val.as_boolean() != st::ship.flags.docked)
                 return false;
+            continue;
+        }
+        if (key == "expect") {
+            if (val.is_boolean() && val.as_boolean()) {
+                if (this->name != st::autopilot.expect_screen)
+                    return false;
+            }
+            if (val.is_string()) {
+                if (val.as_string() != st::autopilot.expect_screen)
+                    return false;
+            }
             continue;
         }
         LOG(ERROR) << "Unknown or unimplemented status key: " << key;

@@ -77,6 +77,10 @@ bool UIManager::showMainDialog() {
     return mgr.uiMain.show();
 }
 
+bool UIManager::hideMainDialog(bool force) {
+    UIManager& mgr = getInstance();
+    return mgr.uiMain.hide(force);
+}
 
 bool UIManager::showToast(const std::string &title, const std::string &text) {
 //    std::shared_ptr<UIToast> wnd = UIToast::getInstance();

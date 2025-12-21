@@ -149,12 +149,34 @@ bool CapturerDXGI::recycle(Frame* p) const {
 bool CapturerDXGI::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) {
     if (!hWnd)
         return false;
+    auto gameSize = Cfg.getConfigDisplaySize();
+    if (gameSize.width > clientRect.width || gameSize.height > clientRect.height)
+        return false;
+
     if (!getID3D11Device() || !getID3D11DeviceContext()) {
         LOG(ERROR) << "D3dDevice not initialized";
         return false;
     }
-    auto gameSize = Cfg.getConfigDisplaySize();
-    if (gameSize.width > clientRect.width || gameSize.height > clientRect.height)
+    CComPtr<IDXGIDevice1> dxgiDevice;
+    if (FAILED(getID3D11Device()->QueryInterface(IID_PPV_ARGS(&dxgiDevice))))
+        return false;
+    CComPtr<IDXGIAdapter1> dxgiAdapter;
+    if (FAILED(m_dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter))))
+        return false;
+    CComPtr<IDXGIOutput> dxgiOutput;
+    for (unsigned i=0; ; i++) {
+        CComPtr<IDXGIOutput> output;
+        if (FAILED(dxgiAdapter->EnumOutputs(i, &output)))
+            break;
+        DXGI_OUTPUT_DESC desc {};
+        if (FAILED(output->GetDesc(&desc)))
+            continue;
+        if (desc.Monitor == hMonitor) {
+            dxgiOutput = output;
+            break;
+        }
+    }
+    if (!dxgiOutput)
         return false;
 
     this->hWndED = hWnd;
@@ -179,7 +201,7 @@ bool CapturerDXGI::start() {
         LOG(ERROR) << "Failed to acquire IDXGIDevice interface" << getErrorMessage(hr);
         return false;
     }
-    CComPtr<IDXGIAdapter> dxgiAdapter {nullptr};
+    CComPtr<IDXGIAdapter1> dxgiAdapter {nullptr};
     hr = m_dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter));
     if (FAILED(hr)) {
         LOG(ERROR) << "Failed to acquire IDXGIAdapter interface" << getErrorMessage(hr);
@@ -224,6 +246,8 @@ bool CapturerDXGI::start() {
                 hpcStartTimestamp = std::chrono::high_resolution_clock::now();
                 utcStartTimestamp = std::chrono::utc_clock::now();
                 return Capturer::start();
+            } else {
+                LOG(INFO) << "CapturerDXGI IDXGIOutput6->DuplicateOutput1 failed: " << getErrorMessage(hr);
             }
         }
     }
@@ -237,6 +261,8 @@ bool CapturerDXGI::start() {
             hpcStartTimestamp = std::chrono::high_resolution_clock::now();
             utcStartTimestamp = std::chrono::utc_clock::now();
             return Capturer::start();
+        } else {
+            LOG(INFO) << "CapturerDXGI IDXGIOutput1->DuplicateOutput failed: " << getErrorMessage(hr);
         }
     }
 
@@ -301,11 +327,11 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             continue;
         } else {
             //frame->timestamp = std::chrono::utc_clock::now();
-            const long long _Freq = _Query_perf_frequency(); // doesn't change after system boot
-            const long long _Ctr  = fi.LastPresentTime.QuadPart;
-            const long long _Whole = (_Ctr / _Freq) * std::chrono::steady_clock::period::den;
-            const long long _Part  = (_Ctr % _Freq) * std::chrono::steady_clock::period::den / _Freq;
-            auto frame_tp = std::chrono::steady_clock::time_point(std::chrono::steady_clock::duration(_Whole + _Part));
+            const long long freq = _Query_perf_frequency(); // doesn't change after system boot
+            const long long ctr  = fi.LastPresentTime.QuadPart;
+            const long long whole = (ctr / freq) * std::chrono::steady_clock::period::den;
+            const long long part  = (ctr % freq) * std::chrono::steady_clock::period::den / freq;
+            auto frame_tp = std::chrono::steady_clock::time_point(std::chrono::steady_clock::duration(whole + part));
             auto elapsed_since_start = frame_tp - hpcStartTimestamp;
             auto utc_tp = utcStartTimestamp + elapsed_since_start;
             frame->timestamp = std::chrono::time_point_cast<Timestamp::duration>(utc_tp);

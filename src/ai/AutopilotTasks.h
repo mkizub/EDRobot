@@ -32,6 +32,17 @@ struct CourseLockerPause {
     const bool wasActive;
 };
 
+struct ExpectSceeenLocker {
+    explicit ExpectSceeenLocker(const char* scr) {
+        prev_screen = st::autopilot.expect_screen;
+        st::autopilot.expect_screen = scr;
+    }
+    ~ExpectSceeenLocker() {
+        st::autopilot.expect_screen = prev_screen;
+    }
+    std::string prev_screen;
+};
+
 class BaseAutopilotTask : public Task {
 protected:
     explicit BaseAutopilotTask(const TaskTemplate& templ_) : Task(templ_) {}
@@ -222,7 +233,7 @@ public:
     std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, DIST_BAD, DIST_FAR, DIST_NEAR, DIST_STOP, DONE
+        READY, DIST_BAD, DIST_HUGE, DIST_FAR, DIST_CLOSE, DIST_NEAR, DIST_STOP, DONE
     } status {READY};
 
     std::string destName;

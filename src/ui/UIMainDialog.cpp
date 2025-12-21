@@ -9,8 +9,8 @@
 #include "UIAddTask.h"
 #include "../../ui/resource.h"
 
-#define TRAY_ICONUID 100
-#define WM_TRAY_NOTIFY WM_APP + 100
+const int TRAY_ICONUID = 100;
+const int WM_TRAY_NOTIFY = WM_APP + 100;
 
 UIMainDialog::UIMainDialog()
     : mNotifyIconData{}
@@ -18,10 +18,13 @@ UIMainDialog::UIMainDialog()
     setup.dialogId = IDD_ED_ROBOT;
     setup.iconId = IDI_DIALOGS;
 
-    on_message(WM_INITDIALOG, [this](wl::params p){return initialize(p);});
+    on_message(WM_INITDIALOG, [this](wl::params p) -> INT_PTR {
+        initialize();
+        return TRUE;
+    });
 
     this->base_msg_pubm::on_message(WM_CLOSE, [this](wl::params) noexcept -> INT_PTR {
-        hide();
+        hide(true);
         return TRUE;
     });
     this->base_msg_pubm::on_message(WM_DESTROY, [this](wl::params) noexcept -> INT_PTR {
@@ -44,7 +47,7 @@ UIMainDialog::UIMainDialog()
             BringWindowToTop(this->hwnd());
             int cmd = TrackPopupMenu(hmenu,
                                      TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_BOTTOMALIGN | TPM_NONOTIFY | TPM_RETURNCMD,
-                                     pt.x, pt.y, 0, this->hwnd(), NULL);
+                                     pt.x, pt.y, 0, this->hwnd(), nullptr);
             PostMessage(this->hwnd(), WM_NULL, 0, 0);
             if (cmd == IDM_EXIT)
                 Master::getInstance().pushCommand(Command::Shutdown);
@@ -57,22 +60,30 @@ UIMainDialog::UIMainDialog()
         return FALSE;
     });
     this->base_msg_pubm::on_command({IDOK,IDCANCEL}, [this](wl::params params) noexcept -> INT_PTR {
-        hide();
+        hide(false);
         return 0;
     });
     this->base_msg_pubm::on_command(IDC_BUTTON_STOP_NEW, [this](wl::params p){
-        on_command_stop_new(p);
+        on_command_stop_new();
         return 0;
     });
     this->base_msg_pubm::on_command(IDC_BUTTON_PAUSE_RESUME, [this](wl::params p){
-        on_command_pause_resume(p);
+        on_command_pause_resume();
         return 0;
     });
-    this->base_msg_pubm::on_command(IDC_BUTTON_WATCH, [this](wl::params p){
+    this->base_msg_pubm::on_command(IDC_BUTTON_WATCH, [](wl::params p){
         UIManager::showDebugWindow();
         return 0;
     });
-    this->base_msg_pubm::on_command(IDC_EXIT, [this](wl::params p){
+    this->base_msg_pubm::on_command(IDC_KEEP_ON_TOP, [this](wl::params p){
+        if (cb_keep_on_top.is_checked()) {
+            this->style.set_style_ex(true, WS_EX_TOPMOST);
+        } else {
+            this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
+        }
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDC_EXIT, [](wl::params p){
         Master::getInstance().pushCommand(Command::Shutdown);
         return 0;
     });
@@ -83,7 +94,7 @@ UIMainDialog::UIMainDialog()
 }
 
 
-int UIMainDialog::initialize(wl::params &params) {
+void UIMainDialog::initialize() {
     HINSTANCE hInstance = GetModuleHandle(nullptr);
     mNotifyIconData.cbSize = sizeof(NOTIFYICONDATA);
     mNotifyIconData.hWnd = hwnd();
@@ -99,6 +110,7 @@ int UIMainDialog::initialize(wl::params &params) {
     lbl_curr_task.assign(hwnd(), IDC_CURRENT_TASK);
     lbl_task_status.assign(hwnd(), IDC_TASK_STATUS);
     lbl_status.assign(hwnd(), IDC_STATUS);
+    cb_keep_on_top.assign(hwnd(), IDC_KEEP_ON_TOP);
     btn_stop_new.assign(hwnd(), IDC_BUTTON_STOP_NEW);
     btn_pause_resume.assign(hwnd(), IDC_BUTTON_PAUSE_RESUME);
     btn_watch.assign(hwnd(), IDC_BUTTON_WATCH);
@@ -110,15 +122,15 @@ int UIMainDialog::initialize(wl::params &params) {
     btn_exit.set_text(toUtf16(_gt("Exit")).c_str());
 
     update_curr_task();
-
-    return TRUE;
 }
 
 bool UIMainDialog::show() {
     struct ClipboardLocker {
-        ClipboardLocker() { OpenClipboard(NULL); }
+        ClipboardLocker() { OpenClipboard(nullptr); }
         ~ClipboardLocker() { CloseClipboard(); }
     } locker;
+    if (this->style.has_style_ex(WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT))
+        this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
     ShowWindow(this->hwnd(), SW_RESTORE);
     SetForegroundWindow(this->hwnd());
     BringWindowToTop(this->hwnd());
@@ -126,23 +138,33 @@ bool UIMainDialog::show() {
     return true;
 }
 
-bool UIMainDialog::hide() {
+bool UIMainDialog::hide(bool force) {
+    if (!force && cb_keep_on_top.is_checked()) {
+        if (GetSystemMetrics(SM_CMONITORS) > 1 || Cfg.getGameScreenMode() == Configuration::GameScreenMode::Window)
+            return false;
+        if (Cfg.getGameScreenMode() == Configuration::GameScreenMode::Borderless) {
+            this->style.set_style_ex(true, WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT);
+            float transparency_percentage = 0.5f;
+            SetLayeredWindowAttributes(hwnd(), 0, (BYTE) (255 * transparency_percentage), LWA_ALPHA);
+            return false;
+        }
+        // Configuration::GameScreenMode::FullScreen => hide
+    }
     ShowWindow(this->hwnd(), SW_HIDE);
     KillTimer(this->hwnd(), mUpdateTimerId);
     mUpdateTimerId = {};
     return true;
 }
 
-void UIMainDialog::on_command_stop_new(wl::params &params) {
+void UIMainDialog::on_command_stop_new() {
     try {
         ai::spTask task = ai::curr_task();
         if (!task) {
             UIAddTask addTaskDlg;
             int res = addTaskDlg.show(this);
             if (res == IDOK) {
-                if (GetSystemMetrics(SM_CMONITORS) < 2)
-                    hide();
-                return;
+                if (hide(false))
+                    return;
             }
         } else {
             ai::stop();
@@ -155,17 +177,15 @@ void UIMainDialog::on_command_stop_new(wl::params &params) {
     }
 }
 
-void UIMainDialog::on_command_pause_resume(wl::params &params) {
+void UIMainDialog::on_command_pause_resume() {
     try {
         ai::spTask task = ai::curr_task();
         if (!task) {
             // repeat
             task = ai::last_task();
             if (task && ai::new_task(task->templ)) {
-                if (GetSystemMetrics(SM_CMONITORS) < 2) {
-                    hide();
+                if (hide(false))
                     return;
-                }
             }
         } else {
             if (!ai::active() || ai::isDebugPause()) {
@@ -174,10 +194,8 @@ void UIMainDialog::on_command_pause_resume(wl::params &params) {
                     ai::toggleDebugPause();
                 if (!ai::active())
                     ai::resume();
-                if (GetSystemMetrics(SM_CMONITORS) < 2) {
-                    hide();
+                if (hide(false))
                     return;
-                }
             } else {
                 // pause
                 ai::interrupt();
@@ -188,29 +206,6 @@ void UIMainDialog::on_command_pause_resume(wl::params &params) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
         LOG(ERROR) << ex.what();
-    }
-}
-
-void addStepStatus(std::string& status, int indent, ai::spStep step) {
-    if (!step)
-        return;
-    status += std::string(indent, ' ');
-    status += step->getTitle();
-    status += ":\n";
-    indent += 4;
-    for (auto& msg : step->getMessages()) {
-        if (msg.empty())
-            continue;
-        status += std::string(indent, ' ');
-        status += msg;
-        status += "\n";
-    }
-    for (auto& msg : split(step->getStatus(), '\n')) {
-        if (msg.empty())
-            continue;
-        status += std::string(indent, ' ');
-        status += msg;
-        status += "\n";
     }
 }
 
@@ -314,6 +309,8 @@ void UIMainDialog::update_curr_task() {
         lbl_status.set_text(toUtf16(lc_format("{}: speed {}%, distance {}", space, spd, dist)));
     }
     if (IsWindowVisible(hwnd())) {
+        if (cb_keep_on_top.is_checked() && ai::curr_task())
+            SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
     } else {
         KillTimer(this->hwnd(), mUpdateTimerId);

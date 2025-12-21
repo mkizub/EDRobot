@@ -959,6 +959,7 @@ bool DepartureStep::run() {
             fromStarPort = true;
     }
 
+    ExpectSceeenLocker expectAutopilot("scr-autopilot");
     if (st::ship.flags.docked) {
         status = REFUEL;
         gotoLandingPad(true);
@@ -1612,6 +1613,7 @@ spGameEvent BaseDockStep::requestDockingPermit() {
 }
 
 bool BaseDockStep::autopilot() {
+    ExpectSceeenLocker expectAutopilot("scr-autopilot");
     // 8 minutes for docking
     timer = utc_timer(8min);
     status = AUTOPILOT;
@@ -2120,7 +2122,7 @@ bool DockPlanetPort::run() {
 dist_t DockPlanetPort::getDockDistance(bool force) {
     if (st::compass.hemisphere) {
         double angle = std::abs(90 + st::compass.targetPitch);
-        if (angle < 60) {
+        if (std::abs(angle) < 80) {
             double altitude = st::shipAtBody.altitude;
             double d = altitude / std::cos(angle * M_PI / 180);
             st::autopilot.distanceToDock = dist_t(dist_t::M, d);
@@ -2199,7 +2201,7 @@ bool DockPlanetPort::flyAlongSurface() {
             sendUiBack();
             continue;
         }
-        if (st::shipAtBody.altitude < 2000) {
+        if (st::shipAtBody.altitude < 2600) {
             kbd::send("UpThrustButton", 3000, 500);
             continue;
         }
@@ -2306,7 +2308,8 @@ bool NavBodySelect::run() {
     status = SELECTING;
     int missmatch = 0;
     for (int retry=0; retry < 3; retry++) {
-        if (!task->nl.focusDestBody()) {
+        int body_conf = 0;
+        if (!task->nl.focusDestBody(&body_conf)) {
             notify_warn("Failed to find the body in nav list");
             continue;
         }
@@ -2321,7 +2324,7 @@ bool NavBodySelect::run() {
             status = DONE;
             return true;
         }
-        if (missmatch >= 2) {
+        if (missmatch >= 2 && body_conf >= 90) {
             if (st::autopilot.destDock && st::autopilot.destDock->parentBodyId == body->bodyId) {
                 st::autopilot.destDock->parentBodyId = -1;
                 st::autopilot.destDock.reset();
@@ -2720,18 +2723,18 @@ bool CruiseToDistStep::run() {
                 status = DIST_NEAR;
                 setSpeed(25);
             }
-            else if (currentDist <= 50_ls) {
-                status = DIST_FAR;
+            else if (currentDist <= 100_ls) {
+                status = DIST_CLOSE;
                 setSpeed(50);
                 sleep(100);
             }
-            else if (currentDist <= 300_ls) {
+            else if (currentDist <= 1000_ls) {
                 status = DIST_FAR;
                 setSpeed(75);
                 sleep(500);
             }
             else {
-                status = DIST_FAR;
+                status = DIST_HUGE;
                 setSpeed(100);
                 sleep(1000);
             }
@@ -2773,7 +2776,9 @@ std::string BaseCruiseStep::getStatus() {
     case READY:
         return {};
     case DIST_BAD: st=_gt("Dist bad"); break;
+    case DIST_HUGE: st=_gt("Dist huge"); break;
     case DIST_FAR: st=_gt("Dist far"); break;
+    case DIST_CLOSE: st=_gt("Dist close"); break;
     case DIST_NEAR: st=_gt("Dist near"); break;
     case DIST_STOP: st=_gt("Reached"); break;
     }
@@ -3616,7 +3621,7 @@ bool CruiseAndDock::run() {
             st::autopilot.destDock->nameEq(st::space.stationName) ||
             st::autopilot.destDock->nameEq(st::space.bodyName)
             );
-    if (at_dest_dock) {
+    if (at_dest_dock || !st::ship.flags.cruise) {
         run_sub_step(new NavDockSelect);
         at_dest_dock = st::autopilot.distanceToDock < 50_km;
     }

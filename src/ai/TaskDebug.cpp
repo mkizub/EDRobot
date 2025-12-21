@@ -244,7 +244,7 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
         }
         if (!focusedRow) {
             LOG(INFO) << "No focused row found, moving mouse to the list area";
-            cv::Rect rect = Mgr.resolveWidgetReferenceRect("lst-goods");
+            cv::Rect rect = Mgr.resolveWidgetReferenceRect("lst-goods", ai::rEnv);
             int x = rect.x+rect.width/2;
             int y = rect.y - 20;
             kbd::sendMouseClick({x, y}, 0, 500);

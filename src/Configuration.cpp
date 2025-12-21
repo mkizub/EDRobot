@@ -93,17 +93,17 @@ bool Configuration::load() {
         }
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
-        if (auto &tm = j_config.at("ui-scale-percents"); tm.is_integer()) {
+        if (auto& tm = j_config.at("ui-scale-percents"); tm.is_integer()) {
             if (tm.as_integer() >= 25 && tm.as_integer() <= 400)
                 mUiScalePercents = tm.as_integer();
         }
-        if (auto &tm = j_config.at("default-key-hold-time"); tm.is_integer())
+        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer())
             defaultKeyHoldTime = tm.as_integer();
-        if (auto &tm = j_config.at("default-key-after-time"); tm.is_integer())
+        if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer())
             defaultKeyAfterTime = tm.as_integer();
-        if (auto &tm = j_config.at("search-region-extent"); tm.is_integer())
+        if (auto& tm = j_config.at("search-region-extent"); tm.is_integer())
             searchRegionExtent = tm.as_integer();
-        if (auto &tm = j_config.at("auto-pause"); tm.is_boolean())
+        if (auto& tm = j_config.at("auto-pause"); tm.is_boolean())
             autoPause = tm.as_boolean();
         if (j_config.at("shortcuts").is_object()) {
             auto &obj = j_config.at("shortcuts");
@@ -116,25 +116,25 @@ bool Configuration::load() {
             parseShortcutConfig(Command::ResetCapturer, "reset-capturer", obj);
             parseShortcutConfig(Command::DevRectSelect, "dev-rect-select", obj);
         }
-        if (auto tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
+        if (auto& tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
             mEDSettingsPath = toUtf16(tm.as_string());
-        if (auto tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
+        if (auto& tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
             mEDLogsPath = toUtf16(tm.as_string());
-        if (auto tm = j_config.at("tesseract-data-path"); tm.is_string())
+        if (auto& tm = j_config.at("tesseract-data-path"); tm.is_string())
             mTesseractDataPath = tm.as_string();
-        if (auto &tm = j_config.at("force-dxgi-device")) {
+        if (auto& tm = j_config.at("force-dxgi-device")) {
             if (tm.is_string())
                 forceDXGIDevice = tm.as_string();
             if (tm.is_integer())
                 forceDXGIDeviceId = tm.as_integer();
         }
-        if (auto &tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
             capturerWin32Disabled = tm.as_boolean();
-        if (auto &tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
             capturerWinRTDisabled = tm.as_boolean();
-        if (auto &tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
             capturerDXGIDisabled = tm.as_boolean();
-        if (auto &tm = j_config.at("vjoy-device-id"); tm.is_integer())
+        if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
             vJoyDeviceID = (uint8_t) tm.as_integer();
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
@@ -392,10 +392,10 @@ bool Configuration::loadGameSettings(bool initial) {
                 scaledScreenHeight = height;
             }
             if (auto node = xml_node_find_tag(rootNode, "FullScreen", true); node && node->text) {
-                FullScreenMode mode = (FullScreenMode) atoi(node->text);
-                if (!initial && mode != configFullScreen)
+                auto mode = (GameScreenMode) atoi(node->text);
+                if (!initial && mode != configScreenMode)
                     needCapturerReset = true;
-                configFullScreen = mode;
+                configScreenMode = mode;
             }
             if (auto node = xml_node_find_tag(rootNode, "Monitor", true); node && node->text) {
                 int monitorId = atoi(node->text);
