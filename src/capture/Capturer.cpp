@@ -65,7 +65,7 @@ bool Capturer::InitD3DDevice() {
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed to create DXGI factory1: " << getErrorMessage(hr);
         } else {
-            numGPUs = 0;
+            std::set<UINT> uniqueGPUs;
             LOG(INFO) << "DXGI adapters:";
             std::wstring forcedName = toUtf16(Cfg.getForcedDXGIDeviceName());
             int forcedId = Cfg.getForcedDXGIDeviceId();
@@ -76,8 +76,9 @@ bool Capturer::InitD3DDevice() {
                     break;
                 DXGI_ADAPTER_DESC1 desc {};
                 dxgiAdapterTmp->GetDesc1(&desc);
-                if (desc.Flags == DXGI_ADAPTER_FLAG_NONE)
-                    numGPUs += 1;
+                if (desc.Flags != DXGI_ADAPTER_FLAG_NONE)
+                    continue;
+                uniqueGPUs.insert(desc.DeviceId);
                 bool forced = !dxgiAdapter1 && (forcedId == desc.DeviceId || forcedName == desc.Description);
                 LOG(INFO) << std::format(L"DXGI adapter[{}]: device id: {}, name: '{}'{}", i,
                                          desc.DeviceId, desc.Description,
@@ -95,6 +96,7 @@ bool Capturer::InitD3DDevice() {
                 if (forced)
                     dxgiAdapter1.Attach(dxgiAdapterTmp.Detach());
             }
+            numGPUs = uniqueGPUs.size();
         }
         static const D3D_FEATURE_LEVEL featureLevels[] = {
                 D3D_FEATURE_LEVEL_11_1,

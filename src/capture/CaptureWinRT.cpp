@@ -291,13 +291,13 @@ void CapturerWinRT::copyTexture(FrameWinRT* frame, winrt::Windows::Graphics::Cap
         frame->mStagingTextureDesc = texture_desc;
         frame->mStagingTextureDesc.Width = captureVirtRect.width;
         frame->mStagingTextureDesc.Height = captureVirtRect.height;
-#ifdef EDROBOT_USE_OPENCL
-        frame->mStagingTextureDesc.Usage = D3D11_USAGE_DEFAULT;
-        frame->mStagingTextureDesc.CPUAccessFlags = 0;
-#else
-        frame->mStagingTextureDesc.Usage = D3D11_USAGE_STAGING;
-        frame->mStagingTextureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-#endif
+        if (useOpenCL() && Cfg.useOpenclD3dInterop()) {
+            frame->mStagingTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+            frame->mStagingTextureDesc.CPUAccessFlags = 0;
+        } else {
+            frame->mStagingTextureDesc.Usage = D3D11_USAGE_STAGING;
+            frame->mStagingTextureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        }
         frame->mStagingTextureDesc.BindFlags = 0;
         frame->mStagingTextureDesc.MiscFlags = 0;
         frame->mStagingTexture = nullptr;

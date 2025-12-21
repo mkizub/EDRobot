@@ -24,21 +24,18 @@ public:
     void cleanup();
 
     D3D11_TEXTURE2D_DESC mStagingTextureDesc;
-    mutable D3D11_MAPPED_SUBRESOURCE mStagingMappedTex {};
     CComPtr<ID3D11Texture2D> mStagingTexture;
 
     mutable XMat rawColorImage;
     mutable XMat colorImage;
-    mutable bool stagingTextureValid {false};
-    mutable bool stagingTextureMapped {false};
     mutable bool rawColorImageValid {false};
+    mutable bool rawColorImageFullscreen {false};
     mutable bool colorImageValid {false};
 };
 
 FrameDXGI::FrameDXGI(CapturerDXGI* owner)
         : Frame(owner, owner->captureSize)
 {
-    stagingTextureValid = false;
 }
 
 FrameDXGI::~FrameDXGI() {
@@ -47,20 +44,14 @@ FrameDXGI::~FrameDXGI() {
 }
 
 bool FrameDXGI::valid() const {
-    if (colorImageValid || rawColorImageValid)
-        return true;
-    return stagingTextureValid && mStagingTexture;
+    return (colorImageValid || rawColorImageValid);
 }
 
 void FrameDXGI::cleanup() {
     timestamp = {};
-    if (stagingTextureMapped) {
-        Capturer::getID3D11DeviceContext()->Unmap(mStagingTexture, 0);
-        mStagingMappedTex = {};
-        stagingTextureMapped = false;
-    }
     colorImageValid = false;
     rawColorImageValid = false;
+    rawColorImageFullscreen = false;
     colorImage.release();
     rawColorImage.release();
 }
@@ -71,7 +62,7 @@ const XMat& FrameDXGI::getImage() const {
 #ifdef EDROBOT_USE_OPENCL
             auto* owner = (CapturerDXGI*)this->owner;
             cv::Rect captureRect = owner->captureVirtRect - owner->monitorVirtRect.tl();
-            if (owner->captureVirtRect == owner->monitorVirtRect) {
+            if (!rawColorImageFullscreen || owner->captureVirtRect == owner->monitorVirtRect) {
                 colorImage = rawColorImage;
             } else {
                 if (captureRect.x >= 0 && captureRect.y >= 0 &&
@@ -347,13 +338,14 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
     if (useOpenCL() && Cfg.useOpenclD3dInterop()) {
         cv::directx::convertFromD3D11Texture2D(texture, frame->rawColorImage);
         frame->rawColorImageValid = true;
+        frame->rawColorImageFullscreen = true;
         m_outputDuplication->ReleaseFrame();
         return {(Frame*)frame, FrameRecycler()};
     }
 #endif
     D3D11_TEXTURE2D_DESC texture_desc;
     texture->GetDesc(&texture_desc);
-    if (!frame->mStagingTexture || !frame->stagingTextureValid) {
+    if (!frame->mStagingTexture) {
         frame->mStagingTextureDesc = texture_desc;
         frame->mStagingTextureDesc.Width = captureVirtRect.width;
         frame->mStagingTextureDesc.Height = captureVirtRect.height;
@@ -367,12 +359,6 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             LOG(ERROR) << "CapturerDXGI Failed to create staging texture";
             return {};
         }
-        frame->stagingTextureValid = true;
-    }
-    if (frame->stagingTextureMapped) {
-        getID3D11DeviceContext()->Unmap(frame->mStagingTexture, 0);
-        frame->mStagingMappedTex = {};
-        frame->stagingTextureMapped = false;
     }
 
     if (texture_desc.Width == frame->mStagingTextureDesc.Width && texture_desc.Height == frame->mStagingTextureDesc.Height) {
@@ -405,20 +391,16 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
         getID3D11DeviceContext()->CopySubresourceRegion(frame->mStagingTexture, 0, dst_x, dst_y, 0, texture, 0, &sourceRegion);
     }
     Capturer::flushID3D11DeviceContext();
-    frame->stagingTextureValid = true;
-    hr = getID3D11DeviceContext()->Map(frame->mStagingTexture, 0, D3D11_MAP_READ, 0, &frame->mStagingMappedTex);
+    D3D11_MAPPED_SUBRESOURCE stagingMappedTex {};
+    hr = getID3D11DeviceContext()->Map(frame->mStagingTexture, 0, D3D11_MAP_READ, 0, &stagingMappedTex);
     if (FAILED(hr)) {
         LOG(ERROR) << "CapturerDXGI Failed to map staging texture: " << getErrorMessage(hr);
     } else {
-        frame->stagingTextureMapped = true;
-
         frame->rawColorImage.create(frame->size, CV_8UC4);
         cv::Mat mappedImage(frame->mStagingTextureDesc.Height, frame->mStagingTextureDesc.Width,
-                            CV_8UC4, frame->mStagingMappedTex.pData, frame->mStagingMappedTex.RowPitch);
+                            CV_8UC4, stagingMappedTex.pData, stagingMappedTex.RowPitch);
         cv::copyTo(mappedImage, frame->rawColorImage, cv::noArray());
         getID3D11DeviceContext()->Unmap(frame->mStagingTexture, 0);
-        frame->mStagingMappedTex = {};
-        frame->stagingTextureMapped = false;
         frame->rawColorImageValid = true;
     }
 
