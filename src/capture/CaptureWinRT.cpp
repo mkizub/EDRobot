@@ -62,7 +62,7 @@ const XMat& FrameWinRT::getImage() const {
         return colorImage;
 
 #ifdef EDROBOT_USE_OPENCL
-    if (useOpenCL()) {
+    if (useOpenCL() && Cfg.useOpenclD3dInterop()) {
         cv::directx::convertFromD3D11Texture2D(mStagingTexture.get(), colorImage);
     } else
 #endif

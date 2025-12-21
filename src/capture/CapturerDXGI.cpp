@@ -157,27 +157,33 @@ bool CapturerDXGI::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect)
         LOG(ERROR) << "D3dDevice not initialized";
         return false;
     }
+    m_dxgiOutput = nullptr;
+    m_outputDuplication = nullptr;
     CComPtr<IDXGIDevice1> dxgiDevice;
     if (FAILED(getID3D11Device()->QueryInterface(IID_PPV_ARGS(&dxgiDevice))))
         return false;
     CComPtr<IDXGIAdapter1> dxgiAdapter;
-    if (FAILED(m_dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter))))
+    if (FAILED(dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter))))
         return false;
-    CComPtr<IDXGIOutput> dxgiOutput;
     for (unsigned i=0; ; i++) {
         CComPtr<IDXGIOutput> output;
         if (FAILED(dxgiAdapter->EnumOutputs(i, &output)))
             break;
+        CComPtr<IDXGIOutput1> output1 {};
+        if (FAILED(output->QueryInterface(IID_PPV_ARGS(&output1))))
+            continue;
         DXGI_OUTPUT_DESC desc {};
-        if (FAILED(output->GetDesc(&desc)))
+        if (FAILED(output1->GetDesc(&desc)))
             continue;
         if (desc.Monitor == hMonitor) {
-            dxgiOutput = output;
+            m_dxgiOutput = output1;
             break;
         }
     }
-    if (!dxgiOutput)
+    if (!m_dxgiOutput) {
+        LOG(ERROR) << "Failed to find IDXGIOutput1 for monitor " << toUtf8(monitorInfo.szDevice);
         return false;
+    }
 
     this->hWndED = hWnd;
     this->windowVirtRect = windowRect;
@@ -196,40 +202,13 @@ bool CapturerDXGI::start() {
         LOG(ERROR) << "Cannot start CapturerDXGI because ED window not found";
         return false;
     }
-    hr = getID3D11Device()->QueryInterface(IID_PPV_ARGS(&m_dxgiDevice));
-    if (FAILED(hr)) {
-        LOG(ERROR) << "Failed to acquire IDXGIDevice interface" << getErrorMessage(hr);
-        return false;
-    }
-    CComPtr<IDXGIAdapter1> dxgiAdapter {nullptr};
-    hr = m_dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter));
-    if (FAILED(hr)) {
-        LOG(ERROR) << "Failed to acquire IDXGIAdapter interface" << getErrorMessage(hr);
-        return false;
-    }
-
-    CComPtr<IDXGIOutput> dxgiOutput;
-    for (unsigned i=0; ; i++) {
-        CComPtr<IDXGIOutput> output;
-        hr = dxgiAdapter->EnumOutputs(i, &output);
-        if (FAILED(hr))
-            break;
-        DXGI_OUTPUT_DESC desc {};
-        hr = output->GetDesc(&desc);
-        if (FAILED(hr))
-            continue;
-        if (desc.Monitor == hMonitor) {
-            dxgiOutput = output;
-            break;
-        }
-    }
-    if (!dxgiOutput) {
-        LOG(ERROR) << "Failed to find IDXGIOutput for monitor " << toUtf8(monitorInfo.szDevice);
+    if (!m_dxgiOutput) {
+        LOG(ERROR) << "Cannot start CapturerDXGI because IDXGIOutput1 not found";
         return false;
     }
 
     CComPtr<IDXGIOutput6> dxgiOutput6 {};
-    hr = dxgiOutput->QueryInterface(IID_PPV_ARGS(&dxgiOutput6));
+    hr = m_dxgiOutput->QueryInterface(IID_PPV_ARGS(&dxgiOutput6));
     if (SUCCEEDED(hr)) {
         DXGI_OUTPUT_DESC1 desc1 {};
         hr = dxgiOutput6->GetDesc1(&desc1);
@@ -252,18 +231,12 @@ bool CapturerDXGI::start() {
         }
     }
 
-    CComPtr<IDXGIOutput1> dxgiOutput1 {};
-    hr = dxgiOutput->QueryInterface(IID_PPV_ARGS(&dxgiOutput1));
+    hr = m_dxgiOutput->DuplicateOutput(getID3D11Device(), &m_outputDuplication);
     if (SUCCEEDED(hr)) {
-        hr = dxgiOutput1->DuplicateOutput(getID3D11Device(), &m_outputDuplication);
-        if (SUCCEEDED(hr)) {
-            LOG(INFO) << "CapturerDXGI started";
-            hpcStartTimestamp = std::chrono::high_resolution_clock::now();
-            utcStartTimestamp = std::chrono::utc_clock::now();
-            return Capturer::start();
-        } else {
-            LOG(INFO) << "CapturerDXGI IDXGIOutput1->DuplicateOutput failed: " << getErrorMessage(hr);
-        }
+        LOG(INFO) << "CapturerDXGI started";
+        hpcStartTimestamp = std::chrono::high_resolution_clock::now();
+        utcStartTimestamp = std::chrono::utc_clock::now();
+        return Capturer::start();
     }
 
     LOG(ERROR) << "Failed to acquire DuplicateOutput " << getErrorMessage(hr);
@@ -276,7 +249,7 @@ bool CapturerDXGI::stop() {
     Capturer::stop();
 
     m_outputDuplication = nullptr;
-    m_dxgiDevice = nullptr;
+    m_dxgiOutput = nullptr;
 
     while (!recycledFrames.empty()) {
         delete (FrameDXGI*)recycledFrames.back();
@@ -371,7 +344,7 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
         }
     }
 #ifdef EDROBOT_USE_OPENCL
-    if (useOpenCL()) {
+    if (useOpenCL() && Cfg.useOpenclD3dInterop()) {
         cv::directx::convertFromD3D11Texture2D(texture, frame->rawColorImage);
         frame->rawColorImageValid = true;
         m_outputDuplication->ReleaseFrame();

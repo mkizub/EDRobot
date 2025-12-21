@@ -417,6 +417,8 @@ bool Master::initialize(int argc, char* argv[]) {
         //LOG(INFO) << _("Hello world!");
     }
 
+    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     std::string error;
     TRY {
         error = initializeInternal(ocr_dir);

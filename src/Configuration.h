@@ -118,6 +118,7 @@ public:
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
     bool isCapturerWinRTDisabled() const { return capturerWinRTDisabled; }
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
+    bool useOpenclD3dInterop() const { return openclD3dInterop; }
     GameScreenMode getGameScreenMode() const { return configScreenMode; };
     int getUiScalePercents() const { return mUiScalePercents; }
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
@@ -189,6 +190,7 @@ private:
     bool capturerWinRTDisabled = false;
     bool capturerDXGIDisabled = false;
     bool openclDisabled = false;
+    bool openclD3dInterop = true;
     uint8_t vJoyDeviceID = 1;
     std::string mTesseractDataPath;
     std::wstring mEDSettingsPath;

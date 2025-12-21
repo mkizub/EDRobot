@@ -139,6 +139,8 @@ bool Configuration::load() {
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
             openclDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_boolean())
+            openclD3dInterop = tm.as_boolean();
         g_DisableOpenCL = openclDisabled;
         if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
             std::string dir = tm.as_string();

@@ -22,6 +22,7 @@
 static CComPtr<ID3D11Device1> D3dDevice;
 static CComPtr<ID3D11DeviceContext1> D3dContext;
 static CComPtr<ID3D11Query> D3dQuery;
+static int numGPUs;
 
 std::unique_ptr<Capturer> Capturer::TheCapturer;
 
@@ -64,6 +65,7 @@ bool Capturer::InitD3DDevice() {
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed to create DXGI factory1: " << getErrorMessage(hr);
         } else {
+            numGPUs = 0;
             LOG(INFO) << "DXGI adapters:";
             std::wstring forcedName = toUtf16(Cfg.getForcedDXGIDeviceName());
             int forcedId = Cfg.getForcedDXGIDeviceId();
@@ -74,6 +76,8 @@ bool Capturer::InitD3DDevice() {
                     break;
                 DXGI_ADAPTER_DESC1 desc {};
                 dxgiAdapterTmp->GetDesc1(&desc);
+                if (desc.Flags == DXGI_ADAPTER_FLAG_NONE)
+                    numGPUs += 1;
                 bool forced = !dxgiAdapter1 && (forcedId == desc.DeviceId || forcedName == desc.Description);
                 LOG(INFO) << std::format(L"DXGI adapter[{}]: device id: {}, name: '{}'{}", i,
                                          desc.DeviceId, desc.Description,
@@ -203,15 +207,15 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
             captureRect = monitorInfo.rcMonitor;
         }
     }
-    // for window, try WinRT capturer first
-    if (!fullscreen && !Cfg.isCapturerWinRTDisabled()) {
+    // for window or multiple GPUs, try WinRT capturer first
+    if ((!fullscreen || numGPUs > 1) && !Cfg.isCapturerWinRTDisabled()) {
         auto c = std::unique_ptr<Capturer>(new CapturerWinRT(hMonitor, &monitorInfo));
         if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
             TheCapturer.swap(c);
             return TheCapturer.get();
         }
     }
-    // otherwice try DXGI capturer as fast and releable
+    // otherwise try DXGI capturer as fast and releable
     if (!Cfg.isCapturerDXGIDisabled()) {
         auto c = std::unique_ptr<Capturer>(new CapturerDXGI(hMonitor, &monitorInfo));
         if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {

@@ -27,7 +27,7 @@ private:
     CapturerDXGI(HMONITOR hMonitor, LPMONITORINFOEX monitorInfoEx);
     bool trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) override;
 
-    CComPtr<IDXGIDevice1> m_dxgiDevice {nullptr};
+    CComPtr<IDXGIOutput1> m_dxgiOutput {nullptr};
     CComPtr<IDXGIOutputDuplication> m_outputDuplication {nullptr};
     std::chrono::time_point<std::chrono::high_resolution_clock> hpcStartTimestamp;
     Timestamp utcStartTimestamp;
