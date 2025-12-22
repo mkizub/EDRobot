@@ -637,7 +637,6 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
             break;
         // global shortcuts
         case Command::Start:
-        case Command::Stop:
         case Command::DebugTemplates:
         case Command::DebugWindow:
         case Command::DebugStream:
@@ -652,6 +651,7 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
                 UIManager::hideMainDialog(false);
             break;
         // in-game shortcuts
+        case Command::Stop:
         case Command::Autopilot:
         case Command::ResetCapturer:
         case Command::DevRectSelect:
@@ -929,6 +929,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
 bool Master::stopAITask() {
     kbd::reset_vJoy();
     ai::interrupt();
+    UIManager::hideMainDialog(true);
     return true;
 }
 

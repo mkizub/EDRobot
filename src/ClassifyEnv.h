@@ -131,9 +131,9 @@ public:
 typedef std::shared_ptr<EvalPoint> spEvalPoint;
 typedef std::shared_ptr<EvalRect> spEvalRect;
 typedef std::shared_ptr<EvalLine> spEvalLine;
-extern spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv);
-extern spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv);
-extern spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const json5pp::value& jv);
+extern spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale);
+extern spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale);
+extern spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale);
 
 // Transform evaluator
 class EvalTransform {

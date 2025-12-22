@@ -1,4 +1,5 @@
 {
+  "ui-scale-percents": 100,
   "default-key-hold-time": 35,
   "default-key-after-time": 65,
   "search-region-extent": 10,

@@ -8,8 +8,8 @@
 #define EDROBOT_UILAYOUT_H
 
 const int LO_DLG_BORDER     = 10;
-const int LO_BTN_W          = 80;
-const int LO_BTN_H          = 30;
+const int LO_BTN_W          = 90;
+const int LO_BTN_H          = 28;
 const int LO_V_GAP          = 4;
 const int LO_H_GAP          = 10;
 const int LO_V_ROW          = 22;

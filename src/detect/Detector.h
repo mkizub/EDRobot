@@ -388,6 +388,9 @@ public:
 
     const std::string name;
     cv::Rect mTilesRect;
+    cv::Rect mTestRect;
+    cv::Size mTileSize;
+    bool mTryMerge {true};
     std::vector<std::string> mIconFiles;
     enum IconAlign {
         Center, TopLeft

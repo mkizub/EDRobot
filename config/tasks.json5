@@ -15,8 +15,8 @@
       },
       {
         "templ": "tsk-trade-at",
-        "system": "HIP 97876",
-        "dock": "Hennessy Creations",
+        "system": "Col 359 Sector OB-T b5-4",
+        "dock": "Aronofsky Landing",
         "tasks": [
           {
             "templ": "tsk-market-buy-constr",
@@ -24,7 +24,8 @@
             "dock": "Orbital Construction Site: KarlDiesel Point",
             "mode": "OnlyBulkFirst",
             "commodity": [
-              "cmmcomposite"
+              "steel",
+              "titanium"
             ]
           }
         ]

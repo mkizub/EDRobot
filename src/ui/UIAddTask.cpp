@@ -165,6 +165,15 @@ void UIAddTask::relayout() {
 
     int uiDpi = GetDpiForWindow(hwnd());
     int uiPercent = Cfg.getUiScalePercents();
+    if (uiDpi != scaled_to_dpi) {
+        scaled_to_dpi = uiDpi;
+        int font_size = MulDiv(LO_FONT_SIZE, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
+        font.create(L"Segoe UI", font_size);
+        font.set_on(cb_tasks);
+        font.set_on(btn_run);
+        font.set_on(btn_save);
+        font.set_on(btn_del);
+    }
 
     auto wpi = BeginDeferWindowPos(10);
     int x = l + width*10/100;

@@ -57,8 +57,8 @@ Widget::Widget(WidgetType tp, const std::string &name, Widget *parent)
     //    parent->addSubItem(this);
 }
 
-void Widget::setRect(const char* name, const json5pp::value& value) {
-    rect = makeEvalRect(*this, name, value[name]);
+void Widget::setRect(const char* name, const json5pp::value& value, FovScale* fov_scale) {
+    rect = makeEvalRect(*this, name, value[name], fov_scale);
 }
 
 cv::Rect Widget::calcReferenceRect(const ClassifyEnv& env) const {
@@ -1219,7 +1219,50 @@ int ExprLine::eval(const spAst& ast, const ResolvedEnv& env) const {
 
 }
 
-spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv) {
+FovScale::FovScale(double fov0, double fov1, cv::Rect rect0, cv::Rect rect1)
+    : fov54(fov0)
+    , fov60(fov1)
+{
+    double scale_x0 = double(rect0.width) / double(ReferenceScreenSize.width);
+    double scale_x1 = double(rect1.width) / double(ReferenceScreenSize.width);
+    double scale_x = scale_x1 / scale_x0;
+    double scale_y0 = double(rect0.height) / double(ReferenceScreenSize.height);
+    double scale_y1 = double(rect1.height) / double(ReferenceScreenSize.height);
+    double scale_y = scale_y1 / scale_y0;
+    scale60 = std::sqrt(scale_x * scale_y);
+}
+
+double FovScale::getScaleForFOV(double fov) {
+    double scl_current = std::lerp(1.0, scale60, (Cfg.getConfigFOV()-fov54)/(fov60-fov54));
+    double scl_screens = std::lerp(1.0, scale60, (fov-fov54)/(fov60-fov54));
+    double scl = scl_current / scl_screens;
+    return scl;
+}
+
+cv::Size FovScale::apply(cv::Size s, double fov) {
+    double scl = getScaleForFOV(fov);
+    return {(int)std::round(s.width*scl), (int)std::round(s.height*scl)};
+}
+
+cv::Point FovScale::apply(cv::Point p, double fov) {
+    double scl = getScaleForFOV(fov);
+    cv::Point np = p;
+    np -= ReferenceScreenCenter;
+    np = {(int)std::round(np.x*scl), (int)std::round(np.y*scl)};
+    np += ReferenceScreenCenter;
+    return np;
+}
+
+cv::Rect FovScale::apply(cv::Rect r, double fov) {
+    return {apply(r.tl(), fov), apply(r.size(), fov)};
+}
+
+cv::Line FovScale::apply(cv::Line l, double fov) {
+    return {apply(l.p0(), fov), apply(l.p1(), fov)};
+}
+
+
+spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale) {
     if (jv.is_string()) {
         std::vector<std::string> scope_name = split(jv.as_string(), ':');
         if (scope_name.size() != 2) {
@@ -1238,29 +1281,31 @@ spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const 
         LOG(ERROR) << "Cannot resolve var scope " << scope << " in parents of widget " << widget.path;
         return {};
     }
-    if (!jv.is_array() || jv.as_array().size() != 2) {
+    if (!jv.is_array() || jv.as_array().size() < 2) {
         LOG(ERROR) << "For point '" << name << "' expecting array of 2 ints, but got: " << jv;
         return {};
     }
-    auto& j_arr = jv.as_array();
     bool simple = true;
     for (int i=0; i < 2; i++) {
-        if (!j_arr[i].is_integer()) {
+        if (!jv[i].is_integer()) {
             simple = false;
-            if (!j_arr[i].is_string())
+            if (!jv[i].is_string())
                 return {};
         }
     }
     if (simple) {
         cv::Point p;
-        p.x = j_arr[0].as_integer();
-        p.y = j_arr[1].as_integer();
+        p.x = jv[0].as_integer();
+        p.y = jv[1].as_integer();
+        if (fov_scale && jv[3].is_number()) {
+            p = fov_scale->apply(p, jv[3].as_number());
+        }
         return std::make_shared<ConstPoint>(p);
     }
     return std::make_shared<widget::ExprPoint>(jv);
 }
 
-spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv) {
+spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale) {
     if (jv.is_string()) {
         std::vector<std::string> scope_name = split(jv.as_string(), ':');
         if (scope_name.size() != 2) {
@@ -1279,31 +1324,33 @@ spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js
         LOG(ERROR) << "Cannot resolve var scope " << scope << " in parents of widget " << widget.path;
         return {};
     }
-    if (!jv.is_array() || jv.as_array().size() != 4) {
+    if (!jv.is_array() || jv.as_array().size() < 4) {
         LOG(ERROR) << "For rect '" << name << "' expecting array of 4 ints, but got: " << jv;
         return {};
     }
-    auto& j_arr = jv.as_array();
     bool simple = true;
     for (int i=0; i < 4; i++) {
-        if (!j_arr[i].is_integer()) {
+        if (!jv[i].is_integer()) {
             simple = false;
-            if (!j_arr[i].is_string())
+            if (!jv[i].is_string())
                 return {};
         }
     }
     if (simple) {
         cv::Rect r;
-        r.x = j_arr[0].as_integer();
-        r.y = j_arr[1].as_integer();
-        r.width = j_arr[2].as_integer();
-        r.height = j_arr[3].as_integer();
+        r.x = jv[0].as_integer();
+        r.y = jv[1].as_integer();
+        r.width = jv[2].as_integer();
+        r.height = jv[3].as_integer();
+        if (fov_scale && jv[4].is_number()) {
+            r = fov_scale->apply(r, jv[4].as_number());
+        }
         return std::make_shared<ConstRect>(r);
     }
     return std::make_shared<widget::ExprRect>(jv);
 }
 
-spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const json5pp::value& jv) {
+spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale) {
     if (jv.is_string()) {
         std::vector<std::string> scope_name = split(jv.as_string(), ':');
         if (scope_name.size() != 2) {
@@ -1322,25 +1369,27 @@ spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const js
         LOG(ERROR) << "Cannot resolve var scope " << scope << " in parents of widget " << widget.path;
         return {};
     }
-    if (!jv.is_array() || jv.as_array().size() != 4) {
+    if (!jv.is_array() || jv.as_array().size() < 4) {
         LOG(ERROR) << "For rect '" << name << "' expecting array of 4 ints, but got: " << jv;
         return {};
     }
-    auto& j_arr = jv.as_array();
     bool simple = true;
     for (int i=0; i < 4; i++) {
-        if (!j_arr[i].is_integer()) {
+        if (!jv[i].is_integer()) {
             simple = false;
-            if (!j_arr[i].is_string())
+            if (!jv[i].is_string())
                 return {};
         }
     }
     if (simple) {
         cv::Line ln;
-        ln.x0 = j_arr[0].as_integer();
-        ln.y0 = j_arr[1].as_integer();
-        ln.x1 = j_arr[2].as_integer();
-        ln.y1 = j_arr[3].as_integer();
+        ln.x0 = jv[0].as_integer();
+        ln.y0 = jv[1].as_integer();
+        ln.x1 = jv[2].as_integer();
+        ln.y1 = jv[3].as_integer();
+        if (fov_scale && jv[4].is_number()) {
+            ln = fov_scale->apply(ln, jv[4].as_number());
+        }
         return std::make_shared<ConstLine>(ln);
     }
     return std::make_shared<widget::ExprLine>(jv);

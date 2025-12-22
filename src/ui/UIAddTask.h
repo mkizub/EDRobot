@@ -45,6 +45,9 @@ private:
     wl::button btn_save;
     wl::button btn_del;
     UITaskEditor taskEditor;
+
+    // for (re)layout
+    int scaled_to_dpi {};
 };
 
 #endif //EDROBOT_UIADDTASK_H

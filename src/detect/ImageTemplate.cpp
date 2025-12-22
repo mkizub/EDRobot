@@ -34,13 +34,17 @@ void ImageTemplate::setTemplate(const std::string& filename) {
             if (!loadImageAndMask(path.string(), templImage) || templImage.empty())
                 throw std::runtime_error("Cannot load image: " + path.string());
             if (refSize.width == 0 || refSize.height == 0) {
-                refSize.width = templImage.cols;
-                refSize.height = templImage.rows;
+                if (auto cr = std::dynamic_pointer_cast<ConstRect>(refEvalRect); cr) {
+                    refSize = cr->mRect.size();
+                } else {
+                    refSize = templImage.size();
+                }
             }
-            else if (templImage.cols != refSize.width || templImage.rows != refSize.height)
-                throw std::runtime_error(std::format(
-                        "Image size {}x{} does not match expected size {}x{}",
-                        templImage.cols, templImage.rows, refSize.width, refSize.height));
+            if (templImage.size() != refSize) {
+                XMat tmp;
+                cv::resize(templImage, tmp, refSize);
+                templImage = tmp;
+            }
             if (!channels)
                 channels = templImage.channels();
             else if (channels != templImage.channels()) {

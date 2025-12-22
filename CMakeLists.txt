@@ -198,6 +198,7 @@ install(FILES
         config/logging.conf
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
+install(FILES README.md DESTINATION ".")
 
 set(CPACK_GENERATOR "ZIP")
 set(CPACK_PACKAGE_FILE_NAME "EDRobot-${PROJECT_VERSION}")

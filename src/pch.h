@@ -60,6 +60,9 @@ inline bool useOpenCL() { return false; }
 #define toXMat(M) M
 #define toMat(M) M
 #endif
+#if !defined(EDROBOT_USE_OPENCL) && defined(NDEBUG)
+# error "EDROBOT_USE_OPENCL not defined in release build"
+#endif
 
 #include "libintl.h"
 #include <clocale>
