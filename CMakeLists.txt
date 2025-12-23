@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.28)
 
-set (CMAKE_CONFIGURATION_TYPES Debug Release RelWithDebInfo)
+set (CMAKE_CONFIGURATION_TYPES Debug Release)
 
-project(EDRobot VERSION 0.8.3)
+project(EDRobot VERSION 0.8.4)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,13 +21,13 @@ set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.lib")
 
 find_package(Tesseract CONFIG REQUIRED)
-set_target_properties(leptonica PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
-set_target_properties(Tesseract::libtesseract PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
+#set_target_properties(leptonica PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
+#set_target_properties(Tesseract::libtesseract PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
 
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
-add_compile_options(/Zc:__cplusplus /await /utf-8 /Zi)
+add_compile_options(/Zc:__cplusplus /await:strict /utf-8 /Zi)
 add_link_options(/DEBUG /PDBCOMPRESS)
 
 add_executable(EDRobot
@@ -149,7 +149,7 @@ target_link_libraries(EDRobot PRIVATE ${GETTEXT_LIBRARIES})
 target_link_libraries(EDRobot PRIVATE ${OpenCV_LIBS})
 target_link_libraries(EDRobot PRIVATE Tesseract::libtesseract)
 target_link_libraries(EDRobot PRIVATE CURL::libcurl)
-target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1) # windowsapp
+target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1 windowsapp)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot PRIVATE cpptrace::cpptrace)
 endif()
@@ -199,6 +199,7 @@ install(FILES
         config/logging.conf
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
+install(FILES README.md DESTINATION ".")
 
 set(CPACK_GENERATOR "ZIP")
 set(CPACK_PACKAGE_FILE_NAME "EDRobot-${PROJECT_VERSION}")

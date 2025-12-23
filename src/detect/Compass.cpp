@@ -41,6 +41,10 @@ CompassDetector::CompassDetector()
     targetReferenceRect = {1920/2-540,1080/2-540,540*2,540+260};
     XMat targetImage;
     ImageTemplate::loadImageAndMask("templates/compass/nav_target_base.png", targetImage);
+    FovScale fov_scale;
+    cv::Size targetSize = fov_scale.apply(targetImage.size(), fov_scale.fov54);
+    if (targetSize != targetImage.size())
+        cv::resize(targetImage, targetImage, targetSize);
     navTargetOrig.emplace_back(1.0, 0, "nav_target_base.png", targetImage);
 
     // HsvMaskCropFilter or HsvGrayCropFilter + LaplacianFilter + DilateFilter
@@ -64,6 +68,7 @@ void CompassDetector::loadCompass() {
     cv::Rect compassRefRect;
     cv::Point compassExtLT;
     cv::Point compassExtRB;
+    FovScale fov_scale;
     auto &varSet = scr_cockpit->varSetMap.at("compass");
     for (auto &vars: varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), preprocessedShip)) {
@@ -74,10 +79,13 @@ void CompassDetector::loadCompass() {
             compassRefRect.y = v["rect"][1];
             compassRefRect.width = v["rect"][2];
             compassRefRect.height = v["rect"][3];
+            compassRefRect = fov_scale.apply(compassRefRect, fov_scale.fov54);
             compassExtLT.x = v["ext"][0];
             compassExtLT.y = v["ext"][1];
+            compassExtLT = fov_scale.apply(compassExtLT, fov_scale.fov54);
             compassExtRB.x = v["ext"][2];
             compassExtRB.y = v["ext"][3];
+            compassExtRB = fov_scale.apply(compassExtRB, fov_scale.fov54);
             break;
         }
     }

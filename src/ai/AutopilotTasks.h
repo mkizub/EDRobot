@@ -32,6 +32,17 @@ struct CourseLockerPause {
     const bool wasActive;
 };
 
+struct ExpectSceeenLocker {
+    explicit ExpectSceeenLocker(const char* scr) {
+        prev_screen = st::autopilot.expect_screen;
+        st::autopilot.expect_screen = scr;
+    }
+    ~ExpectSceeenLocker() {
+        st::autopilot.expect_screen = prev_screen;
+    }
+    std::string prev_screen;
+};
+
 class BaseAutopilotTask : public Task {
 protected:
     explicit BaseAutopilotTask(const TaskTemplate& templ_) : Task(templ_) {}

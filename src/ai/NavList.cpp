@@ -146,7 +146,7 @@ bool NavList::init(st::NavPanelFilters filters) {
             kbd::send("UI_Up", 0, delay);
         kbd::send("UI_Select", 0, 1000);
 
-        detect::NavPanelDetectLock lock("flt-line");
+        ExpectSceeenLocker expectFilter("dlg-filters");
         ai::detectEDState(DetectLevel::Buttons);
         if (!ai::uiState.match("scr-left-panel:dlg-filters")) {
             ai::throw_trouble("Expecting 'scr-left-panel:dlg-filters' but got {}", ai::uiState.to_string());
@@ -340,6 +340,7 @@ gal::spEntity NavList::guessNavItem(int idx) {
             bestItem = bestBody;
     }
     list[idx].item = bestItem;
+    list[idx].ocr_conf *= bestMatch/100;
     return bestItem;
 }
 
@@ -359,9 +360,21 @@ bool NavList::fixupNavList() {
                 }
             }
             if (bodyIdx >= 0) {
-                if (!list[bodyIdx].item || list[bodyIdx].ocr_conf < list[idx].ocr_conf) {
-                    list[bodyIdx].item = gal::getCurrentStarSystem()->getBodyById(bodyId);
-                    hasFixes = true;
+                auto* item = list[bodyIdx].item.get();
+                if (!item || item->type <= TypeNav::NotExplored || list[bodyIdx].ocr_conf < list[idx].ocr_conf) {
+                    auto item2 = gal::getCurrentStarSystem()->getBodyById(bodyId);
+                    if (item && item2 && item == item2.get()) {
+                        list[bodyIdx].ocr_conf = std::max(list[idx].ocr_conf, list[bodyIdx].ocr_conf);
+                        list[bodyIdx].confirmed += 1;
+                    }
+                    else if (item2) {
+                        list[bodyIdx].item = item2;
+                        if (!item || item->type <= TypeNav::NotExplored)
+                            list[bodyIdx].ocr_conf = list[idx].ocr_conf * 0.008;
+                        else
+                            list[bodyIdx].ocr_conf *= list[idx].ocr_conf * 0.01;
+                        hasFixes = true;
+                    }
                 }
             }
         }
@@ -376,13 +389,16 @@ static inline void nextIdx(int& idx, int incr, size_t size) {
     else if (idx >= size)
         idx = 0;
 }
-bool NavList::focusDestDock() {
+bool NavList::focusDestDock(int* conf) {
     auto destBody = st::autopilot.destBody;
     auto destDock = st::autopilot.destDock;
     if (!destDock)
         return false;
-    if (st::autopilot.isDestDockFocused)
+    if (st::autopilot.isDestDockFocused) {
+        if (conf)
+            *conf = 0;
         return true;
+    }
     int focusIdx;
     cv::Mat grayImage;
     std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
@@ -415,6 +431,8 @@ bool NavList::focusDestDock() {
     }
     if (destDockNavIdx == focusIdx) {
         st::autopilot.isDestDockFocused = true;
+        if (conf)
+            *conf = list[focusIdx].ocr_conf;
         return true;
     }
 
@@ -480,19 +498,24 @@ bool NavList::focusDestDock() {
         }
         if (destDockNavIdx == focusIdx) {
             st::autopilot.isDestDockFocused = true;
+            if (conf)
+                *conf = list[focusIdx].ocr_conf;
             return true;
         }
     }
     return false;
 }
 
-bool NavList::focusDestBody() {
+bool NavList::focusDestBody(int* conf) {
     auto destBody = st::autopilot.destBody;
     auto destDock = st::autopilot.destDock;
     if (!st::autopilot.destBody)
         return false;
-    if (st::autopilot.isDestBodyFocused)
+    if (st::autopilot.isDestBodyFocused) {
+        if (conf)
+            *conf = 0;
         return true;
+    }
     int focusIdx;
     cv::Mat grayImage;
     std::vector<ClassifiedRect*> rows = initNavList(grayImage, focusIdx);
@@ -528,6 +551,8 @@ bool NavList::focusDestBody() {
     }
     if (destBodyNavIdx == focusIdx) {
         st::autopilot.isDestBodyFocused = true;
+        if (conf)
+            *conf = list[focusIdx].ocr_conf;
         return true;
     }
     if (fixupNavList()) {
@@ -542,6 +567,8 @@ bool NavList::focusDestBody() {
         }
         if (destBodyNavIdx == focusIdx) {
             st::autopilot.isDestBodyFocused = true;
+            if (conf)
+                *conf = list[focusIdx].ocr_conf;
             return true;
         }
     }
@@ -604,6 +631,8 @@ bool NavList::focusDestBody() {
             }
             if (destBodyNavIdx == focusIdx) {
                 st::autopilot.isDestBodyFocused = true;
+                if (conf)
+                    *conf = list[focusIdx].ocr_conf;
                 return true;
             }
         }
@@ -619,6 +648,8 @@ bool NavList::focusDestBody() {
             }
             if (destBodyNavIdx == focusIdx) {
                 st::autopilot.isDestBodyFocused = true;
+                if (conf)
+                    *conf = list[focusIdx].ocr_conf;
                 return true;
             }
         }
@@ -763,7 +794,7 @@ gal::spEntity NavList::focusNearestBody(dist_t* dist) {
     return {};
 }
 
-bool NavList::focusDockBody() {
+bool NavList::focusDockBody(int* conf) {
     if (!st::autopilot.destDock)
         return false;
     for (int retry=0; retry < 7; retry++) {
@@ -783,8 +814,11 @@ bool NavList::focusDockBody() {
                 destDockIndent = list[idx].indent;
                 for (int j=idx-1; j >= 0; j--) {
                     if (list[j].indent == destDockIndent-1) {
-                        if (list[j].focused)
+                        if (list[j].focused) {
+                            if (conf)
+                                *conf = list[j].ocr_conf * list[idx].ocr_conf * 0.01;
                             return true;
+                        }
                         int count = j - focusIdx;
                         if (count > 0) {
                             for (int i=0; i < count; i++)
@@ -889,7 +923,7 @@ bool NavList::discoverSelected() {
 
         std::string nav_icon;
         for (int retr=0; nav_icon.empty() && retr < 3; retr++){
-            detect::NavPanelDetectLock lock("nav-line");
+            ExpectSceeenLocker expectFilter("dlg-nav-select");
             ai::sleep(1000);
             cv::Mat grayImage;
             ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);

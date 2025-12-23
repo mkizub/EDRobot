@@ -22,22 +22,29 @@ public:
     bool show();
     bool hide(bool force);
     void initialize();
+    void relayout();
     void on_command_stop_new();
     void on_command_pause_resume();
 
     void update_curr_task();
 
     NOTIFYICONDATA mNotifyIconData;
+    wl::font font;
+    wl::label lbl_task;
     wl::label lbl_curr_task;
     wl::label lbl_task_status;
     wl::label lbl_status;
     wl::checkbox cb_keep_on_top;
     wl::button btn_stop_new;
     wl::button btn_pause_resume;
+    wl::button btn_ok;
     wl::button btn_watch;
     wl::button btn_exit;
 
     UINT_PTR mUpdateTimerId {};
+
+    // for (re)layout
+    int scaled_to_dpi {};
 };
 
 

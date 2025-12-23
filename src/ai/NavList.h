@@ -41,11 +41,11 @@ public:
     gal::spEntity guessNavItem(int idx);
     bool fixupNavList();
 
-    bool focusDestDock();
-    bool focusDestBody();
+    bool focusDestDock(int* conf=nullptr);
+    bool focusDestBody(int* conf=nullptr);
     bool focusDestination(int& focusIdx);
     gal::spEntity focusNearestBody(dist_t* dist=nullptr);
-    bool focusDockBody();
+    bool focusDockBody(int* conf=nullptr);
     bool focusTopEntry();
 
     bool selectFocused(gal::Entity* dest);

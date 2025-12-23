@@ -47,7 +47,7 @@ using namespace std::chrono_literals;
 
 #include "opencv2/opencv.hpp"
 #include "ed_opencv.h"
-//#define EDROBOT_USE_OPENCL
+#define EDROBOT_USE_OPENCL
 #ifdef EDROBOT_USE_OPENCL
 typedef cv::UMat XMat;
 extern bool g_DisableOpenCL;
@@ -59,6 +59,9 @@ typedef cv::Mat XMat;
 inline bool useOpenCL() { return false; }
 #define toXMat(M) M
 #define toMat(M) M
+#endif
+#if !defined(EDROBOT_USE_OPENCL) && defined(NDEBUG)
+# error "EDROBOT_USE_OPENCL not defined in release build"
 #endif
 
 #include "libintl.h"

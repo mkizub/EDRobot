@@ -24,21 +24,18 @@ public:
     void cleanup();
 
     D3D11_TEXTURE2D_DESC mStagingTextureDesc;
-    mutable D3D11_MAPPED_SUBRESOURCE mStagingMappedTex {};
     CComPtr<ID3D11Texture2D> mStagingTexture;
 
     mutable XMat rawColorImage;
     mutable XMat colorImage;
-    mutable bool stagingTextureValid {false};
-    mutable bool stagingTextureMapped {false};
     mutable bool rawColorImageValid {false};
+    mutable bool rawColorImageFullscreen {false};
     mutable bool colorImageValid {false};
 };
 
 FrameDXGI::FrameDXGI(CapturerDXGI* owner)
         : Frame(owner, owner->captureSize)
 {
-    stagingTextureValid = false;
 }
 
 FrameDXGI::~FrameDXGI() {
@@ -47,20 +44,14 @@ FrameDXGI::~FrameDXGI() {
 }
 
 bool FrameDXGI::valid() const {
-    if (colorImageValid || rawColorImageValid)
-        return true;
-    return stagingTextureValid && mStagingTexture;
+    return (colorImageValid || rawColorImageValid);
 }
 
 void FrameDXGI::cleanup() {
     timestamp = {};
-    if (stagingTextureMapped) {
-        Capturer::getID3D11DeviceContext()->Unmap(mStagingTexture, 0);
-        mStagingMappedTex = {};
-        stagingTextureMapped = false;
-    }
     colorImageValid = false;
     rawColorImageValid = false;
+    rawColorImageFullscreen = false;
     colorImage.release();
     rawColorImage.release();
 }
@@ -71,7 +62,7 @@ const XMat& FrameDXGI::getImage() const {
 #ifdef EDROBOT_USE_OPENCL
             auto* owner = (CapturerDXGI*)this->owner;
             cv::Rect captureRect = owner->captureVirtRect - owner->monitorVirtRect.tl();
-            if (owner->captureVirtRect == owner->monitorVirtRect) {
+            if (!rawColorImageFullscreen || owner->captureVirtRect == owner->monitorVirtRect) {
                 colorImage = rawColorImage;
             } else {
                 if (captureRect.x >= 0 && captureRect.y >= 0 &&
@@ -149,13 +140,41 @@ bool CapturerDXGI::recycle(Frame* p) const {
 bool CapturerDXGI::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect) {
     if (!hWnd)
         return false;
+    auto gameSize = Cfg.getConfigDisplaySize();
+    if (gameSize.width > clientRect.width || gameSize.height > clientRect.height)
+        return false;
+
     if (!getID3D11Device() || !getID3D11DeviceContext()) {
         LOG(ERROR) << "D3dDevice not initialized";
         return false;
     }
-    auto gameSize = Cfg.getConfigDisplaySize();
-    if (gameSize.width > clientRect.width || gameSize.height > clientRect.height)
+    m_dxgiOutput = nullptr;
+    m_outputDuplication = nullptr;
+    CComPtr<IDXGIDevice1> dxgiDevice;
+    if (FAILED(getID3D11Device()->QueryInterface(IID_PPV_ARGS(&dxgiDevice))))
         return false;
+    CComPtr<IDXGIAdapter1> dxgiAdapter;
+    if (FAILED(dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter))))
+        return false;
+    for (unsigned i=0; ; i++) {
+        CComPtr<IDXGIOutput> output;
+        if (FAILED(dxgiAdapter->EnumOutputs(i, &output)))
+            break;
+        CComPtr<IDXGIOutput1> output1 {};
+        if (FAILED(output->QueryInterface(IID_PPV_ARGS(&output1))))
+            continue;
+        DXGI_OUTPUT_DESC desc {};
+        if (FAILED(output1->GetDesc(&desc)))
+            continue;
+        if (desc.Monitor == hMonitor) {
+            m_dxgiOutput = output1;
+            break;
+        }
+    }
+    if (!m_dxgiOutput) {
+        LOG(ERROR) << "Failed to find IDXGIOutput1 for monitor " << toUtf8(monitorInfo.szDevice);
+        return false;
+    }
 
     this->hWndED = hWnd;
     this->windowVirtRect = windowRect;
@@ -174,40 +193,13 @@ bool CapturerDXGI::start() {
         LOG(ERROR) << "Cannot start CapturerDXGI because ED window not found";
         return false;
     }
-    hr = getID3D11Device()->QueryInterface(IID_PPV_ARGS(&m_dxgiDevice));
-    if (FAILED(hr)) {
-        LOG(ERROR) << "Failed to acquire IDXGIDevice interface" << getErrorMessage(hr);
-        return false;
-    }
-    CComPtr<IDXGIAdapter> dxgiAdapter {nullptr};
-    hr = m_dxgiDevice->GetParent(IID_PPV_ARGS(&dxgiAdapter));
-    if (FAILED(hr)) {
-        LOG(ERROR) << "Failed to acquire IDXGIAdapter interface" << getErrorMessage(hr);
-        return false;
-    }
-
-    CComPtr<IDXGIOutput> dxgiOutput;
-    for (unsigned i=0; ; i++) {
-        CComPtr<IDXGIOutput> output;
-        hr = dxgiAdapter->EnumOutputs(i, &output);
-        if (FAILED(hr))
-            break;
-        DXGI_OUTPUT_DESC desc {};
-        hr = output->GetDesc(&desc);
-        if (FAILED(hr))
-            continue;
-        if (desc.Monitor == hMonitor) {
-            dxgiOutput = output;
-            break;
-        }
-    }
-    if (!dxgiOutput) {
-        LOG(ERROR) << "Failed to find IDXGIOutput for monitor " << toUtf8(monitorInfo.szDevice);
+    if (!m_dxgiOutput) {
+        LOG(ERROR) << "Cannot start CapturerDXGI because IDXGIOutput1 not found";
         return false;
     }
 
     CComPtr<IDXGIOutput6> dxgiOutput6 {};
-    hr = dxgiOutput->QueryInterface(IID_PPV_ARGS(&dxgiOutput6));
+    hr = m_dxgiOutput->QueryInterface(IID_PPV_ARGS(&dxgiOutput6));
     if (SUCCEEDED(hr)) {
         DXGI_OUTPUT_DESC1 desc1 {};
         hr = dxgiOutput6->GetDesc1(&desc1);
@@ -224,20 +216,18 @@ bool CapturerDXGI::start() {
                 hpcStartTimestamp = std::chrono::high_resolution_clock::now();
                 utcStartTimestamp = std::chrono::utc_clock::now();
                 return Capturer::start();
+            } else {
+                LOG(INFO) << "CapturerDXGI IDXGIOutput6->DuplicateOutput1 failed: " << getErrorMessage(hr);
             }
         }
     }
 
-    CComPtr<IDXGIOutput1> dxgiOutput1 {};
-    hr = dxgiOutput->QueryInterface(IID_PPV_ARGS(&dxgiOutput1));
+    hr = m_dxgiOutput->DuplicateOutput(getID3D11Device(), &m_outputDuplication);
     if (SUCCEEDED(hr)) {
-        hr = dxgiOutput1->DuplicateOutput(getID3D11Device(), &m_outputDuplication);
-        if (SUCCEEDED(hr)) {
-            LOG(INFO) << "CapturerDXGI started";
-            hpcStartTimestamp = std::chrono::high_resolution_clock::now();
-            utcStartTimestamp = std::chrono::utc_clock::now();
-            return Capturer::start();
-        }
+        LOG(INFO) << "CapturerDXGI started";
+        hpcStartTimestamp = std::chrono::high_resolution_clock::now();
+        utcStartTimestamp = std::chrono::utc_clock::now();
+        return Capturer::start();
     }
 
     LOG(ERROR) << "Failed to acquire DuplicateOutput " << getErrorMessage(hr);
@@ -250,7 +240,7 @@ bool CapturerDXGI::stop() {
     Capturer::stop();
 
     m_outputDuplication = nullptr;
-    m_dxgiDevice = nullptr;
+    m_dxgiOutput = nullptr;
 
     while (!recycledFrames.empty()) {
         delete (FrameDXGI*)recycledFrames.back();
@@ -301,11 +291,11 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             continue;
         } else {
             //frame->timestamp = std::chrono::utc_clock::now();
-            const long long _Freq = _Query_perf_frequency(); // doesn't change after system boot
-            const long long _Ctr  = fi.LastPresentTime.QuadPart;
-            const long long _Whole = (_Ctr / _Freq) * std::chrono::steady_clock::period::den;
-            const long long _Part  = (_Ctr % _Freq) * std::chrono::steady_clock::period::den / _Freq;
-            auto frame_tp = std::chrono::steady_clock::time_point(std::chrono::steady_clock::duration(_Whole + _Part));
+            const long long freq = _Query_perf_frequency(); // doesn't change after system boot
+            const long long ctr  = fi.LastPresentTime.QuadPart;
+            const long long whole = (ctr / freq) * std::chrono::steady_clock::period::den;
+            const long long part  = (ctr % freq) * std::chrono::steady_clock::period::den / freq;
+            auto frame_tp = std::chrono::steady_clock::time_point(std::chrono::steady_clock::duration(whole + part));
             auto elapsed_since_start = frame_tp - hpcStartTimestamp;
             auto utc_tp = utcStartTimestamp + elapsed_since_start;
             frame->timestamp = std::chrono::time_point_cast<Timestamp::duration>(utc_tp);
@@ -345,16 +335,17 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
         }
     }
 #ifdef EDROBOT_USE_OPENCL
-    if (useOpenCL()) {
+    if (useOpenCL() && Cfg.useOpenclD3dInterop()) {
         cv::directx::convertFromD3D11Texture2D(texture, frame->rawColorImage);
         frame->rawColorImageValid = true;
+        frame->rawColorImageFullscreen = true;
         m_outputDuplication->ReleaseFrame();
         return {(Frame*)frame, FrameRecycler()};
     }
 #endif
     D3D11_TEXTURE2D_DESC texture_desc;
     texture->GetDesc(&texture_desc);
-    if (!frame->mStagingTexture || !frame->stagingTextureValid) {
+    if (!frame->mStagingTexture) {
         frame->mStagingTextureDesc = texture_desc;
         frame->mStagingTextureDesc.Width = captureVirtRect.width;
         frame->mStagingTextureDesc.Height = captureVirtRect.height;
@@ -368,12 +359,6 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             LOG(ERROR) << "CapturerDXGI Failed to create staging texture";
             return {};
         }
-        frame->stagingTextureValid = true;
-    }
-    if (frame->stagingTextureMapped) {
-        getID3D11DeviceContext()->Unmap(frame->mStagingTexture, 0);
-        frame->mStagingMappedTex = {};
-        frame->stagingTextureMapped = false;
     }
 
     if (texture_desc.Width == frame->mStagingTextureDesc.Width && texture_desc.Height == frame->mStagingTextureDesc.Height) {
@@ -406,20 +391,16 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
         getID3D11DeviceContext()->CopySubresourceRegion(frame->mStagingTexture, 0, dst_x, dst_y, 0, texture, 0, &sourceRegion);
     }
     Capturer::flushID3D11DeviceContext();
-    frame->stagingTextureValid = true;
-    hr = getID3D11DeviceContext()->Map(frame->mStagingTexture, 0, D3D11_MAP_READ, 0, &frame->mStagingMappedTex);
+    D3D11_MAPPED_SUBRESOURCE stagingMappedTex {};
+    hr = getID3D11DeviceContext()->Map(frame->mStagingTexture, 0, D3D11_MAP_READ, 0, &stagingMappedTex);
     if (FAILED(hr)) {
         LOG(ERROR) << "CapturerDXGI Failed to map staging texture: " << getErrorMessage(hr);
     } else {
-        frame->stagingTextureMapped = true;
-
         frame->rawColorImage.create(frame->size, CV_8UC4);
         cv::Mat mappedImage(frame->mStagingTextureDesc.Height, frame->mStagingTextureDesc.Width,
-                            CV_8UC4, frame->mStagingMappedTex.pData, frame->mStagingMappedTex.RowPitch);
+                            CV_8UC4, stagingMappedTex.pData, stagingMappedTex.RowPitch);
         cv::copyTo(mappedImage, frame->rawColorImage, cv::noArray());
         getID3D11DeviceContext()->Unmap(frame->mStagingTexture, 0);
-        frame->mStagingMappedTex = {};
-        frame->stagingTextureMapped = false;
         frame->rawColorImageValid = true;
     }
 

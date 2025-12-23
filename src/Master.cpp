@@ -417,6 +417,8 @@ bool Master::initialize(int argc, char* argv[]) {
         //LOG(INFO) << _("Hello world!");
     }
 
+    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     std::string error;
     TRY {
         error = initializeInternal(ocr_dir);
@@ -635,7 +637,6 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
             break;
         // global shortcuts
         case Command::Start:
-        case Command::Stop:
         case Command::DebugTemplates:
         case Command::DebugWindow:
         case Command::DebugStream:
@@ -650,6 +651,7 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
                 UIManager::hideMainDialog(false);
             break;
         // in-game shortcuts
+        case Command::Stop:
         case Command::Autopilot:
         case Command::ResetCapturer:
         case Command::DevRectSelect:
@@ -927,6 +929,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
 bool Master::stopAITask() {
     kbd::reset_vJoy();
     ai::interrupt();
+    UIManager::hideMainDialog(true);
     return true;
 }
 
@@ -987,26 +990,27 @@ void Master::debugDetectEDState() {
     else
         mCompassDetector->clear();
     ClassifyEnv debugWarpedEnv;
+    UIState debugUiState;
+    debugUiState.valid = true;
+    debugUiState.guiFocus = st::guiFocus;
     for (auto widget: mScreensRoot->have) {
         if (widget->tp != WidgetType::Screen)
             continue;
         widget::Screen* screen = static_cast<widget::Screen*>(widget);
         if (!screen->checkStatus())
             continue;
-        UIState uiState;
-        uiState.valid = true;
-        uiState.guiFocus = st::guiFocus;
-        uiState.screen = screen;
-        Widget::DetectParams params {debugEnv, &debugWarpedEnv, uiState, DetectLevel::ListRows};
+        debugUiState.screen = screen;
+        Widget::DetectParams params {debugEnv, &debugWarpedEnv, debugUiState, DetectLevel::ListRows};
         screen->detect(params);
     }
+    UIManager::showDebugWindow();
     UIManager::postToDebugWindow(debugEnv.getColorImage());
-    debugWindowUpdate(debugEnv, debugWarpedEnv);
+    debugWindowUpdate(debugEnv, debugWarpedEnv, debugUiState);
 }
 
 bool Master::debugWindow() {
-    detectEDState(DetectLevel::Screen);
     if (UIManager::showDebugWindow()) {
+        detectEDState(DetectLevel::Screen);
         mDuplicateToDebugWindow = UIManager::postToDebugWindow(mClassifyEnv.getColorImage());
         return true;
     } else {
@@ -1015,7 +1019,7 @@ bool Master::debugWindow() {
     }
 }
 
-bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
+bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv, UIState& uiState) {
     double streamFPS = -1;
     if (mStreamFramePoints.size() > 2) {
         auto startTime = mStreamFramePoints.front();
@@ -1035,7 +1039,7 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
     }
 
     mDuplicateToDebugWindow = UIManager::hasDebugWindow();
-    if (!mDuplicateToDebugWindow || !mLastUIState.valid)
+    if (!mDuplicateToDebugWindow || !uiState.valid)
         return false;
 
     const XMat& colorImage = cEnv.getColorImage();
@@ -1053,10 +1057,11 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
     }
 
     if (st::guiFocus == GuiFocus::None) {
-        detect::CompassDetector& c = *mCompassDetector.get();
-        detect::ImageTemplate& ct = *c.compassDetector.get();
+        detect::CompassDetector& c = *mCompassDetector;
+        detect::ImageTemplate& ct = *c.compassDetector;
 
-        cv::rectangle(debugImage, ct.matchRect, {96, 96, 96}, 2);
+        if (cEnv.isDebugMatch())
+            cv::rectangle(debugImage, ct.matchRect, {96, 96, 96}, 2);
 
         if (mCompassDetector->lastHemisphere) {
             cv::Point center = (ct.captureRect.tl() + ct.captureRect.br()) / 2;
@@ -1064,7 +1069,7 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
             cv::Scalar color {0, 255, 0};
             if (c.lastHemisphere < 0)
                 color = {255, 0, 0};
-            cv::ellipse(debugImage, center, size, 0, 0, 360, color, 2);
+            cv::ellipse(debugImage, center, size, 0, 0, 360, color, 2, cv::LINE_AA);
             if (c.lastHemisphere > 0)
                 cv::rectangle(debugImage, c.dotCaptureRect, {0, 255, 0}, 2);
             else
@@ -1089,8 +1094,8 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
         }
     }
 
-    if (mLastUIState.screen && mLastUIState.screen->transform && mLastUIState.screen->transform->valid) {
-        auto* npd = dynamic_cast<detect::NavPanelDetector*>(mLastUIState.screen->oracle.get());
+    if (uiState.screen && uiState.screen->transform && uiState.screen->transform->valid) {
+        auto* npd = dynamic_cast<detect::NavPanelDetector*>(uiState.screen->oracle.get());
         if (npd) {
             detect::LineDetector *detect_angle = npd->getLineDetector("detect-angle");
             cv::rectangle(debugImage, detect_angle->lineMatchRect, {128,128,128});
@@ -1113,23 +1118,19 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
             cv::drawMarker(debugImage, btmLine.p1(), {255,255,255}, 10);
         }
         for (int p=0; p < 4; p++) {
-            auto& p0 = mLastUIState.screen->transform->transformSrc[p];
-            auto& p1 = mLastUIState.screen->transform->transformSrc[(p+1)%4];
+            auto& p0 = uiState.screen->transform->transformSrc[p];
+            auto& p1 = uiState.screen->transform->transformSrc[(p+1)%4];
             cv::line(debugImage, p0, p1, {200,200,200}, 1, cv::LINE_AA);
         }
     }
 
     for (auto& cr : cEnv.classified) {
-//        if (cr.cdt == ClsDetType::Detected) {
-//            if (cr.warped) {
-//                auto points = cEnv.unWarp(cr.detectedRect);
-//                for (int j = 0; j < 4; j++)
-//                    cv::line(debugImage, points[j], points[(j+1) % 4], {96, 255, 96}, 1, cv::LINE_AA);
-//            } else {
-//                cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-//                cv::rectangle(debugImage, r, {96, 255, 96}, 1);
-//            }
-//        }
+        if (cr.cdt == ClsDetType::Detected) {
+            cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
+            cv::rectangle(debugImage, r, {96, 255, 96}, 1);
+            if (cEnv.isDebugMatch() && !cr.u.tdet.matchRect.empty())
+                cv::rectangle(debugImage, cr.u.tdet.matchRect, {96, 96, 96}, 1);
+        }
         if (cr.cdt == ClsDetType::LineDetected) {
             cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
             cv::rectangle(debugImage, r, {96, 255, 96}, 2);
@@ -1161,6 +1162,16 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv) {
     }
 
     for (auto& cr : wEnv.classified) {
+        if (cr.cdt == ClsDetType::Detected) {
+            auto points = wEnv.unWarp(cr.detectedRect);
+            for (int j = 0; j < 4; j++)
+                cv::line(debugImage, points[j], points[(j+1) % 4], {96, 255, 96}, 1, cv::LINE_AA);
+            if (cEnv.isDebugMatch() && !cr.u.tdet.matchRect.empty()) {
+                points = wEnv.unWarp(cr.u.tdet.matchRect);
+                for (int j = 0; j < 4; j++)
+                    cv::line(debugImage, points[j], points[(j+1) % 4], {96, 96, 96}, 1, cv::LINE_AA);
+            }
+        }
         if (cr.cdt == ClsDetType::Widget) {
             cv::Scalar color = {255, 96, 96};
             int thickness = 1;
@@ -1352,7 +1363,7 @@ bool Master::detectEDState(DetectLevel level) {
     if (level == DetectLevel::None) {
         auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
-        debugWindowUpdate(mClassifyEnv, mWarpedEnv);
+        debugWindowUpdate(mClassifyEnv, mWarpedEnv, mLastUIState);
         return true;
     }
 
@@ -1391,7 +1402,7 @@ bool Master::detectEDState(DetectLevel level) {
 
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
     LOG(DEBUG) << "Detected UI state: " << mLastUIState << " (took " << elapsedTime.count() << "us)";
-    debugWindowUpdate(mClassifyEnv, mWarpedEnv);
+    debugWindowUpdate(mClassifyEnv, mWarpedEnv, mLastUIState);
     return true;
 }
 

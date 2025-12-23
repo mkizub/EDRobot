@@ -31,10 +31,11 @@ public:
     static bool postToDebugWindow(const XMat& image, const cv::Mat& overlay);
     static bool askSelectRectWindow();
 
+    UIMainDialog& uiMain;
+
 private:
     void uiThreadLoop();
 
-    UIMainDialog& uiMain;
     std::thread uiThread;
 };
 

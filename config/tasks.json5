@@ -1,86 +1,32 @@
 [
   {
-    "templ": "tsk-debug-autopilot",
-    "name": "Debug: select Altair",
-    "test": "GalMapNavRoute",
-    "target": "Altair"
-  },
-  {
-    "templ": "tsk-travel",
-    "name": "Полёт к Mastracchio Orbital",
-    "system": "5 G. Capricorni",
-    "dock": "Mastracchio Orbital"
-  },
-  {
-    "templ": "tsk-travel",
-    "name": "Полёт к Lewis Dock",
-    "system": "LHS 3356",
-    "dock": "Lewis Dock"
-  },
-  {
     "templ": "tsk-trade-loop",
-    "name": "LHS 3356",
+    "name": "Стройка KarlDiesel Point",
     "markets": [
       {
         "templ": "tsk-trade-at",
-        "system": "5 G. Capricorni",
-        "dock": "Mastracchio Orbital",
+        "system": "Col 359 Sector FL-X d1-119",
+        "dock": "Orbital Construction Site: KarlDiesel Point",
         "tasks": [
           {
-            "templ": "tsk-market-buy",
-            "commodity": "hydrogenfuel"
+            "templ": "tsk-constr-unload"
           }
         ]
       },
       {
         "templ": "tsk-trade-at",
-        "system": "LHS 3356",
-        "dock": "Pytheas Orbital",
+        "system": "Col 359 Sector OB-T b5-4",
+        "dock": "Aronofsky Landing",
         "tasks": [
           {
-            "templ": "tsk-market-sell",
-            "commodity": "hydrogenfuel"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "templ": "tsk-market-buy-all",
-    "name": "Купить драг.металлы",
-    "commodity": [
-      "palladium",
-      "gold",
-      "beryllium",
-      "silver",
-      "gallium",
-      "indium",
-      "tantalum",
-      "thorium"
-    ]
-  },
-  {
-    "templ": "tsk-trade-loop",
-    "name": "Загрузка авика CMM-ом",
-    "markets": [
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector QU-F c11-17",
-        "dock": "Gutierrez Industrial Works",
-        "tasks": [
-          {
-            "templ": "tsk-market-buy",
-            "commodity": "cmmcomposite"
-          }
-        ]
-      },
-      {
-        "templ": "tsk-trade-at",
-        "system": "Col 285 Sector QU-F c11-17",
-        "dock": "909 VSO K5N-3VG",
-        "tasks": [
-          {
-            "templ": "tsk-market-sell-all"
+            "templ": "tsk-market-buy-constr",
+            "system": "Col 359 Sector FL-X d1-119",
+            "dock": "Orbital Construction Site: KarlDiesel Point",
+            "mode": "OnlyBulkFirst",
+            "commodity": [
+              "steel",
+              "titanium"
+            ]
           }
         ]
       }

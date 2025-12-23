@@ -7,6 +7,7 @@
 #include "UIMainDialog.h"
 #include "UIManager.h"
 #include "UIAddTask.h"
+#include "UILayout.h"
 #include "../../ui/resource.h"
 
 const int TRAY_ICONUID = 100;
@@ -91,10 +92,22 @@ UIMainDialog::UIMainDialog()
         update_curr_task();
         return 0;
     });
+    on_message(WM_DPICHANGED, [this](wl::params params) {
+        cv::Rect r = fromRECT(*(PRECT)params.lParam);
+        SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, r.width, r.height, SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+        LOG(INFO) << "on_dpi_change: DPI " << LOWORD(params.wParam) << " size " << r.size();
+        relayout();
+        return 0;
+    });
+    on_message(WM_SIZE, [this](wl::params params) {
+        relayout();
+        return 0;
+    });
 }
 
-
 void UIMainDialog::initialize() {
+    SetDialogDpiChangeBehavior(hwnd(), DDC_DISABLE_ALL, DDC_DISABLE_ALL);
+
     HINSTANCE hInstance = GetModuleHandle(nullptr);
     mNotifyIconData.cbSize = sizeof(NOTIFYICONDATA);
     mNotifyIconData.hWnd = hwnd();
@@ -107,19 +120,39 @@ void UIMainDialog::initialize() {
     BOOL ok = Shell_NotifyIcon(NIM_ADD, &mNotifyIconData);
     LOG_IF(!ok,ERROR) << "Failed to set tray icon";
 
+    lbl_task.assign(hwnd(), IDC_STATIC);
     lbl_curr_task.assign(hwnd(), IDC_CURRENT_TASK);
     lbl_task_status.assign(hwnd(), IDC_TASK_STATUS);
     lbl_status.assign(hwnd(), IDC_STATUS);
     cb_keep_on_top.assign(hwnd(), IDC_KEEP_ON_TOP);
     btn_stop_new.assign(hwnd(), IDC_BUTTON_STOP_NEW);
     btn_pause_resume.assign(hwnd(), IDC_BUTTON_PAUSE_RESUME);
+    btn_ok.assign(hwnd(), IDOK);
     btn_watch.assign(hwnd(), IDC_BUTTON_WATCH);
     btn_exit.assign(hwnd(), IDC_EXIT);
     if (GetSystemMetrics(SM_CMONITORS) < 2)
         btn_watch.set_enabled(false);
 
+    lbl_task.set_text(toUtf16(_gt("Task:")).c_str());
+    cb_keep_on_top.set_text(toUtf16(_gt("Top")).c_str());
     btn_watch.set_text(toUtf16(_gt("Watch")).c_str());
     btn_exit.set_text(toUtf16(_gt("Exit")).c_str());
+
+    int uiDpi = GetDpiForWindow(hwnd());
+    int uiPercent = Cfg.getUiScalePercents();
+    font.create(L"Segoe UI", MulDiv(LO_FONT_SIZE, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI));
+    {
+        auto hMonitor = MonitorFromWindow(hwnd(), MONITOR_DEFAULTTOPRIMARY);
+        MONITORINFOEX monitorInfo;
+        monitorInfo.cbSize = sizeof(monitorInfo);
+        GetMonitorInfo(hMonitor, &monitorInfo);
+        int w = MulDiv(450, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI);
+        int h = MulDiv(600, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI);
+        int border = MulDiv(50, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI);
+        int l = monitorInfo.rcMonitor.right - border - w;
+        int t = monitorInfo.rcMonitor.top + border;
+        SetWindowPos(this->hwnd(), HWND_TOPMOST, l, t, w, h, SWP_NOOWNERZORDER);
+    }
 
     update_curr_task();
 }
@@ -144,12 +177,14 @@ bool UIMainDialog::hide(bool force) {
             return false;
         if (Cfg.getGameScreenMode() == Configuration::GameScreenMode::Borderless) {
             this->style.set_style_ex(true, WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT);
-            float transparency_percentage = 0.5f;
+            float transparency_percentage = 0.6f;
             SetLayeredWindowAttributes(hwnd(), 0, (BYTE) (255 * transparency_percentage), LWA_ALPHA);
             return false;
         }
         // Configuration::GameScreenMode::FullScreen => hide
     }
+    if (this->style.has_style_ex(WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT))
+        this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
     ShowWindow(this->hwnd(), SW_HIDE);
     KillTimer(this->hwnd(), mUpdateTimerId);
     mUpdateTimerId = {};
@@ -317,3 +352,95 @@ void UIMainDialog::update_curr_task() {
         mUpdateTimerId = {};
     }
 }
+
+#define S(N) MulDiv((N), uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI)
+void UIMainDialog::relayout() {
+    RECT rect{};
+    GetClientRect(hwnd(), &rect);
+    int l = rect.left;
+    int t = rect.top;
+    int r = rect.right;
+    int b = rect.bottom;
+    int width = r - l;
+    int height = b - t;
+
+    int uiDpi = GetDpiForWindow(hwnd());
+    int uiPercent = Cfg.getUiScalePercents();
+    if (uiDpi != scaled_to_dpi) {
+        scaled_to_dpi = uiDpi;
+        int font_size = MulDiv(LO_FONT_SIZE, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
+        font.create(L"Segoe UI", font_size);
+        font.set_on(lbl_task);
+        font.set_on(lbl_curr_task);
+        font.set_on(lbl_task_status);
+        font.set_on(lbl_status);
+        font.set_on(cb_keep_on_top);
+        font.set_on(btn_stop_new);
+        font.set_on(btn_pause_resume);
+        font.set_on(btn_ok);
+        font.set_on(btn_watch);
+        font.set_on(btn_exit);
+    }
+
+    auto wpi = BeginDeferWindowPos(10);
+    int x = l + S(LO_DLG_BORDER);
+    int y = t + S(LO_DLG_BORDER);
+    int w = S(LO_BTN_W);
+    int h = S(LO_V_ROW);
+    wpi = DeferWindowPos(wpi, lbl_task.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    x = l + S(LO_DLG_BORDER+LO_BTN_W+LO_H_GAP);
+    w = width - x - S(LO_DLG_BORDER);
+    wpi = DeferWindowPos(wpi, lbl_curr_task.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    y += S(LO_V_ROW+LO_V_GAP);
+
+    x = l + S(LO_DLG_BORDER);
+    w = width - S(2*LO_DLG_BORDER+2*LO_BTN_W+3*LO_H_GAP);
+    h = S(LO_BTN_H);
+    wpi = DeferWindowPos(wpi, cb_keep_on_top.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    w = S(LO_BTN_W);
+    x = width - S(LO_DLG_BORDER+LO_BTN_W);
+    wpi = DeferWindowPos(wpi, btn_pause_resume.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    x -= S(2*LO_H_GAP+LO_BTN_W);
+    wpi = DeferWindowPos(wpi, btn_stop_new.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    int status_t = y + S(LO_BTN_H+LO_V_GAP);
+
+    int cx = (l + r) / 2;
+
+    w = S(LO_BTN_W);
+    h = S(LO_BTN_H);
+    y = b - S(LO_DLG_BORDER+LO_BTN_H);
+
+    x = cx - w/2 - S(LO_H_GAP+LO_BTN_W);
+    wpi = DeferWindowPos(wpi, btn_ok.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+    x = cx - w/2;
+    wpi = DeferWindowPos(wpi, btn_watch.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+    x = cx + w/2 + S(LO_H_GAP);
+    wpi = DeferWindowPos(wpi, btn_exit.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    y -= S(LO_V_GAP+LO_BTN_H);
+
+    x = l + S(LO_DLG_BORDER);
+    w = width - S(2*LO_DLG_BORDER);
+    h = S(LO_V_ROW);
+    wpi = DeferWindowPos(wpi, lbl_status.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    int status_b = y - S(LO_V_GAP);
+
+    x = l + S(LO_DLG_BORDER);
+    y = status_t;
+    w = width - S(2*LO_DLG_BORDER);
+    h = status_b - status_t;
+    wpi = DeferWindowPos(wpi, lbl_task_status.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+
+    EndDeferWindowPos(wpi);
+
+    RedrawWindow(this->hwnd(), 0, 0, RDW_INVALIDATE | RDW_ALLCHILDREN);
+    InvalidateRect(this->hwnd(), nullptr, true);
+    UpdateWindow(this->hwnd());
+}
+#undef S

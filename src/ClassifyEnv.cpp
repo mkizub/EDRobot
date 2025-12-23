@@ -57,6 +57,16 @@ void ClassifyEnv::init(XMat warpedImage, const cv::Matx33d& unWM) {
     unWarpMatrix = unWM;
 }
 
+void ClassifyEnv::init(XMat warpedImage, const cv::Matx23d& unWMaffine) {
+    auto& m = unWMaffine.val;
+    cv::Matx33d unWMperspective = {
+            m[0], m[1], m[2],
+            m[3], m[4], m[5],
+            0.00, 0.00, 1.00
+    };
+    init(warpedImage, unWMperspective);
+}
+
 void ResolvedEnv::clear() {
     frameRect = {};
     frameCrop = {};

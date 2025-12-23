@@ -269,7 +269,6 @@ public:
     void setTemplate(const std::string& filename);
 
     double match(ClassifyEnv& env) override;
-    double match(ClassifyEnv& env, XMat gameImage, cv::Point* gameImageOffset);
 
     static bool loadImageAndMask(const std::string& filename, XMat& image);
 
@@ -304,6 +303,7 @@ public:
 
     cv::Point refOrig;
     cv::Size refSize;
+    cv::Rect withRefRect;
     cv::Rect captureRect;
     cv::Rect matchRect;
     cv::Point matchedCaptureOffset;

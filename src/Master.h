@@ -133,7 +133,7 @@ private:
     void debugDetectEDState();
     bool debugRectScreenshot(pCommand& cmd);
     bool debugWindow();
-    bool debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv);
+    bool debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv, UIState& uiState);
 
     std::unique_ptr<widget::Root> mScreensRoot;
     HWND hWndED;

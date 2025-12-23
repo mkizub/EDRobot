@@ -22,6 +22,7 @@
 static CComPtr<ID3D11Device1> D3dDevice;
 static CComPtr<ID3D11DeviceContext1> D3dContext;
 static CComPtr<ID3D11Query> D3dQuery;
+static int numGPUs;
 
 std::unique_ptr<Capturer> Capturer::TheCapturer;
 
@@ -64,9 +65,10 @@ bool Capturer::InitD3DDevice() {
         if (FAILED(hr)) {
             LOG(ERROR) << "Failed to create DXGI factory1: " << getErrorMessage(hr);
         } else {
+            std::set<UINT> uniqueGPUs;
             LOG(INFO) << "DXGI adapters:";
-            std::wstring forcedDxgiDevice = toUtf16(Cfg.getForcedDXGIDeviceName());
-            int forcedDxgiDeviceId = Cfg.getForcedDXGIDeviceId();
+            std::wstring forcedName = toUtf16(Cfg.getForcedDXGIDeviceName());
+            int forcedId = Cfg.getForcedDXGIDeviceId();
             for (int i=0;; i++) {
                 CComPtr<IDXGIAdapter1> dxgiAdapterTmp;
                 hr = dxgiFactory1->EnumAdapters1(i, &dxgiAdapterTmp);
@@ -74,17 +76,27 @@ bool Capturer::InitD3DDevice() {
                     break;
                 DXGI_ADAPTER_DESC1 desc {};
                 dxgiAdapterTmp->GetDesc1(&desc);
-                bool forced = false;
-                if (!dxgiAdapter1) {
-                    if (forcedDxgiDeviceId == desc.DeviceId || forcedDxgiDevice == desc.Description) {
-                        dxgiAdapter1.Attach(dxgiAdapterTmp.Detach());
-                        forced = true;
-                    }
-                }
+                if (desc.Flags != DXGI_ADAPTER_FLAG_NONE)
+                    continue;
+                uniqueGPUs.insert(desc.DeviceId);
+                bool forced = !dxgiAdapter1 && (forcedId == desc.DeviceId || forcedName == desc.Description);
                 LOG(INFO) << std::format(L"DXGI adapter[{}]: device id: {}, name: '{}'{}", i,
                                          desc.DeviceId, desc.Description,
                                          (forced ? L" (force use this device)" : L""));
+                CComPtr<IDXGIOutput> dxgiOutput;
+                for (unsigned o=0; ; o++) {
+                    CComPtr<IDXGIOutput> output;
+                    if (FAILED(dxgiAdapterTmp->EnumOutputs(o, &output)))
+                        break;
+                    DXGI_OUTPUT_DESC odesc {};
+                    if (SUCCEEDED(output->GetDesc(&odesc)))
+                        LOG(INFO) << std::format(L"     output monitor {}", odesc.DeviceName);
+                }
+
+                if (forced)
+                    dxgiAdapter1.Attach(dxgiAdapterTmp.Detach());
             }
+            numGPUs = uniqueGPUs.size();
         }
         static const D3D_FEATURE_LEVEL featureLevels[] = {
                 D3D_FEATURE_LEVEL_11_1,
@@ -95,7 +107,7 @@ bool Capturer::InitD3DDevice() {
         hr = D3D11CreateDevice(dxgiAdapter1, dxgiAdapter1 ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, nullptr,
                                D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                                featureLevels, std::size(featureLevels), D3D11_SDK_VERSION,
-                               &d3dDeviceTmp, &featureLevel, NULL);
+                               &d3dDeviceTmp, &featureLevel, nullptr);
         if (SUCCEEDED(hr))
             hr = d3dDeviceTmp->QueryInterface(IID_PPV_ARGS(&D3dDevice));
         if (FAILED(hr)) {
@@ -197,15 +209,15 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
             captureRect = monitorInfo.rcMonitor;
         }
     }
-    // for window, try WinRT capturer first
-    if (!fullscreen && !Cfg.isCapturerWinRTDisabled()) {
+    // for window or multiple GPUs, try WinRT capturer first
+    if ((!fullscreen || numGPUs > 1) && !Cfg.isCapturerWinRTDisabled()) {
         auto c = std::unique_ptr<Capturer>(new CapturerWinRT(hMonitor, &monitorInfo));
         if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
             TheCapturer.swap(c);
             return TheCapturer.get();
         }
     }
-    // otherwice try DXGI capturer as fast and releable
+    // otherwise try DXGI capturer as fast and releable
     if (!Cfg.isCapturerDXGIDisabled()) {
         auto c = std::unique_ptr<Capturer>(new CapturerDXGI(hMonitor, &monitorInfo));
         if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {

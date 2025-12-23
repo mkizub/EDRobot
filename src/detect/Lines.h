@@ -17,7 +17,6 @@ public:
     ~LineDetector() override = default;
 
     double match(ClassifyEnv& env);
-    double match(ClassifyEnv& env, cv::Line refLine, XMat gameImage);
 
     std::vector<std::unique_ptr<ImageFilter>> filters;
 
@@ -28,6 +27,7 @@ public:
     int houghThreshold {0};
     int detectEdgesMode {0}; // +1 for top line, -1 for bottom line, 0 to not detect
     const spEvalLine referenceLine;
+    cv::Line withRefLine;
 
     cv::Point extendLT;
     cv::Point extendRB;

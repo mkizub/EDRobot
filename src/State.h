@@ -209,6 +209,7 @@ extern struct Autopilot {
     bool isDestBodyTargeted;
 
     bool badBodyHierarchy;
+    std::string expect_screen;
 
     void setDestBody(gal::spEntity body);
     void setDestDock(gal::spEntity dock);

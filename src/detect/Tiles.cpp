@@ -28,8 +28,8 @@ TilesDetector::TilesDetector(const std::string& name, cv::Rect& tilesRect, cv::R
 double TilesDetector::match(ClassifyEnv &env) {
     cv::Rect captureRect = env.cvtReferenceToCaptured(mTilesRect);
     XMat roiColorImage = env.getColorImage()(captureRect);
-    ChannelFilter redFilter(ChannelFilter::red);
-    XMat roiGrayImage = redFilter.apply(roiColorImage,{});
+    ChannelFilter grayFilter(ChannelFilter::gray);
+    XMat roiGrayImage = grayFilter.apply(roiColorImage,{});
     if (roiGrayImage.empty())
         return 0;
 
@@ -40,6 +40,8 @@ double TilesDetector::match(ClassifyEnv &env) {
 
     if (name.empty())
         return 1;
+    if (name.empty())
+        return 1;
 
     if (icons_detector) {
         if (icons_detector->refSize.empty())
@@ -47,12 +49,12 @@ double TilesDetector::match(ClassifyEnv &env) {
 
         for (auto &tile: tiles) {
             cv::Point offset;
-            if (mIconAlign == TopLeft) {
-                offset = mMarksRect.tl();
-            } else {
-                offset = (tile.tl() + tile.br() - cv::Point(icons_detector->refSize)) / 2;
+            icons_detector->withRefRect = mMarksRect;
+            if (mIconAlign == Center) {
+                icons_detector->withRefRect += cv::Point(tile.size() - mMarksRect.size()) / 2;
             }
-            double match = icons_detector->match(env, roiColorImage(tile), &offset);
+            icons_detector->withRefRect += tile.tl() + captureRect.tl();
+            double match = icons_detector->match(env);
             auto& ir = icons_detector->lastMatchResult;
             cv::Rect detectedRect = env.cvtCapturedToReference(tile + ir.loc);
             if (match > 0.1) {
@@ -94,7 +96,7 @@ double TilesDetector::match(ClassifyEnv &env) {
                     }
                 }
             }
-            cv::Rect detectedRect = env.cvtCapturedToReference(tile);
+            cv::Rect detectedRect = env.cvtCapturedToReference(tile + captureRect.tl());
             if (bestLabel) {
                 env.classified.emplace_back(ClsDetType::Tile, name + ":" + *bestLabel, detectedRect);
                 env.classified.back().u.tile.capturedRect = tile;
@@ -243,36 +245,35 @@ std::vector<TilesDetector::Range> TilesDetector::split(bool columns, uchar* redu
 std::vector<cv::Rect> TilesDetector::detectColumns(XMat& roiImage, int gap) {
     const int W = roiImage.cols;
     const int H = roiImage.rows;
-    int threshold = -1;
+    int colThreshold = -1;
     std::vector<Range> columns;
     {
         cv::Rect reduceRect(0, 0, W, H / 3); // cut 1/3 in the middle
         XMat reducedImage;
         cv::reduce(roiImage(reduceRect), reducedImage, 0, cv::REDUCE_AVG, CV_8UC1);
         cv::Mat reducedMat = toMat(reducedImage);
-        columns = split(true, reducedMat.data, W, gap, threshold);
+        columns = split(true, reducedMat.data, W, gap, colThreshold);
         if (columns.size() < mMinCols || columns.size() > mMaxCols)
             return {};
     }
 
     std::vector<cv::Rect> tiles;
-    for (int c=0; c < columns.size(); c++) {
-        auto& col = columns[c];
-        cv::Rect reduceRect(col.bgn, 0, col.end-col.bgn, H);
-        XMat subImage = roiImage(reduceRect);
-        XMat reducedImage;
-        cv::reduce(roiImage(reduceRect), reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
-        cv::Mat reducedMat = toMat(reducedImage);
+    for (auto& col : columns) {
         std::vector<Range> rows;
-        threshold = -1;
-        if (mMaxRows > 1)
-            rows = split(false, reducedMat.data, H, gap, threshold);
-        else
-            rows.emplace_back(0, H-1, 100);
-        for (int r=0; r < rows.size(); r++) {
-            auto& row = rows[r];
+        if (mMaxRows > 1) {
+            cv::Rect reduceRect(col.bgn, 0, col.end-col.bgn, H);
+            XMat subImage = roiImage(reduceRect);
+            XMat reducedImage;
+            cv::reduce(roiImage(reduceRect), reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
+            cv::Mat reducedMat = toMat(reducedImage);
+            int rowThreshold = -1;
+            rows = split(false, reducedMat.data, H, gap, rowThreshold);
+        } else {
+            rows.emplace_back(0, H - 1, 100);
+        }
+        for (auto& row : rows) {
             bool merged = false;
-            if (mTryMerge && c > 0) {
+            if (mTryMerge) {
                 // try merge
                 for (int t=0; t < tiles.size(); t++) {
                     auto& tile = tiles[t];
@@ -285,7 +286,7 @@ std::vector<cv::Rect> TilesDetector::detectColumns(XMat& roiImage, int gap) {
                         cv::Rect gapRect(tile.x+tile.width, row.bgn, col.bgn-(tile.x+tile.width),row.end-row.bgn);
                         XMat gapImage = roiImage(gapRect);
                         auto mean = cv::mean(gapImage);
-                        if (mean.val[0] > threshold) {
+                        if (mean.val[0] > colThreshold) {
                             int y = (tile.y + row.bgn) / 2;
                             int h = (tile.height + (row.end-row.bgn)) / 2;
                             tile = cv::Rect(tile.x, y, col.end-tile.x, h);

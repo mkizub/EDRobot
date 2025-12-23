@@ -187,6 +187,19 @@ struct utc_timer {
     std::string left() const;
 };
 
+struct FovScale {
+    FovScale() = default;
+    FovScale(double fov0, double fov1, cv::Rect rect0, cv::Rect rect1);
+    double fov54 = 54.32;
+    double fov60 = 60.00;
+    double scale60 = 0.888258;
+    double getScaleForFOV(double fov);
+    cv::Point apply(cv::Point p, double fov);
+    cv::Size apply(cv::Size s, double fov);
+    cv::Rect apply(cv::Rect r, double fov);
+    cv::Line apply(cv::Line l, double fov);
+};
+
 struct CompassInfo {
     Timestamp timestamp;
     float targetPitch;

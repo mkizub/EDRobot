@@ -438,7 +438,34 @@ void stop() {
     }
 }
 
-int getScanCode(const std::string& key_name) {
+int getScanCode(std::string key_name) {
+    std::wstring wkey = toUtf16(key_name);
+    if (wkey[0] > 0x7f) {
+        static std::vector<HKL> keyboardLayouts;
+        if (keyboardLayouts.empty()) {
+            int numLayouts = GetKeyboardLayoutList(0, nullptr);
+            keyboardLayouts.resize(numLayouts);
+            GetKeyboardLayoutList(numLayouts, keyboardLayouts.data());
+        }
+        short mapped_vk = -1;
+        for (auto hkl : keyboardLayouts) {
+            auto vk = VkKeyScanEx(wkey[0], hkl);
+            if (vk < 0)
+                continue;
+            if (mapped_vk < 0) {
+                mapped_vk = vk;
+                continue;
+            }
+            if (mapped_vk >= 0 && mapped_vk == vk)
+                continue;
+            LOG(ERROR) << std::format("Umbigous key mapping for Key_{}", key_name);
+        }
+        if (mapped_vk >= 0) {
+            char k = mapped_vk & 0x7F;
+            key_name = std::string(&k, 1);
+        }
+    }
+
     auto it = US_QWERTY_MAPPING_NAME_TO_KEY.find(toLower(key_name));
     if (it == US_QWERTY_MAPPING_NAME_TO_KEY.end()) {
         LOG(ERROR) << "Scancode for " << key_name << " not found";

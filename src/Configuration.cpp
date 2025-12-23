@@ -35,8 +35,8 @@ Configuration& Configuration::getInstance() {
 }
 
 static cv::Vec3b color_from_json(const json5pp::value& v);
-static detect::Detector* detector_from_json(const json5pp::value& j, widget::Widget& widget);
-static widget::Widget* widget_from_json(const json5pp::value& j, widget::Widget* parent);
+static detect::Detector* detector_from_json(const json5pp::value& j, widget::Widget& widget, FovScale* fov_scale);
+static widget::Widget* widget_from_json(const json5pp::value& j, widget::Widget* parent, FovScale* fov_scale);
 
 Configuration::Configuration()
     : mCommodityDatabaseUpdated(true)
@@ -91,17 +91,17 @@ bool Configuration::load() {
         }
         std::ifstream ifs_config("configuration.json5");
         json5pp::value j_config = json5pp::parse5(ifs_config);
-        if (auto &tm = j_config.at("ui-scale-percents"); tm.is_integer()) {
+        if (auto& tm = j_config.at("ui-scale-percents"); tm.is_integer()) {
             if (tm.as_integer() >= 25 && tm.as_integer() <= 400)
                 mUiScalePercents = tm.as_integer();
         }
-        if (auto &tm = j_config.at("default-key-hold-time"); tm.is_integer())
+        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer())
             defaultKeyHoldTime = tm.as_integer();
-        if (auto &tm = j_config.at("default-key-after-time"); tm.is_integer())
+        if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer())
             defaultKeyAfterTime = tm.as_integer();
-        if (auto &tm = j_config.at("search-region-extent"); tm.is_integer())
+        if (auto& tm = j_config.at("search-region-extent"); tm.is_integer())
             searchRegionExtent = tm.as_integer();
-        if (auto &tm = j_config.at("auto-pause"); tm.is_boolean())
+        if (auto& tm = j_config.at("auto-pause"); tm.is_boolean())
             autoPause = tm.as_boolean();
         if (j_config.at("shortcuts").is_object()) {
             auto &obj = j_config.at("shortcuts");
@@ -137,6 +137,8 @@ bool Configuration::load() {
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
             openclDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_boolean())
+            openclD3dInterop = tm.as_boolean();
         g_DisableOpenCL = openclDisabled;
         if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
             _putenv_s("OPENCV_OPENCL_CACHE_DIR", tm.as_string().c_str());
@@ -155,17 +157,6 @@ bool Configuration::load() {
     }
 
     {
-        LOG(INFO) << "Setting screens.json5";
-        widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
-        std::ifstream ifs_config("screens.json5");
-        auto j_screens = json5pp::parse5(ifs_config).as_array();
-        for (json5pp::value& s: j_screens) {
-            screensRoot->addSubItem(widget_from_json(s, screensRoot));
-        }
-        debugNavPanel();
-    }
-
-    {
         if (!eddb::loadEDDB())
             errorMessage = _gt("Failed to load ship database");
         if (!preloadGameJournal())
@@ -176,7 +167,18 @@ bool Configuration::load() {
             errorMessage = _gt("Failed to load game player options");
         if (!loadInputBindings())
             errorMessage = _gt("Failed to load all required key bindings");
-
+    }
+    {
+        LOG(INFO) << "Setting screens.json5";
+        widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
+        std::ifstream ifs_config("screens.json5");
+        auto j_screens = json5pp::parse5(ifs_config).as_array();
+        for (json5pp::value& s: j_screens) {
+            screensRoot->addSubItem(widget_from_json(s, screensRoot, nullptr));
+        }
+        debugNavPanel();
+    }
+    {
         if (!loadCommodityDatabase())// initialization depends on game language
             errorMessage = _gt("Failed to load commodity database");
         //dumpCommodityDatabase();
@@ -1441,10 +1443,12 @@ static cv::Point point_from_json(const json5pp::value& v) {
     return p;
 }
 
-static cv::Size size_from_json(const json5pp::value& v) {
+static cv::Size size_from_json(const json5pp::value& v, FovScale* fov_scale) {
     cv::Size sz;
     sz.width = v[0].as_integer();
     sz.height = v[1].as_integer();
+    if (fov_scale && v[3].is_number())
+        sz = fov_scale->apply(sz, v[3].as_number());
     return sz;
 }
 
@@ -1454,6 +1458,41 @@ static cv::Rect rect_from_json(const json5pp::value& v) {
     rect.y = v.at(1,0).as_integer();
     rect.width = v.at(2,0).as_integer();
     rect.height = v.at(3,0).as_integer();
+    return rect;
+}
+
+static cv::Rect fov_rect_from_json(const json5pp::value& v, double& fov) {
+    cv::Rect rect;
+    rect.x = v.at(0,0).as_integer();
+    rect.y = v.at(1,0).as_integer();
+    rect.width = v.at(2,0).as_integer();
+    rect.height = v.at(3,0).as_integer();
+    fov = v.at(4,0.0).as_number();
+    return rect;
+}
+
+static cv::Rect rect_from_json(const json5pp::value& v, FovScale* fov_scale) {
+    cv::Rect rect;
+    rect.x = v.at(0,0).as_integer();
+    rect.y = v.at(1,0).as_integer();
+    rect.width = v.at(2,0).as_integer();
+    rect.height = v.at(3,0).as_integer();
+    if (fov_scale && v[4].is_number())
+        rect = fov_scale->apply(rect, v[4].as_number());
+    return rect;
+}
+
+static cv::Rect mark_from_json(const json5pp::value& v, FovScale* fov_scale) {
+    cv::Rect rect;
+    rect.x = v.at(0,0).as_integer();
+    rect.y = v.at(1,0).as_integer();
+    rect.width = v.at(2,0).as_integer();
+    rect.height = v.at(3,0).as_integer();
+    if (fov_scale && v[4].is_number()) {
+        cv::Size offs = fov_scale->apply(cv::Size(rect.tl()), v[4].as_number());
+        cv::Size size = fov_scale->apply(rect.size(), v[4].as_number());
+        rect = {cv::Point(offs), size};
+    }
     return rect;
 }
 
@@ -1742,7 +1781,7 @@ static void image_template_from_json(const json5pp::value& j, ImageTemplate* tem
     }
 }
 
-static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
+static Detector* detector_from_json(const json5pp::value& j, Widget& widget, FovScale* fov_scale) {
     if (j.is_null())
         return nullptr;
     if (j.is_boolean()) {
@@ -1762,7 +1801,7 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
     if (j.is_object()) {
         if (j.as_object().contains("anchor")) {
             std::string filename = "templates/"+j.at("img").as_string();
-            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"]);
+            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale);
             cv::Point anchor = point_from_json(j["anchor"]);
             AnchorDetector* templ = new AnchorDetector(filename, rect, anchor);
             image_template_from_json(j, templ);
@@ -1770,13 +1809,13 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
         }
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
-            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"]);
+            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale);
             ImageTemplate* templ = new ImageTemplate(filename, rect);
             image_template_from_json(j, templ);
             return templ;
         }
         if (j.as_object().contains("line")) {
-            spEvalLine line = makeEvalLine(widget, "line", j["line"]);
+            spEvalLine line = makeEvalLine(widget, "line", j["line"], fov_scale);
             detect::LineDetector* ldet = new detect::LineDetector(line);
 
             if (j["name"].is_string())
@@ -1785,8 +1824,11 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
             ext_from_json(j["ext"], ldet->extendLT, ldet->extendRB);
             if (j.at("delta"))
                 minmax_from_json(j["delta"], ldet->extendAngleMin, ldet->extendAngleMax);
-            if (j.at("votes"))
+            if (j.at("votes")) {
                 ldet->houghThreshold = j["votes"].as_integer();
+                if (fov_scale && j["line"][4].is_number())
+                    ldet->houghThreshold *= fov_scale->getScaleForFOV(j["line"][4].as_number());
+            }
             if (j.at("prec"))
                 ldet->angleStep = j["prec"].as_number();
 
@@ -1809,8 +1851,8 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
             return ldet;
         }
         else if (j.as_object().contains("tiles")) {
-            cv::Rect tilesRect = rect_from_json(j["tiles"]);
-            cv::Rect marksRect = rect_from_json(j["rect"]);
+            cv::Rect tilesRect = rect_from_json(j["tiles"], fov_scale);
+            cv::Rect marksRect = mark_from_json(j["rect"], fov_scale);
 
             std::string name = j["name"].as_string();
             int rows_min = 1;
@@ -1826,13 +1868,13 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
                                                      rows_min, rows_max, cols_min, cols_max, gap);
 
             if (j["size"].is_array())
-                tiles->mTileSize = size_from_json(j["size"]);
+                tiles->mTileSize = size_from_json(j["size"], fov_scale);
             if (j["merge"].is_boolean())
                 tiles->mTryMerge = j["merge"].as_boolean();
 
             if (j["icons"].is_string()) {
                 std::string icons = "templates/" + j["icons"].as_string();
-                ImageTemplate* templ = new ImageTemplate(icons, nullptr);
+                ImageTemplate* templ = new ImageTemplate(icons, spEvalRect(new ConstRect(marksRect)));
                 image_template_from_json(j, templ);
                 if (j["icon_align"].is_string()) {
                     auto& align = j["icon_align"].as_string();
@@ -1864,7 +1906,7 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
         else if (j.as_object().contains("best")) {
             std::vector<std::unique_ptr<Detector>> oracles;
             for (auto& jo : j["best"].as_array()) {
-                Detector *oracle = detector_from_json(jo, widget);
+                Detector *oracle = detector_from_json(jo, widget, fov_scale);
                 if (oracle)
                     oracles.emplace_back(oracle);
             }
@@ -1875,12 +1917,12 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
             std::vector<std::unique_ptr<AnchorDetector>> anchors;
             std::vector<NavPanelDetector::Tab> tabs;
             for (auto& jo : j["nav_panel"]["lines"].as_array()) {
-                Detector *oracle = detector_from_json(jo, widget);
+                Detector *oracle = detector_from_json(jo, widget, fov_scale);
                 if (auto ldet = dynamic_cast<LineDetector*>(oracle))
                     lines.emplace_back(ldet);
             }
             for (auto& jo : j["nav_panel"]["anchors"].as_array()) {
-                Detector *oracle = detector_from_json(jo, widget);
+                Detector *oracle = detector_from_json(jo, widget, fov_scale);
                 if (auto adet = dynamic_cast<AnchorDetector*>(oracle))
                     anchors.emplace_back(adet);
             }
@@ -1896,7 +1938,7 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget) {
     if (j.is_array()) {
         std::vector<std::unique_ptr<Detector>> oracles;
         for (auto& jo : j.as_array()) {
-            Detector *oracle = detector_from_json(jo, widget);
+            Detector *oracle = detector_from_json(jo, widget, fov_scale);
             if (oracle)
                 oracles.emplace_back(oracle);
         }
@@ -1930,25 +1972,42 @@ static void from_json(const json5pp::value& j, std::map<std::string,std::vector<
     }
 }
 
-static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
+static Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_scale) {
     if (j.is_null()) {
         return nullptr;
     }
+    FovScale scr_fov_scale;
     Widget* widget = nullptr;
     auto& jo = j.as_object();
     auto name = jo.at("name").as_string();
     if (name.starts_with("scr-")) {
         auto scr = new Screen(name, parent, j["status"]);
+        if (auto& jfscl=j["fov_size"]; jfscl.is_array() || jfscl.is_boolean()) {
+            if (jfscl.is_boolean()) {
+                if (jfscl.as_boolean())
+                    fov_scale = &scr_fov_scale;
+                else
+                    fov_scale = nullptr;
+            } else {
+                double fov0, fov1;
+                cv::Rect rect0 = fov_rect_from_json(jfscl[0], fov0);
+                cv::Rect rect1 = fov_rect_from_json(jfscl[1], fov1);
+                scr_fov_scale = FovScale(fov0, fov1, rect0, rect1);
+                fov_scale = &scr_fov_scale;
+            }
+        } else {
+            fov_scale = nullptr;
+        }
         if (auto& jvars = j["vars"]; jvars.is_object()) {
             from_json(jvars, scr->varSetMap);
         }
         if (auto& jt = j["transform"]; jt.is_object()) {
             // transform: { tl: [212,256], tr: [1276,242], br: [1296,800], bl: [270,912] }
             // transform: { line: "lpline", tl: [0,-50], tr: [0,-50], ratio: 1.77777777 }
-            spEvalPoint tl = makeEvalPoint(*scr, "tl", jt["tl"]);
-            spEvalPoint tr = makeEvalPoint(*scr, "tr", jt["tr"]);
-            spEvalPoint br = makeEvalPoint(*scr, "br", jt["br"]);
-            spEvalPoint bl = makeEvalPoint(*scr, "bl", jt["bl"]);
+            spEvalPoint tl = makeEvalPoint(*scr, "tl", jt["tl"], fov_scale);
+            spEvalPoint tr = makeEvalPoint(*scr, "tr", jt["tr"], fov_scale);
+            spEvalPoint br = makeEvalPoint(*scr, "br", jt["br"], fov_scale);
+            spEvalPoint bl = makeEvalPoint(*scr, "bl", jt["bl"], fov_scale);
             cv::Size sz = point_from_json(jt["size"]);
             if (jt["line"]) {
                 std::vector<std::string> lines;
@@ -1977,7 +2036,7 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     else if (name.starts_with("btn-")) {
         auto btn = new Button(name, parent);
         widget = btn;
-        widget->setRect("rect", j);
+        widget->setRect("rect", j, fov_scale);
         if (jo.contains("ext"))
             ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
         if (j["icon"].is_string())
@@ -1986,7 +2045,7 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     else if (name.starts_with("spn-")) {
         auto btn = new Spinner(name, parent);
         widget = btn;
-        widget->setRect("rect", j);
+        widget->setRect("rect", j, fov_scale);
         if (jo.contains("ext"))
             ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
     }
@@ -2000,7 +2059,7 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     else if (name.starts_with("lbl-")) {
         auto lbl = new Label(name, parent);
         widget = lbl;
-        widget->setRect("rect", j);
+        widget->setRect("rect", j, fov_scale);
         if (jo.contains("ocr_top") && jo.contains("ocr_bot")) {
             lbl->ocr_top = jo.at("ocr_top").as_integer();
             lbl->ocr_bot = jo.at("ocr_bot").as_integer();
@@ -2009,7 +2068,7 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     else if (name.starts_with("lst-")) {
         auto lst = new List(name, parent);
         widget = lst;
-        widget->setRect("rect", j);
+        widget->setRect("rect", j, fov_scale);
         lst->row_height = (float) j.at("row_height",0).as_number();
         lst->row_gap = (float) j.at("row_gap",0).as_number();
         lst->header = (float) j.at("header",0).as_number();
@@ -2039,11 +2098,11 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent) {
     }
     if (jo.contains("have") && jo.at("have").is_array()) {
         for (auto &h: jo.at("have").as_array()) {
-            widget->addSubItem(widget_from_json(h, widget));
+            widget->addSubItem(widget_from_json(h, widget, fov_scale));
         }
     }
     if (jo.contains("detect")) {
-        Detector* oracle = detector_from_json(jo.at("detect"), *widget);
+        Detector* oracle = detector_from_json(jo.at("detect"), *widget, fov_scale);
         widget->oracle.reset(oracle);
     }
     return widget;

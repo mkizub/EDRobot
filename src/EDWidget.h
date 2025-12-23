@@ -20,7 +20,7 @@ struct Widget {
     virtual ~Widget();
 
     void addSubItem(Widget* sub);
-    void setRect(const char* name, const json5pp::value& value);
+    void setRect(const char* name, const json5pp::value& value, FovScale* fov_scale);
     cv::Rect calcReferenceRect(const ClassifyEnv& env) const;
 
     struct DetectParams {
