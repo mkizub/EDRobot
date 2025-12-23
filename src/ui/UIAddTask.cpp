@@ -6,6 +6,8 @@
 
 #include "UIAddTask.h"
 #include "UILayout.h"
+#include "UIManager.h"
+#include "UIMainDialog.h"
 
 #include "../../ui/resource.h"
 
@@ -39,6 +41,12 @@ UIAddTask::UIAddTask() {
         on_template_delete();
         return 0;
     });
+    on_message(WM_DPICHANGED, [this](wl::params params) {
+        cv::Rect r = fromRECT(*(PRECT)params.lParam);
+        SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, r.width, r.height, SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+        relayout();
+        return 0;
+    });
     on_message(WM_SIZE, [this](wl::params params) {
         relayout();
         return 0;
@@ -46,7 +54,7 @@ UIAddTask::UIAddTask() {
 }
 
 void UIAddTask::initialize() {
-    EnableNonClientDpiScaling(hwnd());
+    SetDialogDpiChangeBehavior(hwnd(), DDC_DISABLE_ALL, DDC_DISABLE_ALL);
 
     int uiDpi = GetDpiForWindow(hwnd());
     int uiPercent = Cfg.getUiScalePercents();
@@ -68,6 +76,13 @@ void UIAddTask::initialize() {
     taskEditor.validate_callback = [this](bool valid){ validate_callback(valid); };
 
     init_templ_list();
+    {
+        RECT rect;
+        GetWindowRect(UIManager::getInstance().uiMain.hwnd(), &rect);
+        SetWindowPos(this->hwnd(), HWND_TOPMOST,
+                     rect.left, rect.top+50, rect.right-rect.left, rect.bottom-rect.top,
+                     SWP_NOOWNERZORDER);
+    }
     relayout();
 }
 

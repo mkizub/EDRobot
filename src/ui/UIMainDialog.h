@@ -23,6 +23,7 @@ public:
     bool hide(bool force);
     void initialize();
     void relayout();
+    void createFont(int dpi, int scale_percent);
     void on_command_stop_new();
     void on_command_pause_resume();
 

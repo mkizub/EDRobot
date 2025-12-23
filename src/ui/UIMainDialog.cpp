@@ -92,14 +92,22 @@ UIMainDialog::UIMainDialog()
         update_curr_task();
         return 0;
     });
+    on_message(WM_DPICHANGED, [this](wl::params params) {
+        cv::Rect r = fromRECT(*(PRECT)params.lParam);
+        SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, r.width, r.height, SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
+        LOG(INFO) << "on_dpi_change: DPI " << LOWORD(params.wParam) << " size " << r.size();
+        relayout();
+        return 0;
+    });
     on_message(WM_SIZE, [this](wl::params params) {
         relayout();
         return 0;
     });
 }
 
-
 void UIMainDialog::initialize() {
+    SetDialogDpiChangeBehavior(hwnd(), DDC_DISABLE_ALL, DDC_DISABLE_ALL);
+
     HINSTANCE hInstance = GetModuleHandle(nullptr);
     mNotifyIconData.cbSize = sizeof(NOTIFYICONDATA);
     mNotifyIconData.hWnd = hwnd();
@@ -133,7 +141,18 @@ void UIMainDialog::initialize() {
     int uiDpi = GetDpiForWindow(hwnd());
     int uiPercent = Cfg.getUiScalePercents();
     font.create(L"Segoe UI", MulDiv(LO_FONT_SIZE, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI));
-    relayout();
+    {
+        auto hMonitor = MonitorFromWindow(hwnd(), MONITOR_DEFAULTTOPRIMARY);
+        MONITORINFOEX monitorInfo;
+        monitorInfo.cbSize = sizeof(monitorInfo);
+        GetMonitorInfo(hMonitor, &monitorInfo);
+        int w = MulDiv(450, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI);
+        int h = MulDiv(600, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI);
+        int border = MulDiv(50, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI);
+        int l = monitorInfo.rcMonitor.right - border - w;
+        int t = monitorInfo.rcMonitor.top + border;
+        SetWindowPos(this->hwnd(), HWND_TOPMOST, l, t, w, h, SWP_NOOWNERZORDER);
+    }
 
     update_curr_task();
 }
@@ -337,9 +356,6 @@ void UIMainDialog::update_curr_task() {
 #define S(N) MulDiv((N), uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI)
 void UIMainDialog::relayout() {
     RECT rect{};
-    //GetWindowRect(hwnd(), &rect);
-    //ScreenToClient(hwnd(), reinterpret_cast<LPPOINT>(&rect.left));
-    //ScreenToClient(hwnd(), reinterpret_cast<LPPOINT>(&rect.right));
     GetClientRect(hwnd(), &rect);
     int l = rect.left;
     int t = rect.top;
