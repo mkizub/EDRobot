@@ -136,6 +136,11 @@ add_executable(EDRobot
         thirdparty/glob/glob.h
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
+        src/detect/Filters.h
+        src/detect/Filters.cpp
+        src/detect/Compass.h
+        src/detect/TextDetector.h
+        src/detect/TextDetector.cpp
 )
 
 

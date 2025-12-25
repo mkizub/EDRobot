@@ -25,6 +25,7 @@ const int BASELINE_Y   = 30;
 
 enum TextType {
     GENERIC,
+    GENERIC_RAW,
     DISTANCE,
     NUMERIC,
 };
@@ -47,6 +48,9 @@ extern cv::Mat normalizeTargetDistText(const cv::Mat& grayImage);
 extern int ocrTargetDistText(const cv::Mat& grayImage, std::string& text);
 
 extern int ocrTileLblText(const cv::Mat& grayImage, WState ws, std::string& text);
+
+extern cv::Mat normalizeDetectorText(const cv::Mat& grayImage);
+extern int ocrDetectorText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, std::string& text, cv::Rect* rectOut);
 }
 
 #endif //EDROBOT_OCR_H

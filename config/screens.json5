@@ -178,13 +178,13 @@
     detect: [
       { tiles: [139,441,1006,505, 54.32], rows: [2,4], cols: 3, gap: 10, name: "dserv", t: [0.7, 0.9],
         icons: "services/dock-*.png", rect: [0,0,50,50, 56.25], ext: [0,0,12,12],
-        method:'corr', filter: { channel: 'gray' },
+        method:'coeff', filter: { channel: 'gray' },
         icon_align: "top-left",
         merge: true
       },
       { tiles: [1175,781,606,165, 54.32], rows: 1, cols: [3,4], gap: 16, name: "sserv", t: [0.7, 0.9],
         icons: "services/ship-*.png", rect: [0,0,90,80, 56.25],
-        method:'corr', filter: { channel: 'gray' },
+        method:'coeff', filter: { channel: 'gray' },
         icon_align: "center",
         merge: false
       }
@@ -217,7 +217,7 @@
       { name: 'mod-select',
         detect: [
           //{ img: "at_contacts_icon.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32] },
-          { img: "at_contacts_select-*.png", t: [0.6, 0.8], rect:[412,85,300,128, 54.32] },
+          { img: "at_contacts_select-*.png", t: [0.6, 0.8], rect:[412,85,300,128, 54.32], method: 'corr' },
           {
             tiles: [408,220,1090,650, 54.32], rows: [2,5], cols: 2, gap: 4, name: 'contact',
             size: [540,124, 54.32], test: [140,90,60,20], merge: false,
@@ -248,96 +248,125 @@
           { name: 'btn-back', rect: [412,959,326,41, 54.32] },
         ]
       },
-      { name: 'dlg-authority',
+      { name: 'mod-contact',
         detect: [
-          { img: "at_contacts_icon-dim.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32] },
-          { img: "contacts/at_authority-*.png", t: [0.6, 0.8], rect:[690,100,402,42, 54.32],
-            method:'corr', filter: { laplacian: { kern: 3 } } },
+          { img: "at_contacts_icon-dim.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32], method: 'corr' },
+          { name: 'contact', rect:[686,98,440,38, 54.32], t: [0.3,0.9],
+            texts: {
+              'authority' : "Представитель местных властей",
+              'power-play' : "Представитель державы",
+            },
+            raw: true
+          }
         ],
         have: [
-          { name: 'btn-dividends',    rect: [565,219,62,62, 54.32] },
-          { name: 'btn-intell-data',  rect: [565,292,62,62, 54.32] },
-          { name: 'btn-codex',        rect: [565,365,62,62, 54.32] },
-          { name: 'btn-bounty',       rect: [565,452,62,62, 54.32] },
-          { name: 'btn-fine',         rect: [565,540,62,62, 54.32] },
-          { name: 'btn-justice',      rect: [565,613,62,62, 54.32] },
-          { name: 'btn-back',         rect: [565,930,60,60, 54.32] },
+          { name: 'dlg-authority',
+            detect: [ 'contact:authority', { name: 'pay-off', rect:[772,945,450,30, 54.32],
+                texts: {
+                  'dividends' : "Получить прибыль с торгов",
+                  'intell-data' : "Обменять все пакеты разведданных",
+                  'codex' : "Погасить все обнаруженные записи кодекса",
+                  'bounty' : "Погасить ваучеры за награду",
+                  'fine' : "Общая сумма",
+                  //'justice' : ""
+                }
+              }
+            ],
+            have: [
+              { name: 'btn-dividends',    rect: [565,219,62,62, 54.32] },
+              { name: 'btn-intell-data',  rect: [565,292,62,62, 54.32] },
+              { name: 'btn-codex',        rect: [565,365,62,62, 54.32] },
+              { name: 'btn-bounty',       rect: [565,452,62,62, 54.32] },
+              { name: 'btn-fine',         rect: [565,540,62,62, 54.32] },
+              { name: 'btn-justice',      rect: [565,613,62,62, 54.32] },
+              { name: 'btn-back',         rect: [565,930,60,60, 54.32] },
 
-          { name: 'mod-dividends',
-            detect: 'btn-dividends',
-            have: [
-              { name: 'btn-commit',    rect: [651,913,60,694] }
+              { name: 'mod-dividends',
+                detect: 'pay-off:dividends',
+                have: [
+                  { name: 'btn-commit',    rect: [637,928,721,60, 54.32] }
+                ]
+              },
+              { name: 'mod-intell-data',
+                detect: 'pay-off:intell-data',
+                have: [
+                  { name: 'btn-commit',    rect: [637,928,721,60, 54.32] }
+                ]
+              },
+              { name: 'mod-codex',
+                detect: 'pay-off:codex',
+                have: [
+                  { name: 'btn-commit',    rect: [637,928,721,60, 54.32] }
+                ]
+              },
+              { name: 'mod-bounty',
+                detect: 'pay-off:bounty',
+                have: [
+                  { name: 'btn-commit',    rect: [637,928,721,60, 54.32] }
+                ]
+              },
+              { name: 'mod-fine',
+                detect: 'pay-off:fine',
+                have: [
+                  { name: 'btn-commit',    rect: [637,928,721,60, 54.32] }
+                ]
+              },
+              { name: 'mod-justice',
+                detect: 'pay-off:justice',
+                have: [
+                  { name: 'btn-commit',    rect: [637,928,721,60, 54.32] }
+                ]
+              }
             ]
           },
-          { name: 'mod-intell-data',
-            detect: 'btn-intell-data',
+          { name: 'dlg-power-play',
+            detect: [
+              { ref: 'contact:power-play', weight: 1 },
+              { name: 'exchange', rect:[632,223,450,38, 54.32],
+                texts: {
+                  'deliver-res' : "Доставить выделенные ресурсы",
+                  'acquire-res' : "Собрать выделенные ресурсы",
+                },
+                raw: true,
+                weight: 0
+              }
+            ],
             have: [
-              { name: 'btn-commit',    rect: [651,913,60,694] }
-            ]
-          },
-          { name: 'mod-codex',
-            detect: 'btn-codex',
-            have: [
-              { name: 'btn-commit',    rect: [651,913,60,694] }
-            ]
-          },
-          { name: 'mod-bounty',
-            detect: 'btn-bounty',
-            have: [
-              { name: 'btn-commit',    rect: [651,913,60,694] }
-            ]
-          },
-          { name: 'mod-fine',
-            detect: 'btn-fine',
-            have: [
-              { name: 'btn-commit',    rect: [651,913,60,694] }
-            ]
-          },
-          { name: 'mod-justice',
-            detect: 'btn-justice',
-            have: [
-              { name: 'btn-commit',    rect: [651,913,60,694] }
+              { name: 'btn-deliver-res',  rect: [561,219,62,62, 54.32] },
+              { name: 'btn-acquire-res',  rect: [561,292,62,62, 54.32] },
+              { name: 'btn-back',         rect: [561,930,60,60, 54.32] },
+
+              { name: 'mod-deliver-res',
+                detect: 'exchange:deliver-res',
+                have: [
+                  { name: 'lst-deliver',  rect: [646,388,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
+                    tabs: [
+                      {left:0,   right:46 }, // icon
+                      {left:46,  right:470, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
+                      {left:500, right:620, ocr_top: 16, ocr_bot: 40, name: 'deliver' },
+                    ]
+                  }
+                ]
+              },
+              { name: 'mod-acquire-res',
+                detect: 'exchange:acquire-res',
+                have: [
+                  { name: 'lst-deliver',  rect: [646,414,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
+                    tabs: [
+                      {left:0,   right:42 }, // icon
+                      {left:48,  right:458, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
+                      {left:498, right:620, ocr_top: 16, ocr_bot: 40, name: 'acquire' },
+                    ]
+                  }
+                ]
+              },
+              { name: 'mod-other',
+                detect: true,
+              }
             ]
           }
         ]
       },
-      { name: 'dlg-power-play',
-        detect: [
-          { img: "at_contacts_icon-dim.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32] },
-          { img: "contacts/at_power_play-*.png", t: [0.6, 0.8], rect:[690,100,310,42, 54.32],
-            method:'coeff', filter: { laplacian: { scale: 3, delta: 63 } } },
-        ],
-        have: [
-          { name: 'btn-deliver-res',  rect: [578,231,60,60] },
-          { name: 'btn-acquire-res',  rect: [578,301,60,60] },
-          { name: 'btn-back',         rect: [578,914,58,58] },
-
-          { name: 'mod-deliver-res',
-            detect: { img: "contacts/at_pp_deliver_res-*.png", t: [0.6, 0.8], rect:[638,225,430,36, 54.32] },
-            have: [
-              { name: 'lst-deliver',  rect: [660,392,665,166], row_height: 53, row_gap: 3, row_test: [444,458],
-                tabs: [
-                  {left:0,   right:42 }, // icon
-                  {left:48,  right:458, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
-                  {left:498, right:620, ocr_top: 16, ocr_bot: 40, name: 'deliver' },
-                ]
-              }
-            ]
-          },
-          { name: 'mod-acquire-res',
-            detect: { img: "contacts/at_pp_acquire_res-*.png", t: [0.6, 0.8], rect:[638,225,406,36, 54.32] },
-            have: [
-              { name: 'lst-deliver',  rect: [660,392,665,166], row_height: 53, row_gap: 3, row_test: [444,458],
-                tabs: [
-                  {left:0,   right:42 }, // icon
-                  {left:48,  right:458, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
-                  {left:498, right:620, ocr_top: 16, ocr_bot: 40, name: 'acquire' },
-                ]
-              }
-            ]
-          }
-        ]
-      }
     ]
   },
   {
@@ -438,11 +467,11 @@
           { name: 'btn-filter', rect: [11,219,104,60], ext: [5,25,5,15], icon: "left/btn-nav-filter*.png" },
           { name: 'btn-galaxy', rect: [11,476,104,60] },
           { name: 'btn-system', rect: [11,592,104,60] },
-          { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",875,"btn-system.b - btn-filter.t + 3"],
+          { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",895,"btn-system.b - btn-filter.t + 3"],
             row_height: 36, row_gap: 3.55, row_test: [400,730],
             tabs: [
-              {left:0,   right:750, ocr_top: 9, ocr_bot: 33, name: 'name' }, // nav/body name
-              {left:750, right:880, ocr_top: 9, ocr_bot: 28, name: 'dist' }, // distance
+              {left:0,   right:750, ocr_top: 8, ocr_bot: 32, name: 'name' }, // nav/body name
+              {left:750, right:895, ocr_top: 9, ocr_bot: 28, name: 'dist' }, // distance
             ]
           }
         ]

@@ -19,13 +19,13 @@ double Sequence::match(ClassifyEnv &env) {
     }
     double sum = 0;
     for (auto &oracle: oracles) {
-        if (oracle->classifierWeight <= 0)
-            continue;
         double value = oracle->match(env);
-        if (value < 0.2)
-            return 0;
-        double weight = oracle->classifierWeight / sumWeights;
-        sum += weight * (2 * value - 1);
+        if (oracle->classifierWeight > 0) {
+            if (value < 0.2 * oracle->classifierWeight)
+                return 0;
+            double weight = oracle->classifierWeight / sumWeights;
+            sum += weight * (2 * value - 1);
+        }
     }
     return (sum + 1) / 2;
 }

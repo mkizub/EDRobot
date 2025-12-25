@@ -9,6 +9,7 @@
 #include "detect/Detector.h"
 #include "detect/Lines.h"
 #include "detect/NavPanel.h"
+#include "detect/Compass.h"
 #include "Keyboard.h"
 #include "Capturer.h"
 #include "FuzzyMatch.h"
@@ -1001,7 +1002,11 @@ void Master::debugDetectEDState() {
             continue;
         debugUiState.screen = screen;
         Widget::DetectParams params {debugEnv, &debugWarpedEnv, debugUiState, DetectLevel::ListRows};
-        screen->detect(params);
+        if (screen->detect(params)) {
+            if (screen->transform && screen->transform->valid && !debugWarpedEnv.getColorImage().empty()) {
+                cv::imwrite("cache/warped-screen-color.png", debugWarpedEnv.getColorImage());
+            }
+        }
     }
     UIManager::showDebugWindow();
     UIManager::postToDebugWindow(debugEnv.getColorImage());

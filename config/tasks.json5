@@ -1,5 +1,14 @@
 [
   {
+    "templ": "tsk-debug-find-all-nav-points",
+    "name": "Debug: OCR Dodec",
+    "dump_images": true,
+    "ocr_confidence": 90,
+    "txt_confidence": 90,
+    "resume": true,
+    "unfocused": true
+  },
+  {
     "templ": "tsk-trade-loop",
     "name": "Стройка KarlDiesel Point",
     "markets": [

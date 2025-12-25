@@ -6,6 +6,7 @@
 
 #include "OCR.h"
 #include "EDWidget.h"
+#include "FuzzyMatch.h"
 
 #include <tesseract/baseapi.h>
 #include <tesseract/capi.h>
@@ -21,14 +22,40 @@ static tesseract::TessBaseAPI* tesseractApi;
 
 bool init(const std::string& tessdata) {
     LOG(INFO) << "Initializing Tesseract OCR for lang '" << enum_name<Lang>(st::lng) << "', tessdata: " << tessdata << "";
+
+    std::set<std::wstring> words_set;
+    std::filesystem::path twpath(std::format("tesseract-words-{}.txt", enum_name<Lang>(st::lng)));
+    if (std::filesystem::exists(twpath)) {
+        FuzzyMatch fm;
+        std::ifstream ifs_tw(twpath);
+        std::string word;
+        while (ifs_tw >> word) {
+            std::wstring ocr_word = fm.toOCR(toUtf16(word));
+            words_set.insert(ocr_word);
+        }
+        ifs_tw.close();
+        std::ofstream ofs_tw("cache/tesseract-words.txt", std::ios::trunc | std::ios::binary);
+        for (auto& w : words_set)
+            ofs_tw << toUtf8(w) << std::endl;
+        ofs_tw.close();
+    }
+    std::ofstream ofs_tw("cache/tesseract-words.txt", std::ios::trunc | std::ios::binary);
+    for (auto& w : words_set)
+        ofs_tw << toUtf8(w) << std::endl;
+    ofs_tw.close();
+
     const char* tesseractLang = "edr";
+    std::vector<std::string> vars_vec { "user_words_file", "tessedit_do_invert"};
+    std::vector<std::string> vars_values { "cache/tesseract-words.txt", "0" };
     tesseractApi = new tesseract::TessBaseAPI();
-    int fail = tesseractApi->Init(tessdata.c_str(), tesseractLang, tesseract::OEM_DEFAULT, nullptr, 0, 0, 0, true);
+    int fail = tesseractApi->Init(tessdata.c_str(), tesseractLang, tesseract::OEM_DEFAULT, nullptr, 0,
+                                  &vars_vec, &vars_values, true);
     if (fail) {
         LOG(ERROR) << "Error: Could not initialize tesseract.";
         shutdown();
         return false;
     }
+    tesseractApi->SetVariable("user_words_file", "cache/tesseract-words.txt");
     tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE); // PSM_RAW_LINE
     tesseractApi->SetVariable("tessedit_do_invert", "0");
     return true;
@@ -64,20 +91,33 @@ int ocrLine(TextType type, const char* dbg, const cv::Mat& grayImage, std::strin
 
     if (type == NUMERIC) {
         tesseractApi->SetVariable("tessedit_char_whitelist", " +-.,/%0123456789");
+        tesseractApi->SetPageSegMode(tesseract::PSM_RAW_LINE);
     }
     else if (type == DISTANCE) {
         if (st::lng == Lang::RU)
             tesseractApi->SetVariable("tessedit_char_whitelist", " .,/%0123456789Mмкcвл");
         else
             tesseractApi->SetVariable("tessedit_char_whitelist", " .,/%0123456789Mmklsy");
+        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+    }
+    else if (type == GENERIC_RAW) {
+        tesseractApi->SetVariable("tessedit_char_whitelist", "");
+        tesseractApi->SetPageSegMode(tesseract::PSM_RAW_LINE);
     }
     else {
         tesseractApi->SetVariable("tessedit_char_whitelist", "");
+        tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
     }
     tesseractApi->SetImage(grayImage.data, grayImage.cols, grayImage.rows, 1, (int)grayImage.step);
     tesseractApi->Recognize(nullptr);
     int conf = tesseractApi->MeanTextConf();
     if (conf != 0) {
+//        {
+//            char *word{};
+//            word = tesseractApi->GetUTF8Text();
+//            std::wstring whole = toUtf16(word);
+//            TessDeleteText(word);
+//        }
         bool valid = true;
         tesseract::ResultIterator* ri = tesseractApi->GetIterator();
         cv::Rect lr;
@@ -303,8 +343,10 @@ int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedE
     if (cr.u.lrow.ws != WState::Focused)
         cv::bitwise_not(scaledImage, scaledImage);
     int ocr_top = t.ocr_top * scale - ocr::LEADING;
+    if (ocr_top+ocr::LINE_HEIGHT >= scaledImage.rows)
+        ocr_top = scaledImage.rows - ocr::LINE_HEIGHT;
     cv::Rect ocrRect {0, ocr_top, scaledImage.cols, ocr::LINE_HEIGHT};
-    assert (ocr_top >= 0 && ocr_top+ocr::LINE_HEIGHT < scaledImage.rows);
+    assert (ocr_top >= 0 && ocr_top+ocr::LINE_HEIGHT <= scaledImage.rows);
     ocrRect &= cv::Rect(0, 0, scaledImage.cols, scaledImage.rows);
     cv::Mat ocrImage(scaledImage, ocrRect);
     cv::Rect rect;
@@ -476,5 +518,65 @@ int ocrTileLblText(const cv::Mat& grayImage, WState ws, std::string& text) {
     return conf;
 }
 
+cv::Mat normalizeDetectorText(const cv::Mat& grayImage) {
+    int histSize = 256;
+    float range[]{0, 256}; //the upper boundary is exclusive
+    const float *histRange[]{range};
+    cv::Mat hist;
+    cv::calcHist(&grayImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+    cv::GaussianBlur(hist, hist, cv::Size(9,9), 0); // TODO: maybe not needed
+
+    // Create histogram image
+    int hist_w = 256;
+    int hist_h = 200;
+    int bin_w = cvRound((double)hist_w / 256.0);
+    cv::Mat histImage(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
+    // Normalize histogram to fit image height
+    cv::normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
+    // Draw lines for each bin
+    for (int i = 1; i < histSize; i++) {
+        cv::line(histImage,
+                 cv::Point(bin_w * (i - 1), hist_h - cvRound(hist.at<float>(i - 1))),
+                 cv::Point(bin_w * (i), hist_h - cvRound(hist.at<float>(i))),
+                 cv::Scalar(255, 255, 255), 2, 8, 0); // White lines for grayscale
+    }
+
+    int blackIdx=-1, whiteIdx=-1;
+    float blackVal=0, whiteVal=0;
+    // first, locate maximum, the background - white value
+    for (int i=10; i < 240; i++) {
+        float val = hist.at<float>(i);
+        if (blackIdx < 0 && val > 0) {
+            blackIdx = i;
+        }
+        if (val > 0 && val > whiteVal) {
+            whiteVal = val;
+            whiteIdx = i;
+        }
+    }
+    whiteIdx -= 10;
+    blackIdx += 10;
+    // scale image range (between black and white) to full range
+    double mul = 255.0 / (whiteIdx - blackIdx);
+    double add = - blackIdx * mul;
+    cv::Mat ocrImage;
+    cv::convertScaleAbs(grayImage, ocrImage, mul, add);
+    return ocrImage;
+}
+
+int ocrDetectorText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, std::string& text, cv::Rect* rectOut) {
+    double scale = ocr::LINE_HEIGHT / double(grayImage.rows);
+    cv::Mat scaledImage = scaleImage(const_cast<cv::Mat&>(grayImage), scale, true);
+    cv::bitwise_not(scaledImage, scaledImage);
+    cv::Mat ocrImage = normalizeDetectorText(scaledImage);
+    int conf = ocr::ocrLine(tt, "(detector text)", ocrImage, text, rectOut);
+    if (scale != 1 && rectOut) {
+        rectOut->x = (int)(std::round(rectOut->x / scale));
+        rectOut->y = (int)(std::round(rectOut->y / scale));
+        rectOut->width = (int)(std::round(rectOut->width / scale));
+        rectOut->height = (int)(std::round(rectOut->height / scale));
+    }
+    return conf;
+}
 
 }

@@ -1406,6 +1406,7 @@ void Configuration::readJournalChanges(std::ifstream& journalStream, std::string
 #include "detect/Lines.h"
 #include "detect/Tiles.h"
 #include "detect/NavPanel.h"
+#include "detect/TextDetector.h"
 
 using namespace widget;
 using namespace detect;
@@ -1795,31 +1796,85 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
         return new ConstDetector(value);
     }
     if (j.is_string()) {
-        std::string referred = j.as_string();
-        return new detect::ReferDetector(referred);
+        const auto& referred = j.as_string();
+        return new ReferDetector(referred);
+    }
+    if (j.is_array()) {
+        std::vector<std::unique_ptr<Detector>> oracles;
+        for (auto& jo : j.as_array()) {
+            Detector *oracle = detector_from_json(jo, widget, fov_scale);
+            if (oracle)
+                oracles.emplace_back(oracle);
+        }
+        return new Sequence(std::move(oracles));
     }
     if (j.is_object()) {
+        if (j["const"].is_number()) {
+            double value = j["const"].as_number();
+            value = std::clamp(value, 0.0, 1.0);
+            auto* cdet = new ConstDetector(value);
+            if (j["weight"].is_number())
+                cdet->classifierWeight = j["weight"].as_number();
+            return cdet;
+        }
+        if (j["ref"].is_string()) {
+            const auto referred = j["ref"].as_string();
+            auto* rdet = new ReferDetector(referred);
+            if (j["weight"].is_number())
+                rdet->classifierWeight = j["weight"].as_number();
+            return rdet;
+        }
+        if (j["best"].is_array()) {
+            std::vector<std::unique_ptr<Detector>> oracles;
+            for (auto& jo : j["best"].as_array()) {
+                Detector *oracle = detector_from_json(jo, widget, fov_scale);
+                if (oracle)
+                    oracles.emplace_back(oracle);
+            }
+            auto* bdet = new BestOf(std::move(oracles));
+            if (j["weight"].is_number())
+                bdet->classifierWeight = j["weight"].as_number();
+            return bdet;
+        }
+        if (j["seq"].is_array()) {
+            std::vector<std::unique_ptr<Detector>> oracles;
+            for (auto& jo : j["seq"].as_array()) {
+                Detector *oracle = detector_from_json(jo, widget, fov_scale);
+                if (oracle)
+                    oracles.emplace_back(oracle);
+            }
+            auto* sdet = new Sequence(std::move(oracles));
+            if (j["weight"].is_number())
+                sdet->classifierWeight = j["weight"].as_number();
+            return sdet;
+        }
         if (j.as_object().contains("anchor")) {
             std::string filename = "templates/"+j.at("img").as_string();
             spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale);
             cv::Point anchor = point_from_json(j["anchor"]);
-            AnchorDetector* templ = new AnchorDetector(filename, rect, anchor);
+            auto* templ = new AnchorDetector(filename, rect, anchor);
             image_template_from_json(j, templ);
+            if (j["weight"].is_number())
+                templ->classifierWeight = j["weight"].as_number();
             return templ;
         }
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
             spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale);
-            ImageTemplate* templ = new ImageTemplate(filename, rect);
+            auto* templ = new ImageTemplate(filename, rect);
             image_template_from_json(j, templ);
+            if (j["weight"].is_number())
+                templ->classifierWeight = j["weight"].as_number();
             return templ;
         }
         if (j.as_object().contains("line")) {
             spEvalLine line = makeEvalLine(widget, "line", j["line"], fov_scale);
-            detect::LineDetector* ldet = new detect::LineDetector(line);
+            auto* ldet = new detect::LineDetector(line);
 
             if (j["name"].is_string())
                 ldet->name = j["name"].as_string();
+            if (j["weight"].is_number())
+                ldet->classifierWeight = j["weight"].as_number();
 
             ext_from_json(j["ext"], ldet->extendLT, ldet->extendRB);
             if (j.at("delta"))
@@ -1850,7 +1905,7 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
             }
             return ldet;
         }
-        else if (j.as_object().contains("tiles")) {
+        if (j.as_object().contains("tiles")) {
             cv::Rect tilesRect = rect_from_json(j["tiles"], fov_scale);
             cv::Rect marksRect = mark_from_json(j["rect"], fov_scale);
 
@@ -1864,17 +1919,19 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
 
             int gap = j["gap"].as_integer();
 
-            TilesDetector* tiles = new TilesDetector(name, tilesRect, marksRect,
+            auto* tiles = new TilesDetector(name, tilesRect, marksRect,
                                                      rows_min, rows_max, cols_min, cols_max, gap);
 
             if (j["size"].is_array())
                 tiles->mTileSize = size_from_json(j["size"], fov_scale);
             if (j["merge"].is_boolean())
                 tiles->mTryMerge = j["merge"].as_boolean();
+            if (j["weight"].is_number())
+                tiles->classifierWeight = j["weight"].as_number();
 
             if (j["icons"].is_string()) {
                 std::string icons = "templates/" + j["icons"].as_string();
-                ImageTemplate* templ = new ImageTemplate(icons, spEvalRect(new ConstRect(marksRect)));
+                auto* templ = new ImageTemplate(icons, spEvalRect(new ConstRect(marksRect)));
                 image_template_from_json(j, templ);
                 if (j["icon_align"].is_string()) {
                     auto& align = j["icon_align"].as_string();
@@ -1903,16 +1960,35 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
 
             return tiles;
         }
-        else if (j.as_object().contains("best")) {
-            std::vector<std::unique_ptr<Detector>> oracles;
-            for (auto& jo : j["best"].as_array()) {
-                Detector *oracle = detector_from_json(jo, widget, fov_scale);
-                if (oracle)
-                    oracles.emplace_back(oracle);
+        if (j.as_object().contains("texts")) {
+            std::string name = j["name"].as_string();
+            spEvalRect textsRect = makeEvalRect(widget, name.c_str(), j["rect"], fov_scale);
+
+            auto* tdet = new TextDetector(name, textsRect);
+
+            FuzzyMatch fm;
+            for (auto& p : j["texts"].as_object()) {
+                std::vector<std::wstring>& texts = tdet->labels[p.first];
+                if (p.second.is_string()) {
+                    auto& txt = p.second.as_string();
+                    texts.push_back(fm.toOCR(toUtf16(txt)));
+                } else if (p.second.is_array()) {
+                    for (auto& t : p.second.as_array()) {
+                        auto& txt = t.as_string();
+                        texts.push_back(fm.toOCR(toUtf16(txt)));
+                    }
+                }
             }
-            return new BestOf(std::move(oracles));
+
+            minmax_from_json(j["t"], tdet->mThresholdMin, tdet->mThresholdMax);
+            if (j["weight"].is_number())
+                tdet->classifierWeight = j["weight"].as_number();
+            if (j["raw"].is_boolean())
+                tdet->mRaw = j["raw"].as_boolean();
+
+            return tdet;
         }
-        else if (j.as_object().contains("nav_panel")) {
+        if (j.as_object().contains("nav_panel")) {
             std::vector<std::unique_ptr<LineDetector>> lines;
             std::vector<std::unique_ptr<AnchorDetector>> anchors;
             std::vector<NavPanelDetector::Tab> tabs;
@@ -1931,18 +2007,12 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
                 const std::string& name = jo["name"].as_string();
                 tabs.emplace_back(NavPanelDetector::Tab{rect, name});
             }
-            return new NavPanelDetector(widget.path, std::move(lines), std::move(anchors), std::move(tabs));
+            auto* pdet = new NavPanelDetector(widget.path, std::move(lines), std::move(anchors), std::move(tabs));
+            if (j["weight"].is_number())
+                pdet->classifierWeight = j["weight"].as_number();
+            return pdet;
         }
         return nullptr;
-    }
-    if (j.is_array()) {
-        std::vector<std::unique_ptr<Detector>> oracles;
-        for (auto& jo : j.as_array()) {
-            Detector *oracle = detector_from_json(jo, widget, fov_scale);
-            if (oracle)
-                oracles.emplace_back(oracle);
-        }
-        return new Sequence(std::move(oracles));
     }
     return nullptr;
 }

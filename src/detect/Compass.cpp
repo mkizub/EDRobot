@@ -4,6 +4,7 @@
 #include "../pch.h"
 
 #include "Detector.h"
+#include "Compass.h"
 #include "../EDWidget.h"
 #include "../OCR.h"
 
