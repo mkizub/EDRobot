@@ -210,7 +210,7 @@
   {
     name: 'scr-autopilot',
     status: { gui: 'None', docked: false, expect: true },
-    fov_size: true, // numbers for fov=56.249
+    fov_size: 0.857, // numbers for fov=56.249
     detect: {
       img: "auto_pilot.png", t: [0.4, 0.8], rect:[935,350,52,48, 56.249], ext: [140,140], name: "auto-pilot", filter: [
         { gauss: { kern: 3, sigma: 1.0 } },
@@ -225,9 +225,10 @@
     ////// make all template images and numbers for FOV=54.32 (minimal FOV) !!!!! //////
     vars: {
       compass: [
-        { size: [66,63], rect: [679,803,72,68], ext: [40, 60, 60, 110], key: ['type9'] },
-        { size: [65,62], rect: [684,798,73,69], ext: [130, 80, 120, 140], key: ['panthermkii'] },
-        { size: [63,60], rect: [679,803,71,71], ext: [40, 60, 60, 110] }
+        { size: [62,60], rect: [663,807,83,83], ext: [40, 60, 60,110], key: ['type9'] },
+        { size: [62,58], rect: [668,806,82,80], ext: [130,80,120,140], key: ['panthermkii'] },
+        { size: [60,58], rect: [673,837,80,77], ext: [40, 60, 60,110], key: ['cutter'] },
+        { size: [60,58], rect: [673,837,80,77], ext: [40, 60, 60,110] }
       ],
       undistort: [ // for fov [54,60]
         //{ fov: [1.9,2.1], key: ['2560x1080'] },
@@ -239,7 +240,7 @@
   {
     name: 'scr-left-panel', // warped reference size: 1086x657
     status: { gui: 'Left' },
-    fov_size: true, // numbers for fov=56.249
+    fov_size: 0.857, // numbers for fov=56.249
     detect: {
       nav_panel: {
         tabs: [
@@ -253,46 +254,46 @@
         ],
         anchors: [
           {
-            name: "top-left", img: "left/anchor-left*.png", anchor: [-4,-6], rect: [4,6,35,35, 56.249], t: [0.3, 0.8],
+            name: "top-left", img: "left/anchor-left*.png", anchor: [-4,-6, 56.249], rect: [4,6,35,35, 56.249], t: [0.3, 0.8],
             method:'coeff', filter: { laplacian: { scale: 3, delta: 63 } }
           },{
-            name: "top-right", img: "left/anchor-right*.png", anchor: [260,-15], rect: [817,19,22,24, 56.249], t: [0.3, 0.8],
+            name: "top-right", img: "left/anchor-right*.png", anchor: [260,-15, 56.249], rect: [817,19,22,24, 56.249], t: [0.3, 0.8],
             method:'coeff', filter: [{ hsv_crop: { h: [10,30], s:[90,255], v:[160,255] } }, { laplacian: { scale: 3, delta: 63 } }]
           },{
-            name: "flt-left", img: "left/anchor-filters-left*.png", anchor: [-137,-34], rect: [2,9,74,28, 56.249], t: [0.3, 0.8],
+            name: "flt-left", img: "left/anchor-filters-left*.png", anchor: [-137,-34, 56.249], rect: [2,9,74,28, 56.249], t: [0.3, 0.8],
             method:'coeff', filter: { laplacian: { scale: 3, delta: 63 } }
           },{
-            name: "nav-left", img: "left/nav_select_icon_*.png", anchor: [-186,-30], rect: [25,3,60,60, 56.249], t: [0.3, 0.8],
+            name: "nav-left", img: "left/nav_select_icon_*.png", anchor: [-186,-30, 56.249], rect: [25,3,60,60, 56.249], t: [0.3, 0.8],
             method:'coeff', filter: { laplacian: { scale: 3, delta: 63 } }
           }
         ],
         lines: [
           {
-            name: "detect-angle", line: [570,293, 970,285, 56.249], ext: [2,150], delta: 10, prec: 1, votes: 350,
+            name: "detect-angle", line: [570,293, 970,285], ext: [2,150], delta: 10, prec: 1, votes: 350,
             filter: [{ hsv_crop: { h: [10,40], s:[63,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 40, scale: 1.5 } }]
           },{
-            name: "top-line", line: [234,250, 1300,237, 56.249], ext: [300,120], delta: 2, prec: 0.125,
+            name: "top-line", line: [194,235, 1320,219, 54.32], ext: [300,120], delta: 2, prec: 0.125,
             votes: 800, filter: [{ channel: 'red' }, { lines: { thr: 40, scale: 1.5, dilate_pos: 3, dilate_neg: 0 } }]
           },{
-            name: "btm-line", line: [285,903, 1317,797, 56.249], ext: [20,20,20,100], delta: [4,7], prec: 0.125,
+            name: "btm-line", line: [245,923, 1337,812, 54.32], ext: [20,20,20,100], delta: [4,7], prec: 0.125,
             votes: 900, filter: [{ channel: 'red' }, { lines: { thr: 40, scale: 1.5, dilate: 2, } }],
           },{
-            name: "btm-line-weak", line: [285,903, 1317,797, 56.249], ext: [20,50], delta: [4,7], prec: 0.125,
+            name: "btm-line-weak", line: [245,923, 1337,812, 54.32], ext: [20,50], delta: [4,7], prec: 0.125,
             votes: 800, filter: [{ hsv_crop: { h: [10,40], s:[128,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 30, scale: 1.5, dilate: 2, } }],
           },{
             name: "nav-line", line: [372,272,1212,258, 56.249], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
             filter: [{ channel: 'red' }, { lines: { thr: 40, scale: 1.5 } }],
           },{
-            name: "flt-line", line: [372,272,1212,258, 56.249], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
+            name: "flt-line", line: [338,256,1225,242, 54.32], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
             filter: [{ channel: 'red' }, { lines: { thr: 30, scale: 1.5 } }],
           },{
-            name: "flt-line2", line: [374,308,1213,290, 56.249], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
+            name: "flt-line2", line: [340,296,1227,276, 54.32], ext: [10,10], delta: 2, prec: 0.125, votes: 600,
             filter: [{ channel: 'red' }, { lines: { thr: 30, scale: 1.5 } }],
           }
         ]
       },
     },
-    transform: { tl: [234,250, 56.249], tr: [1320,235, 56.249], bl: [287,905, 56.249], br: [1331,798, 56.249], size: [1171,659] },
+    transform: { tl: [194,235, 54.32], tr: [1332,220, 54.32], bl: [245,923, 54.32], br: [1350,811, 54.32], size: [1171,659] },
     have: [
       {
         name: "mod-sysinfo",
@@ -369,7 +370,7 @@
   {
     name: 'scr-right-panel', // warped reference size: 1086x657
     status: { gui: 'Right' },
-    fov_size: true, // numbers for fov=56.249
+    fov_size: 0.857, // numbers for fov=56.249
     detect: {
       nav_panel: {
         tabs: [

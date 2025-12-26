@@ -58,7 +58,7 @@ Widget::Widget(WidgetType tp, const std::string &name, Widget *parent)
 }
 
 void Widget::setRect(const char* name, const json5pp::value& value, FovScale* fov_scale) {
-    rect = makeEvalRect(*this, name, value[name], fov_scale);
+    rect = makeEvalRect(*this, name, value[name], fov_scale, false);
 }
 
 cv::Rect Widget::calcReferenceRect(const ClassifyEnv& env) const {
@@ -1305,7 +1305,7 @@ spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const 
     return std::make_shared<widget::ExprPoint>(jv);
 }
 
-spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale) {
+spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale, bool relative) {
     if (jv.is_string()) {
         std::vector<std::string> scope_name = split(jv.as_string(), ':');
         if (scope_name.size() != 2) {
@@ -1343,7 +1343,13 @@ spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js
         r.width = jv[2].as_integer();
         r.height = jv[3].as_integer();
         if (fov_scale && jv[4].is_number()) {
-            r = fov_scale->apply(r, jv[4].as_number());
+            if (!relative) {
+                r = fov_scale->apply(r, jv[4].as_number());
+            } else {
+                cv::Point tl = fov_scale->apply(cv::Size(r.tl()), jv[4].as_number());
+                cv::Size sz = fov_scale->apply(r.size(), jv[4].as_number());
+                r = {tl, sz};
+            }
         }
         return std::make_shared<ConstRect>(r);
     }

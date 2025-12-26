@@ -1443,8 +1443,8 @@ static cv::Size size_from_json(const json5pp::value& v, FovScale* fov_scale) {
     cv::Size sz;
     sz.width = v[0].as_integer();
     sz.height = v[1].as_integer();
-    if (fov_scale && v[3].is_number())
-        sz = fov_scale->apply(sz, v[3].as_number());
+    if (fov_scale && v[2].is_number())
+        sz = fov_scale->apply(sz, v[2].as_number());
     return sz;
 }
 
@@ -1783,15 +1783,15 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
     if (j.is_object()) {
         if (j.as_object().contains("anchor")) {
             std::string filename = "templates/"+j.at("img").as_string();
-            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale);
-            cv::Point anchor = point_from_json(j["anchor"]);
+            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale, true);
+            cv::Point anchor = size_from_json(j["anchor"], fov_scale);
             AnchorDetector* templ = new AnchorDetector(filename, rect, anchor);
             image_template_from_json(j, templ);
             return templ;
         }
         if (j.as_object().contains("img")) {
             std::string filename = "templates/"+j.at("img").as_string();
-            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale);
+            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale, false);
             ImageTemplate* templ = new ImageTemplate(filename, rect);
             image_template_from_json(j, templ);
             return templ;
@@ -1948,12 +1948,10 @@ static Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScal
     auto name = jo.at("name").as_string();
     if (name.starts_with("scr-")) {
         auto scr = new Screen(name, parent, j["status"]);
-        if (auto& jfscl=j["fov_size"]; jfscl.is_array() || jfscl.is_boolean()) {
-            if (jfscl.is_boolean()) {
-                if (jfscl.as_boolean())
-                    fov_scale = &scr_fov_scale;
-                else
-                    fov_scale = nullptr;
+        if (auto& jfscl=j["fov_size"]; jfscl.is_array() || jfscl.is_number()) {
+            if (jfscl.is_number()) {
+                fov_scale = &scr_fov_scale;
+                fov_scale->scale60 = jfscl.as_number();
             } else {
                 double fov0, fov1;
                 cv::Rect rect0 = fov_rect_from_json(jfscl[0], fov0);

@@ -42,6 +42,7 @@ CompassDetector::CompassDetector()
     XMat targetImage;
     ImageTemplate::loadImageAndMask("templates/compass/nav_target_base.png", targetImage);
     FovScale fov_scale;
+    fov_scale.scale60 = 0.857;
     cv::Size targetSize = fov_scale.apply(targetImage.size(), fov_scale.fov54);
     if (targetSize != targetImage.size())
         cv::resize(targetImage, targetImage, targetSize);
@@ -69,12 +70,14 @@ void CompassDetector::loadCompass() {
     cv::Point compassExtLT;
     cv::Point compassExtRB;
     FovScale fov_scale;
+    fov_scale.scale60 = 0.857;
     auto &varSet = scr_cockpit->varSetMap.at("compass");
     for (auto &vars: varSet) {
         if (vars.keys.empty() || std::count(vars.keys.begin(), vars.keys.end(), preprocessedShip)) {
             auto v = vars.values;
             compassRefSize.width = v["size"][0];
             compassRefSize.height = v["size"][1];
+            compassRefSize = fov_scale.apply(compassRefSize, fov_scale.fov54);
             compassRefRect.x = v["rect"][0];
             compassRefRect.y = v["rect"][1];
             compassRefRect.width = v["rect"][2];
