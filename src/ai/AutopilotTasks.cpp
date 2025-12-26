@@ -2183,7 +2183,10 @@ bool DockPlanetPort::normalizeOrientation() {
             continue;
         }
         if (std::abs(pitch+90) > 15) {
-            task->orientPitchStep(pitch+90, 5000);
+            if (std::abs(pitch+90) > 35)
+                task->orientPitchStep(pitch+90, 5000);
+            else
+                task->orientPitchStep((pitch+90)*0.7, 5000);
             continue;
         }
         surface_aligned = true;
