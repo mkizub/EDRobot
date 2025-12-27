@@ -202,6 +202,50 @@ void gotoMarketScreen(bool buy) {
     throw_trouble("Cannot enter market");
 }
 
+void gotoContactsScreen(const std::string& dlg) {
+    if (!st::ship.flags.docked)
+        throw_trouble("Not docked");
+    for (int step=0; step < 20; step++) {
+        ai::detectEDState(DetectLevel::Buttons);
+        if (st::guiFocus == GuiFocus::None) {
+            for (int i = 0; i < 4; i++)
+                kbd::send("UI_Up");
+            kbd::send("UI_Down");
+            kbd::send("UI_Select");
+            if (st::dockedAt.stationType == "SpaceConstructionDepot" ||  st::dockedAt.stationType == "PlanetaryConstructionDepot")
+                throw_trouble("Not docked");
+            else
+                waitUiState("scr-services", 6s);
+            continue;
+        }
+        if (ai::uiState.match("scr-services")) {
+            clickButton("til-contacts");
+            waitUiState("scr-contacts:*", 5s);
+            continue;
+        }
+        if (ai::uiState.match("scr-contacts:mod-contact:"+dlg+":*"))
+            return;
+        if (ai::uiState.match("scr-contacts:mod-select")) {
+            if (dlg == "dlg-authority") {
+                clickButton("til-authority");
+                waitUiState("scr-contacts:mod-contact:dlg-authority:*", 5s);
+                return;
+            }
+            if (dlg == "dlg-power-play") {
+                clickButton("til-power-play");
+                waitUiState("scr-contacts:mod-contact:dlg-power-play:*", 5s);
+                return;
+            }
+        }
+        if (ai::uiState.guiFocus == GuiFocus::GalaxyMap || ai::uiState.match("scr-galaxy")) {
+            leaveScrGalaxy();
+            continue;
+        }
+        kbd::send("UI_Back", 0, 1000);
+    }
+    throw_trouble("Cannot enter contacts dialog {}", dlg);
+}
+
 void gotoLandingPad(bool refuel) {
     if (st::guiFocus != GuiFocus::None) {
         LOG(INFO) << "Going to landing pad.";

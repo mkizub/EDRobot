@@ -5,7 +5,8 @@
 #include "pch.h"
 
 #include "OCR.h"
-#include "EDWidget.h"
+#include "widget/EDWidget.h"
+#include "widget/List.h"
 #include "FuzzyMatch.h"
 
 #include <tesseract/baseapi.h>
@@ -269,12 +270,10 @@ int tryOcrRowText(TextType tt, const cv::Mat& ocrImage, std::string& text, cv::R
     return conf;
 }
 
-int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Rect* rectOut) {
+int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, std::string_view tab_name, std::string& text, cv::Rect* rectOut) {
     assert (cr.cdt == ClsDetType::ListRow);
     const widget::List* lst = cr.u.lrow.list;
-    if (lst->tabs.size() <= tab)
-        return 0;
-    auto& t = lst->tabs[tab];
+    auto& t = lst->getTab(tab_name);
     if (t.tab_right <= t.tab_left || t.ocr_bot <= 0)
         return 0;
     double scale = (ocr::ASCENT+ocr::DESCENT) / double(t.ocr_bot-t.ocr_top) / rEnv.getScale();
@@ -326,12 +325,10 @@ int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, c
     return tries[bestIdx].conf;
 }
 
-int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, int tab, std::string& text, cv::Mat& dumpImage) {
+int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, const ClassifiedRect& cr, std::string_view tab_name, std::string& text, cv::Mat& dumpImage) {
     assert (cr.cdt == ClsDetType::ListRow);
     const widget::List* lst = cr.u.lrow.list;
-    if (lst->tabs.size() <= tab)
-        return 0;
-    auto& t = lst->tabs[tab];
+    auto& t = lst->getTab(tab_name);
     if (t.tab_right <= t.tab_left || t.ocr_bot <= 0)
         return 0;
     double scale = (ocr::ASCENT+ocr::DESCENT) / double(t.ocr_bot-t.ocr_top) / rEnv.getScale();

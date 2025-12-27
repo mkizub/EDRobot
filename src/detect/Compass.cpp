@@ -5,7 +5,7 @@
 
 #include "Detector.h"
 #include "Compass.h"
-#include "../EDWidget.h"
+#include "../widget/EDWidget.h"
 #include "../OCR.h"
 
 #include <iomanip>

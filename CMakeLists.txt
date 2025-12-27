@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release)
 
-project(EDRobot VERSION 0.8.4)
+project(EDRobot VERSION 0.8.5)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,8 +42,6 @@ add_executable(EDRobot
         src/Configuration.cpp
         src/EventParser.cpp
         src/Configuration.h
-        src/EDWidget.cpp
-        src/EDWidget.h
         src/FuzzyMatch.cpp
         src/FuzzyMatch.h
         src/Galaxy.cpp
@@ -67,6 +65,8 @@ add_executable(EDRobot
         src/ai/AIUtils.h
         src/ai/AutopilotTasks.cpp
         src/ai/AutopilotTasks.h
+        src/ai/ContactsTasks.cpp
+        src/ai/ContactsTasks.h
         src/ai/NavList.cpp
         src/ai/NavList.h
         src/ai/ShipTracker.cpp
@@ -141,6 +141,14 @@ add_executable(EDRobot
         src/detect/Compass.h
         src/detect/TextDetector.h
         src/detect/TextDetector.cpp
+
+        src/widget/EDWidget.cpp
+        src/widget/EDWidget.h
+        src/widget/Button.h
+        src/widget/Button.cpp
+        src/widget/List.h
+        src/widget/List.cpp
+        src/widget/LoadScreens.cpp
 )
 
 

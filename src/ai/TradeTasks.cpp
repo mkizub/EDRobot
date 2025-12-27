@@ -7,7 +7,8 @@
 #include "TradeTasks.h"
 #include "AIManager.h"
 #include "AIUtils.h"
-#include "../EDWidget.h"
+#include "../widget/EDWidget.h"
+#include "../widget/List.h"
 #include "../FuzzyMatch.h"
 #include "../Keyboard.h"
 
@@ -110,6 +111,8 @@ bool TaskSellAll::run() {
         }
         spShipCargo shipCargo = st::currentCargo;
         for (Commodity* commodity: shipCargo->inventory) {
+            if (commodity->category->intId <= 0 || commodity->category->intId >= 16)
+                continue;
             if (contains(except, commodity->nameId))
                 continue;
             bool complete = false;
@@ -926,7 +929,7 @@ bool TradeLoopTask::run() {
                         }
                         continue;
                     }
-                    if (tt.id == ED_TASK_MARKET_SELL) {
+                    if (tt.id == ED_TASK_MARKET_SELL || tt.id == ED_TASK_DELIVER_PPC) {
                         mi.sell_tasks.push_back(jtt);
                         auto* com = tt.get("commodity").as_commodity();
                         if (com) {
@@ -962,7 +965,7 @@ bool TradeLoopTask::run() {
                         }
                         continue;
                     }
-                    if (tt.id == ED_TASK_MARKET_BUY) {
+                    if (tt.id == ED_TASK_MARKET_BUY || tt.id == ED_TASK_ACQUIRE_PPC) {
                         mi.buy_tasks.push_back(jtt);
                         auto* com = tt.get("commodity").as_commodity();
                         if (com) {

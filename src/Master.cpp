@@ -13,7 +13,8 @@
 #include "Keyboard.h"
 #include "Capturer.h"
 #include "FuzzyMatch.h"
-#include "EDWidget.h"
+#include "widget/EDWidget.h"
+#include "widget/List.h"
 #include "OCR.h"
 #include <fstream>
 #include <memory>
@@ -796,7 +797,7 @@ const Commodity* Master::ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat&
     if (cr->u.lrow.commodity)
         return cr->u.lrow.commodity;
     if (cr->text.empty()) {
-        int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *cr, 1, cr->text);
+        int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *cr, "name", cr->text);
         cr->u.lrow.text_confidence = conf;
         if (conf >= min_conf) {
             cr->u.lrow.commodity = Cfg.getCommodityByName(cr->text, true);
@@ -905,7 +906,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
                 continue;
             }
             std::string text;
-            int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *lr, 1, text);
+            int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *lr, "name", text);
             lr->u.lrow.text_confidence = ocr_conf;
             int fuzzy_conf = 0;
             if (ocr_conf > 30) {

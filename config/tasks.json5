@@ -1,5 +1,60 @@
 [
   {
+    "templ": "tsk-trade-loop",
+    "name": "Торговый маршрут LHS 3356",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "5 G. Capricorni",
+        "dock": "Mastracchio Orbital",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all",
+            "except": [
+              "gromcounterintelligence",
+              "hydrogenfuel"
+            ]
+          },
+          {
+            "templ": "tsk-contact-acquire-ppc",
+            "commodity": "gromcounterintelligence"
+          },
+          {
+            "templ": "tsk-market-buy",
+            "commodity": "hydrogenfuel"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "LHS 3356",
+        "dock": "Blackman Ring",
+        "tasks": [
+          {
+            "templ": "tsk-contact-deliver-ppc",
+            "commodity": "gromcounterintelligence"
+          },
+          {
+            "templ": "tsk-market-sell-all",
+            "except": [
+              "water",
+              "gromcounterintelligence"
+            ]
+          },
+          {
+            "templ": "tsk-market-buy",
+            "commodity": "water"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "templ": "tsk-contact-acquire-ppc",
+    "name": "Acquire Разведданные Грома",
+    "commodity": "gromcounterintelligence"
+  },
+  {
     "templ": "tsk-debug-find-all-nav-points",
     "name": "Debug: OCR Dodec",
     "dump_images": true,

@@ -216,8 +216,10 @@
     have: [
       { name: 'mod-select',
         detect: [
-          //{ img: "at_contacts_icon.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32] },
-          { img: "at_contacts_select-*.png", t: [0.6, 0.8], rect:[412,85,300,128, 54.32], method: 'corr' },
+          { img: "at_contacts_icon.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32], weight: 0.5 },
+          { name: 'title', rect:[544,90,128,38, 54.32], t: [0.6,0.9],
+            texts: { 'contacts' : "Контакты"},
+          },
           {
             tiles: [408,220,1090,650, 54.32], rows: [2,5], cols: 2, gap: 4, name: 'contact',
             size: [540,124, 54.32], test: [140,90,60,20], merge: false,
@@ -329,6 +331,20 @@
                 },
                 raw: true,
                 weight: 0
+              },
+              { name: 'dlg-acquire', rect:[520,198,450,38, 54.32],
+                texts: {
+                  'acquire-res' : "Собрать выделенные ресурсы",
+                },
+                raw: true,
+                weight: 0
+              },
+              { name: 'dlg-deliver', rect:[520,174,450,38, 54.32],
+                texts: {
+                  'acquire-res' : "Доставить выделенные ресурсы",
+                },
+                raw: true,
+                weight: 0
               }
             ],
             have: [
@@ -339,9 +355,9 @@
               { name: 'mod-deliver-res',
                 detect: 'exchange:deliver-res',
                 have: [
-                  { name: 'lst-deliver',  rect: [646,388,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
+                  { name: 'lst-pp-deliver',  rect: [646,388,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
                     tabs: [
-                      {left:0,   right:46 }, // icon
+                      {left:0,   right:46, name: 'icon' },
                       {left:46,  right:470, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
                       {left:500, right:620, ocr_top: 16, ocr_bot: 40, name: 'deliver' },
                     ]
@@ -351,13 +367,30 @@
               { name: 'mod-acquire-res',
                 detect: 'exchange:acquire-res',
                 have: [
-                  { name: 'lst-deliver',  rect: [646,414,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
+                  { name: 'lst-pp-acquire',  rect: [646,414,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
                     tabs: [
-                      {left:0,   right:42 }, // icon
+                      {left:0,   right:42, name: 'icon' },
                       {left:48,  right:458, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
                       {left:498, right:620, ocr_top: 16, ocr_bot: 40, name: 'acquire' },
                     ]
                   }
+                ]
+              },
+              { name: 'dlg-acquire-res',
+                detect: 'dlg-acquire:acquire-res',
+                have: [
+                  { name: 'btn-cancel', rect: [526,898,300,39] },
+                  { name: 'btn-commit', rect: [526,828,869,64] },
+                  { name: 'spn-amount', rect: [526,624,869,64] },
+                  { name: 'lbl-commodity', rect: [772,626,668,46], ocr_top: 0, ocr_bot: 46},
+                ]
+              },
+              { name: 'dlg-deliver-res',
+                detect: 'dlg-deliver:deliver-res',
+                have: [
+                  { name: 'btn-cancel', rect: [526,871,300,39] },
+                  { name: 'btn-commit', rect: [526,802,869,64] },
+                  { name: 'spn-amount', rect: [526,600,869,64] },
                 ]
               },
               { name: 'mod-other',

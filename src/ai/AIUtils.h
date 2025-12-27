@@ -7,6 +7,7 @@
 
 namespace ai {
 
+bool mouseMoveTo(cv::Point pos, double seconds=0);
 bool clickWidget(const char* btn, int delay_ms, int pause_ms, double move_seconds=0);
 bool clickButton(const char* btn, double move_seconds=0);
 bool moveToWidget(const char* widget, double move_seconds=0.0);
@@ -15,6 +16,7 @@ bool waitMarketEvent(std::chrono::seconds duration);
 bool selectOnGalaxyMap(const std::string& systemName);
 bool leaveScrGalaxy();
 void gotoMarketScreen(bool buy);
+void gotoContactsScreen(const std::string& dlg);
 void gotoLandingPad(bool refuel);
 
 } // ai

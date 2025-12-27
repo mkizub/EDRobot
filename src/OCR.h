@@ -35,8 +35,8 @@ extern void shutdown();
 // returns confidence 0..100, fill text, rect
 extern int ocrLine(TextType tt, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut);
 
-extern int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Rect* rectOut=nullptr);
-extern int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, int tab, std::string& text, cv::Mat& dumpImage);
+extern int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Rect* rectOut=nullptr);
+extern int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Mat& dumpImage);
 
 extern int ocrMarketLblText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string& text);
 extern int ocrMarketLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::vector<std::string>& texts, std::vector<cv::Mat>& dumpImages);

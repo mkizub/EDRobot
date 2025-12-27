@@ -7,7 +7,7 @@
 #include "Detector.h"
 #include "Lines.h"
 #include "NavPanel.h"
-#include "../EDWidget.h"
+#include "../widget/EDWidget.h"
 
 namespace detect {
 

@@ -11,7 +11,7 @@
 #include "../Galaxy.h"
 #include "../Keyboard.h"
 #include "../ShipStats.h"
-#include "../EDWidget.h"
+#include "../widget/EDWidget.h"
 
 namespace ai {
 

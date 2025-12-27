@@ -9,6 +9,7 @@
 #include "TradeTasks.h"
 #include "AutopilotTasks.h"
 #include "TaskDebug.h"
+#include "ContactsTasks.h"
 
 namespace ai {
 
@@ -19,6 +20,8 @@ const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
 const std::string ED_TASK_MARKET_BUY_ALL = "tsk-market-buy-all";
 const std::string ED_TASK_MARKET_BUY_CONSTR = "tsk-market-buy-constr";
 const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
+const std::string ED_TASK_ACQUIRE_PPC = "tsk-contact-acquire-ppc";
+const std::string ED_TASK_DELIVER_PPC = "tsk-contact-deliver-ppc";
 const std::string ED_TASK_TRADE_AT = "tsk-trade-at";
 const std::string ED_TASK_TRADE_LOOP = "tsk-trade-loop";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
@@ -407,6 +410,7 @@ void initTemplates() {
                         'tsk-market-sell-all', 'tsk-market-sell',
                         'tsk-market-buy-all', 'tsk-market-buy',
                         'tsk-market-buy-constr', 'tsk-constr-unload',
+                        'tsk-contact-acquire-ppc', 'tsk-contact-deliver-ppc',
                     ]}})")},
     });
     templates.emplace_back(ED_TASK_TRADE_LOOP, _lc("Trade loop"), FACTORY(TradeLoopTask), P{
@@ -439,6 +443,12 @@ void initTemplates() {
                          { id: 'OnlyBulkFirst', name: 'Only listed, Bulk first' },
                        ]})"), "ExceptLittleFirst"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
+    });
+    templates.emplace_back(ED_TASK_ACQUIRE_PPC, _lc("Acquire PowerPlay resource"), FACTORY(TaskAcquirePPC), P{
+            { Param::Commodity, "commodity", _lc("Commodity") },
+    });
+    templates.emplace_back(ED_TASK_DELIVER_PPC, _lc("Deliver PowerPlay resource"), FACTORY(TaskDeliverPPC), P{
+            { Param::Commodity, "commodity", _lc("Commodity") },
     });
     templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
     templates.emplace_back(ED_TASK_TRAVEL, _lc("Travel to dock"), FACTORY(TaskTravel), P{

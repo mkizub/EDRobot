@@ -9,21 +9,6 @@
         en: "Limpets",
         ru: "Дрон",
       },
-      gromcounterintelligence: {
-        id: 0,
-        en: "",
-        ru: "Разведданные Грома",
-      },
-      gromwartrophies: {
-        id: 0,
-        en: "",
-        ru: "Военные припасы Грома",
-      },
-      undergroundsupport: {
-        id: 0,
-        en: "",
-        ru: "Подпольная поддержка Грома",
-      },
     },
   },
   'foods': {
@@ -1041,6 +1026,28 @@
         id: 128049200,
         en: "Superconductors",
         ru: "Сверхпроводники",
+      },
+    },
+  },
+  'politic': {
+    id: 16,
+    en: "Politic",
+    ru: "Политика",
+    items: {
+      gromcounterintelligence: {
+        id: 0,
+        en: "",
+        ru: "Разведданные Грома",
+      },
+      gromwartrophies: {
+        id: 0,
+        en: "",
+        ru: "Военные припасы Грома",
+      },
+      undergroundsupport: {
+        id: 0,
+        en: "",
+        ru: "Подпольная поддержка Грома",
       },
     },
   },

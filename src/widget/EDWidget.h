@@ -7,7 +7,7 @@
 #ifndef EDROBOT_EDWIDGET_H
 #define EDROBOT_EDWIDGET_H
 
-#include "detect/Detector.h"
+#include "../detect/Detector.h"
 
 namespace widget {
 
@@ -50,53 +50,6 @@ struct Label : public Widget {
     int ocr_bot {0}; // bottom of 'p/g' from single-line label top
 };
 
-struct BaseButton : public Widget {
-    BaseButton(WidgetType tp, const std::string &name, Widget *parent) : Widget(tp, name, parent) {}
-    bool detect(DetectParams& params);
-    cv::Point extendLT;
-    cv::Point extendRB;
-    std::string icon;
-    std::unique_ptr<detect::ImageTemplate> detector {};
-};
-
-struct Button : public BaseButton {
-    Button(const std::string& name, Widget* parent) : BaseButton(WidgetType::Button, name, parent) {}
-};
-
-struct TileBtn : public BaseButton {
-    TileBtn(const std::string& name, Widget* parent, const std::string& tile_icon)
-        : BaseButton(WidgetType::TileBtn, name, parent)
-    {
-        rect = std::shared_ptr<EvalRect>(new TileRect(tile_icon));
-    }
-};
-
-struct Spinner : public BaseButton {
-    Spinner(const std::string& name, Widget* parent) : BaseButton(WidgetType::Spinner, name, parent) {}
-
-    int button_width {}; // by default spinner button is square, i.e. width is the same as spinner height
-};
-
-struct List : public Widget {
-    List(const std::string& name, Widget* parent) : Widget(WidgetType::List, name, parent) {}
-    bool detect(DetectParams& params) final;
-
-    float row_height {0};
-    float row_gap {0};
-    float header {0};
-    int row_test_bgn {0};
-    int row_test_end {0};
-    struct Tab {
-        std::string name;
-        int tab_left {0};
-        int tab_right {0};
-        // we'll add ocr leading above the 'ocr_top'
-        int ocr_top {0}; // top of 'H' from single-line label top
-        int ocr_bot {0}; // bottom of 'p/g' from single-line label top
-    };
-    std::vector<Tab> tabs;
-};
-
 struct BaseDialog : public Widget {
     BaseDialog(WidgetType tp, const std::string &name, Widget *parent) : Widget(tp, name, parent) {}
     struct Vars {
@@ -134,6 +87,9 @@ struct Root : public Widget {
     Root() : Widget(WidgetType::Root, "", nullptr) {}
     bool detect(DetectParams& params) final;
 };
+
+extern Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_scale);
+extern void debugNavPanel();
 
 };
 

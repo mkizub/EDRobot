@@ -7,7 +7,7 @@
 #include "Task.h"
 #include "AIManager.h"
 #include "../Keyboard.h"
-#include "../EDWidget.h"
+#include "../widget/EDWidget.h"
 #include <synchapi.h>
 
 #ifndef NDEBUG

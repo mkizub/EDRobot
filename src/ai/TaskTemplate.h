@@ -70,6 +70,8 @@ extern const std::string ED_TASK_MARKET_BUY;        // buy specified commodity
 extern const std::string ED_TASK_MARKET_BUY_ALL;    // buy all from a list of commodities
 extern const std::string ED_TASK_MARKET_BUY_CONSTR; // buy commodities needed for construction
 extern const std::string ED_TASK_CONSTR_UNLOAD;     // unload all construction materials at construction depot
+extern const std::string ED_TASK_ACQUIRE_PPC;       // acquire PowerPlay Commodity
+extern const std::string ED_TASK_DELIVER_PPC;       // deliver PowerPlay Commodity
 extern const std::string ED_TASK_TRADE_AT;          // sell/buy at specified dock
 extern const std::string ED_TASK_TRADE_LOOP;        // trade loop between stations
 extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination

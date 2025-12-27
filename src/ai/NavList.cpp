@@ -94,7 +94,7 @@ bool NavList::parseNavRow(const cv::Mat &grayImage, const ResolvedEnv& rEnv, con
     nle.index = idx;
     cv::Rect rectOut;
     std::string text;
-    int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, cr, 0, text, &rectOut);
+    int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, cr, "name", text, &rectOut);
     if (ocr_conf < 30)
         text.clear();
     std::wstring wtext = toUtf16(text);
@@ -117,7 +117,7 @@ bool NavList::parseNavDist(const cv::Mat &grayImage, const ResolvedEnv& rEnv, co
     NavListEntry &nle = list[idx];
     assert (nle.index == idx);
     std::string dist;
-    int conf = ocr::ocrRowText(ocr::DISTANCE, grayImage, rEnv, cr, 1, dist);
+    int conf = ocr::ocrRowText(ocr::DISTANCE, grayImage, rEnv, cr, "dist", dist);
     if (conf < 60)
         return false;
     std::wstring wdist = toUtf16(dist);
