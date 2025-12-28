@@ -271,7 +271,7 @@ gal::spEntity NavList::guessNavItem(int idx) {
             if (duplicated)
                 continue;
             bool typeMatch = false;
-            if ((int(s->type) & int(TypeNav::SpaceStation)) == int(TypeNav::SpaceStation)) {
+            if (isSpaceStation(s->type)) {
                 if (s->type == TypeNav::Orbis || s->type == TypeNav::Ocellus || s->type == TypeNav::Dodec)
                     typeMatch = (nle.icon == gal::ORBIS.charOCR);
                 else if (s->type == TypeNav::Coriolis)
@@ -390,6 +390,7 @@ static inline void nextIdx(int& idx, int incr, size_t size) {
         idx = 0;
 }
 bool NavList::focusDestDock(int* conf) {
+    LOG(DEBUG) << "NavList::focusDestDock";
     auto destBody = st::autopilot.destBody;
     auto destDock = st::autopilot.destDock;
     if (!destDock)
@@ -507,6 +508,7 @@ bool NavList::focusDestDock(int* conf) {
 }
 
 bool NavList::focusDestBody(int* conf) {
+    LOG(DEBUG) << "NavList::focusDestBody";
     auto destBody = st::autopilot.destBody;
     auto destDock = st::autopilot.destDock;
     if (!st::autopilot.destBody)
@@ -658,6 +660,7 @@ bool NavList::focusDestBody(int* conf) {
 }
 
 bool NavList::focusDestination(int& focusIdx) {
+    LOG(DEBUG) << "NavList::focusDestination";
     if (st::destination.name.empty())
         return false;
     cv::Mat grayImage;
@@ -724,6 +727,7 @@ bool NavList::focusDestination(int& focusIdx) {
 }
 
 gal::spEntity NavList::focusNearestBody(dist_t* dist) {
+    LOG(DEBUG) << "NavList::focusNearestBody";
     if (!focusTopEntry())
         return {};
 
@@ -795,6 +799,7 @@ gal::spEntity NavList::focusNearestBody(dist_t* dist) {
 }
 
 bool NavList::focusDockBody(int* conf) {
+    LOG(DEBUG) << "NavList::focusDockBody";
     if (!st::autopilot.destDock)
         return false;
     for (int retry=0; retry < 7; retry++) {
@@ -849,6 +854,7 @@ bool NavList::focusDockBody(int* conf) {
 }
 
 bool NavList::focusTopEntry() {
+    LOG(DEBUG) << "NavList::focusTopEntry";
     st::autopilot.isDestDockFocused = false;
     st::autopilot.isDestBodyFocused = false;
     for (int retry=0; retry < 3; retry++) {
@@ -891,20 +897,28 @@ bool NavList::focusTopEntry() {
 }
 
 bool NavList::selectFocused(gal::Entity* dest) {
+    LOG(DEBUG) << "NavList::selectFocused";
     for (int retry=0; retry < 3; retry++) {
         int focusIdx;
         cv::Mat grayImage;
         std::vector<ClassifiedRect *> rows = initNavList(grayImage, focusIdx);
-        if (rows.empty() || focusIdx < 0)
+        if (rows.empty() || focusIdx < 0) {
+            LOG(DEBUG) << "NavList::selectFocused no focus, " << retry;
             continue;
+        }
 
-        if (!parseNavRow(grayImage, ai::rEnv, *rows[focusIdx], focusIdx))
+        if (!parseNavRow(grayImage, ai::rEnv, *rows[focusIdx], focusIdx)) {
+            LOG(DEBUG) << "NavList::selectFocused failed to parseNavRow, " << retry;
             continue;
-        if (list[focusIdx].isTarget)
+        }
+        if (list[focusIdx].isTarget) {
+            LOG(DEBUG) << "NavList::selectFocused already selected, " << retry;
             return true;
+        }
 
         kbd::send("UI_Select");
         kbd::send("UI_Select");
+        LOG(DEBUG) << "NavList::selectFocused: selected, " << retry;
         return true;
     }
     return false;
@@ -977,7 +991,7 @@ NavListScanTask::NavListScanTask(const TaskTemplate& templ_)
 }
 
 bool NavListScanTask::run() {
-    ai::setSpeed(0, true);
+    ai::setSpeed(0, true, "NavListScanTask, start");
     st::NavPanelFilters savedFilters = st::navFilters;
 
     st::NavPanelFilters filters {};

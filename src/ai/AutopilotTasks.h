@@ -15,7 +15,7 @@
 
 namespace ai {
 
-bool setSpeed(int percents, bool force=false);
+bool setSpeed(int percents, bool force, const char* reason);
 void disableAutoTurn();
 int getNavRoutePosition();
 
@@ -214,7 +214,7 @@ public:
 
 class NavBodySelect : public BaseAutopilotStep {
 public:
-    explicit NavBodySelect(gal::spEntity body={}) : body(std::move(body)) {}
+    explicit NavBodySelect(gal::spEntity body={}, bool dockBody=false) : body(std::move(body)), checkDockBody(dockBody) {}
     std::string getTitle() override;
     bool run() override;
 
@@ -222,6 +222,7 @@ public:
         READY, SELECTING, FAILED, DONE
     } status {READY};
     gal::spEntity body;
+    bool checkDockBody;
 };
 
 class BaseCruiseStep : public BaseAutopilotStep {
