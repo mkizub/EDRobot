@@ -1204,7 +1204,7 @@ bool EnterCruiseStep::run() {
             sleep(1000);
         }
         if (st::ship.flags.fsd_masslocked)
-            throw_trouble("Cannor enter cruise: mass-locked");
+            throw_trouble("Cannot enter cruise: mass-locked");
     }
 
     if (st::ship.flags.cargo_scoop_on || st::ship.flags.weapon_on || st::ship.flags.landing_gear_down) {
@@ -1232,7 +1232,7 @@ bool EnterCruiseStep::run() {
             sleep(1000);
         }
         if (st::ship.flags.fsd_cooldown)
-            throw_trouble("Cannor enter cruise: FSD cooldown");
+            throw_trouble("Cannot enter cruise: FSD cooldown");
     }
 
     LOG(DEBUG) << "EnterCruise: enter Supercruise";
@@ -1803,6 +1803,7 @@ void DockSpaceStation::updateSafeDist() {
             return;
         default:
             LOG(DEBUG) << "DockSpaceStation: safe dist 7300";
+            safe_dist = 7300_m;
             break;
         }
     }
@@ -2397,12 +2398,14 @@ bool NavDockSelect::run() {
         }
         if (!task->nl.selectFocused(dock.get()))
             notify_warn("Failed to select the dock in nav list");
-        sleep(500);
-        if (dock->nameEq(st::destination.name)) {
-            LOG(DEBUG) << "NavDockSelect done";
-            setSpeed(0, false, "NavDockSelect done");
-            status = DONE;
-            return true;
+        for (int wait=0; wait < 4; wait++) {
+            sleep(500);
+            if (dock->nameEq(st::destination.name)) {
+                LOG(DEBUG) << "NavDockSelect done";
+                setSpeed(0, false, "NavDockSelect done");
+                status = DONE;
+                return true;
+            }
         }
     }
     LOG(DEBUG) << "NavDockSelect failed";
@@ -2457,15 +2460,13 @@ bool NavBodySelect::run() {
         }
         if (!task->nl.selectFocused(body.get()))
             notify_warn("Failed to select the body in nav list");
-        sleep(500);
-        if (!body->nameEq(st::destination.name)) {
-            sleep(1000);
-            std::atomic_signal_fence(std::memory_order_seq_cst);
-        }
-        if (body->nameEq(st::destination.name)) {
-            LOG(DEBUG) << "NavBodySelect done";
-            status = DONE;
-            return true;
+        for (int wait=0; wait < 4; wait++) {
+            sleep(500);
+            if (body->nameEq(st::destination.name)) {
+                LOG(DEBUG) << "NavBodySelect done";
+                status = DONE;
+                return true;
+            }
         }
         LOG(DEBUG) << "NavBodySelect body name missmatch " << missmatch;
         if (missmatch >= 2 && (checkDockBody || body_conf >= 60)) {
@@ -2976,7 +2977,7 @@ bool DiveUnderPlanetStep::run() {
 
     bool targetIsDock = st::autopilot.destDock->nameEq(st::destination.name);
     bool targetIsBody = st::autopilot.destBody->nameEq(st::destination.name);
-    LOG(WARNING) << "DiveUnderPlanet targetIsDock=" << targetIsDock << ", targetIsBody=" << targetIsBody;
+    LOG(DEBUG) << "DiveUnderPlanet targetIsDock=" << targetIsDock << ", targetIsBody=" << targetIsBody;
 
     if (!(targetIsBody || targetIsDock)) {
         if (run_sub_step(new NavDockSelect)) {
@@ -3265,14 +3266,14 @@ bool DiveUnderPlanetStep::run() {
         // between ship-dock line and body center, compare it with body radius
         if (pointingToDock)
             task->orientRollByTarget(0, 5);
-        double dist_body_km = st::autopilot.distanceToBody.get_km();
-        if (dist_body_km < 2.25*st::autopilot.destBody->radius)
+        auto& dtb = st::autopilot.distanceToBody;
+        if (dtb && dtb.get_km() < 2.25*st::autopilot.destBody->radius)
             return false; // need to fly away
-        float angle_to_dive;
+        float angle_to_dive = 20;
         if (!std::isnan(disk_part) && disk_part > 0.6 && !toPort) {
             angle_to_dive = 50;
-        } else {
-            angle_to_dive = std::asin(2*st::autopilot.destBody->radius / dist_body_km) * 180 / M_PI;
+        } else if (dtb) {
+            angle_to_dive = std::asin(2*st::autopilot.destBody->radius / dtb.get_km()) * 180 / M_PI;
         }
         if (angle_to_dive < 20)
             angle_to_dive = 20;

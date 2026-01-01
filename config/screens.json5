@@ -4,6 +4,20 @@
     // [42,23,1836,1034] at FOV 60
     name: 'scr-market',
     status: { gui: 'Services', docked: true },
+    detect: [
+      { img: "at_market.png", t: [0.6, 0.8], rect:[92, 57, 50, 50],
+        method:'coeff', filter: { gain: 0.75, bias: 60 },
+      },
+      { name: 'title', rect:[142,65,310,36, 54.32],
+        texts: { 'market' : "Потребительский рынок"},
+      },
+      { name: 'market-mode', rect:[250,182,230,36, 54.32],
+        texts: {
+          'buy' : "Купить на рынке",
+          'sell' : "Продать на рынке",
+        },
+      }
+    ],
     have: [
       { name: 'btn-exit', rect: [96,981,193,40] },
       { name: 'btn-help', rect: [295,980,195,40] },
@@ -12,24 +26,17 @@
       { name: 'btn-to-sell', rect: [96,316,133,129] },
       { name: 'btn-to-buy',  rect: [96,177,133,129] },
       { name: 'lst-goods', rect: [250,252,1018,718],
-        row_height: 36, row_gap: 2, header: 38, row_test: [300,540],
+        row_height: 35, row_gap: 3.3333333, header: 38, row_test: [300,540],
         tabs: [
           {left:0,   right:114 },
-          {left:120, right:548, ocr_top: 10, ocr_bot: 28, name: 'name' }, // commodity name
+          {left:120, right:548, ocr_height: 18, name: 'name' }, // commodity name
           {left:554, right:688 }, // demand
-          {left:696, right:830, ocr_top: 10, ocr_bot: 28, name: 'price' }, // sell/buy price
+          {left:696, right:830, ocr_height: 18, name: 'price' }, // sell/buy price
           {left:840, right:1012 }, // galaxy average price
           ]
       },
       { name: 'mod-sell',
-        detect: [
-          { img: "at_market_sell-*.png", t: [0.6, 0.8], rect:[245, 172, 230, 50],
-            method:'coeff', filter: { gain: 0.75, bias: 60 }
-          },
-          { img: "at_market.png", t: [0.6, 0.8], rect:[92, 57, 50, 50],
-            method:'coeff', filter: { gain: 0.75, bias: 60 }
-          },
-        ],
+        detect: 'market-mode:sell',
         have: [
           {
             name: 'dlg-trade',
@@ -70,12 +77,7 @@
         ]
       },
       { name: 'mod-buy',
-        detect: [
-          { img: "at_market_buy-*.png", t: [0.6, 0.8], rect:[245, 172, 230, 50],
-            method:'coeff', filter: { gain: 0.75, bias: 60 } },
-          { img: "at_market.png", t: [0.6, 0.8], rect:[92, 57, 50, 50],
-            method:'coeff', filter: { gain: 0.75, bias: 60 } },
-        ],
+        detect: 'market-mode:buy',
         have: [
           {
             name: 'dlg-trade',
@@ -217,13 +219,13 @@
       { name: 'mod-select',
         detect: [
           { img: "at_contacts_icon.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32], weight: 0.5 },
-          { name: 'title', rect:[544,90,128,38, 54.32], t: [0.6,0.9],
+          { name: 'title', rect:[544,92,128,36, 54.32], t: [0.6,0.9],
             texts: { 'contacts' : "Контакты"},
           },
           {
-            tiles: [408,220,1090,650, 54.32], rows: [2,5], cols: 2, gap: 4, name: 'contact',
-            size: [540,124, 54.32], test: [140,90,60,20], merge: false,
-            rect: [136,4,380,34, 54.32],
+            tiles: [412,220,1082,650, 54.32], rows: [2,5], cols: 2, gap: 4, name: 'contact',
+            size: [540,124, 54.32], test: [140,90,60,20, 54.32], merge: false,
+            rect: [136,2,380,36, 54.32], ocr_height: [24, 54.32],
             labels: {
               'authority': ["Представитель администрации"],
               'bonds': ["Контакт: боевые облигации"],
@@ -253,7 +255,7 @@
       { name: 'mod-contact',
         detect: [
           { img: "at_contacts_icon-dim.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32], method: 'corr' },
-          { name: 'contact', rect:[686,98,440,38, 54.32], t: [0.3,0.9],
+          { name: 'contact', rect:[686,99,440,36, 54.32], t: [0.3,0.9],
             texts: {
               'authority' : "Представитель местных властей",
               'power-play' : "Представитель державы",
@@ -263,15 +265,17 @@
         ],
         have: [
           { name: 'dlg-authority',
-            detect: [ 'contact:authority', { name: 'pay-off', rect:[772,945,450,30, 54.32],
+            detect: [ 'contact:authority', { name: 'pay-off', rect:[772,933,450,52, 54.32],
                 texts: {
-                  'dividends' : "Получить прибыль с торгов",
+                  'dividends' : "Получить прибыль с торговли",
                   'intell-data' : "Обменять все пакеты разведданных",
                   'codex' : "Погасить все обнаруженные записи кодекса",
                   'bounty' : "Погасить ваучеры за награду",
                   'fine' : "Общая сумма",
                   //'justice' : ""
-                }
+                },
+                line_height: 30,
+                psm: 4
               }
             ],
             have: [
@@ -328,8 +332,8 @@
                 texts: {
                   'deliver-res' : "Доставить выделенные ресурсы",
                   'acquire-res' : "Собрать выделенные ресурсы",
+                  'take-aid-kit': "Заберите набор помощи",
                 },
-                raw: true,
                 weight: 0
               },
               { name: 'dlg-acquire', rect:[520,198,450,38, 54.32],
@@ -358,8 +362,8 @@
                   { name: 'lst-pp-deliver',  rect: [646,388,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
                     tabs: [
                       {left:0,   right:46, name: 'icon' },
-                      {left:46,  right:470, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
-                      {left:500, right:620, ocr_top: 16, ocr_bot: 40, name: 'deliver' },
+                      {left:46,  right:470, name: 'name', ocr_height: 20, ocr_psm: 5 }, // commodity name
+                      {left:500, right:620, name: 'deliver' },
                     ]
                   }
                 ]
@@ -370,8 +374,8 @@
                   { name: 'lst-pp-acquire',  rect: [646,414,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
                     tabs: [
                       {left:0,   right:42, name: 'icon' },
-                      {left:48,  right:458, ocr_top: 16, ocr_bot: 40, name: 'name' }, // commodity name
-                      {left:498, right:620, ocr_top: 16, ocr_bot: 40, name: 'acquire' },
+                      {left:48,  right:458, name: 'name', ocr_height: 20, ocr_psm: 5 }, // commodity name
+                      {left:498, right:620, name: 'acquire' },
                     ]
                   }
                 ]
@@ -392,6 +396,9 @@
                   { name: 'btn-commit', rect: [526,802,869,64] },
                   { name: 'spn-amount', rect: [526,600,869,64] },
                 ]
+              },
+              { name: 'dlg-take-aid-kit',
+                detect: 'exchange:take-aid-kit'
               },
               { name: 'mod-other',
                 detect: true,
@@ -501,11 +508,11 @@
           { name: 'btn-filter', rect: [11,219,104,60], ext: [5,25,5,15], icon: "left/btn-nav-filter*.png" },
           { name: 'btn-galaxy', rect: [11,476,104,60] },
           { name: 'btn-system', rect: [11,592,104,60] },
-          { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",895,"btn-system.b - btn-filter.t + 3"],
+          { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",880,"btn-system.b - btn-filter.t + 8"],
             row_height: 36, row_gap: 3.55, row_test: [400,730],
             tabs: [
-              {left:0,   right:750, ocr_top: 8, ocr_bot: 32, name: 'name' }, // nav/body name
-              {left:750, right:895, ocr_top: 9, ocr_bot: 28, name: 'dist' }, // distance
+              {left:0,   right:750, ocr_height: 22, ocr_psm: 7, name: 'name' }, // nav/body name
+              {left:750, right:875, ocr_height: 22, ocr_psm: 7, name: 'dist' }, // distance
             ]
           }
         ]

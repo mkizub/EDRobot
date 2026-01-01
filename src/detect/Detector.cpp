@@ -21,7 +21,7 @@ double Sequence::match(ClassifyEnv &env) {
     for (auto &oracle: oracles) {
         double value = oracle->match(env);
         if (oracle->classifierWeight > 0) {
-            if (value < 0.2 * oracle->classifierWeight)
+            if (value < 0.2)
                 return 0;
             double weight = oracle->classifierWeight / sumWeights;
             sum += weight * (2 * value - 1);

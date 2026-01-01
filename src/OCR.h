@@ -23,9 +23,30 @@ const int ASCENT       = 24;
 const int DESCENT      = 8;
 const int BASELINE_Y   = 30;
 
+// Tesseract Page segmentation modes:
+// 0    Orientation and script detection (OSD) only.
+// 1    Automatic page segmentation with OSD.
+// 2    Automatic page segmentation, but no OSD, or OCR. (not implemented)
+// 3    Fully automatic page segmentation, but no OSD. (Default)
+// 4    Assume a single column of text of variable sizes.
+// 5    Assume a single uniform block of vertically aligned text.
+// 6    Assume a single uniform block of text.
+// 7    Treat the image as a single text line.
+// 8    Treat the image as a single word.
+// 9    Treat the image as a single word in a circle.
+// 10   Treat the image as a single character.
+// 11   Sparse text. Find as much text as possible in no particular order.
+// 12   Sparse text with OSD.
+// 13   Raw line. Treat the image as a single text line,
+//      bypassing hacks that are Tesseract-specific.
+
 enum TextType {
-    GENERIC,
-    GENERIC_RAW,
+    AUTO_PSM_3,
+    AUTO_PSM_4,
+    BLOCK_PSM_5,
+    BLOCK_PSM_6,
+    LINE_PSM_7,
+    LINE_PSM_13,
     DISTANCE,
     NUMERIC,
 };
@@ -47,10 +68,10 @@ extern int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const Resol
 extern cv::Mat normalizeTargetDistText(const cv::Mat& grayImage);
 extern int ocrTargetDistText(const cv::Mat& grayImage, std::string& text);
 
-extern int ocrTileLblText(const cv::Mat& grayImage, WState ws, std::string& text);
+extern int ocrTileLblText(double line_height, const cv::Mat& grayImage, WState ws, std::string& text);
 
 extern cv::Mat normalizeDetectorText(const cv::Mat& grayImage);
-extern int ocrDetectorText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, std::string& text, cv::Rect* rectOut);
+extern int ocrDetectorText(TextType tt, double line_height, const cv::Mat& grayImage, const ResolvedEnv&, std::string& text, cv::Rect* rectOut);
 }
 
 #endif //EDROBOT_OCR_H

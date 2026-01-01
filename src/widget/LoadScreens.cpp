@@ -48,6 +48,17 @@ static cv::Vec3b color_from_json(const json5pp::value& v) {
     return encodeBGR(bgr);
 }
 
+static double value_from_json(const json5pp::value& v, FovScale* fov_scale) {
+    if (v.is_number())
+        return v.as_number();
+    cv::Size sz;
+    sz.width = v[0].as_integer();
+    sz.height = sz.width;
+    if (fov_scale && v[1].is_number())
+        sz = fov_scale->apply(sz, v[1].as_number());
+    return sz.width;
+}
+
 static cv::Point point_from_json(const json5pp::value& v) {
     cv::Point p;
     p.x = v[0].as_integer();
@@ -554,6 +565,8 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
                 tiles->icons_detector = std::unique_ptr<ImageTemplate>(templ);
             }
             if (j["labels"].is_object()) {
+                if (!j["ocr_height"].empty())
+                    tiles->mOcrHeight = value_from_json(j["ocr_height"], fov_scale);
                 FuzzyMatch fm;
                 for (auto& p : j["labels"].as_object()) {
                     std::vector<std::wstring>& texts = tiles->labels[p.first];
@@ -594,10 +607,10 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
             minmax_from_json(j["t"], tdet->mThresholdMin, tdet->mThresholdMax);
             if (j["weight"].is_number())
                 tdet->classifierWeight = j["weight"].as_number();
-            if (j["invert"].is_boolean())
-                tdet->mInvert = j["invert"].as_boolean();
-            if (j["raw"].is_boolean())
-                tdet->mRaw = j["raw"].as_boolean();
+            if (j["line_height"].is_integer())
+                tdet->mLineHeight = j["line_height"].as_integer();
+            if (j["psm"].is_integer())
+                tdet->mOcrPSM = j["psm"].as_integer();
 
             return tdet;
         }
@@ -769,10 +782,10 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
                     tab.name = jt.at("name").as_string();
                 tab.tab_left = jt.at("left").as_integer();
                 tab.tab_right = jt.at("right").as_integer();
-                if (jt.at("ocr_top") && jt.at("ocr_bot")) {
-                    tab.ocr_top = jt.at("ocr_top").as_integer();
-                    tab.ocr_bot = jt.at("ocr_bot").as_integer();
-                }
+                if (jt["ocr_height"].is_integer())
+                    tab.ocr_height = jt["ocr_height"].as_integer();
+                if (jt["ocr_psm"].is_integer())
+                    tab.ocr_psm = jt["ocr_psm"].as_integer();
                 lst->tabs.push_back(tab);
             }
         }

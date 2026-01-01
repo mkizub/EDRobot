@@ -505,6 +505,7 @@ bool TaskBuy::run() {
         return true;
 
     notify_info("Start purchasing {} item(s)", mLeft);
+    int focus_fails = 0;
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
@@ -562,13 +563,25 @@ bool TaskBuy::run() {
             }
             prevFocusedIdx = -1;
             if (!focusedRow) {
+                focus_fails += 1;
+                if (focus_fails > 3) {
+                    kbd::send("UI_Back");
+                    kbd::send("UI_Back");
+                    throw_trouble("Cannot put focus to market list");
+                }
                 LOG(INFO) << "No focused row found, moving mouse to the list area";
-                cv::Rect rect = Mgr.resolveWidgetReferenceRect("lst-goods", ai::rEnv);
-                int x = rect.x+rect.width/2;
-                int y = rect.y - 20;
-                kbd::sendMouseClick({x, y}, 0, 500);
-                for (int i=0; i < 10; i++)
-                    kbd::sendMouseMove({0, 10}, 25, false);
+                if (ai::uiState.focused_name() == "btn-exit" || ai::uiState.focused_name() == "btn-help")
+                    kbd::send("UI_Up");
+                else if (ai::uiState.focused_name() == "btn-to-sell" || ai::uiState.focused_name() == "btn-to-buy")
+                    kbd::send("UI_Right");
+                else {
+                    cv::Rect rect = Mgr.resolveWidgetReferenceRect("lst-goods", ai::rEnv);
+                    int x = rect.x + rect.width / 2;
+                    int y = rect.y - 20;
+                    kbd::sendMouseClick({x, y}, 0, 500);
+                    for (int i = 0; i < 10; i++)
+                        kbd::sendMouseMove({0, 10}, 25, false);
+                }
                 continue;
             }
             if (!focusedCommodity)

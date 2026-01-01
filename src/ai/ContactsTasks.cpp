@@ -42,6 +42,7 @@ bool ai::TaskAcquirePPC::run() {
                 sleep(1000);
                 clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:spn-amount", 100, 500, 0.5);
                 kbd::send("UI_Right", 3000);
+                //kbd::send("UI_Right");
                 clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:btn-commit", 100, 500, 0.5);
                 if (waitMarketEvent(4s))
                     acquiredCount += Cfg.marketEvent->data.at("Count",0).as_integer();

@@ -339,7 +339,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
 
     std::string text;
     cv::Mat rowDumpImage;
-    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", text, rowDumpImage);
+    int conf = ocr::ocrRowTextForTraining(ocr::LINE_PSM_7, grayImage, ai::rEnv, cr, "name", text, rowDumpImage);
 
     filename = std::format("testset-edr/{}-row-gray.png", commodity->nameId);
     cv::imwrite(filename, rowDumpImage);
@@ -507,7 +507,7 @@ bool TaskDebugFindAllNavPoints::run() {
         for (auto &cr: ai::rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
                 continue;
-            int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", cr.text);
+            int conf = ocr::ocrRowText(ocr::LINE_PSM_7, grayImage, ai::rEnv, cr, "name", cr.text);
             cr.u.lrow.text_confidence = conf;
             if (conf <= ocr_confidence || checkOcrError(cr)) {
                 LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << conf << "%";
@@ -530,7 +530,7 @@ bool TaskDebugFindAllNavPoints::run() {
                     focused = &cr;
                     focused_row = row;
                 }
-                int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", cr.text);
+                int conf = ocr::ocrRowText(ocr::LINE_PSM_7, grayImage, ai::rEnv, cr, "name", cr.text);
                 cr.u.lrow.text_confidence = conf;
                 if (conf <= ocr_confidence && checkOcrError(cr))
                     rows_with_error.push_back(row);
@@ -1038,7 +1038,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, c
     StationRowInfo rowInfo {};
     std::string text;
     cv::Mat dumpImage;
-    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", text, dumpImage);
+    int conf = ocr::ocrRowTextForTraining(ocr::LINE_PSM_7, grayImage, ai::rEnv, cr, "name", text, dumpImage);
     if (conf < 50) {
         LOG(ERROR) << "Bad ocr for nav row, conf: " << conf << ", text: "<< text;
         text.clear();

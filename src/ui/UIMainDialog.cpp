@@ -81,6 +81,7 @@ UIMainDialog::UIMainDialog()
             this->style.set_style_ex(true, WS_EX_TOPMOST);
         } else {
             this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
+            SetWindowPos(this->hwnd(), HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
         return 0;
     });

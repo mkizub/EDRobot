@@ -94,7 +94,7 @@ bool NavList::parseNavRow(const cv::Mat &grayImage, const ResolvedEnv& rEnv, con
     nle.index = idx;
     cv::Rect rectOut;
     std::string text;
-    int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, cr, "name", text, &rectOut);
+    int ocr_conf = ocr::ocrRowText(ocr::LINE_PSM_7, grayImage, rEnv, cr, "name", text, &rectOut);
     if (ocr_conf < 30)
         text.clear();
     std::wstring wtext = toUtf16(text);
@@ -103,7 +103,7 @@ bool NavList::parseNavRow(const cv::Mat &grayImage, const ResolvedEnv& rEnv, con
     nle.ocr_conf = ocr_conf;
     if (nle.icon == gal::STAR.charOCR || nle.icon == gal::BODY.charOCR || nle.icon == gal::LAND.charOCR)
         nle.ocr_conf *= 0.8; // they have mostly the same name, different in a few last chars
-    double indent = (rectOut.x - 3.0) / double(25);
+    double indent = (rectOut.x - 3.0) / double(27);
     nle.indent = (int) std::round(indent);
     if (cr.u.lrow.ws == WState::Focused)
         nle.focused = true;
@@ -341,6 +341,14 @@ gal::spEntity NavList::guessNavItem(int idx) {
     }
     list[idx].item = bestItem;
     list[idx].ocr_conf *= bestMatch/100;
+    if (bestItem) {
+        LOG(DEBUG) << std::format("NavList guess '{}' => '{}'({}) match {}%, entry {} indent {}", toUtf8(nle.name),
+                                  bestItem->name, enum_name<TypeNav>(bestItem->type), int(bestMatch), nle.index,
+                                  nle.indent);
+    } else {
+        LOG(DEBUG) << std::format("NavList guess '{}' => nothing found, entry {} indent {}", toUtf8(nle.name),
+                                  nle.index, nle.indent);
+    }
     return bestItem;
 }
 
@@ -366,8 +374,15 @@ bool NavList::fixupNavList() {
                     if (item && item2 && item == item2.get()) {
                         list[bodyIdx].ocr_conf = std::max(list[idx].ocr_conf, list[bodyIdx].ocr_conf);
                         list[bodyIdx].confirmed += 1;
+                        LOG(DEBUG) << std::format("NavList '{}'({} id ) confirmed by '{}'({})",
+                                                  item->name, enum_name<TypeNav>(item->type), item->bodyId,
+                                                  list[idx].item->name, enum_name<TypeNav>(list[idx].item->type));
                     }
                     else if (item2) {
+                        LOG(DEBUG) << std::format("NavList fixup '{}' => '{}'({}) by '{}({})'",
+                                                  item ? item->name : "",
+                                                  item2->name, enum_name<TypeNav>(item2->type),
+                                                  list[idx].item->name, enum_name<TypeNav>(list[idx].item->type));
                         list[bodyIdx].item = item2;
                         if (!item || item->type <= TypeNav::NotExplored)
                             list[bodyIdx].ocr_conf = list[idx].ocr_conf * 0.008;
@@ -818,10 +833,16 @@ bool NavList::focusDockBody(int* conf) {
             if (item && item == st::autopilot.destDock) {
                 destDockIndent = list[idx].indent;
                 for (int j=idx-1; j >= 0; j--) {
-                    if (list[j].indent == destDockIndent-1) {
+                    if (list[j].indent < destDockIndent) {
                         if (list[j].focused) {
                             if (conf)
-                                *conf = list[j].ocr_conf * list[idx].ocr_conf * 0.01;
+                                *conf = list[j].ocr_conf; // * list[idx].ocr_conf * 0.01;
+                            parseNavDist(grayImage, ai::rEnv, *rows[j], j);
+                            if (list[j].item.get() == st::autopilot.destBody.get()) {
+                                st::autopilot.isDestBodyFocused = true;
+                                if (list[j].dist)
+                                    st::autopilot.distanceToBody = list[j].dist;
+                            }
                             return true;
                         }
                         int count = j - focusIdx;

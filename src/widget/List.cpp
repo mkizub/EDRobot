@@ -25,6 +25,13 @@ struct Redused {
 
         short len() { return end-bgn+1; }
     };
+    struct Row {
+        float bgn;
+        float end;
+        float len;
+        short val;
+        short avr;
+    };
 
     static Range emptyRange;
     const List* list;
@@ -65,6 +72,7 @@ struct Redused {
     bool insert_gaps();
     bool insert_rows();
     bool normalize_rows();
+    std::vector<Row> get_rows();
 };
 
 Redused::Range Redused::emptyRange {EMPTY, 0, 0, 0, 0, 0, 0, false};
@@ -435,6 +443,128 @@ bool Redused::normalize_rows() {
     return changed;
 }
 
+// y = a*x + b
+struct XY {
+    double x;
+    double y;
+};
+static void leastSquare(const std::vector<XY>& data, double* a, double* b) {
+    double sum_x = 0, sum_y = 0, sum_xy = 0, sum_x2 = 0;
+    int n = data.size();
+    for (const auto& p : data) { // data is vector<pair<double, double>>
+        sum_x += p.x;
+        sum_y += p.y;
+        sum_xy += p.x * p.y;
+        sum_x2 += p.x * p.x;
+    }
+    // Calculate m and c using formulas (derived from normal equations)
+    *a = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x);
+    *b = (sum_y - *a * sum_x) / n;
+}
+
+std::vector<Redused::Row> Redused::get_rows() {
+    std::vector<std::pair<int,double>> gaps;
+    double drow = list->row_height * scale;
+    double dgap = list->row_gap * scale;
+    double row_plus_gap = drow + dgap;
+    for (int i=0; i < size; i++) {
+        if (rng[i].state == GAP) {
+            auto& r = rng[i];
+            double sum_w = 0;
+            double sum_p = 0;
+            double max_v = r.max * 1.2;
+            double mid = (r.bgn+r.end) * 0.5;
+            if (max_v > 0) {
+                for (int p = r.bgn; p <= r.end; p++) {
+                    double w = (max_v - pix[p]) / max_v;
+                    sum_w += w;
+                    sum_p += p * w;
+                }
+                mid = sum_p / sum_w;
+            }
+            gaps.emplace_back(i, mid);
+        }
+        i = rng[i].end;
+    }
+    while (gaps.size() > 2 && std::abs(gaps[1].second-gaps[0].second - row_plus_gap) > 2*dgap)
+        gaps.erase(gaps.begin());
+    while (gaps.size() > 2 && std::abs(gaps[gaps.size()-1].second-gaps[gaps.size()-2].second - row_plus_gap) > 2*dgap)
+        gaps.pop_back();
+
+    std::vector<double> offsets1;
+    std::vector<double> offsets2;
+    cv::Scalar mean_val, stddev_val;
+    gaps.reserve(30);
+    offsets1.reserve(30);
+    offsets2.reserve(30);
+    for (auto g : gaps) {
+        assert (rng[g.first].state == GAP);
+        if (rng[g.first].state == GAP) {
+            double off1 = std::fmod(g.second, row_plus_gap);
+            double off2 = std::fmod(g.second+row_plus_gap*0.5, row_plus_gap) - row_plus_gap*0.5;
+            offsets1.push_back(off1);
+            offsets2.push_back(off2);
+        }
+    }
+
+    cv::meanStdDev(offsets1, mean_val, stddev_val);
+    double mean = mean_val[0];
+    double stddev = stddev_val[0];
+    cv::meanStdDev(offsets2, mean_val, stddev_val);
+    if (stddev_val[0] < stddev) {
+        offsets1 = offsets2;
+        mean = mean_val[0];
+        stddev = stddev_val[0];
+    }
+    //LOG(INFO) << "list mean offs: " << mean;
+
+    std::vector<XY> leastApproxData;
+    leastApproxData.reserve(gaps.size());
+    for (int i=0; i < offsets1.size(); i++) {
+        leastApproxData.emplace_back(gaps[i].second,offsets1[i]-mean);
+    }
+    double A, B;
+    leastSquare(leastApproxData, &A, &B);
+
+    std::vector<Row> rows;
+    double y_end = size-drow+dgap;
+    bool prev_was_empty = false;
+    for (double y = mean+dgap*0.5; y <= y_end; y += row_plus_gap) {
+        double off = y*A + B;
+        if (y + off + dgap < 0)
+            continue;
+        double rb = std::clamp(y+off, 0.0, size - 1.0);
+        double re = std::clamp(y+off+drow, 0.0, size - 1.0);
+        int b = (int) std::round(rb);
+        int e = (int) std::round(re);
+
+        int sum = pix[b+1];
+        uint8_t min = pix[b+1];
+        uint8_t max = pix[b+1];
+        for (int i=b+2; i < e; i++) {
+            auto pv = pix[i];
+            sum += pv;
+            min = std::min(min, pv);
+            max = std::max(max, pv);
+        }
+        uint8_t avr = sum / (e - b - 1);
+        uint8_t val = min;
+        if (avr > min+4)
+            val = avr - 4;
+
+        if (val < empty_threshold /*&& list->header > 0*/) {
+            if (prev_was_empty)
+                break;
+            prev_was_empty = true;
+            continue;
+        }
+        prev_was_empty = false;
+        rows.emplace_back(float(rb), float(re), float(re-rb), val, avr);
+    }
+    return rows;
+}
+
+
 //#define DEBUG_LIST_DETECTOR 1
 #if defined(DEBUG_LIST_DETECTOR) && defined(NDEBUG)
 # error "DEBUG_LIST_DETECTOR in release build"
@@ -479,12 +609,13 @@ bool List::detect(DetectParams& params) {
     reduced.detect_rows();
     reduced.calc_threshold();
     reduced.clear_empty();
-    for (bool added = true; added;) {
-        added = reduced.insert_gaps();
-        added |= reduced.insert_rows();
-    }
-    while (reduced.normalize_rows())
-        ;
+    //for (bool added = true; added;) {
+    //    added = reduced.insert_gaps();
+    //    added |= reduced.insert_rows();
+    //}
+    //while (reduced.normalize_rows())
+    //    ;
+    auto rows = reduced.get_rows();
 #ifdef  DEBUG_LIST_DETECTOR
     cv::Mat histImage(256, reduced.size, CV_8UC1, cv::Scalar(0));
     cv::line(histImage,
@@ -502,30 +633,22 @@ bool List::detect(DetectParams& params) {
         histImage.at<uchar>(r.val, i) = 128;
         histImage.at<uchar>(reduced.pix[i], i) = 255;
     }
+    for (auto& r : rows) {
+        for (int p=r.bgn; p <= r.end; p++)
+            histImage.at<uchar>(6, p) = 255;
+    }
 #endif
 
     bool has_rows = false;
-    for (int i=0; i < reduced.size; i++) {
-        if (reduced.rng[i].state != Redused::ROW) {
-            i = reduced.rng[i].end;
-            continue;
-        }
-        if (reduced.rng[i].val < reduced.empty_threshold) {
-            i = reduced.rng[i].end;
-            continue;
-        }
-        int row_bgn = reduced.rng[i].bgn;
-        int row_end = reduced.rng[i].end;
-        int row_val = reduced.rng[i].val;
-        i = row_end;
+    for (auto& r : rows) {
         has_rows = true;
 
-        cv::Rect rowCapturedRect {0, row_bgn, listCapturedRect.width, row_end-row_bgn+1};
-        rowCapturedRect += listCapturedRect.tl();
+        cv::Rect2f rowCapturedRect {0.f, r.bgn, (float)listCapturedRect.width, r.end-r.bgn+1};
+        rowCapturedRect += cv::Point2f(listCapturedRect.tl());
         cv::Rect rowReferenceRect = env.cvtCapturedToReference(rowCapturedRect);
 
         WState ws = WState::Unknown;
-        if (row_val > 120) // bright = focused
+        if (r.val > 120) // bright = focused
             ws = WState::Focused;
         else
             ws = WState::Normal;
@@ -541,8 +664,6 @@ bool List::detect(DetectParams& params) {
         clsRowRect.u.lrow.text_confidence = -1;
         if (ws == WState::Focused) {
             clsListRect.u.widg.ws = WState::Focused;
-            clsRowRect.u.lrow.capturedRect.y += 1;
-            clsRowRect.u.lrow.capturedRect.height -= 1;
             if (!params.uiState.focused)
                 params.uiState.focused = this;
         }
@@ -592,7 +713,7 @@ bool ListPPC::detect(widget::Widget::DetectParams &params) {
         if (c->category && c->category->intId == 16) {
             resources.push_back(c);
         }
-    };
+    }
     cv::Rect refRow = cv::Rect(0,0,listReferenceRect.width,row_height);
     refRow += listReferenceRect.tl();
     for (int i=0; i < 10; i++) {
@@ -609,16 +730,17 @@ bool ListPPC::detect(widget::Widget::DetectParams &params) {
         cv::rectangle(debugImage, icon_detector->captureRect, {128,128,128});
 #endif
         cv::Point captCenter(listCapturedRect.x, icon_detector->captureRect.y + icon_detector->captureRect.height/2);
-        cv::Point refCenter = env.cvtCapturedToReference(captCenter);
+        double captHalfHeight = row_height * env.getScale() * 0.5;
         refRow.y = env.cvtCapturedToReference(captCenter).y - refRow.height/2;
         if (i == 0)
             crList.detectedRect.y = refRow.y;
         crList.detectedRect.height = refRow.y + refRow.height - crList.detectedRect.y;
 
         cv::Rect rowTestRect (refRow.x+row_test_bgn, refRow.y, row_test_end - row_test_bgn, refRow.height);
-        rowTestRect = env.cvtCapturedToReference(rowTestRect);
+        rowTestRect = env.cvtReferenceToCaptured(rowTestRect);
 #ifdef DEBUG_LIST_DETECTOR
         cv::rectangle(debugImage, rowTestRect, {96,96,96});
+        cv::line(debugImage, captCenter, captCenter+cv::Point(100,0), {96,96,96});
 #endif
         detect::Histogram hist(detect::Histogram::Mode::Hsv);
         XMat testImage = env.getColorImage()(rowTestRect);
@@ -626,15 +748,15 @@ bool ListPPC::detect(widget::Widget::DetectParams &params) {
         Commodity* commodity = nullptr;
         int ocr_conf = 0;
         if (ws != WState::Disabled) {
-            int text_height = tab_name.ocr_bot - tab_name.ocr_top;
-            int text_top = captCenter.y - text_height / 2;
-            cv::Rect nameRect{tab_name.tab_left + refRow.x, text_top,
-                              tab_name.tab_right - tab_name.tab_left, text_height};
-            nameRect = env.cvtReferenceToCaptured(nameRect);
+            double ocr_height = env.getScale() * tab_name.ocr_height * ocr::LINE_HEIGHT / (ocr::ASCENT+ocr::DESCENT);
+            cv::Rect nameRect{ listCapturedRect.x + int(tab_name.tab_left*env.getScale()),
+                               int(captCenter.y - captHalfHeight + 5*env.getScale()),
+                               int((tab_name.tab_right - tab_name.tab_left)*env.getScale()),
+                               int(captHalfHeight * 2 - 3*env.getScale()) };
             cv::Mat grayImage;
             cv::cvtColor(env.getColorImage()(nameRect), grayImage, cv::COLOR_BGR2GRAY);
             std::string text;
-            ocr_conf = ocr::ocrDetectorText(ocr::TextType::GENERIC_RAW, grayImage, env, text, nullptr);
+            ocr_conf = ocr::ocrDetectorText(ocr::AUTO_PSM_3, ocr_height, grayImage, env, text, nullptr);
             std::wstring wtext = toUtf16(text);
 
             double bestRate = 0;

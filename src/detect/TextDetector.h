@@ -24,8 +24,8 @@ public:
     int mOcrConfThreshold = 50;
     double mThresholdMin = 0.5;
     double mThresholdMax = 0.9;
-    bool mInvert {true};
-    bool mRaw {false};
+    std::optional<int> mLineHeight;
+    std::optional<int> mOcrPSM; // see OCR.h
     std::map<std::string,std::vector<std::wstring>> labels;
 };
 

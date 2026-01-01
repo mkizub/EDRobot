@@ -33,8 +33,7 @@ double TilesDetector::match(ClassifyEnv &env) {
     if (roiGrayImage.empty())
         return 0;
 
-    int gap = mGap * env.getScale();
-    std::vector<cv::Rect> tiles = detectColumns(roiGrayImage, gap);
+    std::vector<cv::Rect> tiles = detectColumns(env, roiGrayImage);
     if (tiles.size() < mMinCols)
         return 0;
 
@@ -49,14 +48,14 @@ double TilesDetector::match(ClassifyEnv &env) {
             cv::Point offset;
             icons_detector->withRefRect = mMarksRect;
             if (mIconAlign == Center) {
-                icons_detector->withRefRect += cv::Point(tile.size() - mMarksRect.size()) / 2;
+                icons_detector->withRefRect += cv::Point(env.scaleToReference(tile.size()) - mMarksRect.size()) / 2;
             }
-            icons_detector->withRefRect += tile.tl() + captureRect.tl();
+            icons_detector->withRefRect += env.scaleToReference(tile.tl() + captureRect.tl());
             double match = icons_detector->match(env);
             auto& ir = icons_detector->lastMatchResult;
             cv::Rect detectedRect = env.cvtCapturedToReference(tile + captureRect.tl());
             if (match > 0.1) {
-                cv::Rect testRect = mTestRect.empty() ? tile : (mTestRect+tile.tl());
+                cv::Rect testRect = mTestRect.empty() ? tile : (env.scaleToCaptured(mTestRect)+tile.tl());
                 detect::Histogram hist(detect::Histogram::Mode::Hsv);
                 WState ws = hist.guessWState(roiColorImage(testRect));
                 env.classified.emplace_back(ClsDetType::Tile, name + ":" + ir.im->name, detectedRect);
@@ -75,12 +74,13 @@ double TilesDetector::match(ClassifyEnv &env) {
     else if (!labels.empty()) {
         FuzzyMatch fm;
         for (auto &tile: tiles) {
-            cv::Rect testRect = mTestRect.empty() ? tile : (mTestRect+tile.tl());
+            cv::Rect testRect = mTestRect.empty() ? tile : (env.scaleToCaptured(mTestRect)+tile.tl());
             detect::Histogram hist(detect::Histogram::Mode::Hsv);
             WState ws = hist.guessWState(roiColorImage(testRect));
-            cv::Mat ocrImage = toMat(roiGrayImage(mMarksRect+tile.tl()));
+            double ocr_line_height = mOcrHeight * env.getScale();
+            cv::Mat ocrImage = toMat(roiGrayImage(env.scaleToCaptured(mMarksRect)+tile.tl()));
             std::string text;
-            if (ocr::ocrTileLblText(ocrImage, ws, text) < 50)
+            if (ocr::ocrTileLblText(ocr_line_height, ocrImage, ws, text) < 40)
                 continue;
             std::wstring wtext = toUtf16(text);
             double bestRatio = 0;
@@ -112,15 +112,16 @@ double TilesDetector::match(ClassifyEnv &env) {
     return 1;
 }
 
-std::vector<TilesDetector::Range> TilesDetector::split(bool columns, uchar* reduced, int size, int gap, int& minThreshold) {
+std::vector<TilesDetector::Range> TilesDetector::split(ClassifyEnv &env, bool columns, uchar* reduced, int size, int gap, int& minThreshold) {
     int min_tile_size, max_tile_size;
     if (!mTileSize.empty()) {
+        cv::Size tileSize = env.scaleToCaptured(mTileSize);
         if (columns) {
-            min_tile_size = mTileSize.width;
-            max_tile_size = mTileSize.width;
+            min_tile_size = tileSize.width;
+            max_tile_size = tileSize.width;
         } else {
-            min_tile_size = mTileSize.height;
-            max_tile_size = mTileSize.height;
+            min_tile_size = tileSize.height;
+            max_tile_size = tileSize.height;
         }
     } else {
         if (columns) {
@@ -192,11 +193,11 @@ std::vector<TilesDetector::Range> TilesDetector::split(bool columns, uchar* redu
     for (int g=1; g < detectedGaps.size()-1; g++) {
         int b = detectedGaps[g].bgn;
         int e = detectedGaps[g].end;
-        if ((e - b) < gap*0.7) {
+        if ((e - b + 1) < gap*0.7) {
             detectedGaps.erase(detectedGaps.begin()+g);
             continue;
         }
-        else if ((e - b) > gap*1.3) {
+        else if ((e - b - 1) > gap*1.3) {
             detectedGaps[g].end = b + gap*1.2;
         }
     }
@@ -229,7 +230,8 @@ std::vector<TilesDetector::Range> TilesDetector::split(bool columns, uchar* redu
     return ranges;
 }
 
-std::vector<cv::Rect> TilesDetector::detectColumns(XMat& roiImage, int gap) {
+std::vector<cv::Rect> TilesDetector::detectColumns(ClassifyEnv& env, XMat& roiImage) {
+    int gap = mGap * env.getScale();
     const int W = roiImage.cols;
     const int H = roiImage.rows;
     int colThreshold = -1;
@@ -240,7 +242,7 @@ std::vector<cv::Rect> TilesDetector::detectColumns(XMat& roiImage, int gap) {
         XMat reducedImage;
         cv::reduce(subImage, reducedImage, 0, cv::REDUCE_AVG, CV_8UC1);
         cv::Mat reducedMat = toMat(reducedImage);
-        columns = split(true, reducedMat.data, W, gap, colThreshold);
+        columns = split(env, true, reducedMat.data, W, gap, colThreshold);
         if (columns.size() < mMinCols || columns.size() > mMaxCols)
             return {};
     } else {
@@ -260,7 +262,7 @@ std::vector<cv::Rect> TilesDetector::detectColumns(XMat& roiImage, int gap) {
             cv::reduce(subImage, reducedImage, 1, cv::REDUCE_AVG, CV_8UC1);
             cv::Mat reducedMat = toMat(reducedImage);
             int rowThreshold = -1;
-            rows = split(false, reducedMat.data, H, gap, rowThreshold);
+            rows = split(env, false, reducedMat.data, H, gap, rowThreshold);
         } else {
             rows.emplace_back(0, H - 1, 100);
         }

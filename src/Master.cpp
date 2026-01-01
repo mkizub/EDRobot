@@ -797,7 +797,7 @@ const Commodity* Master::ocrMarketRowCommodity(ResolvedEnv& rEnv, const cv::Mat&
     if (cr->u.lrow.commodity)
         return cr->u.lrow.commodity;
     if (cr->text.empty()) {
-        int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *cr, "name", cr->text);
+        int conf = ocr::ocrRowText(ocr::LINE_PSM_7, grayImage, rEnv, *cr, "name", cr->text);
         cr->u.lrow.text_confidence = conf;
         if (conf >= min_conf) {
             cr->u.lrow.commodity = Cfg.getCommodityByName(cr->text, true);
@@ -906,7 +906,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
                 continue;
             }
             std::string text;
-            int ocr_conf = ocr::ocrRowText(ocr::GENERIC, grayImage, rEnv, *lr, "name", text);
+            int ocr_conf = ocr::ocrRowText(ocr::LINE_PSM_7, grayImage, rEnv, *lr, "name", text);
             lr->u.lrow.text_confidence = ocr_conf;
             int fuzzy_conf = 0;
             if (ocr_conf > 30) {
@@ -1162,8 +1162,9 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv, UIState& ui
                 color = {255, 255, 96};
                 thickness = 2;
             }
-            cv::Rect r = cEnv.cvtReferenceToCaptured(cr.detectedRect);
-            cv::rectangle(debugImage, r, color, thickness);
+            cv::Rect2f rf = cr.u.lrow.capturedRect;
+            cv::Rect ri = {cr.u.lrow.capturedRect.tl() * 8, cr.u.lrow.capturedRect.br() * 8};
+            cv::rectangle(debugImage, ri, color, thickness, cv::LINE_AA, 3);
         }
     }
 
@@ -1196,9 +1197,12 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv, UIState& ui
                 color = {255, 255, 96};
                 thickness = 2;
             }
-            auto points = wEnv.unWarp(cr.detectedRect);
-            for (int j = 0; j < 4; j++)
-                cv::line(debugImage, points[j], points[(j+1) % 4], color, thickness, cv::LINE_AA);
+            auto points = wEnv.unWarp(cr.u.lrow.capturedRect);
+            for (int j = 0; j < 4; j++) {
+                cv::Point p1 = points[j] * 8;
+                cv::Point p2 = points[(j + 1) % 4] * 8;
+                cv::line(debugImage, p1, p2, color, thickness, cv::LINE_AA, 3);
+            }
         }
     }
 

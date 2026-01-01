@@ -212,7 +212,7 @@ struct ClassifiedRect {
             const widget::Widget* widget;
         } widg;
         struct {
-            cv::Rect capturedRect;      // in captured coordinates
+            cv::Rect2f capturedRect;    // in captured coordinates
             WState ws;                  // detected state for commodity row
             const widget::List* list;
             const Commodity* commodity;

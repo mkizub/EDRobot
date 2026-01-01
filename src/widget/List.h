@@ -24,9 +24,8 @@ struct List : public Widget {
         std::string name;
         int tab_left {0};
         int tab_right {0};
-        // we'll add ocr leading above the 'ocr_top'
-        int ocr_top {0}; // top of 'H' from single-line label top
-        int ocr_bot {0}; // bottom of 'p/g' from single-line label top
+        int ocr_height {0}; // ascending + descending
+        int ocr_psm {7}; // see OCR.h
     };
     std::vector<Tab> tabs;
     const Tab& getTab(std::string_view name) const;

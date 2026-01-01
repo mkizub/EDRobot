@@ -910,7 +910,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
             if (ml.demand <= 0)
                 continue;
         } else {
-            if (!ml.isConsumer || ml.demand <= 0) {
+            if ((!ml.isConsumer && ml.demand <= 0) || ml.isProducer) {
                 if (c.ship.count <= c.ship.stolen)
                     continue;
             }

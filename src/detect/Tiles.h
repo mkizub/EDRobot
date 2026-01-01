@@ -18,7 +18,7 @@ public:
     ~TilesDetector() override = default;
 
     double match(ClassifyEnv& env) override;
-    std::vector<cv::Rect> detectColumns(XMat& roiImage, int gap);
+    std::vector<cv::Rect> detectColumns(ClassifyEnv& env, XMat& roiImage);
 
     const std::string name;
     std::string icons;
@@ -27,6 +27,7 @@ public:
     cv::Rect mMarksRect;
     cv::Rect mTestRect;
     cv::Size mTileSize;
+    double mOcrHeight;
     bool mTryMerge {true};
     std::vector<std::string> mIconFiles;
     enum IconAlign {
@@ -40,7 +41,7 @@ private:
     struct Range {
         int bgn, end, val;
     };
-    std::vector<Range> split(bool columns, uchar* reduced, int size, int gap, int& threshold);
+    std::vector<Range> split(ClassifyEnv &env, bool columns, uchar* reduced, int size, int gap, int& threshold);
 
     int mMinRows;
     int mMaxRows;
