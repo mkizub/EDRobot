@@ -54,7 +54,7 @@ enum TextType {
 extern bool init(const std::string& tessdata);
 extern void shutdown();
 // returns confidence 0..100, fill text, rect
-extern int ocrLine(TextType tt, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut);
+extern int ocrLine(TextType tt, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut, cv::Line* baselineOut);
 
 extern int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Rect* rectOut=nullptr);
 extern int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Mat& dumpImage);
@@ -68,6 +68,7 @@ extern int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const Resol
 extern cv::Mat normalizeTargetDistText(const cv::Mat& grayImage);
 extern int ocrTargetDistText(const cv::Mat& grayImage, std::string& text);
 
+extern cv::Mat normalizeTileLblText(const cv::Mat& grayImage);
 extern int ocrTileLblText(double line_height, const cv::Mat& grayImage, WState ws, std::string& text);
 
 extern cv::Mat normalizeDetectorText(const cv::Mat& grayImage);

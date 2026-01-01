@@ -83,10 +83,12 @@ void shutdown() {
 //    }
 }
 
-int ocrLine(TextType type, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut) {
+int ocrLine(TextType type, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut, cv::Line* baselineOut) {
     text.clear();
     if (rectOut)
         *rectOut = {};
+    if (baselineOut)
+        *baselineOut = {};
     std::scoped_lock<std::mutex> lock(tesseractMutex);
     if (!tesseractApi)
         return 0;
@@ -148,13 +150,18 @@ int ocrLine(TextType type, const char* dbg, const cv::Mat& grayImage, std::strin
 #endif
         bool valid = true;
         tesseract::ResultIterator* ri = tesseractApi->GetIterator();
+        if (baselineOut) {
+            int x1, y1, x2, y2;
+            ri->Baseline(tesseract::PageIteratorLevel::RIL_TEXTLINE, &x1, &y1, &x2, &y2);
+            *baselineOut = cv::Line(x1, y1, x2, y2);
+        }
         cv::Rect lr;
         conf = 0;
         int count = 0;
         do {
             char *word = ri->GetUTF8Text(tesseract::PageIteratorLevel::RIL_WORD);
             int left, top, right, bottom;
-            ri->BoundingBox(tesseract::PageIteratorLevel::RIL_WORD, 1, &left, &top, &right, &bottom);
+            ri->BoundingBox(tesseract::PageIteratorLevel::RIL_TEXTLINE, 1, &left, &top, &right, &bottom);
             cv::Rect wr = {left, top, right - left, bottom - top};
             if (lr.empty()) {
                 lr = wr;
@@ -177,18 +184,6 @@ int ocrLine(TextType type, const char* dbg, const cv::Mat& grayImage, std::strin
         if (rectOut)
             *rectOut = lr;
         conf /= count;
-//        if (conf < 60)
-//            LOG(WARNING) << "Low conf " << conf;
-        //const char *outText = tesseractApi->GetUTF8Text();
-        //text = trim(outText);
-        //delete[] outText;
-        //if (rectOut) {
-        //    int left, top, right, bottom;
-        //    tesseract::ResultIterator* ri = tesseractApi->GetIterator();
-        //    if (ri->BoundingBox(tesseract::PageIteratorLevel::RIL_TEXTLINE, 1, &left, &top, &right, &bottom))
-        //        *rectOut = {left, top, right - left, bottom - top};
-        //    delete ri;
-        //}
     }
     tesseractApi->Clear();
 
@@ -196,32 +191,6 @@ int ocrLine(TextType type, const char* dbg, const cv::Mat& grayImage, std::strin
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
 
     LOG(DEBUG) << "OCR Output ("<<dbg<<"): '" << text << "' words conf=" << conf << "% took=" << elapsedTime.count() << "us";
-
-    // 'edr-s' (1.25 times faster)
-//    startTime = std::chrono::high_resolution_clock::now();
-//
-//    std::string textTmp;
-//    tesseractApiTmp->SetImage(grayImage.data, grayImage.cols, grayImage.rows, 1, (int)grayImage.step);
-//    tesseractApiTmp->Recognize(nullptr);
-//    int confTmp = tesseractApiTmp->MeanTextConf();
-//    if (confTmp != 0) {
-//        const char *outText = tesseractApiTmp->GetUTF8Text();
-//        textTmp = trim(outText);
-//        delete[] outText;
-//        if (rect) {
-//            int left, top, right, bottom;
-//            tesseract::ResultIterator* ri = tesseractApiTmp->GetIterator();
-//            if (ri->BoundingBox(tesseract::PageIteratorLevel::RIL_TEXTLINE, 1, &left, &top, &right, &bottom))
-//                *rect = {left, top, right - left, bottom - top};
-//            delete ri;
-//        }
-//    }
-//    tesseractApiTmp->Clear();
-//
-//    endTime = std::chrono::high_resolution_clock::now();
-//    elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
-//
-//    LOG(INFO) << "OCR Output (edr-s): '" << textTmp << "' words conf=" << confTmp << "% took=" << elapsedTime.count() << "us";
 
     return conf;
 }
@@ -295,7 +264,7 @@ int tryOcrRowText(TextType tt, const cv::Mat& ocrImage, std::string& text, cv::R
         double add = - blackIdx * mul;
         cv::convertScaleAbs(ocrImage, ocrImage, mul, add);
     }
-    int conf = ocr::ocrLine(tt, "(list row)", ocrImage, text, rectOut);
+    int conf = ocr::ocrLine(tt, "(list row)", ocrImage, text, rectOut, nullptr);
     return conf;
 }
 
@@ -345,7 +314,7 @@ int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedE
     if (cr.u.lrow.ws != WState::Focused)
         cv::bitwise_not(scaledImage, scaledImage);
     cv::Rect rect;
-    int conf = ocr::ocrLine(tt, "(list row training)", scaledImage, text, &rect);
+    int conf = ocr::ocrLine(tt, "(list row training)", scaledImage, text, &rect, nullptr);
     if (conf < 50) {
         dumpImage = scaledImage;
     } else {
@@ -372,7 +341,7 @@ int ocrMarketLblText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, const Cl
         cv::Rect ocrLineRect (0, l*ocr::LINE_HEIGHT, scaledImage.cols, ocr::LINE_HEIGHT);
         cv::Mat ocrImage(scaledImage, ocrLineRect);
         std::string line;
-        int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(market lbl)", ocrImage, line, nullptr);
+        int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(market lbl)", ocrImage, line, nullptr, nullptr);
         ocr_conf_sum += conf;
         if (l > 0)
             text += " ";
@@ -401,7 +370,7 @@ int ocrMarketLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv& rEn
         cv::Mat ocrImage(scaledImage, ocrLineRect);
         std::string text;
         cv::Rect rect;
-        int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(market lbl training)", ocrImage, text, &rect);
+        int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(market lbl training)", ocrImage, text, &rect, nullptr);
         ocr_conf_sum += conf;
         texts.push_back(text);
         if (conf < 50) {
@@ -426,7 +395,7 @@ int ocrNavigationLblText(const cv::Mat& grayImage, const ResolvedEnv& rEnv, cons
     cv::Mat scaledImage = scaleImage(lblImage, scale, true);
     cv::bitwise_not(scaledImage, scaledImage);
 
-    int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(nav lbl)", scaledImage, text, nullptr);
+    int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(nav lbl)", scaledImage, text, nullptr, nullptr);
     return conf;
 }
 
@@ -443,7 +412,7 @@ int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&
     cv::bitwise_not(scaledImage, scaledImage);
 
     cv::Rect rect;
-    int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(nav lbl training)", scaledImage, text, &rect);
+    int conf = ocr::ocrLine(TextType::LINE_PSM_7, "(nav lbl training)", scaledImage, text, &rect, nullptr);
     if (conf < 50) {
         dumpImage = scaledImage;
     } else {
@@ -501,8 +470,63 @@ cv::Mat normalizeTargetDistText(const cv::Mat& grayImage) {
 
 int ocrTargetDistText(const cv::Mat& grayImage, std::string& text) {
     cv::Mat ocrImage = normalizeTargetDistText(grayImage);
-    int conf = ocr::ocrLine(ocr::DISTANCE, "(nav dist)", ocrImage, text, nullptr);
+    int conf = ocr::ocrLine(ocr::DISTANCE, "(nav dist)", ocrImage, text, nullptr, nullptr);
     return conf;
+}
+
+cv::Mat normalizeTileLblText(const cv::Mat& grayImage) {
+    const int bin = 4;
+    const int histSize = 256/bin;
+    float range[]{0, 256}; //the upper boundary is exclusive
+    const float *histRange[]{range};
+    cv::Mat hist;
+    cv::calcHist(&grayImage, 1, nullptr, cv::Mat(), hist, 1, &histSize, histRange);
+
+#ifdef DEBUG_OCR
+    // Normalize histogram
+    std::vector<float> hn;
+    cv::normalize(hist, hn, 0.0, 1.0, cv::NORM_MINMAX, -1, cv::Mat());
+    // Create histogram image
+    int hist_w = 256;
+    int hist_h = 200;
+    cv::Mat histImage(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
+    // Draw lines for each bin
+    for (int i = 1; i < histSize; i++) {
+        cv::line(histImage,
+                 cv::Point(bin * (i - 1), cvRound(hist_h*(1.0-hn[i - 1]))),
+                 cv::Point(bin * (i), cvRound(hist_h*(1.0-hn[i]))),
+                 cv::Scalar(255, 255, 255), 2, 8, 0); // White lines for grayscale
+    }
+#endif
+
+    int blackIdx=-1, whiteIdx=-1;
+    float blackCnt=0, whiteMax=0;
+    auto* hd = (float*)hist.data;
+    // black requires min count, white is the max of histogram
+    for (int i=0; i < histSize; i++) {
+        float val = hd[i];
+        if (val <= 0)
+            continue;
+        if (blackIdx < 0) {
+            blackCnt += val;
+            if (blackCnt > 50)
+                blackIdx = i*bin + bin/2;
+        }
+        else if (val > whiteMax) {
+            whiteMax = val;
+            whiteIdx = i*bin + bin/2;
+        }
+    }
+    if (whiteIdx - blackIdx <= 30)
+        return {};
+    blackIdx += 10;
+    whiteIdx -= 10;
+    // scale image range (between black and white) to full range
+    double mul = 255.0 / (whiteIdx - blackIdx);
+    double add = - blackIdx * mul;
+    cv::Mat ocrImage;
+    cv::convertScaleAbs(grayImage, ocrImage, mul, add);
+    return ocrImage;
 }
 
 int ocrTileLblText(double line_height, const cv::Mat& grayImage, WState ws, std::string& text) {
@@ -510,9 +534,34 @@ int ocrTileLblText(double line_height, const cv::Mat& grayImage, WState ws, std:
     cv::Mat scaledImage = scaleImage(const_cast<cv::Mat&>(grayImage), scale, true);
     if (ws != WState::Focused)
         cv::bitwise_not(scaledImage, scaledImage);
-    cv::Mat ocrImage = normalizeTargetDistText(scaledImage);
-    int conf = ocr::ocrLine(ocr::LINE_PSM_7, "(tile text)", ocrImage, text, nullptr);
-    return conf;
+    cv::Mat ocrImage = normalizeTileLblText(scaledImage);
+    if (ocrImage.empty())
+        return 0;
+    std::string text_7;
+    cv::Rect rect;
+    cv::Line baseline;
+    int conf_7 = ocr::ocrLine(ocr::LINE_PSM_7, "(tile text)", ocrImage, text_7, &rect, &baseline);
+#ifdef DEBUG_OCR
+    cv::Mat debugImage = ocrImage.clone();
+    cv::rectangle(debugImage, rect, {64,64,64}, 1);
+    cv::line(debugImage, baseline.p0(), baseline.p1(), {64,64,64}, 1);
+#endif
+    cv::Rect crop;
+    crop.x = rect.x;
+    crop.y = baseline.y0 - (ocr::ASCENT+ocr::LEADING);
+    crop.width = rect.width;
+    crop.height = ocr::LINE_HEIGHT;
+    crop &= cv::Rect(0,0,ocrImage.cols,ocrImage.rows);
+    std::string text_13;
+    cv::Mat ocrCropImage = ocrImage(crop);
+    int conf_13 = ocr::ocrLine(ocr::LINE_PSM_13, "(tile text)", ocrCropImage, text_13, nullptr, nullptr);
+    if (conf_13 > conf_7) {
+        text = text_13;
+        return conf_13;
+    } else {
+        text = text_7;
+        return conf_7;
+    }
 }
 
 cv::Mat normalizeDetectorText(const cv::Mat& grayImage) {
@@ -568,7 +617,7 @@ int ocrDetectorText(TextType tt, double line_height, const cv::Mat& grayImage, c
     cv::Mat scaledImage = scaleImage(const_cast<cv::Mat&>(grayImage), scale, true);
     cv::bitwise_not(scaledImage, scaledImage);
     cv::Mat ocrImage = normalizeDetectorText(scaledImage);
-    int conf = ocr::ocrLine(tt, "(detector text)", ocrImage, text, rectOut);
+    int conf = ocr::ocrLine(tt, "(detector text)", ocrImage, text, rectOut, nullptr);
     if (scale != 1 && rectOut) {
         rectOut->x = (int)(std::round(rectOut->x / scale));
         rectOut->y = (int)(std::round(rectOut->y / scale));
