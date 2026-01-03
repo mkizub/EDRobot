@@ -308,12 +308,14 @@ void parseEvent_Fileheader(spGameEvent& ge) {
         LOG(ERROR) << "Unsupported game language: " << client.language;
         st::lng = Lang::XX;
     }
+    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(st::lng);
 }
 
 void parseEvent_Commander(spGameEvent& ge) {
     auto& je = ge->data;
     const_cast<st::Commander&>(st::cmdr).name = je["Name"].as_string();
     const_cast<st::Commander&>(st::cmdr).fid = je["FID"].as_string();
+    LOG(INFO) << "CMDR: " << st::cmdr.name;
 }
 
 void parseEvent_LoadGame(spGameEvent& ge) {
@@ -321,6 +323,7 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     if (je["Commander"].is_string()) {
         const_cast<st::Commander&>(st::cmdr).name = je["Commander"].as_string();
         const_cast<st::Commander&>(st::cmdr).fid = je["FID"].as_string();
+        LOG(INFO) << "CMDR: " << st::cmdr.name;
     }
 
     auto& client = const_cast<st::GameClient&>(st::client);
@@ -339,6 +342,7 @@ void parseEvent_LoadGame(spGameEvent& ge) {
         LOG(ERROR) << "Unsupported game language: " << client.language;
         st::lng = Lang::XX;
     }
+    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(st::lng);
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
     set(shipInfo.shipType, je.at("Ship",""));
@@ -346,6 +350,7 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     set(shipInfo.shipUserName, je.at("ShipName",""));
     set(shipInfo.shipIdent, je.at("ShipIdent",""));
     shipInfo.shipId = je.at("ShipID",0).as_integer();
+    LOG(INFO) << "Ship: " << shipInfo.shipType;
 }
 
 void parseEvent_CarrierLocation(spGameEvent& ge) {
@@ -355,6 +360,7 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
     cmdr.carrierId = je.at("CarrierID",0).as_int64();
     cmdr.carrierInSystem = je.at("StarSystem","").as_string();
     cmdr.carrierAtBodyId = je.at("BodyID",-1).as_integer();
+    LOG(INFO) << "Carrier: " << cmdr.carrierId << " in system " << cmdr.carrierInSystem;
 }
 
 void parseEvent_Location(spGameEvent& ge) {
@@ -398,6 +404,7 @@ void parseEvent_Loadout(spGameEvent& ge) {
     set(shipInfo.shipUserName, je.at("ShipName",""));
     set(shipInfo.shipIdent, je.at("ShipIdent",""));
     shipInfo.shipId = je.at("ShipID",0).as_integer();
+    LOG(INFO) << "Ship: " << shipInfo.shipType;
 
     {
         auto& ss = st::shipStats;
@@ -444,6 +451,7 @@ void parseEvent_ShipyardSwap(spGameEvent& ge) {
     set(shipInfo.shipUserName, je.at("ShipName",""));
     set(shipInfo.shipIdent, je.at("ShipIdent",""));
     shipInfo.shipId = je.at("ShipID",0).as_integer();
+    LOG(INFO) << "Ship: " << shipInfo.shipType;
 }
 
 void parseEvent_Docked(spGameEvent& ge) {

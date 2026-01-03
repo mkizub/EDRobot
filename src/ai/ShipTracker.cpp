@@ -406,10 +406,10 @@ repeat_step:
     }
 
     bool hasActiveAxis = pitchAxis.active() || yawAxis.active() || rollAxis.active();
-    const auto compass_age = (hasActiveAxis && useOpenCL()) ? 300ms : 1000ms;
+    const auto compass_age = (hasActiveAxis && useOpenCL()) ? 500ms : 1500ms;
 
 #ifdef NDEBUG
-    const auto max_wait_age = (hasActiveAxis && useOpenCL()) ? 300ms : 1000ms;
+    const auto max_wait_age = (hasActiveAxis && useOpenCL()) ? 500ms : 1500ms;
 #else
     const auto max_wait_age = 1000ms;
 #endif

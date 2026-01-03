@@ -45,9 +45,7 @@ struct Label : public Widget {
     Label(const std::string& name, Widget* parent) : Widget(WidgetType::Label, name, parent) {}
     bool detect(DetectParams& params) final;
 
-    // we'll add ocr leading above the 'ocr_top'
-    int ocr_top {0}; // top of 'H' from single-line label top
-    int ocr_bot {0}; // bottom of 'p/g' from single-line label top
+    double mFontHeight {};
 };
 
 struct BaseDialog : public Widget {

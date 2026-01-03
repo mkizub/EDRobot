@@ -24,7 +24,7 @@ struct List : public Widget {
         std::string name;
         int tab_left {0};
         int tab_right {0};
-        int ocr_height {0}; // ascending + descending
+        float ocr_height {0}; // ascending + descending
         int ocr_psm {7}; // see OCR.h
     };
     std::vector<Tab> tabs;

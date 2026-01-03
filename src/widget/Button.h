@@ -20,6 +20,8 @@ struct BaseButton : public Widget {
     cv::Point extendRB;
     std::string icon;
     std::unique_ptr<detect::ImageTemplate> detector{};
+    std::vector<std::unique_ptr<detect::ImageFilter>> filters;
+    bool force_present {};
 };
 
 struct Button : public BaseButton {

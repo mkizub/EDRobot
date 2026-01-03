@@ -18,5 +18,7 @@
     stop: ["Esc","Ctrl+Break"], // defaults to "esc" and ctrl-break
     "pause-resume": "Pause",
     "debug-templates": "Ctrl+Alt+PrintScreen", // defaults to "ctrl+alt+printscreen"
-  }
+  },
+  //"elite-dangerous-settings-path": ...,
+  //"elite-dangerous-logs-path": ...,
 }

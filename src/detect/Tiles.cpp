@@ -77,7 +77,7 @@ double TilesDetector::match(ClassifyEnv &env) {
             cv::Rect testRect = mTestRect.empty() ? tile : (env.scaleToCaptured(mTestRect)+tile.tl());
             detect::Histogram hist(detect::Histogram::Mode::Hsv);
             WState ws = hist.guessWState(roiColorImage(testRect));
-            double ocr_line_height = mOcrHeight * env.getScale();
+            double ocr_line_height = mFontHeight * env.getScale();
             cv::Mat ocrImage = toMat(roiGrayImage(env.scaleToCaptured(mMarksRect)+tile.tl()));
             std::string text;
             if (ocr::ocrTileLblText(ocr_line_height, ocrImage, ws, text) < 40)

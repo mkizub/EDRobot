@@ -194,16 +194,6 @@ bool Label::detect(DetectParams& params) {
     cv::Rect r = params.env.calcReferenceRect(this->rect);
     if (r.empty())
         return false;
-    if (ocr_bot > 0) {
-        double scale = double(ocr_bot - ocr_top) / double(ocr::ASCENT+ocr::DESCENT);
-        int reference_line_height = (int) std::round(ocr::LINE_HEIGHT * scale);
-        int lines = (int) std::round(double(r.height) / double(reference_line_height));
-        //r.height = lines * reference_line_height;
-        //if (lines > 1) {
-        //    r.x -= (int) std::round(scale*ocr::LEADING/2);
-        //    //r.height += (int) std::round(scale*ocr::LEADING);
-        //}
-    }
     params.env.classified.emplace_back(ClsDetType::Widget, this->name, r);
     ClassifiedRect& clsLblRect = params.env.classified.back();
     clsLblRect.u.widg.referenceRect = r;

@@ -65,7 +65,7 @@ CompassDetector::CompassDetector()
 }
 
 void CompassDetector::loadCompass() {
-    preprocessedShip = st::shipInfo.shipType;
+    preprocessedShip = toLower(st::shipInfo.shipType);
     const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem("scr-cockpit");
     cv::Rect compassRefRect;
     cv::Point compassExtLT;
@@ -86,10 +86,10 @@ void CompassDetector::loadCompass() {
             compassRefRect = fov_scale.apply(compassRefRect, fov_scale.fov54);
             compassExtLT.x = v["ext"][0];
             compassExtLT.y = v["ext"][1];
-            compassExtLT = fov_scale.apply(compassExtLT, fov_scale.fov54);
+            compassExtLT = fov_scale.apply(cv::Size(compassExtLT), fov_scale.fov54);
             compassExtRB.x = v["ext"][2];
             compassExtRB.y = v["ext"][3];
-            compassExtRB = fov_scale.apply(compassExtRB, fov_scale.fov54);
+            compassExtRB = fov_scale.apply(cv::Size(compassExtRB), fov_scale.fov54);
             break;
         }
     }
@@ -117,8 +117,7 @@ double CompassDetector::match(ClassifyEnv &env) {
     clear();
 
     {
-        const std::string &ship = st::shipInfo.shipType;
-        if (preprocessedShip != ship) {
+        if (preprocessedShip != toLower(st::shipInfo.shipType)) {
             loadCompass();
         }
         double fov = Cfg.getConfigFOV();
@@ -201,22 +200,28 @@ double CompassDetector::match(ClassifyEnv &env) {
         }
     }
 
-    auto totalStartTime = std::chrono::high_resolution_clock::now();
+    //LOG(INFO) << "Compass detect started";
+    //auto totalStartTime = std::chrono::high_resolution_clock::now();
 
     bool can_use_compass = !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
     double compassMatch = 0;
-    if (can_use_compass)
+    if (can_use_compass) {
+        //auto startTime = std::chrono::high_resolution_clock::now();
         compassMatch = compassDetector->match(env);
+        //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+        //LOG(INFO) << "Compass detect took: " << elapsedTime.count() << "us";
+    }
     if (compassMatch >= 0.5) {
         //
         // Detect compass dot
         //
+        //auto startTime = std::chrono::high_resolution_clock::now();
         cv::Rect matchRect = ImageTemplate::makeOptimalMatchRect(compassDetector->captureRect);
         env.cropToCapture(matchRect);
         XMat imagePrepared = ImageTemplate::applyFilters(dotsFilters, env.getColorImage()(matchRect), {.convertToFloat=true});
         ImageTemplate::MatchResult dr;
         ImageTemplate::matchTemplates(cv::TM_CCOEFF_NORMED, imagePrepared, compassDotsPrepared, dr);
-        //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+        //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         //LOG(INFO) << "Compass dot detect took: " << elapsedTime.count() << "us";
         if (dr.value >= threshold_dot) {
             LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", dr.value,
@@ -269,7 +274,7 @@ double CompassDetector::match(ClassifyEnv &env) {
     }
 
     if (!can_use_compass || (lastHemisphere > 0 && std::abs(lastTgtYaw) < 25 && lastTgtPitch >= -10 && lastTgtPitch <= 25) || env.isDebugMatch()) {
-        //startTime = std::chrono::high_resolution_clock::now();
+        //auto startTime = std::chrono::high_resolution_clock::now();
 
         XMat correctedColorImage;
         cv::remap(env.getColorImage(), correctedColorImage, navTargetRemap1, navTargetRemap2, cv::INTER_LINEAR);
@@ -278,7 +283,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         }
         XMat imagePrepared = ImageTemplate::applyFilters(navTargetFilters, correctedColorImage);
 
-        //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+        //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         //LOG(INFO) << "Compass nav target image prepare took: " << elapsedTime.count() << "us";
 
         //startTime = std::chrono::high_resolution_clock::now();
@@ -322,7 +327,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         }
 
         if (can_use_compass && navTargetFound && lastTgtPitch >= -10 && lastTgtPitch <= +20 && lastTgtYaw >= -25 && lastTgtYaw <= +25) {
-            //startTime = std::chrono::high_resolution_clock::now();
+            //auto startTime = std::chrono::high_resolution_clock::now();
 
 //            float cx = env.ReferenceScreenCenter.x;
 //            float cy = env.ReferenceScreenCenter.y;
@@ -393,12 +398,12 @@ double CompassDetector::match(ClassifyEnv &env) {
 //                gt_txt << text;
 //                gt_txt.close();
 //            }
-            //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+            //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
             //LOG(INFO) << "Compass nav target dist text took: " << elapsedTime.count() << "us";
         }
     }
-    auto totalElapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - totalStartTime);
-    //LOG(DEBUG) << "Compass detection took: " << std::format("{}ms",totalElapsedTime.count());
+    //auto totalElapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - totalStartTime);
+    //LOG(INFO) << "Compass detection took: " << std::format("{}ms",totalElapsedTime.count());
 
     return navTargetFound ? 1 : can_use_compass ? compassMatch : 0;
 }

@@ -62,10 +62,10 @@ bool moveToWidget(const char* widget, double seconds) {
 bool waitUiState(const std::string& state, std::chrono::seconds duration) {
     utc_timer timer(duration);
     do {
+        sleep(250);
         ai::detectEDState(DetectLevel::Buttons);
         if (ai::uiState.match(state))
             return true;
-        sleep(250);
     } while (!timer.expired());
     ai::detectEDState(DetectLevel::Buttons);
     return ai::uiState.match(state);

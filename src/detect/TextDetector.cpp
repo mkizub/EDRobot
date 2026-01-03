@@ -26,74 +26,27 @@ double TextDetector::match(ClassifyEnv &env) {
         return 0;
 
     cv::Mat ocrImage = toMat(roiGrayImage);
-    int ocr_conf_raw = 0;
-    int ocr_conf_gen = 0;
-    std::string text_raw;
-    std::string text_gen;
-    cv::Rect ocrRectRaw;
-    cv::Rect ocrRectGen;
+    std::string text;
+    cv::Rect ocrRect;
     double line_height = captureRect.height;
-    if (mLineHeight.has_value())
-        line_height = mLineHeight.value() * env.getScale();
-    if (mOcrPSM.value_or(13) == 13) {
-        ocr_conf_raw = ocr::ocrDetectorText(ocr::LINE_PSM_13, line_height, ocrImage, env, text_raw, &ocrRectRaw);
-        if (ocr_conf_raw < mOcrConfThreshold)
-            text_raw.clear();
-    }
-    {
-        ocr::TextType tt;
-        switch (mOcrPSM.value_or(7)) {
-        case 3:
-            tt = ocr::TextType::AUTO_PSM_3;
-            break;
-        case 4:
-            tt = ocr::TextType::AUTO_PSM_4;
-            break;
-        case 5:
-            tt = ocr::TextType::BLOCK_PSM_5;
-            break;
-        case 6:
-            tt = ocr::TextType::BLOCK_PSM_6;
-            break;
-        case 7:
-            tt = ocr::TextType::LINE_PSM_7;
-            break;
-        default:
-            tt = ocr::TextType::LINE_PSM_13;
-            break;
-        }
-        if (tt != ocr::TextType::LINE_PSM_13)
-            ocr_conf_gen = ocr::ocrDetectorText(tt, line_height, ocrImage, env, text_gen, &ocrRectGen);
-        if (ocr_conf_gen < mOcrConfThreshold)
-            text_gen.clear();
-    }
-    if (text_raw.empty() && text_gen.empty())
+    if (mFontHeight.has_value())
+        line_height = mFontHeight.value() * env.getScale();
+    int ocr_conf = ocr::ocrDetectorText(ocr::GENERIC, line_height, mMultiLine, ocrImage, env, text, &ocrRect);
+    if (ocr_conf < mOcrConfThreshold)
         return 0;
-    std::wstring wtext_raw = toUtf16(text_raw);
-    std::wstring wtext_gen = toUtf16(text_gen);
+    std::wstring wtext = toUtf16(text);
     double bestRatio = 0;
     const std::string* bestLabel = nullptr;
     cv::Rect bestRect;
     FuzzyMatch fm;
     for (auto& lbl : labels) {
         for (auto& t : lbl.second) {
-            if (!wtext_raw.empty()) {
-                std::wstring wt = wtext_raw.substr(0, t.size());
-                double r = fm.ratio(wt, t);
-                if (r > bestRatio) {
-                    bestRatio = r;
-                    bestLabel = &lbl.first;
-                    bestRect = ocrRectRaw;
-                }
-            }
-            if (!wtext_gen.empty()) {
-                std::wstring wt = wtext_gen.substr(0, t.size());
-                double r = fm.ratio(wt, t);
-                if (r > bestRatio) {
-                    bestRatio = r;
-                    bestLabel = &lbl.first;
-                    bestRect = ocrRectGen;
-                }
+            std::wstring wt = wtext.substr(0, t.size());
+            double r = fm.ratio(wt, t);
+            if (r > bestRatio) {
+                bestRatio = r;
+                bestLabel = &lbl.first;
+                bestRect = ocrRect;
             }
         }
     }

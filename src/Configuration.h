@@ -160,7 +160,7 @@ private:
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
     bool parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag);
     bool loadGameSettings(bool initial);
-    bool loadPlayerOptions();
+    bool loadPlayerOptions(bool initial);
     bool loadInputBindings();
     bool findLatestJournalFile();
     bool preloadGameJournal();
@@ -195,6 +195,9 @@ private:
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;
     std::wstring mEDCurrentJournalFile;
+    std::string mEDCurrentPlayerOptionsFile;
+    unsigned mDisplaySettingsCRC32 {0};
+    unsigned mSettingsCRC32 {0};
 
     int mUiScalePercents = 100;
     bool autoPause = true;

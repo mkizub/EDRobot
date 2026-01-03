@@ -24,7 +24,7 @@ bool ai::TaskAcquirePPC::run() {
     int acquiredCount = 0;
     for (int retry=0; retry < 3; retry++) {
         gotoContactsScreen("dlg-power-play");
-        clickButton("btn-acquire-res", 0.5);
+        clickButton("btn-acquire-res", 0.3);
 
         ai::detectEDState(DetectLevel::ListRows);
         for (auto &cr: ai::rEnv.classified) {
@@ -37,13 +37,15 @@ bool ai::TaskAcquirePPC::run() {
                 button.x += tab.tab_left;
                 button.width = tab.tab_right - tab.tab_left;
                 cv::Point pos = (button.tl() + button.br()) / 2;
-                mouseMoveTo(pos, 0.5);
+                mouseMoveTo(pos, 0.3);
                 kbd::sendMouseClick(pos, 100,500);
                 sleep(1000);
-                clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:spn-amount", 100, 500, 0.5);
+                ai::detectEDState(DetectLevel::Buttons);
+                clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:spn-amount", 100, 500, 0.2);
                 kbd::send("UI_Right", 3000);
                 //kbd::send("UI_Right");
-                clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:btn-commit", 100, 500, 0.5);
+                ai::detectEDState(DetectLevel::Buttons);
+                clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:btn-commit", 100, 500, 0.2);
                 if (waitMarketEvent(4s))
                     acquiredCount += Cfg.marketEvent->data.at("Count",0).as_integer();
             }
@@ -76,7 +78,7 @@ bool ai::TaskDeliverPPC::run() {
     int deliveredCount = 0;
     for (int retry=0; retry < 3; retry++) {
         gotoContactsScreen("dlg-power-play");
-        clickButton("btn-deliver-res", 0.5);
+        clickButton("btn-deliver-res", 0.3);
 
         ai::detectEDState(DetectLevel::ListRows);
         for (auto &cr: ai::rEnv.classified) {
@@ -89,12 +91,14 @@ bool ai::TaskDeliverPPC::run() {
                 button.x += tab.tab_left;
                 button.width = tab.tab_right - tab.tab_left;
                 cv::Point pos = (button.tl() + button.br()) / 2;
-                mouseMoveTo(pos, 0.5);
+                mouseMoveTo(pos, 0.3);
                 kbd::sendMouseClick(pos, 100,500);
                 sleep(1000);
-                //clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-deliver-res:spn-amount", 100, 500, 0.5);
+                //ai::detectEDState(DetectLevel::Buttons);
+                //clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-deliver-res:spn-amount", 100, 500, 0.2);
                 //kbd::send("UI_Right", 3000);
-                clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-deliver-res:btn-commit", 100, 500, 0.5);
+                ai::detectEDState(DetectLevel::Buttons);
+                clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-deliver-res:btn-commit", 100, 500, 0.2);
                 if (waitMarketEvent(4s))
                     deliveredCount += Cfg.marketEvent->data.at("Count",0).as_integer();
             }

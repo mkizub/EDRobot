@@ -2,8 +2,8 @@
   "name" : "edrobot",
   "version-string" : "1.0.0",
   "builtin-baseline" : "9eb6e4b60ea5bdd60a87e8d2353d53882a32a3f3",
-  "configuration": {
-    "overlay-ports": [ "./overlay-ports/opencv4"]
+  "configuration" : {
+    "overlay-ports" : [ "./overlay-ports/opencv4" ]
   },
   "dependencies" : [ {
     "name" : "cpptrace",
@@ -29,5 +29,8 @@
   }, {
     "name" : "boost-circular-buffer",
     "version>=" : "1.88.0"
+  }, {
+    "name" : "zlib",
+    "version>=" : "1.3.1"
   } ]
 }

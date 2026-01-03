@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release)
 
-project(EDRobot VERSION 0.8.5)
+project(EDRobot VERSION 0.8.6)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,8 +21,7 @@ set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.lib")
 
 find_package(Tesseract CONFIG REQUIRED)
-#set_target_properties(leptonica PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
-#set_target_properties(Tesseract::libtesseract PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release")
+find_package(ZLIB REQUIRED)
 
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
@@ -161,6 +160,7 @@ target_include_directories(EDRobot PRIVATE thirdparty)
 target_link_libraries(EDRobot PRIVATE ${GETTEXT_LIBRARIES})
 target_link_libraries(EDRobot PRIVATE ${OpenCV_LIBS})
 target_link_libraries(EDRobot PRIVATE Tesseract::libtesseract)
+target_link_libraries(EDRobot PRIVATE ZLIB::ZLIB)
 target_link_libraries(EDRobot PRIVATE CURL::libcurl)
 target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1 windowsapp)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

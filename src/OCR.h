@@ -41,20 +41,27 @@ const int BASELINE_Y   = 30;
 //      bypassing hacks that are Tesseract-specific.
 
 enum TextType {
-    AUTO_PSM_3,
-    AUTO_PSM_4,
-    BLOCK_PSM_5,
-    BLOCK_PSM_6,
-    LINE_PSM_7,
-    LINE_PSM_13,
+    GENERIC,
     DISTANCE,
     NUMERIC,
 };
 
+enum TextPSM {
+    AUTO_PSM_3 = 3,
+    AUTO_PSM_4 = 4,
+    BLOCK_PSM_5 = 5,
+    BLOCK_PSM_6 = 6,
+    LINE_PSM_7 = 7,
+    LINE_PSM_13 = 13,
+};
+
 extern bool init(const std::string& tessdata);
 extern void shutdown();
+
+extern int ocrPageSegm(const cv::Mat& grayImage, cv::Rect& rectOut, std::vector<cv::Line>& baselineOut);
 // returns confidence 0..100, fill text, rect
-extern int ocrLine(TextType tt, const char* dbg, const cv::Mat& grayImage, std::string& text, cv::Rect* rectOut, cv::Line* baselineOut);
+extern int ocrLine(TextType tt, int psm, const char* dbg, const cv::Mat& grayImage, int minConf, std::string& text, cv::Rect* rectOut);
+extern cv::Mat normalizeTextImage(const cv::Mat& grayImage, int blackPixelsLimit=50, int blackAdd=10, int whiteSub=10, int bin=4);
 
 extern int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Rect* rectOut=nullptr);
 extern int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Mat& dumpImage);
@@ -68,11 +75,9 @@ extern int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const Resol
 extern cv::Mat normalizeTargetDistText(const cv::Mat& grayImage);
 extern int ocrTargetDistText(const cv::Mat& grayImage, std::string& text);
 
-extern cv::Mat normalizeTileLblText(const cv::Mat& grayImage);
-extern int ocrTileLblText(double line_height, const cv::Mat& grayImage, WState ws, std::string& text);
+extern int ocrTileLblText(double font_height, const cv::Mat& grayImage, WState ws, std::string& text);
 
-extern cv::Mat normalizeDetectorText(const cv::Mat& grayImage);
-extern int ocrDetectorText(TextType tt, double line_height, const cv::Mat& grayImage, const ResolvedEnv&, std::string& text, cv::Rect* rectOut);
+extern int ocrDetectorText(TextType tt, double font_height, bool multiline, const cv::Mat& grayImage, const ResolvedEnv&, std::string& text, cv::Rect* rectOut);
 }
 
 #endif //EDROBOT_OCR_H

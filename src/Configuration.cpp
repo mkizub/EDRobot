@@ -12,6 +12,7 @@
 #include "ShipStats.h"
 #include "Galaxy.h"
 
+#include <zlib.h>
 #include <dirlistener/ReadDirectoryChanges.h>
 #ifdef DEBUG
 # undef DEBUG
@@ -159,7 +160,7 @@ bool Configuration::load() {
             errorMessage = _gt("Failed to load game journal");
         if (!loadGameSettings(true))
             errorMessage = _gt("Failed to load game settings");
-        if (!loadPlayerOptions())
+        if (!loadPlayerOptions(true))
             errorMessage = _gt("Failed to load game player options");
         if (!loadInputBindings())
             errorMessage = _gt("Failed to load all required key bindings");
@@ -356,18 +357,62 @@ bool Configuration::parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::
     return true;
 }
 
+struct XmlBuffer {
+    std::string path;
+    size_t size {};
+    char *buffer {};
+    unsigned crc32 {};
+    ~XmlBuffer() {
+        if (buffer)
+            free(buffer);
+    }
+};
+bool load_file(const std::string& path, XmlBuffer& b) {
+    b = {path};
+    FILE *file = fopen(path.c_str(), "rb");
+    if (!file) return false;
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    b.buffer = (char *)malloc(file_size + 1);
+    if (!b.buffer) {
+        fclose(file);
+        return false;
+    }
+    b.size = fread(b.buffer, 1, file_size, file);
+    if (b.size != file_size) {
+        fclose(file);
+        return false;
+    }
+    b.buffer[file_size] = '\0';
+    fclose(file);
+    b.crc32 = crc32(0U, (uchar*)b.buffer, file_size);
+    return true;
+}
+
 bool Configuration::loadGameSettings(bool initial) {
+    XmlBuffer settingsBuffer, displaySettingsBuffer;
+    if (!load_file(toUtf8(mEDSettingsPath) + R"(\Options\Graphics\DisplaySettings.xml)", displaySettingsBuffer)) {
+        LOG(ERROR) << "Filed to load " << displaySettingsBuffer.path;
+        return false;
+    }
+    if (!load_file(toUtf8(mEDSettingsPath) + R"(\Options\Graphics\Settings.xml)", settingsBuffer)) {
+        LOG(ERROR) << "Filed to load " << settingsBuffer.path;
+        return false;
+    }
+    if (!initial) {
+        if (displaySettingsBuffer.crc32 == mDisplaySettingsCRC32 && settingsBuffer.crc32 == mSettingsCRC32)
+            return true;
+    }
     LOG(INFO) << "Loading game settings";
     bool ok = true;
     bool needCapturerReset = false;
-    std::string filename;
 
     //
     // Options/Graphics/DisplaySettings.xml
     //
     {
-        filename = toUtf8(mEDSettingsPath) + R"(\Options\Graphics\DisplaySettings.xml)";
-        XMLNode *rootNode = xml_parse_file(filename.c_str());
+        XMLNode *rootNode = xml_parse_string(displaySettingsBuffer.buffer);
         if (rootNode) {
             if (auto node = xml_node_find_tag(rootNode, "ScreenWidth", true); node && node->text) {
                 int width = atol(node->text);
@@ -434,9 +479,16 @@ bool Configuration::loadGameSettings(bool initial) {
                 br += frameCenter;
                 croppedScreenRect = {tl, br};
             }
+            if (initial || needCapturerReset)
+                LOG(INFO) << std::format("Screen: config {}x{}; scaled to {}x{}; cropped to [{}:{},{}x{}]",
+                                         configScreenWidth, configScreenHeight,
+                                         scaledScreenWidth, scaledScreenHeight,
+                                         croppedScreenRect.x, croppedScreenRect.y,
+                                         croppedScreenRect.width, croppedScreenRect.height);
+
         } else {
             ok = false;
-            LOG(ERROR) << "Cannot parse " << filename;
+            LOG(ERROR) << "Cannot parse " << displaySettingsBuffer.path;
         }
     }
 
@@ -444,48 +496,58 @@ bool Configuration::loadGameSettings(bool initial) {
     // Options/Graphics/Settings.xml
     //
     {
-        filename = toUtf8(mEDSettingsPath) + R"(\Options\Graphics\Settings.xml)";
-        XMLNode *rootNode = xml_parse_file(filename.c_str());
+        XMLNode *rootNode = xml_parse_string(settingsBuffer.buffer);
         if (rootNode) {
-            if (auto node = xml_node_find_tag(rootNode, "FOV", true); node && node->text)
+            if (auto node = xml_node_find_tag(rootNode, "FOV", true); node && node->text) {
                 configFOV = atof(node->text);
-            if (auto node = xml_node_find_tag(rootNode, "GammaOffset", true); node && node->text)
+                LOG_IF(initial,INFO) << std::format("FOV: {:.4f}°", configFOV);
+            }
+            if (auto node = xml_node_find_tag(rootNode, "GammaOffset", true); node && node->text) {
                 configGammaOffset = atof(node->text);
+                LOG_IF(initial,INFO) << std::format("Gamma offset: {:.4f}", configGammaOffset);
+            }
             xml_node_free(rootNode);
             rootNode = nullptr;
         } else {
             ok = false;
-            LOG(ERROR) << "Cannot parse " << filename;
+            LOG(ERROR) << "Cannot parse " << settingsBuffer.path;
         }
     }
 
     if (needCapturerReset)
         Master::getInstance().pushCommand(Command::ResetCapturer);
 
+    mDisplaySettingsCRC32 = displaySettingsBuffer.crc32;
+    mSettingsCRC32 = settingsBuffer.crc32;
     return ok;
 }
 
 //
 // Options/Player/... preset
 //
-bool Configuration::loadPlayerOptions() {
+bool Configuration::loadPlayerOptions(bool initial) {
     LOG(INFO) << "Loading player options";
-    std::string filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
-    std::ifstream ifs(filename, std::ifstream::in);
-    if (!ifs.is_open()) {
-        LOG(ERROR) << "Cannot parse " << filename;
-        return false;
+    if (initial) {
+        std::string filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
+        std::ifstream ifs(filename, std::ifstream::in);
+        if (!ifs.is_open()) {
+            LOG(ERROR) << "Cannot parse " << filename;
+            return false;
+        }
+
+        std::string preset;
+        std::getline(ifs, preset);
+        filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Player\)", preset, "misc");
+        mEDCurrentPlayerOptionsFile = filename;
     }
 
-    std::string preset;
-    std::getline(ifs, preset);
-    filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Player\)", preset, "misc");
-
-    XMLNode *rootNode = xml_parse_file(filename.c_str());
+    XMLNode *rootNode = xml_parse_file(mEDCurrentPlayerOptionsFile.c_str());
     if (rootNode) {
         if (auto node = xml_node_find_tag(rootNode, "DashboardGUIBrightness", true)) {
-            if (auto val = xml_node_attr(node, "Value"))
+            if (auto val = xml_node_attr(node, "Value")) {
                 configDashboardGUIBrightness = atof(val);
+                LOG_IF(initial,INFO) << std::format("UI Brightness: {:.4f}", configDashboardGUIBrightness);
+            }
         }
         if (auto filters = xml_node_find_tag(rootNode, "LocationPanelFilters", true)) {
             st::NavPanelFilters npf;
@@ -501,28 +563,6 @@ bool Configuration::loadPlayerOptions() {
             npf.system = getBoolNodeValue(filters, "System");
             st::navFilters = npf;
         }
-        //	<RouteStartSystem Value="2381282543995" />
-        //	<RouteDestinationSystem Value="0" />
-        //	<RouteDestinationBody Value="0" />
-        //	<RouteDestinationMarketID Value="18446744073709551615" />
-        //	<RouteDestinationBodysiteID Value="18446744073709551615" />
-        //	<RouteDestinationIsCluster Value="0" />
-        //	<RouteDestinationIsSurfaceSettlement Value="0" />
-        //		<categories>
-        //			<Minerals Value="1" />
-        //			<Weapons Value="1" />
-        //			<ConsumerItems Value="1" />
-        //			<Foods Value="1" />
-        //			<Textiles Value="1" />
-        //			<Metals Value="1" />
-        //			<Narcotics Value="1" />
-        //			<Medicines Value="1" />
-        //			<IndustrialMaterials Value="1" />
-        //			<Technology Value="1" />
-        //			<Chemicals Value="1" />
-        //			<Machinery Value="1" />
-        //			<Other Value="1" />
-        //		</categories>
 
         // 	<MarketFilter_inCargo Value="1" />
         //	<MarketFilter_requiredForMission Value="1" />
@@ -541,7 +581,7 @@ bool Configuration::loadPlayerOptions() {
         return true;
     } else {
         configDashboardGUIBrightness = 0.5;
-        LOG(ERROR) << "Cannot parse " << filename;
+        LOG(ERROR) << "Cannot parse " << mEDCurrentPlayerOptionsFile;
         return false;
     }
 }
@@ -667,6 +707,7 @@ bool Configuration::findLatestJournalFile() {
         return false;
     }
     mEDCurrentJournalFile = latestJournalFile;
+    LOG(INFO) << "Journal file: " << mEDCurrentJournalFile;
     return true;
 }
 
@@ -1312,6 +1353,7 @@ void Configuration::changeDirThreadLoop() {
     // read last ship status after all events
     loadGameStatus();
 
+    bool needReloadOptions = false;
     for(;;) {
         DWORD rc = ::MsgWaitForMultipleObjectsEx(
                         _countof(handles),
@@ -1326,7 +1368,6 @@ void Configuration::changeDirThreadLoop() {
 
         // We've received a notification in the queue.
         bool needReloadSettings = false;
-        bool needReloadOptions = false;
         bool needReloadBindings = false;
         bool needReloadStatus = false;
         std::wstring journalFilenameW;
@@ -1352,8 +1393,10 @@ void Configuration::changeDirThreadLoop() {
 
         if (needReloadSettings)
             loadGameSettings(false);
-        if (needReloadOptions)
-            loadPlayerOptions();
+        if (needReloadOptions && st::ship.flags.docked) {
+            needReloadOptions = false;
+            loadPlayerOptions(false);
+        }
         if (needReloadBindings)
             loadInputBindings();
         if (needReloadStatus)
@@ -1364,6 +1407,7 @@ void Configuration::changeDirThreadLoop() {
 
         if (!journalFilenameW.empty() && journalFilenameW != mEDCurrentJournalFile) {
             mEDCurrentJournalFile = journalFilenameW;
+            LOG(INFO) << "Journal file: " << mEDCurrentJournalFile;
             if (journalStream.is_open())
                 journalStream.close();
             journalStream.open(mEDCurrentJournalFile, std::ifstream::in);

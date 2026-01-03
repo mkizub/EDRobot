@@ -22,35 +22,33 @@ bool BaseButton::detect(DetectParams &params) {
             detector = std::make_unique<detect::ImageTemplate>(icon, nullptr);
             detector->extendLT = extendLT;
             detector->extendRB = extendRB;
+            std::swap(detector->filters, this->filters);
         }
         // assume icon is at the center of this bgutton
         auto &orig = detector->refOrig;
         auto &size = detector->refSize;
         orig.x = expectedR.x + expectedR.width / 2 - size.width / 2;
         orig.y = expectedR.y + expectedR.height / 2 - size.height / 2;
-        if (detector->match(params.env) < 0.5)
+        if (detector->match(params.env) >= 0.5) {
+            int cx = detector->captureRect.x + detector->captureRect.width / 2;
+            int cy = detector->captureRect.y + detector->captureRect.height / 2;
+            captureR.x = cx - captureR.width / 2;
+            captureR.y = cy - captureR.height / 2;
+            detectedR = env.cvtCapturedToReference(captureR);
+        }
+        else if (!force_present)
             return false;
-        int cx = detector->captureRect.x + detector->captureRect.width / 2;
-        int cy = detector->captureRect.y + detector->captureRect.height / 2;
-        captureR.x = cx - captureR.width / 2;
-        captureR.y = cy - captureR.height / 2;
-        detectedR = env.cvtCapturedToReference(captureR);
     } else if (extendLT != cv::Point() || extendRB != cv::Point()) {
         cv::Rect extendR = {expectedR.tl() - extendLT, expectedR.br() + extendRB};
         cv::Rect matchR = env.cvtReferenceToCaptured(extendR);
 
-        //cv::Vec3b hsvColorMin {5, 127, 30};
-        //cv::Vec3b hsvColorMax {30, 255, 255};
-        //XMat hsvImage;
-        //cv::cvtColor(env.getColorImage()(matchR), hsvImage, cv::COLOR_BGR2HSV);
-        //XMat thrImage;
-        //cv::inRange(hsvImage, hsvColorMin, hsvColorMax, thrImage);
-        detect::ChannelFilter channelFilter(detect::ChannelFilter::gray);
-        XMat grayImage = channelFilter.apply(env.getColorImage()(matchR), {});
-        detect::LaplacianFilter laplFilter(5);
-        XMat laplImage = laplFilter.apply(grayImage, {});
-        detect::ThresholdFilter thrFilter;
-        XMat thrImage = thrFilter.apply(laplImage, {});
+        if (filters.empty()) {
+            filters.emplace_back(new detect::ChannelFilter(detect::ChannelFilter::gray));
+            filters.emplace_back(new detect::LaplacianFilter(1));
+            filters.emplace_back(new detect::ThresholdFilter(5));
+        }
+        XMat buttonImage = env.getColorImage()(matchR);
+        XMat thrImage = detect::ImageTemplate::applyFilters(filters, buttonImage, {});
 
         bool detected = false;
         std::vector<std::vector<cv::Point>> contours;
@@ -72,7 +70,7 @@ bool BaseButton::detect(DetectParams &params) {
                 }
             }
         }
-        if (!detected)
+        if (!detected && !force_present)
             return false;
     }
 

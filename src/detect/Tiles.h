@@ -27,7 +27,7 @@ public:
     cv::Rect mMarksRect;
     cv::Rect mTestRect;
     cv::Size mTileSize;
-    double mOcrHeight;
+    float mFontHeight;
     bool mTryMerge {true};
     std::vector<std::string> mIconFiles;
     enum IconAlign {

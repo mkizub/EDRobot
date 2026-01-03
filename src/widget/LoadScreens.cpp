@@ -164,25 +164,22 @@ static void ext_from_json(const json5pp::value& v, cv::Point& extendLT, cv::Poin
     extendRB = {extR, extB};
 }
 
-static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFilter>& f) {
+static detect::ImageFilter* filter_from_json(const json5pp::value& jf) {
     if (!jf.is_object())
-        return;
-    auto& jo = jf.as_object();
-    if (jo.contains("threshold") && jf["threshold"].is_number()) {
+        return nullptr;
+    if (jf["threshold"].is_number()) {
         double thr = jf["threshold"].as_number();
         double max = thr < 1 ? 0.5 : 255.0;
         if (jf["max"].is_number())
             max = jf["max"].as_number();
-        f.reset(new ThresholdFilter(thr, max));
-        return;
+        return new ThresholdFilter(thr, max);
     }
-    if (jo.contains("channel") && jf["channel"].is_string()) {
+    if (jf["channel"].is_string()) {
         std::string chn = toLower(jf["channel"].as_string());
         ChannelFilter::Channel channel = enum_cast<ChannelFilter::Channel>(chn).value();
-        f.reset(new ChannelFilter(channel));
-        return;
+        return new ChannelFilter(channel);
     }
-    if (jo.contains("gauss") && jf["gauss"].is_object()) {
+    if (jf["gauss"].is_object()) {
         int kernX = 3;
         int kernY = 3;
         if (jf["gauss"]["kern"].is_array()) {
@@ -194,10 +191,9 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
         }
         kernX = (kernX & ~1) + 1;
         kernY = (kernY & ~1) + 1;
-        f.reset(new GaussFilter(kernX, kernY));
-        return;
+        return new GaussFilter(kernX, kernY);
     }
-    if (jo.contains("laplacian") && jf["laplacian"].is_object()) {
+    if (jf["laplacian"].is_object()) {
         int kern = 3;
         double scale = 1;
         double delta = 0;
@@ -207,10 +203,9 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
             scale = jf["laplacian"]["scale"].as_number();
         if (jf["laplacian"]["delta"].is_number())
             delta = jf["laplacian"]["delta"].as_number();
-        f.reset(new LaplacianFilter(kern, scale, delta));
-        return;
+        return new LaplacianFilter(kern, scale, delta);
     }
-    if (jo.contains("scharr") && jf["scharr"].is_object()) {
+    if (jf["scharr"].is_object()) {
         bool vert = false;
         double scale = 1;
         if (jf["scharr"]["vert"].is_boolean())
@@ -219,10 +214,9 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
             vert = !jf["scharr"]["horz"].as_boolean();
         if (jf["scharr"]["scale"].is_number())
             scale = jf["scharr"]["scale"].as_number();
-        f.reset(new ScharrFilter(vert, scale));
-        return;
+        return new ScharrFilter(vert, scale);
     }
-    if (jo.contains("lines") && jf["lines"].is_object()) {
+    if (jf["lines"].is_object()) {
         bool vert = false;
         double scale = 1;
         double threshold = 45;
@@ -245,10 +239,9 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
             dilateNeg = jf["lines"]["dilate_neg"].as_integer();
         if (jf["lines"]["erode"].is_integer())
             erode = jf["lines"]["erode"].as_integer();
-        f.reset(new LinesFilter(vert, scale, threshold, dilatePos, dilateNeg, erode));
-        return;
+        return new LinesFilter(vert, scale, threshold, dilatePos, dilateNeg, erode);
     }
-    if (jo.contains("edge_box") && jf["edge_box"].is_object()) {
+    if (jf["edge_box"].is_object()) {
         int kern = 5;
         double scale = 2.0;
         double thr = 0;
@@ -258,18 +251,16 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
             scale = jf["edge_box"]["scale"].as_number();
         if (jf["edge_box"]["thr"].is_number())
             thr = jf["edge_box"]["thr"].as_number();
-        f.reset(new EdgeByBoxFilter(kern, scale, thr));
-        return;
+        return new EdgeByBoxFilter(kern, scale, thr);
     }
-    if (jo.contains("gain") && jf["gain"].is_number()) {
+    if (jf["gain"].is_number()) {
         double gain = jf["gain"].as_number();
         double bias = 0;
         if (jf["bias"].is_number())
             bias = jf["bias"].as_number();
-        f.reset(new GainBiasFilter(gain, bias));
-        return;
+        return new GainBiasFilter(gain, bias);
     }
-    if (jo.contains("dilate")) {
+    if (!jf["dilate"].empty()) {
         int kernX = 3;
         int kernY = 3;
         int iter = 1;
@@ -281,10 +272,9 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
         }
         if (jf["iter"].is_integer())
             iter = jf["iter"].as_integer();
-        f.reset(new DilateFilter(kernX, kernY, iter));
-        return;
+        return new DilateFilter(kernX, kernY, iter);
     }
-    if (jo.contains("erode")) {
+    if (!jf["erode"].empty()) {
         int kernX = 3;
         int kernY = 3;
         int iter = 1;
@@ -296,13 +286,12 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
         }
         if (jf["iter"].is_integer())
             iter = jf["iter"].as_integer();
-        f.reset(new ErodeFilter(kernX, kernY, iter));
-        return;
+        return new ErodeFilter(kernX, kernY, iter);
     }
-    bool has_hsv_crop = jo.contains("hsv_crop");
-    bool has_hsv_gray = jo.contains("hsv_gray");
-    bool has_hsv_mask = jo.contains("hsv_mask");
-    bool has_hsv_cval = jo.contains("hsv_cval");
+    bool has_hsv_crop = !jf["hsv_crop"].empty();
+    bool has_hsv_gray = !jf["hsv_gray"].empty();
+    bool has_hsv_mask = !jf["hsv_mask"].empty();
+    bool has_hsv_cval = !jf["hsv_cval"].empty();
     if (has_hsv_crop || has_hsv_gray || has_hsv_mask) {
         json5pp::value jhsv;
         HsvMaskFilter* filter;
@@ -346,12 +335,26 @@ static void from_json(const json5pp::value& jf, std::unique_ptr<detect::ImageFil
             }
             filter->rangesU.emplace_back(min,max);
         }
-        if (filter->rangesU.empty())
-            delete filter;
-        else
-            f.reset(filter);
-        return;
+        return filter;
     }
+    return nullptr;
+}
+
+static std::vector<std::unique_ptr<detect::ImageFilter>> filters_from_json(const json5pp::value& v) {
+    std::vector<std::unique_ptr<detect::ImageFilter>> filters;
+    if (v.is_object()) {
+        auto f = filter_from_json(v);
+        if (f)
+            filters.emplace_back(f);
+    }
+    else if (v.is_array()) {
+        for (auto& jf : v.as_array()) {
+            auto f = filter_from_json(jf);
+            if (f)
+                filters.emplace_back(f);
+        }
+    }
+    return filters;
 }
 
 static void image_template_from_json(const json5pp::value& j, ImageTemplate* templ) {
@@ -386,22 +389,8 @@ static void image_template_from_json(const json5pp::value& j, ImageTemplate* tem
             templ->matchMethod = cv::TM_SQDIFF_NORMED;
     }
 
-    if (j.at("filter")) {
-        if (j.at("filter").is_object()) {
-            std::unique_ptr<ImageFilter> f;
-            from_json(j.at("filter"), f);
-            if (f)
-                templ->filters.push_back(std::move(f));
-        }
-        else if (j.at("filter").is_array()) {
-            for (auto& jf : j.at("filter").as_array()) {
-                std::unique_ptr<ImageFilter> f;
-                from_json(jf, f);
-                if (f)
-                    templ->filters.push_back(std::move(f));
-            }
-        }
-    }
+    if (!j["filter"].empty())
+        templ->filters = filters_from_json(j["filter"]);
 }
 
 static Detector* detector_from_json(const json5pp::value& j, Widget& widget, FovScale* fov_scale) {
@@ -509,22 +498,8 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
             if (j.at("prec"))
                 ldet->angleStep = j["prec"].as_number();
 
-            if (j.at("filter")) {
-                if (j.at("filter").is_object()) {
-                    std::unique_ptr<ImageFilter> f;
-                    from_json(j.at("filter"), f);
-                    if (f)
-                        ldet->filters.push_back(std::move(f));
-                }
-                else if (j.at("filter").is_array()) {
-                    for (auto& jf : j.at("filter").as_array()) {
-                        std::unique_ptr<ImageFilter> f;
-                        from_json(jf, f);
-                        if (f)
-                            ldet->filters.push_back(std::move(f));
-                    }
-                }
-            }
+            if (!j["filter"].empty())
+                ldet->filters = filters_from_json(j["filter"]);
             return ldet;
         }
         if (j.as_object().contains("tiles")) {
@@ -565,8 +540,8 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
                 tiles->icons_detector = std::unique_ptr<ImageTemplate>(templ);
             }
             if (j["labels"].is_object()) {
-                if (!j["ocr_height"].empty())
-                    tiles->mOcrHeight = value_from_json(j["ocr_height"], fov_scale);
+                if (!j["font_height"].empty())
+                    tiles->mFontHeight = value_from_json(j["font_height"], fov_scale);
                 FuzzyMatch fm;
                 for (auto& p : j["labels"].as_object()) {
                     std::vector<std::wstring>& texts = tiles->labels[p.first];
@@ -607,10 +582,12 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
             minmax_from_json(j["t"], tdet->mThresholdMin, tdet->mThresholdMax);
             if (j["weight"].is_number())
                 tdet->classifierWeight = j["weight"].as_number();
-            if (j["line_height"].is_integer())
-                tdet->mLineHeight = j["line_height"].as_integer();
+            if (!j["font_height"].empty())
+                tdet->mFontHeight = value_from_json(j["font_height"], fov_scale);
             if (j["psm"].is_integer())
                 tdet->mOcrPSM = j["psm"].as_integer();
+            if (j["multiline"].is_boolean())
+                tdet->mMultiLine = j["multiline"].as_boolean();
 
             return tdet;
         }
@@ -731,10 +708,14 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
         auto btn = new Button(name, parent);
         widget = btn;
         widget->setRect("rect", j, fov_scale);
-        if (jo.contains("ext"))
-            ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
         if (j["icon"].is_string())
             btn->icon = "templates/"+j["icon"].as_string();
+        if (jo.contains("ext"))
+            ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
+        if (jo.contains("filter"))
+            btn->filters = filters_from_json(j["filter"]);
+        if (j["force_present"].is_boolean())
+            btn->force_present = j["force_present"].as_boolean();
     }
     else if (name.starts_with("spn-")) {
         auto btn = new Spinner(name, parent);
@@ -742,6 +723,10 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
         widget->setRect("rect", j, fov_scale);
         if (jo.contains("ext"))
             ext_from_json(jo.at("ext"), btn->extendLT, btn->extendRB);
+        if (jo.contains("filter"))
+            btn->filters = filters_from_json(j["filter"]);
+        if (j["force_present"].is_boolean())
+            btn->force_present = j["force_present"].as_boolean();
     }
     else if (name.starts_with("til-")) {
         std::string icon;
@@ -754,10 +739,8 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
         auto lbl = new Label(name, parent);
         widget = lbl;
         widget->setRect("rect", j, fov_scale);
-        if (jo.contains("ocr_top") && jo.contains("ocr_bot")) {
-            lbl->ocr_top = jo.at("ocr_top").as_integer();
-            lbl->ocr_bot = jo.at("ocr_bot").as_integer();
-        }
+        if (jo.contains("font_height"))
+            lbl->mFontHeight = value_from_json(j["font_height"], fov_scale);
     }
     else if (name.starts_with("lst-")) {
         List* lst;
@@ -782,8 +765,8 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
                     tab.name = jt.at("name").as_string();
                 tab.tab_left = jt.at("left").as_integer();
                 tab.tab_right = jt.at("right").as_integer();
-                if (jt["ocr_height"].is_integer())
-                    tab.ocr_height = jt["ocr_height"].as_integer();
+                if (!jt["font_height"].empty())
+                    tab.ocr_height = value_from_json(jt["font_height"], fov_scale);
                 if (jt["ocr_psm"].is_integer())
                     tab.ocr_psm = jt["ocr_psm"].as_integer();
                 lst->tabs.push_back(tab);

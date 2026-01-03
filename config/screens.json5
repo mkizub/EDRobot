@@ -10,12 +10,14 @@
       },
       { name: 'title', rect:[142,65,310,36, 54.32],
         texts: { 'market' : "Потребительский рынок"},
+        font_height: 30,
       },
       { name: 'market-mode', rect:[250,182,230,36, 54.32],
         texts: {
           'buy' : "Купить на рынке",
           'sell' : "Продать на рынке",
         },
+        font_height: 30
       }
     ],
     have: [
@@ -29,9 +31,9 @@
         row_height: 35, row_gap: 3.3333333, header: 38, row_test: [300,540],
         tabs: [
           {left:0,   right:114 },
-          {left:120, right:548, ocr_height: 18, name: 'name' }, // commodity name
+          {left:120, right:548, font_height: 18, name: 'name' }, // commodity name
           {left:554, right:688 }, // demand
-          {left:696, right:830, ocr_height: 18, name: 'price' }, // sell/buy price
+          {left:696, right:830, font_height: 18, name: 'price' }, // sell/buy price
           {left:840, right:1012 }, // galaxy average price
           ]
       },
@@ -52,8 +54,9 @@
                   { name: 'btn-cancel', rect: [714,"848+sdil.oy",242,38] },
                   { name: 'btn-more', rect: [965,"848+sdil.oy",242,38] },
                   { name: 'btn-commit', rect: [714,"575+sdil.oy",494,60] },
-                  { name: 'spn-amount', rect: [714,"348+sdil.oy",496,62], ext: [5,25,5,25] },
-                  { name: 'lbl-commodity', rect: [777,"298+sdtl.oy",428,"spn-amount.y - 306-sdtl.oy"], ocr_top: 6, ocr_bot: 38}
+                  { name: 'spn-amount', rect: [714,"348+sdil.oy",496,62], ext: [5,25,5,25], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 5 }}, {threshold: 127} ] },
+                  { name: 'lbl-commodity', rect: [777,"298+sdtl.oy",428,"spn-amount.y - 306-sdtl.oy"], font_height: 32 }
                 ]
               },
               {
@@ -66,8 +69,9 @@
                   { name: 'btn-cancel', rect: [509,"848+sdim.oy",242,38] },
                   { name: 'btn-more', rect: [762,"848+sdim.oy",242,38] },
                   { name: 'btn-commit', rect: [512,"575+sdim.oy",490,60] },
-                  { name: 'spn-amount', rect: [510,"349+sdim.oy",496,62], ext: [5,25,5,25] },
-                  { name: 'lbl-commodity', rect: [573,"298+sdtm.oy",430,"spn-amount.y - 306-sdtm.oy"], ocr_top: 6, ocr_bot: 38},
+                  { name: 'spn-amount', rect: [510,"349+sdim.oy",496,62], ext: [5,25,5,25], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 5 }}, {threshold: 127} ] },
+                  { name: 'lbl-commodity', rect: [573,"298+sdtm.oy",430,"spn-amount.y - 306-sdtm.oy"], font_height: 32 },
                   { name: 'btn-galaxy', rect: [1028,"809+sdim.oy",382,76] },
                   { name: 'lst-markets', rect: [1040,315,350,"482+sdim.oy"] }
                 ]
@@ -93,8 +97,9 @@
                   { name: 'btn-cancel', rect: [712,"832+bdil.oy",242,38] },
                   { name: 'btn-more', rect: [964,"832+bdil.oy",242,38] },
                   { name: 'btn-commit', rect: [712,"560+bdil.oy",490,60] },
-                  { name: 'spn-amount', rect: [712,"360+bdil.oy",496,62], ext: [5,25,5,25] },
-                  { name: 'lbl-commodity', rect: [778,"312+bdtl.oy",432,"spn-amount.y - 320-bdtl.oy"], ocr_top: 6, ocr_bot: 38 },
+                  { name: 'spn-amount', rect: [712,"360+bdil.oy",496,62], ext: [5,25,5,25], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 5 }}, {threshold: 127} ] },
+                  { name: 'lbl-commodity', rect: [778,"312+bdtl.oy",432,"spn-amount.y - 320-bdtl.oy"], font_height: 32 },
                 ]
               },
               {
@@ -107,8 +112,9 @@
                   { name: 'btn-cancel', rect: [509,"832+bdim.oy",242,38] },
                   { name: 'btn-more', rect: [761,"832+bdim.oy",242,38] },
                   { name: 'btn-commit', rect: [512,"560+bdim.oy",490,60] },
-                  { name: 'spn-amount', rect: [510,"360+bdim.oy",496,62], ext: [5,25,5,25] },
-                  { name: 'lbl-commodity', rect: [573,"312+bdtm.oy",432,"spn-amount.y - 320-bdtm.oy"], ocr_top: 6, ocr_bot: 38 },
+                  { name: 'spn-amount', rect: [510,"360+bdim.oy",496,62], ext: [5,25,5,25], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 5 }}, {threshold: 127} ] },
+                  { name: 'lbl-commodity', rect: [573,"312+bdtm.oy",432,"spn-amount.y - 320-bdtm.oy"], font_height: 32 },
                   { name: 'btn-galaxy', rect: [1028,"796+bdim.oy",382,76] },
                   { name: 'lst-markets', rect: [1037,310,350,"486+bdim.oy"] }
                 ]
@@ -215,17 +221,19 @@
   {
     name: 'scr-contacts',
     status: { gui: 'Services', docked: true },
+    fov_size: 0.888258,
     have: [
       { name: 'mod-select',
         detect: [
           { img: "at_contacts_icon.png", t: [0.6, 0.8], rect:[430,105,93,89, 54.32], weight: 0.5 },
           { name: 'title', rect:[544,92,128,36, 54.32], t: [0.6,0.9],
             texts: { 'contacts' : "Контакты"},
+            font_height: [30, 54.32]
           },
           {
             tiles: [412,220,1082,650, 54.32], rows: [2,5], cols: 2, gap: 4, name: 'contact',
             size: [540,124, 54.32], test: [140,90,60,20, 54.32], merge: false,
-            rect: [136,2,380,36, 54.32], ocr_height: [24, 54.32],
+            rect: [136,2,380,36, 54.32], font_height: [24, 54.32],
             labels: {
               'authority': ["Представитель администрации"],
               'bonds': ["Контакт: боевые облигации"],
@@ -260,7 +268,7 @@
               'authority' : "Представитель местных властей",
               'power-play' : "Представитель державы",
             },
-            raw: true
+            font_height: [30, 54.32]
           }
         ],
         have: [
@@ -274,7 +282,7 @@
                   'fine' : "Общая сумма",
                   //'justice' : ""
                 },
-                line_height: 30,
+                font_height: [24, 54.32],
                 psm: 4
               }
             ],
@@ -334,22 +342,17 @@
                   'acquire-res' : "Собрать выделенные ресурсы",
                   'take-aid-kit': "Заберите набор помощи",
                 },
+                font_height: [30, 54.32],
                 weight: 0
               },
-              { name: 'dlg-acquire', rect:[520,198,450,38, 54.32],
+              { name: 'transfer', rect:[520,172,450,66, 54.32],
                 texts: {
                   'acquire-res' : "Собрать выделенные ресурсы",
+                  'deliver-res' : "Доставить выделенные ресурсы"
                 },
-                raw: true,
+                font_height: [30, 54.32],
                 weight: 0
               },
-              { name: 'dlg-deliver', rect:[520,174,450,38, 54.32],
-                texts: {
-                  'acquire-res' : "Доставить выделенные ресурсы",
-                },
-                raw: true,
-                weight: 0
-              }
             ],
             have: [
               { name: 'btn-deliver-res',  rect: [561,219,62,62, 54.32] },
@@ -362,7 +365,7 @@
                   { name: 'lst-pp-deliver',  rect: [646,388,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
                     tabs: [
                       {left:0,   right:46, name: 'icon' },
-                      {left:46,  right:470, name: 'name', ocr_height: 20, ocr_psm: 5 }, // commodity name
+                      {left:46,  right:470, name: 'name', font_height: [20, 54.32], ocr_psm: 5 }, // commodity name
                       {left:500, right:620, name: 'deliver' },
                     ]
                   }
@@ -374,30 +377,34 @@
                   { name: 'lst-pp-acquire',  rect: [646,414,695,170, 54.32], row_height: 54, row_gap: 4, row_test: [444,458],
                     tabs: [
                       {left:0,   right:42, name: 'icon' },
-                      {left:48,  right:458, name: 'name', ocr_height: 20, ocr_psm: 5 }, // commodity name
+                      {left:48,  right:458, name: 'name', font_height: [20, 54.32], ocr_psm: 5 }, // commodity name
                       {left:498, right:620, name: 'acquire' },
                     ]
                   }
                 ]
               },
               { name: 'dlg-acquire-res',
-                detect: 'dlg-acquire:acquire-res',
+                detect: 'transfer:acquire-res',
                 have: [
-                  { name: 'btn-cancel', rect: [526,898,300,39] },
-                  { name: 'btn-commit', rect: [526,828,869,64] },
-                  { name: 'spn-amount', rect: [526,624,869,64] },
-                  { name: 'lbl-commodity', rect: [772,626,668,46], ocr_top: 0, ocr_bot: 46},
+                  { name: 'btn-cancel', rect: [526,898,300,39, 54.32] },
+                  { name: 'btn-commit', rect: [526,828,869,64, 54.32], ext: [5,20], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 1, scale: 8 }}, {threshold: 20} ] },
+                  { name: 'spn-amount', rect: [526,624,869,64, 54.32], ext: [5,20], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 1, scale: 8 }}, {threshold: 20} ] },
+                  { name: 'lbl-commodity', rect: [772,626,668,46, 54.32], font_height: 30 },
                 ]
               },
               { name: 'dlg-deliver-res',
-                detect: 'dlg-deliver:deliver-res',
+                detect: 'transfer:deliver-res',
                 have: [
-                  { name: 'btn-cancel', rect: [526,871,300,39] },
-                  { name: 'btn-commit', rect: [526,802,869,64] },
-                  { name: 'spn-amount', rect: [526,600,869,64] },
+                  { name: 'btn-cancel', rect: [526,871,300,39, 54.32] },
+                  { name: 'btn-commit', rect: [526,802,869,64, 54.32], ext: [5,20], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 1, scale: 8 }}, {threshold: 20} ] },
+                  { name: 'spn-amount', rect: [526,600,869,64, 54.32], ext: [5,20], force_present: true,
+                    filter: [ {channel: 'gray'}, {laplacian: { kern: 1, scale: 8 }}, {threshold: 20} ] }
                 ]
               },
-              { name: 'dlg-take-aid-kit',
+              { name: 'mod-take-aid-kit',
                 detect: 'exchange:take-aid-kit'
               },
               { name: 'mod-other',
@@ -511,8 +518,8 @@
           { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",880,"btn-system.b - btn-filter.t + 8"],
             row_height: 36, row_gap: 3.55, row_test: [400,730],
             tabs: [
-              {left:0,   right:750, ocr_height: 22, ocr_psm: 7, name: 'name' }, // nav/body name
-              {left:750, right:875, ocr_height: 22, ocr_psm: 7, name: 'dist' }, // distance
+              {left:0,   right:750, font_height: 22, ocr_psm: 7, name: 'name' }, // nav/body name
+              {left:750, right:875, font_height: 22, ocr_psm: 7, name: 'dist' }, // distance
             ]
           }
         ]
@@ -533,7 +540,8 @@
         name: "mod-contacts",
         detect: "nav_panel:contacts",
         have: [
-          { name: 'btn-landing', rect: [657,335,500,58], ext: [5,40] },
+          { name: 'btn-landing', rect: [657,335,500,58], ext: [5,40], force_present: false,
+            filter: [ {channel: 'gray'}, {laplacian: { kern: 5 }}, {threshold: 127} ] },
           { name: 'lst-contacts', rect: [2,68,636,582] }, // rect: [2,64,584,590]
         ]
       },
@@ -554,7 +562,7 @@
           merge: false,
         }],
         have: [
-          { name: 'lbl-title',        rect: [260,49,750,38], ocr_top: 6, ocr_bot: 37 },
+          { name: 'lbl-title',        rect: [260,49,750,38], font_height: 30 },
           { name: 'til-lock-dest',    icon: "dest:ti-dest-lock" },
           { name: 'til-unlock-dest',  icon: "dest:ti-dest-unlock" },
           { name: 'til-see-starmap',  icon: "dest:ti-dest-see-starmap" },

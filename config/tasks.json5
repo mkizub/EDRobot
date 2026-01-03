@@ -1,6 +1,49 @@
 [
   {
     "templ": "tsk-trade-loop",
+    "name": "Торговый маршрут LHS 3356 Pytheas Orbital",
+    "markets": [
+      {
+        "templ": "tsk-trade-at",
+        "system": "5 G. Capricorni",
+        "dock": "Mastracchio Orbital",
+        "tasks": [
+          {
+            "templ": "tsk-market-sell-all",
+            "except": [
+              "gromcounterintelligence",
+              "biowaste"
+            ]
+          },
+          {
+            "templ": "tsk-contact-acquire-ppc",
+            "commodity": "gromcounterintelligence"
+          },
+          {
+            "templ": "tsk-market-buy",
+            "commodity": "biowaste"
+          }
+        ]
+      },
+      {
+        "templ": "tsk-trade-at",
+        "system": "LHS 3356",
+        "dock": "Pytheas Orbital",
+        "tasks": [
+          {
+            "templ": "tsk-contact-deliver-ppc",
+            "commodity": "gromcounterintelligence"
+          },
+          {
+            "templ": "tsk-market-sell",
+            "commodity": "biowaste"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "templ": "tsk-trade-loop",
     "name": "Торговый маршрут LHS 3356",
     "markets": [
       {

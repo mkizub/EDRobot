@@ -756,7 +756,7 @@ bool ListPPC::detect(widget::Widget::DetectParams &params) {
             cv::Mat grayImage;
             cv::cvtColor(env.getColorImage()(nameRect), grayImage, cv::COLOR_BGR2GRAY);
             std::string text;
-            ocr_conf = ocr::ocrDetectorText(ocr::AUTO_PSM_3, ocr_height, grayImage, env, text, nullptr);
+            ocr_conf = ocr::ocrDetectorText(ocr::GENERIC, ocr_height, true, grayImage, env, text, nullptr);
             std::wstring wtext = toUtf16(text);
 
             double bestRate = 0;

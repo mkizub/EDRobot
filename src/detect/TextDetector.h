@@ -24,9 +24,10 @@ public:
     int mOcrConfThreshold = 50;
     double mThresholdMin = 0.5;
     double mThresholdMax = 0.9;
-    std::optional<int> mLineHeight;
+    std::optional<double> mFontHeight;
     std::optional<int> mOcrPSM; // see OCR.h
     std::map<std::string,std::vector<std::wstring>> labels;
+    bool mMultiLine = false;
 };
 
 } // namespace detect
