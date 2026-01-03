@@ -13,6 +13,7 @@ class ImageFilter {
 public:
     struct Params {
         bool convertToFloat;
+        bool cropOptimalSize;
     };
     virtual ~ImageFilter() = default;
     virtual XMat apply(XMat image, Params params) = 0;

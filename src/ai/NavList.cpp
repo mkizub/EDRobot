@@ -103,8 +103,8 @@ bool NavList::parseNavRow(const cv::Mat &grayImage, const ResolvedEnv& rEnv, con
     nle.ocr_conf = ocr_conf;
     if (nle.icon == gal::STAR.charOCR || nle.icon == gal::BODY.charOCR || nle.icon == gal::LAND.charOCR)
         nle.ocr_conf *= 0.8; // they have mostly the same name, different in a few last chars
-    double indent = (rectOut.x - 3.0) / double(27);
-    nle.indent = (int) std::round(indent);
+    double indent = (rectOut.x - 6.0) / double(17);
+    nle.indent = (int) std::round(std::abs(indent));
     if (cr.u.lrow.ws == WState::Focused)
         nle.focused = true;
     return ok;

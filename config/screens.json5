@@ -434,10 +434,10 @@
     ////// make all template images and numbers for FOV=54.32 (minimal FOV) !!!!! //////
     vars: {
       compass: [
-        { size: [62,60], rect: [663,807,83,83], ext: [40, 60, 60,110], key: ['type9'] },
-        { size: [62,58], rect: [668,806,82,80], ext: [130,80,120,140], key: ['panthermkii'] },
-        { size: [60,58], rect: [673,837,80,77], ext: [40, 60, 60,110], key: ['cutter'] },
-        { size: [60,58], rect: [673,837,80,77], ext: [40, 60, 60,110] }
+        { size: [62,60], rect: [663,807,84,84], ext: [40, 60, 60,110], key: ['type9'] },
+        { size: [62,60], rect: [667,804,84,84], ext: [130,80,120,140], key: ['panthermkii'] },
+        { size: [61,59], rect: [672,833,84,84], ext: [40, 60, 60,110], key: ['cutter'] },
+        { size: [61,59], rect: [672,833,84,84], ext: [40, 60, 60,110] }
       ],
       undistort: [ // for fov [54,60]
         //{ fov: [1.9,2.1], key: ['2560x1080'] },

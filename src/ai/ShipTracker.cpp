@@ -6,6 +6,7 @@
 
 #include "Types.h"
 #include "AutopilotTasks.h"
+#include "AIManager.h"
 #include "../Keyboard.h"
 #include "../ShipStats.h"
 
@@ -259,8 +260,12 @@ void approximateCompassDistance(CompassInfo& compass) {
         int buffer_rate = d.conf;
         for (int i=int(buffer.size())-1; i >= 0; i--) {
             auto& cd = buffer[i];
-            if (in_range(d, cd.dist))
-                buffer_rate += cd.dist.conf;
+            if (in_range(d, cd.dist)) {
+                if (d > d2t)
+                    buffer_rate += cd.dist.conf/2;
+                else
+                    buffer_rate += cd.dist.conf;
+            }
             else
                 buffer_rate -= cd.dist.conf;
         }
@@ -268,15 +273,23 @@ void approximateCompassDistance(CompassInfo& compass) {
         buffer.push_back({compass.timestamp, d});
 
         if (in_prev_range || buffer_rate >= 0) {
-            d2t = d;
             if (in_prev_range && buffer_rate > 0)
-                LOG(INFO) << std::format("Target dist ( both  ): {} (conf {})", d.to_string(), int(d.conf));
-            else if (buffer_rate > 0)
-                LOG(INFO) << std::format("Target dist (history): {} (conf {})", d.to_string(), int(d.conf));
+                LOG(INFO) << std::format("Target dist (both ): {} (conf {})", d.to_string(), int(d.conf));
+            else if (buffer_rate > 0) {
+                //std::string history;
+                //history += d2t.to_string();
+                //for (int i=int(buffer.size())-1; i >= 0; i--) {
+                //    history += " " + buffer[i].dist.to_string();
+                //}
+                //LOG(INFO) << std::format("Target dist history: {}", history);
+                LOG(INFO) << std::format("Target dist (ACCUM): {} (conf {})", d.to_string(), int(d.conf));
+            }
             else if (in_prev_range)
-                LOG(INFO) << std::format("Target dist ( prev  ): {} (conf {})", d.to_string(), int(d.conf));
+                LOG(INFO) << std::format("Target dist (prev ): {} (conf {})", d.to_string(), int(d.conf));
             else
-                LOG(INFO) << std::format("Target dist ( first ): {} (conf {})", d.to_string(), int(d.conf));
+                LOG(INFO) << std::format("Target dist (first): {} (conf {})", d.to_string(), int(d.conf));
+
+            d2t = d;
 
             if (st::autopilot.destDock && st::autopilot.destDock->nameEq(buffer_target_name))
                 st::autopilot.distanceToDock = d2t;
@@ -307,6 +320,10 @@ void turn_loop() {
             isLoopWaiting = true;
             if (!isActive)
                 wait_dur = 1min;
+            else if (ai::uiState.autopilot)
+                wait_dur = 5s;
+            else if (st::autopilot.distanceToDock < 3_Mm && wait_dur > 250ms)
+                wait_dur = 250ms;
             else if (wait_dur > 650ms)
                 wait_dur = 650ms;
             turnCond.wait_for(lock, wait_dur);

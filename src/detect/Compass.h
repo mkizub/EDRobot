@@ -29,11 +29,12 @@ public:
     void loadCompass();
 
     double match(ClassifyEnv& env) override;
+    void detectNavTarget(ClassifyEnv& env, bool afterCompass);
 
     cv::Rect targetReferenceRect;
     cv::Rect targetRemapRect;
 
-    cv::Size compassRefSize;
+    cv::Size2d compassRefSize;
     std::string compassImageName;
 
     std::unique_ptr<ImageTemplate>  compassDetector;

@@ -83,32 +83,69 @@ double ImageTemplate::toResult(double matchValue) {
     return std::clamp(1.125 / (1 + std::exp(-x)), 0.0, 1.0);
 }
 
+static const int optimalDFTSizeTab[] = {
+        2, 4, 6, 8, 10, 12, 16, 18, 20, 24, 30, 32, 36, 40, 48,
+        50, 54, 60, 64, 72, 80, 90, 96, 100, 108, 120, 128, 144, 150, 160,
+        162, 180, 192, 200, 216, 240, 250, 256, 270, 288, 300, 320, 324, 360,
+        384, 400, 432, 450, 480, 486, 500, 512, 540, 576, 600, 640, 648, 720,
+        750, 768, 800, 810, 864, 900, 960, 972, 1000, 1024, 1080, 1152, 1200,
+        1250, 1280, 1296, 1350, 1440, 1458, 1500, 1536, 1600, 1620, 1728, 1800,
+        1920, 1944, 2000, 2048, 2160, 2250, 2304, 2400, 2430, 2500, 2560, 2592,
+        2700, 2880, 2916, 3000, 3072, 3200, 3240, 3456, 3600, 3750, 3840,
+        3888, 4000, 4050, 4096, 4320, 4374, 4500, 4608, 4800, 4860, 5000, 5120, 5184, 5400,
+};
+
+int getOptimalDFTSize(int v, bool crop) {
+    for (int i=0; i < std::size(optimalDFTSizeTab); i++) {
+        if (optimalDFTSizeTab[i] < v)
+            continue;
+        if (optimalDFTSizeTab[i] == v)
+            return optimalDFTSizeTab[i];
+        if (!crop)
+            return optimalDFTSizeTab[i];
+        else
+            return optimalDFTSizeTab[i-1];
+    }
+    return v;
+}
+
 ImageTemplate::ImageMatrix ImageTemplate::prepareImageMatrix(
         const ClassifyEnv& env, const std::vector<std::unique_ptr<ImageFilter>>& filters,
         XMat image, double scale, int angle, const std::string& name, ImageFilter::Params params)
 {
     XMat prep = image;
+    if (params.cropOptimalSize) {
+        int w = int(std::round(scale * env.getScale() * prep.cols));
+        if (w & 1)
+            scale = (w+1) / (env.getScale() * prep.cols);
+    }
     if (angle == 0)
         prep = scaleImage(prep, scale * env.getScale(), scale * env.getScale());
     else
         prep = rotateImage(prep, angle, scale * env.getScale());
     prep = applyFilters(filters, prep, {.convertToFloat=false});
-    uint16_t org_w = prep.cols;
-    uint16_t org_h = prep.rows;
-    uint16_t opt_w = cv::getOptimalDFTSize(org_w);
-    uint16_t opt_h = cv::getOptimalDFTSize(org_h);
-    uint16_t opt_top = 0;
-    uint16_t opt_bottom = 0;
-    uint16_t opt_left = 0;
-    uint16_t opt_right = 0;
+    int16_t org_w = prep.cols;
+    int16_t org_h = prep.rows;
+    int16_t opt_w = getOptimalDFTSize(org_w, params.cropOptimalSize);
+    int16_t opt_h = getOptimalDFTSize(org_h, params.cropOptimalSize);
+    int16_t opt_t = 0;
+    int16_t opt_b = 0;
+    int16_t opt_l = 0;
+    int16_t opt_r = 0;
     if (prep.cols != opt_w || prep.rows != opt_h) {
-        opt_top = (opt_h - prep.rows) / 2;
-        opt_bottom = opt_h - prep.rows - opt_top;
-        opt_left = (opt_w - prep.cols) / 2;
-        opt_right = opt_w - prep.cols - opt_left;
-        XMat opt_prep;
-        cv::copyMakeBorder(prep, opt_prep, opt_top, opt_bottom, opt_left, opt_right, cv::BORDER_REPLICATE);
-        prep = opt_prep;
+        if (opt_h < prep.rows || opt_w < prep.cols) {
+            int x = (int)std::round((prep.rows - opt_h)*0.5);
+            int y = (int)std::round((prep.cols - opt_w)*0.5);
+            prep = prep(cv::Rect(x,y,opt_w,opt_h)).clone();
+        } else {
+            opt_t = (opt_h - prep.rows) / 2;
+            opt_b = opt_h - prep.rows - opt_t;
+            opt_l = (opt_w - prep.cols) / 2;
+            opt_r = opt_w - prep.cols - opt_l;
+            XMat opt_prep;
+            cv::copyMakeBorder(prep, opt_prep, opt_t, opt_b, opt_l, opt_r, cv::BORDER_REPLICATE);
+            prep = opt_prep;
+        }
     }
     XMat prepU, prepF;
     if (prep.depth() == CV_8U) {
@@ -118,7 +155,7 @@ ImageTemplate::ImageMatrix ImageTemplate::prepareImageMatrix(
         prepF = prep;
         prepF.convertTo(prepU, CV_8U, 255.0);
     }
-    return {scale, double(angle), name, prepU, prepF, org_w, org_h, opt_w, opt_h, opt_left, opt_top, opt_right, opt_bottom};
+    return {scale, double(angle), name, prepU, prepF, org_w, org_h, opt_w, opt_h, opt_l, opt_t, opt_r, opt_b};
 }
 
 XMat ImageTemplate::applyFilters(const std::vector<std::unique_ptr<ImageFilter>>& filters, XMat image, ImageFilter::Params params) {
@@ -194,7 +231,8 @@ void ImageTemplate::prepareImages(ClassifyEnv& env) {
                         cv::cvtColor(templImageU, grayImage, cv::COLOR_BGR2GRAY);
                         templImageU = grayImage;
                     }
-                    ImageMatrix im_prep = prepareImageMatrix(env, filters, templImageU, scale, angle, im.name);
+                    ImageMatrix im_prep = prepareImageMatrix(env, filters, templImageU, scale, angle, im.name,
+                                                             {.cropOptimalSize=cropOptimalSize});
                     imagesPrepared.push_back(im_prep);
                 }
             }
@@ -274,8 +312,8 @@ void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<Im
 
 
 cv::Rect ImageTemplate::makeOptimalMatchRect(cv::Rect r) {
-    int optimalH = cv::getOptimalDFTSize(r.height);
-    int optimalW = cv::getOptimalDFTSize(r.width);
+    int optimalH = getOptimalDFTSize(r.height, false);
+    int optimalW = getOptimalDFTSize(r.width, false);
     int addTop = std::min(r.y, (optimalH - r.height) / 2);
     int addBottom = optimalH - r.height - addTop;
     int addLeft = std::min(r.x, (optimalW - r.width) / 2);
@@ -310,21 +348,24 @@ double ImageTemplate::match(ClassifyEnv &env) {
     XMat gameImagePrepared = applyFilters(filters, gameImage(matchRect), {.convertToFloat=useOpenCL()});
     if (gameImagePrepared.empty())
         return 0;
+    auto prepareTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
 
     lastMatchResult = {};
     auto& mr = lastMatchResult;
     matchTemplates(matchMethod, gameImagePrepared, imagesPrepared, mr);
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
     if (mr.value >= threshold_min) {
-        LOG(DEBUG) << std::format("ImageTemplate match result: {:.4f} ({:.4f}) for {} scale {:.4f}, took {}us", mr.value, toResult(mr.value), mr.im->name, mr.im->scale, elapsedTime.count());
+        LOG(DEBUG) << std::format("ImageTemplate match result: {:.4f} ({:.4f}) for {} scale {:.4f}, took {}us (prep {}us)", mr.value, toResult(mr.value), mr.im->name, mr.im->scale,
+                                  elapsedTime.count(), prepareTime.count());
         matchedCaptureOffset = mr.loc - (captureRect.tl() - matchRect.tl());
-        captureRect = {captureRect.tl() + matchedCaptureOffset, captureRect.br() + matchedCaptureOffset};
+        captureRect = {matchRect.tl()+mr.loc, cv::Size(mr.im->opt_w,mr.im->opt_h)};
         if (mr.im->scale != 1) {
             captureRect.width = (int)std::round(captureRect.width * mr.im->scale);
             captureRect.height = (int)std::round(captureRect.height * mr.im->scale);
         }
     } else {
-        LOG(DEBUG) << std::format("ImageTemplate not found: {:.4f} ({:.4f}) for '{}', took {}us", mr.value, toResult(mr.value), filename, elapsedTime.count());
+        LOG(DEBUG) << std::format("ImageTemplate not found: {:.4f} ({:.4f}) for '{}', took {}us (prep {}us)", mr.value, toResult(mr.value), filename,
+                                  elapsedTime.count(), prepareTime.count());
     }
     lastMatch = mr.value;
     if (!name.empty() && mr.value >= threshold_min) {

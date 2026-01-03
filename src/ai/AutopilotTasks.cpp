@@ -578,7 +578,7 @@ bool TaskDebugAutopilot::run() {
         st::autopilot.setDestBody(starSystem->getBody(target));
     }
 
-    initNavFilter();
+    nl.init(st::navFilters);
     setSpeed(0, false, "TaskDebugAutopilot Init");
     sendUiBack();
 
@@ -611,6 +611,11 @@ bool TaskDebugAutopilot::run() {
     }
     else if (test == "FocusTopEntry") {
         nl.focusTopEntry();
+    }
+    else if (test == "RecognizeNavList") {
+        int focusIdx;
+        cv::Mat grayImage;
+        nl.recognizeWholePage(grayImage, focusIdx);
     }
     else if (test == "GalMapNavRoute") {
         selectOnGalaxyMap(target);
@@ -1726,13 +1731,12 @@ bool BaseDockStep::autopilot() {
         }
         LOG(DEBUG) << "Docking autopilot waiting...";
     }
-    int notAutoPilotCounter = 0;
     for (;;) {
         if (timer.expired()) {
             LOG(ERROR) << "Autopilot time expired";
             task->relogin();
         }
-        sleep(250);
+        sleep(2000);
         ai::detectEDState(DetectLevel::Screen);
         if (st::ship.flags.docked) {
             LOG(INFO) << "Docking complete, status docked: " << st::ship.flags.docked
@@ -1810,8 +1814,10 @@ void DockSpaceStation::updateSafeDist() {
     if (st::space.stationType == "SpaceConstructionDepot" ||
         st::space.stationType == "TrailblazerDream" ||
         st::space.stationType == "FleetCarrier")
+    {
         LOG(DEBUG) << "DockSpaceStation: safe dist 6500 for type " << st::space.stationType;
         safe_dist = 6500_m;
+    }
 }
 
 bool DockSpaceStation::run() {
@@ -1965,12 +1971,10 @@ bool DockSpaceStation::getDockDistance() {
         if (st::guiFocus == GuiFocus::None) {
             if (!dist[di]) {
                 ai::detectEDState(DetectLevel::Screen);
-                dist_t d = ai::compassInfo.nav_target_dist;
+                dist_t d = st::autopilot.distanceToDock;
                 if (d && d > 100_m) {
-                    if (d > 6000_m && d < 10000_m) {
-                        st::autopilot.distanceToDock = d;
+                    if (d > 6000_m && d < 10000_m)
                         return true;
-                    }
                     dist[di++] = d;
                 }
             }
@@ -1978,10 +1982,8 @@ bool DockSpaceStation::getDockDistance() {
                 dist_t d = task->nl.getFocusedDist(2);
                 sendUiBack();
                 if (d && d > 100_m) {
-                    if (d > 6_km && d < 10_km) {
-                        st::autopilot.distanceToDock = d;
+                    if (d > 6_km && d < 10_km)
                         return true;
-                    }
                     dist[di++] = d;
                 }
             }
@@ -1990,21 +1992,17 @@ bool DockSpaceStation::getDockDistance() {
                 dist_t d = task->nl.getFocusedDist(2);
                 sendUiBack();
                 if (d && d > 100_m) {
-                    if (d > 6_km && d < 10_km) {
-                        st::autopilot.distanceToDock = d;
+                    if (d > 6_km && d < 10_km)
                         return true;
-                    }
                     dist[di++] = d;
                 }
             }
             if (!dist[di]) {
                 ai::detectEDState(DetectLevel::Screen);
-                dist_t d = ai::compassInfo.nav_target_dist;
+                dist_t d = st::autopilot.distanceToDock;
                 if (d && d > 100_m) {
-                    if (d > 6_km && d < 10_km) {
-                        st::autopilot.distanceToDock = d;
+                    if (d > 6_km && d < 10_km)
                         return true;
-                    }
                     dist[di++] = d;
                 }
             }
@@ -2103,6 +2101,7 @@ void BaseDockStep::sleep_waiting_dist(int milliseconds) {
     int prev_dist = 100000;
     if (dd <= safe_dist)
         prev_dist = (int)dd.get_m();
+    //LOG(INFO) << "sleep_waiting_dist, safe dist " << safe_dist;
     auto now = std::chrono::high_resolution_clock::now();
     auto until = now + std::chrono::milliseconds(milliseconds);
     while (now < until) {
@@ -2110,11 +2109,17 @@ void BaseDockStep::sleep_waiting_dist(int milliseconds) {
         auto left = until - now;
         if (left < 5ms)
             break;
-        if (left > 250ms)
-            left = 250ms;
-        std::this_thread::sleep_for(left);
+        if (left > 250ms) {
+            auto until = now + 250ms;
+            ai::detectEDState(DetectLevel::Screen);
+            //LOG(INFO) << "sleep_waiting_dist, curr dist " << dd;
+            std::this_thread::sleep_until(until);
+        } else {
+            std::this_thread::sleep_for(left);
+        }
         now = std::chrono::high_resolution_clock::now();
         if (dd <= safe_dist) {
+            //LOG(INFO) << "sleep_waiting_dist, maybe stop, dist " << dd << " and prev " << prev_dist;
             int dist = (int)dd.get_m();
             if (dist < prev_dist && prev_dist <= safe_dist.get_m())
                 return;

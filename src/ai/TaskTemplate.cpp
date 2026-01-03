@@ -481,8 +481,8 @@ void initTemplates() {
             { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
                          "Departure", "DockSpaceStation", "DockPlanetPort",
                          "LeaveBody", "EnterCruise", "HyperJump",
-                         "FocusDestDock", "FocusDestBody", "FocusNearestBody", "GalMapNavRoute", "FocusTopEntry",
-                         "NavDockSelect", "NavBodySelect", "CruiseToDist", "DiveUnderPlanet",
+                         "FocusDestDock", "FocusDestBody", "FocusNearestBody", "FocusTopEntry", "RecognizeNavList",
+                         "GalMapNavRoute", "NavDockSelect", "NavBodySelect", "CruiseToDist", "DiveUnderPlanet",
                          "ExitCruiseToSpace", "ExitCruiseToPlanet",
                        ]})")},
             { Param::String,  "target", _lc("Target"), OPT },

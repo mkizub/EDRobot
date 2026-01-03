@@ -78,7 +78,7 @@ void CompassDetector::loadCompass() {
             auto v = vars.values;
             compassRefSize.width = v["size"][0];
             compassRefSize.height = v["size"][1];
-            compassRefSize = fov_scale.apply(compassRefSize, fov_scale.fov54);
+            compassRefSize *= fov_scale.getScaleForFOV(fov_scale.fov54);
             compassRefRect.x = v["rect"][0];
             compassRefRect.y = v["rect"][1];
             compassRefRect.width = v["rect"][2];
@@ -103,17 +103,19 @@ void CompassDetector::loadCompass() {
 
     compassDetector = std::make_unique<ImageTemplate>(compassImageName, std::make_shared<ConstRect>(compassRefRect));
     compassDetector->testAngles = {0}; //{0, -1, +1};
-    compassDetector->testScales = {1, 1.025, 0.975, 1.05, 0.95, /*1.075, 0.925, 1.1, 0.9, 1.125, 0.875*/};
+    compassDetector->testScales = {1, 82./80., 80./82., 84./80., 80./84};
+    compassDetector->cropOptimalSize = true;
     compassDetector->extendLT = compassExtLT;
     compassDetector->extendRB = compassExtRB;
     compassDetector->threshold_min = 0.3;
     compassDetector->threshold_max = 0.8;
-    compassDetector->matchMethod = cv::TM_CCOEFF_NORMED; // cv::TM_CCORR_NORMED;
+    compassDetector->matchMethod = cv::TM_CCORR_NORMED;
 
     compassDetector->filters.push_back(std::unique_ptr<ImageFilter>(new CompassFilter));
 }
 
 double CompassDetector::match(ClassifyEnv &env) {
+    bool tryNavTargetFirst = navTargetFound;
     clear();
 
     {
@@ -201,7 +203,16 @@ double CompassDetector::match(ClassifyEnv &env) {
     }
 
     //LOG(INFO) << "Compass detect started";
-    //auto totalStartTime = std::chrono::high_resolution_clock::now();
+    auto totalStartTime = std::chrono::high_resolution_clock::now();
+
+    if (tryNavTargetFirst) {
+        detectNavTarget(env, true);
+        if (navTargetFound) {
+            //auto totalElapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - totalStartTime);
+            //LOG(INFO) << "NavTarget detection took: " << std::format("{}ms",totalElapsedTime.count());
+            return true;
+        }
+    }
 
     bool can_use_compass = !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
     double compassMatch = 0;
@@ -216,7 +227,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         // Detect compass dot
         //
         //auto startTime = std::chrono::high_resolution_clock::now();
-        cv::Rect matchRect = ImageTemplate::makeOptimalMatchRect(compassDetector->captureRect);
+        cv::Rect matchRect = compassDetector->captureRect;
         env.cropToCapture(matchRect);
         XMat imagePrepared = ImageTemplate::applyFilters(dotsFilters, env.getColorImage()(matchRect), {.convertToFloat=true});
         ImageTemplate::MatchResult dr;
@@ -228,7 +239,7 @@ double CompassDetector::match(ClassifyEnv &env) {
                                       ((dr.index & 1) ? "backward" : "forward"));
             cv::Size dotSize = {dr.im->org_w, dr.im->org_h};
             lastHemisphere = dr.index & 1 ? -1 : +1;
-            dotCaptureRect = {matchRect.tl() + dr.loc , dotSize};
+            dotCaptureRect = {matchRect.tl() + dr.loc, dotSize};
             double radiusX = env.getScale() * compassRefSize.width * 0.5 * compassDetector->imagesPrepared[dr.index].scale;
             double radiusY = env.getScale() * compassRefSize.height * 0.5 * compassDetector->imagesPrepared[dr.index].scale;
             dotSpherePosition = {
@@ -273,61 +284,73 @@ double CompassDetector::match(ClassifyEnv &env) {
         }
     }
 
-    if (!can_use_compass || (lastHemisphere > 0 && std::abs(lastTgtYaw) < 25 && lastTgtPitch >= -10 && lastTgtPitch <= 25) || env.isDebugMatch()) {
-        //auto startTime = std::chrono::high_resolution_clock::now();
+    if (!can_use_compass || !tryNavTargetFirst || (lastHemisphere > 0 && std::abs(lastTgtYaw) < 25 && lastTgtPitch >= -10 && lastTgtPitch <= 25) || env.isDebugMatch())
+        detectNavTarget(env, false);
 
-        XMat correctedColorImage;
-        cv::remap(env.getColorImage(), correctedColorImage, navTargetRemap1, navTargetRemap2, cv::INTER_LINEAR);
-        if (env.isDebugMatch()) {
-            cv::imwrite("undistorted-screen-color.png", correctedColorImage);
-        }
-        XMat imagePrepared = ImageTemplate::applyFilters(navTargetFilters, correctedColorImage);
+    //auto totalElapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - totalStartTime);
+    //LOG(INFO) << "Compass detection took: " << std::format("{}ms",totalElapsedTime.count());
 
-        //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-        //LOG(INFO) << "Compass nav target image prepare took: " << elapsedTime.count() << "us";
+    return navTargetFound ? 1 : can_use_compass ? compassMatch : 0;
+}
 
-        //startTime = std::chrono::high_resolution_clock::now();
+void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
+    //auto startTime = std::chrono::high_resolution_clock::now();
 
-        ImageTemplate::MatchResult nr;
-        ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, imagePrepared, navTargetPrepared, nr);
-        cv::Point2f navCapturePos;
-        if (nr.value > 0.5 && nr.im) {
-            LOG(DEBUG) << std::format("compass target match result: {:.3f}", nr.value);
-            cv::Point foundPos = nr.loc + cv::Point(nr.im->org_w, nr.im->org_h) / 2;
-            navCapturePos = navTargetRemapXY.at<cv::Point2f>(foundPos);
-            cv::Point referencePos = env.cvtCapturedToReference(navCapturePos);
-            lastNavTargetOffset = referencePos - ReferenceScreenCenter;
-            navTargetFound = true;
-            lastHemisphere = 1;
+    XMat correctedColorImage;
+    cv::remap(env.getColorImage(), correctedColorImage, navTargetRemap1, navTargetRemap2, cv::INTER_LINEAR);
+    if (env.isDebugMatch()) {
+        cv::imwrite("undistorted-screen-color.png", correctedColorImage);
+    }
+    XMat imagePrepared = ImageTemplate::applyFilters(navTargetFilters, correctedColorImage);
+
+    //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+    //LOG(INFO) << "Compass nav target image prepare took: " << elapsedTime.count() << "us";
+
+    //startTime = std::chrono::high_resolution_clock::now();
+
+    ImageTemplate::MatchResult nr;
+    ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, imagePrepared, navTargetPrepared, nr);
+    cv::Point2f navCapturePos;
+    if (nr.value > 0.5 && nr.im) {
+        LOG(DEBUG) << std::format("compass target match result: {:.3f}", nr.value);
+        cv::Point foundPos = nr.loc + cv::Point(nr.im->org_w, nr.im->org_h) / 2;
+        navCapturePos = navTargetRemapXY.at<cv::Point2f>(foundPos);
+        cv::Point referencePos = env.cvtCapturedToReference(navCapturePos);
+        lastNavTargetOffset = referencePos - ReferenceScreenCenter;
+        navTargetFound = true;
+        lastHemisphere = 1;
+    } else {
+        lastNavTargetOffset = {};
+        navTargetFound = false;
+    }
+    //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+    //LOG(INFO) << "Compass nav target detect took: " << elapsedTime.count() << "us";
+
+    if (navTargetFound) {
+        double fov = Cfg.getConfigFOV();
+        double d = ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
+        double yaw = std::atan(lastNavTargetOffset.x / d) * 180 / M_PI;
+        double pitch = -std::atan(lastNavTargetOffset.y / d) * 180 / M_PI;
+        double angle = std::asin(std::min(1.0,cv::norm(lastNavTargetOffset) / d)) * 90 / M_PI_2;
+        double roll = 0;
+        if (angle > 1)
+            roll = std::atan2(lastNavTargetOffset.x, -lastNavTargetOffset.y) * 90 / M_PI_2;
+        if (lastHemisphere < 0)
+            angle = 180 - angle;
+        if (afterCompass) {
+            LOG(DEBUG) << std::format("Update compass from nav target: pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f} (delta: {:+.1f}; {:+.1f}; {:+.1f})",
+                                      pitch, yaw, roll, pitch - lastTgtPitch, yaw - lastTgtYaw, roll - lastTgtRoll);
         } else {
-            lastNavTargetOffset = {};
-            navTargetFound = false;
+            LOG(DEBUG) << std::format("Detected nav target: pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f}", pitch, yaw, roll);
         }
-        //elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-        //LOG(INFO) << "Compass nav target detect took: " << elapsedTime.count() << "us";
+        lastTgtPitch = pitch;
+        lastTgtYaw = yaw;
+        lastTgtRoll = roll;
+        lastTgtAngle = angle;
+    }
 
-        if (navTargetFound) {
-            double fov = Cfg.getConfigFOV();
-            double d = ReferenceScreenSize.height * 0.5 / std::tan(fov/2*M_PI/180); // distance to screen in pixels for reference 1920x1080
-            double yaw = std::atan(lastNavTargetOffset.x / d) * 180 / M_PI;
-            double pitch = -std::atan(lastNavTargetOffset.y / d) * 180 / M_PI;
-            double angle = std::asin(std::min(1.0,cv::norm(lastNavTargetOffset) / d)) * 90 / M_PI_2;
-            double roll = 0;
-            if (angle > 1)
-                roll = std::atan2(lastNavTargetOffset.x, -lastNavTargetOffset.y) * 90 / M_PI_2;
-            if (lastHemisphere < 0)
-                angle = 180 - angle;
-            LOG(DEBUG) << "Update compass from nav target: "
-                << std::format("pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f} (delta: {:+.1f}; {:+.1f}; {:+.1f})",
-                               pitch, yaw, roll, pitch-lastTgtPitch, yaw-lastTgtYaw, roll-lastTgtRoll);
-            lastTgtPitch = pitch;
-            lastTgtYaw = yaw;
-            lastTgtRoll = roll;
-            lastTgtAngle = angle;
-        }
-
-        if (can_use_compass && navTargetFound && lastTgtPitch >= -10 && lastTgtPitch <= +20 && lastTgtYaw >= -25 && lastTgtYaw <= +25) {
-            //auto startTime = std::chrono::high_resolution_clock::now();
+    if (navTargetFound && lastTgtPitch >= -10 && lastTgtPitch <= +20 && lastTgtYaw >= -25 && lastTgtYaw <= +25) {
+        //auto startTime = std::chrono::high_resolution_clock::now();
 
 //            float cx = env.ReferenceScreenCenter.x;
 //            float cy = env.ReferenceScreenCenter.y;
@@ -340,39 +363,39 @@ double CompassDetector::match(ClassifyEnv &env) {
 //            double cos_a = std::sqrt(1 - sin_a*sin_a);
 //            double angle = std::asin(sin_a) * 180 / M_PI;
 //
-            int scaledSz = 210; // 420x210
-            cv::Rect ocrRect {210, 114, 170, ocr::LINE_HEIGHT};
+        int scaledSz = 210; // 420x210
+        cv::Rect ocrRect {210, 114, 170, ocr::LINE_HEIGHT};
 
-            int sz = nr.im->org_h;
+        int sz = nr.im->org_h;
 //            double scale = double(scaledSz) / nr.im->org_h;
 //
 //            cv::Matx23d affineMatrix = cv::getRotationMatrix2D_({sz*0.5f, sz*0.5f}, angle, scale);
 //            affineMatrix.val[2] += (scaledSz - sz) * 0.5;
 //            affineMatrix.val[5] += (scaledSz - sz) * 0.5;
 
-            cv::Rect srcRect {(int)std::round(navCapturePos.x-sz*0.5*env.getScale()),
-                              (int)std::round(navCapturePos.y-sz*0.5*env.getScale()),
-                              (int)std::round(2*sz*env.getScale()),
-                              (int)std::round(sz*env.getScale())};
-            env.cropToCapture(srcRect);
-            XMat targetImage (env.getColorImage(), srcRect);
-            XMat normImage;
+        cv::Rect srcRect {(int)std::round(navCapturePos.x-sz*0.5*env.getScale()),
+                          (int)std::round(navCapturePos.y-sz*0.5*env.getScale()),
+                          (int)std::round(2*sz*env.getScale()),
+                          (int)std::round(sz*env.getScale())};
+        env.cropToCapture(srcRect);
+        XMat targetImage (env.getColorImage(), srcRect);
+        XMat normImage;
 //            if (std::abs(angle) > 2) {
 //                cv::warpAffine(targetImage, normImage, affineMatrix, {2 * scaledSz, scaledSz}, cv::INTER_LINEAR, cv::BORDER_TRANSPARENT);
 //            } else {
-                cv::resize(targetImage, normImage, {2 * scaledSz, scaledSz}, cv::INTER_LINEAR);
+        cv::resize(targetImage, normImage, {2 * scaledSz, scaledSz}, cv::INTER_LINEAR);
 //            }
-            if (env.isDebugMatch()) {
-                cv::Mat debugImage;
-                normImage.copyTo(debugImage);
-                cv::rectangle(debugImage, ocrRect, {255,255,255});
-                cv::imwrite("nav-target-screen-color.png", debugImage);
-            }
-            XMat ocrImage = ImageTemplate::applyFilters(distOCRFilters, normImage(ocrRect));
-            cv::bitwise_not(ocrImage, ocrImage);
-            std::string text;
-            int conf =  ocr::ocrTargetDistText(toMat(ocrImage), text);
-            lastNavDist = parseDist(toUtf16(text), conf);
+        if (env.isDebugMatch()) {
+            cv::Mat debugImage;
+            normImage.copyTo(debugImage);
+            cv::rectangle(debugImage, ocrRect, {255,255,255});
+            cv::imwrite("nav-target-screen-color.png", debugImage);
+        }
+        XMat ocrImage = ImageTemplate::applyFilters(distOCRFilters, normImage(ocrRect));
+        cv::bitwise_not(ocrImage, ocrImage);
+        std::string text;
+        int conf =  ocr::ocrTargetDistText(toMat(ocrImage), text);
+        lastNavDist = parseDist(toUtf16(text), conf);
 //            else {
 //                static int counter = 0;
 //                if (!counter) {
@@ -398,14 +421,9 @@ double CompassDetector::match(ClassifyEnv &env) {
 //                gt_txt << text;
 //                gt_txt.close();
 //            }
-            //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
-            //LOG(INFO) << "Compass nav target dist text took: " << elapsedTime.count() << "us";
-        }
+        //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
+        //LOG(INFO) << "Compass nav target dist text took: " << elapsedTime.count() << "us";
     }
-    //auto totalElapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - totalStartTime);
-    //LOG(INFO) << "Compass detection took: " << std::format("{}ms",totalElapsedTime.count());
-
-    return navTargetFound ? 1 : can_use_compass ? compassMatch : 0;
 }
 
 void CompassDetector::tryLowerUpperBoundsGUI(ClassifyEnv &env, cv::Rect referenceRect) {
