@@ -147,6 +147,8 @@ public:
     cv::Size getCaptureDisplaySize() const { return {scaledScreenWidth, scaledScreenHeight}; }
     cv::Rect getCroppedDisplayRect() const { return croppedScreenRect; }
     unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
+    bool getCurlInsecure() const { return mCurlInsecure; }
+    const std::string& getCurlProxyURL() const { return mCurlProxyUrl; }
 
     bool isHeadlookSmoothing() const { return configHeadlookSmoothing; }
 
@@ -191,6 +193,8 @@ private:
     bool openclDisabled = false;
     bool openclD3dInterop = true;
     uint8_t vJoyDeviceID = 1;
+    bool mCurlInsecure = true;
+    std::string mCurlProxyUrl;
     std::string mTesseractDataPath;
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;

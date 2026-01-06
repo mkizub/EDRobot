@@ -129,6 +129,12 @@ bool Configuration::load() {
             capturerWinRTDisabled = tm.as_boolean();
         if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
             capturerDXGIDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("curl-insecure"); tm.is_boolean())
+            mCurlInsecure = tm.as_boolean();
+        if (auto& tm = j_config.at("curl-proxy"); tm.is_string()){
+            mCurlProxyUrl = tm.as_string();
+            LOG(INFO) << "CURL proxy: " << mCurlProxyUrl;
+        }
         if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
             vJoyDeviceID = (uint8_t) tm.as_integer();
 #ifdef EDROBOT_USE_OPENCL
@@ -561,6 +567,7 @@ bool Configuration::loadPlayerOptions(bool initial) {
             npf.pointOfInterest = getBoolNodeValue(filters, "PointOfInterest");
             npf.signalSource = getBoolNodeValue(filters, "SignalSource");
             npf.system = getBoolNodeValue(filters, "System");
+            LOG_IF(st::navFilters != npf, INFO) << "NavList Filters: " << npf;
             st::navFilters = npf;
         }
 
@@ -742,37 +749,6 @@ bool Configuration::preloadGameJournal() {
         else if (ge->event == "Shutdown" || ge->event == "Loadout")
             return true;
     }
-}
-
-std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
-    os << "{";
-    os << "gui-focus:" << enum_name<GuiFocus>(::st::guiFocus)<<",";
-    if (st.flags.docked) os << "docked,";
-    if (st.flags.landed) os << "landed,";
-    if (st.flags.landing_gear_down) os << "landing-gear,";
-    if (st.flags.shields_up) os << "shields,";
-    if (st.flags.cruise) os << "cruise,";
-    if (st.flags.fa_off) os << "fa-off,";
-    if (st.flags.weapon_on) os << "weapon,";
-    if (st.flags.in_wing) os << "wing,";
-    if (st.flags.lights_on) os << "lights,";
-    if (st.flags.cargo_scoop_on) os << "cargo-scoop,";
-    if (st.flags.silent_run) os << "silent,";
-    if (st.flags.fuel_scooping) os << "fuel-scooping,";
-    if (st.flags.fsd_masslocked) os << "fsd-masslocked,";
-    if (st.flags.fsd_charging) os << "fsd-charging,";
-    if (st.flags2.fsd_hyperdrive_charging) os << "fsd-hyperdrive-charging,";
-    if (st.flags.fsd_cooldown) os << "fsd-сooldown,";
-    if (st.flags.fsd_jump) os << "fsd-jump,";
-    if (st.flags.fuel_low) os << "fuel-low,";
-    if (st.flags.overheating) os << "overheating,";
-    if (st.flags.in_danger) os << "in-danger,";
-    if (st.flags.in_interdiction) os << "in-interdiction,";
-    if (st.flags.hud_in_analysis) os << "hud-in-analysis,";
-    if (st.flags.night_vision) os << "night-vision,";
-    os << "pips:[" << int(st.pips[0]) << "," << int(st.pips[1]) << "," << int(st.pips[2]) << "]";
-    os << "}";
-    return os;
 }
 
 std::string Configuration::getShortcutFor(Command cmd) const {
@@ -1353,7 +1329,6 @@ void Configuration::changeDirThreadLoop() {
     // read last ship status after all events
     loadGameStatus();
 
-    bool needReloadOptions = false;
     for(;;) {
         DWORD rc = ::MsgWaitForMultipleObjectsEx(
                         _countof(handles),
@@ -1368,6 +1343,7 @@ void Configuration::changeDirThreadLoop() {
 
         // We've received a notification in the queue.
         bool needReloadSettings = false;
+        bool needReloadOptions = false;
         bool needReloadBindings = false;
         bool needReloadStatus = false;
         std::wstring journalFilenameW;
@@ -1393,10 +1369,8 @@ void Configuration::changeDirThreadLoop() {
 
         if (needReloadSettings)
             loadGameSettings(false);
-        if (needReloadOptions && st::ship.flags.docked) {
-            needReloadOptions = false;
+        if (needReloadOptions)
             loadPlayerOptions(false);
-        }
         if (needReloadBindings)
             loadInputBindings();
         if (needReloadStatus)

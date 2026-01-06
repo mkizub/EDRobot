@@ -128,14 +128,13 @@ bool NavList::parseNavDist(const cv::Mat &grayImage, const ResolvedEnv& rEnv, co
 bool NavList::init(st::NavPanelFilters filters) {
     this->list.clear();
 
-    if (filters == st::navFilters)
-        return true;
-
-    st::autopilot.isDestBodyFocused = false;
-    st::autopilot.isDestDockFocused = false;
     for (int retry=0; retry < 3; retry++) {
-        if (filters == st::navFilters)
+        st::NavPanelFilters navFilters = st::navFilters;
+        if (filters == navFilters)
             return true;
+        LOG(INFO) << "Changing NavFilters from " << navFilters << " to " << filters;
+        st::autopilot.isDestBodyFocused = false;
+        st::autopilot.isDestDockFocused = false;
 
         if (!ai::gotoNavPage("mod-nav-list", false))
             continue;
@@ -151,45 +150,46 @@ bool NavList::init(st::NavPanelFilters filters) {
         if (!ai::uiState.match("scr-left-panel:dlg-filters")) {
             ai::throw_trouble("Expecting 'scr-left-panel:dlg-filters' but got {}", ai::uiState.to_string());
         }
+
         // currently ED always opens filters at top position 'stars',
         // so just scroll down and select/deselect what we need
-        if (filters.star != st::navFilters.star)
+        if (filters.star != navFilters.star)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.asteroidCluster != st::navFilters.asteroidCluster)
+        if (filters.asteroidCluster != navFilters.asteroidCluster)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.planetOrMoon != st::navFilters.planetOrMoon)
+        if (filters.planetOrMoon != navFilters.planetOrMoon)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.landablePlanetOrMoon != st::navFilters.landablePlanetOrMoon)
+        if (filters.landablePlanetOrMoon != navFilters.landablePlanetOrMoon)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.settlement != st::navFilters.settlement)
+        if (filters.settlement != navFilters.settlement)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.station != st::navFilters.station)
+        if (filters.station != navFilters.station)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.fleetCarrier != st::navFilters.fleetCarrier)
+        if (filters.fleetCarrier != navFilters.fleetCarrier)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.pointOfInterest != st::navFilters.pointOfInterest)
+        if (filters.pointOfInterest != navFilters.pointOfInterest)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.signalSource != st::navFilters.signalSource)
+        if (filters.signalSource != navFilters.signalSource)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 
-        if (filters.system != st::navFilters.system)
+        if (filters.system != navFilters.system)
             kbd::send("UI_Select");
         kbd::send("UI_Down");
 

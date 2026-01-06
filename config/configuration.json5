@@ -19,6 +19,8 @@
     "pause-resume": "Pause",
     "debug-templates": "Ctrl+Alt+PrintScreen", // defaults to "ctrl+alt+printscreen"
   },
+  "curl-insecure": true, // disable SSL verification errors, set to false to enable SSL verificatio
+  //"curl-proxy": "socks5://127.0.0.1:40000" // to use specified proxy
   //"elite-dangerous-settings-path": ...,
   //"elite-dangerous-logs-path": ...,
 }

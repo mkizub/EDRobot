@@ -118,6 +118,19 @@ static std::string curlRequestGithubLatest() {
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3);
 
+    if (Cfg.getCurlInsecure()) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
+    }
+    if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty())
+        curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Accept: application/vnd.github+json");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);

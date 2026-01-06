@@ -52,6 +52,51 @@ void Autopilot::setDestDock(gal::spEntity dock) {
         isDestDockTargeted = false;
     }
 }
+std::ostream& operator<<(std::ostream& os, const st::NavPanelFilters& f) {
+    os << "{";
+    if (f.star) os << "Stars,";
+    if (f.asteroidCluster) os << "AsteroidClusters,";
+    if (f.planetOrMoon) os << "Planets,";
+    if (f.landablePlanetOrMoon) os << "LandablePlanets,";
+    if (f.settlement) os << "Settlements,";
+    if (f.station) os << "SpaceStations,";
+    if (f.fleetCarrier) os << "Carriers,";
+    if (f.pointOfInterest) os << "PointsOfInterest,";
+    if (f.signalSource) os << "SignalSources,";
+    if (f.system) os << "StarSystems,";
+    os << "}";
+    return os;
+}
+std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
+    os << "{";
+    os << "gui-focus:" << enum_name<GuiFocus>(::st::guiFocus)<<",";
+    if (st.flags.docked) os << "docked,";
+    if (st.flags.landed) os << "landed,";
+    if (st.flags.landing_gear_down) os << "landing-gear,";
+    if (st.flags.shields_up) os << "shields,";
+    if (st.flags.cruise) os << "cruise,";
+    if (st.flags.fa_off) os << "fa-off,";
+    if (st.flags.weapon_on) os << "weapon,";
+    if (st.flags.in_wing) os << "wing,";
+    if (st.flags.lights_on) os << "lights,";
+    if (st.flags.cargo_scoop_on) os << "cargo-scoop,";
+    if (st.flags.silent_run) os << "silent,";
+    if (st.flags.fuel_scooping) os << "fuel-scooping,";
+    if (st.flags.fsd_masslocked) os << "fsd-masslocked,";
+    if (st.flags.fsd_charging) os << "fsd-charging,";
+    if (st.flags2.fsd_hyperdrive_charging) os << "fsd-hyperdrive-charging,";
+    if (st.flags.fsd_cooldown) os << "fsd-сooldown,";
+    if (st.flags.fsd_jump) os << "fsd-jump,";
+    if (st.flags.fuel_low) os << "fuel-low,";
+    if (st.flags.overheating) os << "overheating,";
+    if (st.flags.in_danger) os << "in-danger,";
+    if (st.flags.in_interdiction) os << "in-interdiction,";
+    if (st.flags.hud_in_analysis) os << "hud-in-analysis,";
+    if (st.flags.night_vision) os << "night-vision,";
+    os << "pips:[" << int(st.pips[0]) << "," << int(st.pips[1]) << "," << int(st.pips[2]) << "]";
+    os << "}";
+    return os;
+}
 }
 
 static int64_t fssSignalSystemAddress;
@@ -357,10 +402,19 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto& cmdr = const_cast<st::Commander&>(st::cmdr);
-    cmdr.carrierId = je.at("CarrierID",0).as_int64();
-    cmdr.carrierInSystem = je.at("StarSystem","").as_string();
-    cmdr.carrierAtBodyId = je.at("BodyID",-1).as_integer();
-    LOG(INFO) << "Carrier: " << cmdr.carrierId << " in system " << cmdr.carrierInSystem;
+    auto type = je["CarrierType"].asif_string();
+    if (gal::FLEET_CARRIER.match_type(type)) {
+        cmdr.fleetCarrierId = je.at("CarrierID",0).as_int64();
+        cmdr.fleetCarrierInSystem = je.at("StarSystem","").as_string();
+        cmdr.fleetCarrierAtBodyId = je.at("BodyID",-1).as_integer();
+        LOG(INFO) << "Fleet Carrier: " << cmdr.fleetCarrierId << " in system " << cmdr.fleetCarrierInSystem;
+    }
+    if (gal::SQUADRON_CARRIER.match_type(type)) {
+        cmdr.squadronCarrierId = je.at("CarrierID",0).as_int64();
+        cmdr.squadronCarrierInSystem = je.at("StarSystem","").as_string();
+        cmdr.squadronCarrierAtBodyId = je.at("BodyID",-1).as_integer();
+        LOG(INFO) << "Squadron Carrier: " << cmdr.squadronCarrierId << " in system " << cmdr.squadronCarrierInSystem;
+    }
 }
 
 void parseEvent_Location(spGameEvent& ge) {
@@ -724,7 +778,7 @@ void parseEvent_Scan(spGameEvent& ge) {
             }
         }
     }
-    if (auto& nm=je["Bodyname"]; nm.is_string() && nm.as_string() != body->name) {
+    if (auto& nm=je["BodyName"]; nm.is_string() && nm.as_string() != body->name) {
         body->name = nm.as_string();
         ss->saved = false;
     }

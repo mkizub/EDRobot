@@ -625,6 +625,19 @@ json5pp::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
     }
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 
+    if (Cfg.getCurlInsecure()) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
+    }
+    if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty())
+        curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Accept: application/json");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -671,6 +684,19 @@ json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, 
 
     // Set URL and perform the request
     curl_easy_setopt(curl, CURLOPT_URL, base_url);
+
+    if (Cfg.getCurlInsecure()) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
+    }
+    if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty())
+        curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json; charset: utf-8");

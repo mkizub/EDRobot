@@ -116,6 +116,19 @@ static json5pp::value curlRequestEDSM(std::string url, std::string systemName) {
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);
 
+    if (Cfg.getCurlInsecure()) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
+        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
+    }
+    if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty())
+        curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json; charset: utf-8");
     headers = curl_slist_append(headers, "Accept: application/json");
@@ -748,7 +761,7 @@ spEntity StarSystem::addSignal(spEntity signal) {
 }
 
 void StarSystem::checkType(spEntity& site, TypeNav type, Timestamp timestamp) {
-    if (site && type != TypeNav::Other && site->type != type && site->updated < timestamp) {
+    if (site && /*type != TypeNav::Other &&*/ site->type != type && site->updated < timestamp) {
         site->type = type;
         site->updated = timestamp;
         saved = false;
@@ -793,8 +806,10 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
             site.reset(new Entity());
             if (stype == "NavBeacon")
                 site->type = TypeNav::NavBeacon;
-            if (stype == "FleetCarrier")
+            else if (stype == "FleetCarrier")
                 site->type = TypeNav::FleetCarrier;
+            else if (stype == "SquadronCarrier")
+                site->type = TypeNav::SquadronCarrier;
             site->setName(sname);
             stations.push_back(site);
             saved = false;
@@ -952,7 +967,6 @@ bool Entity::setName(const std::string& nm) {
     case TypeNav::SpaceConstrDepot:
     case TypeNav::Megaship:
     case TypeNav::StationMegaShip:
-    case TypeNav::SquadronCarrier:
     case TypeNav::PlanetaryThing:
     case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
@@ -971,6 +985,13 @@ bool Entity::setName(const std::string& nm) {
             code = nm;
         else if (nm.size() > 7)
             code = nm.substr(nm.size()-7);
+        name = nm;
+        return true;
+    case TypeNav::SquadronCarrier:
+        if (name == nm)
+            return false;
+        if (nm.size() > 7 && nm.substr(nm.size()-7, 3) == " | ")
+            code = nm.substr(nm.size()-4);
         name = nm;
         return true;
     case TypeNav::NotExplored:

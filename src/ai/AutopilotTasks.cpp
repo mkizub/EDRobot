@@ -534,11 +534,12 @@ void BaseAutopilotTask::initNavFilter() {
         filters.pointOfInterest = true;
         break;
     case TypeNav::FleetCarrier:
-        if (st::autopilot.destDock->marketId != st::cmdr.carrierId)
+        if (st::autopilot.destDock->marketId != st::cmdr.fleetCarrierId)
             filters.fleetCarrier = true;
         break;
     case TypeNav::SquadronCarrier:
-        filters.fleetCarrier = true;
+        if (st::autopilot.destDock->marketId != st::cmdr.squadronCarrierId)
+            filters.fleetCarrier = true;
         break;
     case TypeNav::PlanetaryThing:
     case TypeNav::PlanetaryStation:

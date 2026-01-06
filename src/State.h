@@ -24,9 +24,12 @@ extern GuiFocus guiFocus;
 extern struct Commander {
     std::string name;
     std::string fid;
-    int64_t carrierId;
-    std::string carrierInSystem;
-    int carrierAtBodyId;
+    int64_t fleetCarrierId;
+    std::string fleetCarrierInSystem;
+    int fleetCarrierAtBodyId;
+    int64_t squadronCarrierId;
+    std::string squadronCarrierInSystem;
+    int squadronCarrierAtBodyId;
 } const cmdr;
 
 extern struct GameClient {
@@ -92,6 +95,7 @@ extern union NavPanelFilters {
     int mask;
     bool operator==(const NavPanelFilters& other) const { return this->mask == other.mask; }
     bool operator!=(const NavPanelFilters& other) const { return this->mask != other.mask; }
+    friend std::ostream& operator<<(std::ostream& os, const NavPanelFilters& obj);
 } navFilters;
 
 extern struct Destination {
@@ -172,6 +176,8 @@ extern struct ShipStatus {
     uint8_t fireGroup;
     uint64_t balance;
     LegalState legalState;
+
+    friend std::ostream& operator<<(std::ostream& os, const ShipStatus& obj);
 } ship;
 
 extern struct ShipAtBody {
@@ -215,11 +221,6 @@ extern struct Autopilot {
     void setDestDock(gal::spEntity dock);
 } autopilot;
 
-
-
 }
-
-
-extern std::ostream& operator<<(std::ostream& os, const st::ShipStatus& obj);
 
 #endif //EDROBOT_STATE_H
