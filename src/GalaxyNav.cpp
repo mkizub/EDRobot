@@ -24,6 +24,7 @@ NavType BEACON {
         false,
         {{Lang::EN,"Nav Beacon"},{Lang::RU,"Нав. маяк"},
          {Lang::EN,"Compromised Navigation Beacon"},{Lang::RU,"Навигационный маяк под угрозой"},
+         {Lang::EN,"System Colonisation Beacon"},{Lang::RU,"Маяк колонизации системы"},
         }
 };
 NavType TOURIST_BEACON {
@@ -170,7 +171,7 @@ NavType COLONIZATION_SHIP {
         TypeNav::ColonisationShip,
         {},
         {},
-        true, // "$EXT_PANEL_ColonisationShip*"
+        true, // "$EXT_PANEL_ColonisationShip; *"
         {{Lang::EN,"System Colonisation Ship"},{Lang::RU,"Колонизационный корабль"}}
 };
 NavType ENGINEER {
@@ -268,6 +269,32 @@ NavType* NavType::findNavType(TypeNav tp) {
     return nullptr;
 }
 
+bool NavType::expandName(const std::string nm, std::string& name, std::string& nloc) {
+    if (nm.starts_with("$EXT_PANEL_ColonisationShip;")) {
+        name = "System Colonisation Ship" + nm.substr(28);
+        nloc = nm;
+        if (st::lng == Lang::RU)
+            nloc = "Колонизационный корабль" + nm.substr(28);
+        return true;
+    }
+    if (nm.starts_with("$EXT_PANEL_ColonisationShip:#index")) {
+        name = "System Colonisation Ship";
+        nloc = nm;
+        if (st::lng == Lang::RU)
+            nloc = "Колонизационный корабль";
+        return true;
+    }
+    if (nm.starts_with("$EXT_PANEL_ColonisationBeacon_Site:#index")) {
+        name = "System Colonisation Beacon";
+        nloc = nm;
+        if (st::lng == Lang::RU)
+            nloc = "Маяк колонизации системы";
+        return true;
+    }
+    //"$EXT_PANEL_ColonisationBeacon_DeploymentSite;" "Место размещения маяка"
+    return false;
+}
+
 std::string NavType::get_nloc() const {
     for (auto &p: name_loc) {
         if (p.first == st::lng)
@@ -283,7 +310,6 @@ bool NavType::match_name(const std::string& sname) const {
             if ((p.first == Lang::XX || p.first == st::lng) && p.second == sname)
                 return true;
         }
-        return false;
     }
     if (name_pattern) {
         switch (this->type) {
@@ -300,7 +326,7 @@ bool NavType::match_name(const std::string& sname) const {
                 return true;
             break;
         case TypeNav::ColonisationShip:
-            if (sname.starts_with("$EXT_PANEL_ColonisationShip"))
+            if (sname.starts_with("$EXT_PANEL_ColonisationShip;"))
                 return true;
             for (auto &p: name_loc) {
                 if ((p.first == Lang::XX || p.first == st::lng) && sname.starts_with(p.second))

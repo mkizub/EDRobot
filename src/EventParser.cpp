@@ -222,7 +222,7 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
 bool Configuration::loadGameStatus() {
     static std::ifstream ifs;
     LOG(DEBUG) << "Loading Status.json";
-    if (!ifs.is_open()) {
+     if (!ifs.is_open()) {
         std::wstring filename = mEDLogsPath + L"\\Status.json";
         ifs.open(filename);
         if (!ifs.is_open())

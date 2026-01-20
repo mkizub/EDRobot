@@ -209,8 +209,12 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
         parseUpdated(body, jb);
         parseBodyId(ss, body, jb);
 
-        if (jb["name"].is_string())
-            body->setName(jb["name"].as_string());
+        if (jb["name"].is_string()) {
+            auto& name = jb["name"].as_string();
+            if (ss->getBody(name))
+                continue;
+            body->setName(name);
+        }
         if (jb["distanceToArrival"].is_number())
             body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_number());
         if (body->type == TypeNav::Star) {
@@ -235,6 +239,8 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
     //std::string lng = toLower(std::string(enum_name<Lang>(Cfg.lng)));
     for (auto& jb : jsystem["stations"].as_array()) {
         std::string name = jb["name"].asif_string();
+        if (ss->getDock(name))
+            continue;
         spEntity site(new Entity);
         std::string type;
         if (jb["type"].is_string())
@@ -265,7 +271,7 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
         parseUpdated(site, jb);
         parseBodyId(ss, site, jb);
         site->setName(name);
-        if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_loc.empty())
+        if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_pattern && !nt->name_loc.empty())
             site->nloc = nt->get_nloc();
 
         if (jb["marketId"].is_integer())
@@ -494,6 +500,14 @@ spEntity StarSystem::getDock(const std::string& sname) {
         if (s->nameEq(sname))
             return s;
     }
+    std::string xx_name;
+    std::string ru_name;
+    if (NavType::expandName(sname, xx_name, ru_name)) {
+        for (auto& s : this->stations) {
+            if (s->nameEq(xx_name) || s->nameEq(ru_name))
+                return s;
+        }
+    }
     return {};
 }
 
@@ -516,8 +530,11 @@ void StarSystem::addDestination() {
         if (b->nameEq(dname))
             return;
     }
+    std::string xx_name;
+    std::string ru_name;
+    bool exp = NavType::expandName(dname, xx_name, ru_name);
     for (auto& s : this->stations) {
-        if (s->nameEq(dname)) {
+        if (s->nameEq(dname) || (exp && s->nameEq(xx_name)) || (exp && s->nameEq(ru_name))) {
             switch (s->type) {
             case TypeNav::FleetCarrier:
                 if (s->name != dname) {
@@ -586,6 +603,14 @@ void StarSystem::addDestination() {
     else if (dname.starts_with("Planetary Construction Site:")) {
         spEntity site = std::make_shared<Entity>();
         site->type = TypeNav::PlanetaryConstrDepot;
+        site->setName(dname);
+        site->parentBodyId = st::destination.bodyId;
+        stations.push_back(site);
+        this->saved = false;
+    }
+    else if (dname.starts_with("$EXT_PANEL_ColonisationShip;")) {
+        spEntity site = std::make_shared<Entity>();
+        site->type = TypeNav::ColonisationShip;
         site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
         stations.push_back(site);
@@ -698,6 +723,7 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
     if (!dock) {
         dock.reset(new Entity);
         dock->marketId = marketId;
+        stations.push_back(dock);
     }
 
     TypeNav typeNav = TypeNav::Other;
@@ -903,7 +929,6 @@ bool Entity::nameEq(const std::string& nm) const {
     case TypeNav::SpaceOutpost:
     case TypeNav::SpaceInstallation:
     case TypeNav::SquadronCarrier:
-    case TypeNav::ColonisationShip:
     case TypeNav::PlanetaryThing:
     case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
@@ -938,6 +963,17 @@ bool Entity::nameEq(const std::string& nm) const {
     case TypeNav::StrongholdCarrier:
         navType = &STRONGHOLD_CARRIER;
         break;
+    case TypeNav::ColonisationShip: {
+        if (name == nm || nloc == nm)
+            return true;
+        std::string xx_name;
+        std::string ru_name;
+        if (NavType::expandName(nm, xx_name, ru_name)) {
+            if (name == xx_name || nloc == ru_name)
+                return true;
+        }
+        return false;
+    }
     //case TypeNav::TrailblazerDream:
     //    navType = &TRAILBLAZER_DREAM;
     }
@@ -949,6 +985,8 @@ bool Entity::nameEq(const std::string& nm) const {
 }
 
 bool Entity::setName(const std::string& nm) {
+    std::string xx_name;
+    std::string ru_name;
     NavType* navType = nullptr;
     switch (type) {
     case TypeNav::Other:
@@ -1020,12 +1058,40 @@ bool Entity::setName(const std::string& nm) {
     //    navType = &TRAILBLAZER_DREAM;
     //    break;
     case TypeNav::ColonisationShip:
-        navType = &COLONIZATION_SHIP;
-        break;
+        if (NavType::expandName(nm, xx_name, ru_name)) {
+            if (name == xx_name && nloc == ru_name)
+                return false;
+            name = xx_name;
+            nloc = ru_name;
+            return true;
+        }
+        for (auto& nl : gal::COLONIZATION_SHIP.name_loc) {
+            if (nl.first == Lang::XX)
+                xx_name = nl.second;
+            if (nl.first == Lang::EN)
+                xx_name = nl.second;
+            if (nl.first == st::lng)
+                ru_name = nl.second;
+        }
+        if (ru_name.empty())
+            ru_name = xx_name;
+        for (auto& nl : gal::COLONIZATION_SHIP.name_loc) {
+            if (nm.starts_with(nl.second)) {
+                std::string own_name = trim(nm.substr(nl.second.size()));
+                if (!own_name.empty()) {
+                    xx_name += " " + own_name;
+                    ru_name += " " + own_name;
+                }
+                if (name == xx_name && nloc == ru_name)
+                    return false;
+                name = xx_name;
+                nloc = ru_name;
+                return true;
+            }
+        }
+        return true;
     }
 
-    std::string xx_name;
-    std::string ru_name;
     auto it = navType->name_loc.begin();
     for (; it != navType->name_loc.end(); it++) {
         if (it->first == Lang::XX || it->first == Lang::EN)
