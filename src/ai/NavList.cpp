@@ -44,25 +44,29 @@ bool parseNavName(std::wstring text, ai::NavListEntry &nle) {
         nle.isMarked = true;
         ch = text.back();
     }
-    if (text.contains(L'<') || text.contains(L'>')) {
-        size_t ps = text.find(L'<');
-        if (ps != std::string::npos && ps <= 8) {
-            nle.isTarget = true;
-            text = trim(text.substr(ps + 1));
-        }
-        size_t pe = text.find(L'>');
-        if (pe != std::string::npos && pe >= text.size() - 8) {
-            nle.isTarget = true;
-            text = trim(text.substr(1, pe - 1));
-        }
-        if (text.empty())
-            return false;
-    }
-    ch = text.back();
-    if (ch == gal::SHIELD1_MARK || ch == gal::SHIELD2_MARK || ch == gal::SHIELD3_MARK) {
-        nle.portDanger = ch;
+    if (ch == gal::SHIELD1_MARK)
+        nle.portDanger = 1;
+    else if (ch == gal::SHIELD2_MARK)
+        nle.portDanger = 2;
+    else if (ch == gal::SHIELD3_MARK)
+        nle.portDanger = 3;
+    if (nle.portDanger > 0) {
         text.pop_back();
         text = trim(text);
+        if (text.empty())
+            return false;
+        ch = text.back();
+    }
+    if (text.contains(L'<') || text.contains(L'>')) {
+        size_t ps = text.find(L'<');
+        size_t pe = text.find(L'>');
+        if (ps <= 4 && pe != std::string::npos && pe >= text.size() - 4)
+            text = trim(text.substr(ps+1, pe-ps-2));
+        else if (ps <= 4)
+            text = trim(text.substr(ps+1, text.size()-pe-2));
+        else if (pe != std::string::npos && pe >= text.size() - 4)
+            text = trim(text.substr(1, pe-2));
+        nle.isTarget = true;
         if (text.empty())
             return false;
     }
@@ -101,8 +105,9 @@ bool NavList::parseNavRow(const cv::Mat &grayImage, const ResolvedEnv& rEnv, con
     bool ok = parseNavName(wtext, nle);
     nle.parsed = true;
     nle.ocr_conf = ocr_conf;
+    nle.conf = ocr_conf;
     if (nle.icon == gal::STAR.charOCR || nle.icon == gal::BODY.charOCR || nle.icon == gal::LAND.charOCR)
-        nle.ocr_conf *= 0.8; // they have mostly the same name, different in a few last chars
+        nle.conf *= 0.8; // they have mostly the same name, different in a few last chars
     double indent = (rectOut.x - 6.0) / double(17);
     nle.indent = (int) std::round(std::abs(indent));
     if (cr.u.lrow.ws == WState::Focused)
@@ -123,6 +128,15 @@ bool NavList::parseNavDist(const cv::Mat &grayImage, const ResolvedEnv& rEnv, co
     std::wstring wdist = toUtf16(dist);
     nle.dist = parseDist(wdist, conf);
     return nle.dist.valid();
+}
+
+void NavList::setNearestSystems(const std::string& nearSystem, std::vector<std::string> systems) {
+    this->nearSystem = nearSystem;
+    this->ocrSystemNames.clear();
+    this->ocrSystemNames.reserve(systems.size());
+    FuzzyMatch fm;
+    for (auto& s : systems)
+        this->ocrSystemNames.emplace_back(fm.toOCR(toUtf16(s)));
 }
 
 bool NavList::init(st::NavPanelFilters filters) {
@@ -250,15 +264,18 @@ gal::spEntity NavList::guessNavItem(int idx) {
     gal::spStarSystem ss = gal::getCurrentStarSystem();
     gal::spEntity bestItem;
     FuzzyMatch fm;
-    double bestMatch = 0.5;
-    {
-        double match = fm.ratio(fm.toOCR(L"Не исследовано"), nle.name);
-        if (nle.icon != gal::SIGNAL.charOCR)
-            match -= 10;
-        if (match >= 60) {
-            bestMatch = match;
-            bestItem = std::make_shared<gal::Entity>();
-            bestItem->name = "Не исследовано";
+    double bestMatch = 0;
+    if (nle.icon == gal::STAR_SYSTEM.charOCR) {
+        if (nearSystem == gal::getCurrentStarSystem()->systemName) {
+            for (auto& ws : ocrSystemNames) {
+                double match = fm.ratio(ws, nle.name);
+                if (match >= 60 && match > bestMatch) {
+                    bestMatch = match;
+                    bestItem = std::make_shared<gal::Entity>();
+                    bestItem->type = gal::STAR_SYSTEM.type;
+                    bestItem->name = toUtf8(ws);
+                }
+            }
         }
     }
     {
@@ -270,32 +287,8 @@ gal::spEntity NavList::guessNavItem(int idx) {
                     duplicated = true;
             if (duplicated)
                 continue;
-            bool typeMatch = false;
-            if (isSpaceStation(s->type)) {
-                if (s->type == TypeNav::Orbis || s->type == TypeNav::Ocellus || s->type == TypeNav::Dodec)
-                    typeMatch = (nle.icon == gal::ORBIS.charOCR);
-                else if (s->type == TypeNav::Coriolis)
-                    typeMatch = (nle.icon == gal::CORIOLIS.charOCR);
-                else if (s->type == TypeNav::AsteroidBase)
-                    typeMatch = (nle.icon == gal::MINER_BASE.charOCR);
-                else if (s->type == TypeNav::SpaceOutpost)
-                    typeMatch = (nle.icon == gal::SPACE_OUTPOST.charOCR);
-            }
-            else if (s->type == TypeNav::SpaceInstallation) {
-                typeMatch = (nle.icon == gal::SPACE_INSTALLATION.charOCR);
-            }
-            else if (s->type == TypeNav::FleetCarrier) {
-                typeMatch = (nle.icon == gal::FLEET_CARRIER.charOCR);
-            }
-            else if (s->type == TypeNav::SquadronCarrier) {
-                typeMatch = (nle.icon == gal::SQUADRON_CARRIER.charOCR);
-            }
-            else if (s->type == TypeNav::StationMegaShip) {
-                typeMatch = (nle.icon == gal::STATION_MEGASHIP.charOCR);
-            }
-            else if (s->type == TypeNav::Megaship) {
-                typeMatch = (nle.icon == gal::MEGASHIP.charOCR);
-            }
+            auto* nt = gal::NavType::findNavType(s->type);
+            bool typeMatch = nt && nt->charOCR == nle.icon;
             double match = fm.ratio(fm.toOCR(toUtf16(s->name)), nle.name);
             if (!s->nloc.empty())
                 match = std::max(match, fm.ratio(fm.toOCR(toUtf16(s->nloc)), nle.name));
@@ -328,6 +321,9 @@ gal::spEntity NavList::guessNavItem(int idx) {
                 else
                     typeMatch = (nle.icon == gal::BODY.charOCR);
             }
+            else if (b->type == TypeNav::AsteroidCluster) {
+                typeMatch = (nle.icon == gal::BELT.charOCR);
+            }
             double match = fm.ratio(fm.toOCR(toUtf16(b->name)), nle.name);
             if (!typeMatch)
                 match -= 10;
@@ -339,8 +335,26 @@ gal::spEntity NavList::guessNavItem(int idx) {
         if (bestBody)
             bestItem = bestBody;
     }
+    for (auto* nt : gal::ALL_NAV_TYPES) {
+        if (!nt->name_loc.empty()) {
+            for (auto& nl : nt->name_loc) {
+                if (nl.first == Lang::XX || nl.first == st::lng) {
+                    double match = fm.ratio(fm.toOCR(toUtf16(nl.second)), nle.name);
+                    if (nle.icon != nt->charOCR)
+                        match -= 10;
+                    if (match >= 80 && match > bestMatch) {
+                        bestMatch = match;
+                        bestItem = std::make_shared<gal::Entity>();
+                        bestItem->type = nt->type;
+                        bestItem->name = nl.second;
+                    }
+                }
+            }
+        }
+    }
     list[idx].item = bestItem;
-    list[idx].ocr_conf *= bestMatch/100;
+    list[idx].txt_conf = bestMatch;
+    list[idx].conf = list[idx].ocr_conf * bestMatch/100;
     if (bestItem) {
         LOG(DEBUG) << std::format("NavList guess '{}' => '{}'({}) match {}%, entry {} indent {}", toUtf8(nle.name),
                                   bestItem->name, enum_name<TypeNav>(bestItem->type), int(bestMatch), nle.index,

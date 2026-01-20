@@ -289,7 +289,7 @@ void approximateCompassDistance(CompassInfo& compass) {
             else
                 LOG(INFO) << std::format("Target dist (first): {} (conf {})", d.to_string(), int(d.conf));
 
-            d2t = d;
+            d2t = d; // st::autopilot.distanceToTarget = d;
 
             if (st::autopilot.destDock && st::autopilot.destDock->nameEq(buffer_target_name))
                 st::autopilot.distanceToDock = d2t;

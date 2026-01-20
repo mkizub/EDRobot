@@ -147,6 +147,31 @@ XMat GradientFilter::apply(XMat image, Params params) {
     return out8U;
 }
 
+XMat ColorGradientFilter::apply(XMat image, Params params) {
+    if (image.channels() < 3)
+        return image;
+    std::vector<XMat> channel;
+    cv::split(image, channel);
+    std::vector<XMat> merge;
+    merge.reserve(4);
+    XMat grad_gv;
+    cv::Scharr(channel[1], grad_gv, CV_32F, 0, 1, scale*0.0625 / 255., delta);
+    merge.push_back(grad_gv);
+    XMat grad_gh;
+    cv::Scharr(channel[1], grad_gh, CV_32F, 1, 0, scale*0.0625 / 255., delta);
+    merge.push_back(grad_gh);
+    XMat grad_rv;
+    cv::Scharr(channel[2], grad_rv, CV_32F, 0, 1, scale*0.0625 / 255., delta);
+    merge.push_back(grad_rv);
+    XMat grad_rh;
+    cv::Scharr(channel[2], grad_rh, CV_32F, 1, 0, scale*0.0625 / 255., delta);
+    merge.push_back(grad_rh);
+
+    XMat out;
+    cv::merge(merge, out);
+    return out;
+}
+
 LinesFilter::LinesFilter(bool vert, double gradient_scale, double gradient_threshold, int dilatePos, int dilateNeg, int erode)
         : vert(vert)
         , gradient_scale(gradient_scale)

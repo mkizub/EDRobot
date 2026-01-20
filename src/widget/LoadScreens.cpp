@@ -205,6 +205,27 @@ static detect::ImageFilter* filter_from_json(const json5pp::value& jf) {
             delta = jf["laplacian"]["delta"].as_number();
         return new LaplacianFilter(kern, scale, delta);
     }
+    if (jf["laplacian"].is_object()) {
+        int kern = 3;
+        double scale = 1;
+        double delta = 0;
+        if (jf["laplacian"]["kern"].is_integer())
+            kern = jf["laplacian"]["kern"].as_integer();
+        if (jf["laplacian"]["scale"].is_number())
+            scale = jf["laplacian"]["scale"].as_number();
+        if (jf["laplacian"]["delta"].is_number())
+            delta = jf["laplacian"]["delta"].as_number();
+        return new LaplacianFilter(kern, scale, delta);
+    }
+    if (jf["grad"].is_object()) {
+        double scale = 1;
+        double delta = 0;
+        if (jf["grad"]["scale"].is_number())
+            scale = jf["grad"]["scale"].as_number();
+        if (jf["grad"]["delta"].is_number())
+            delta = jf["grad"]["delta"].as_number();
+        return new ColorGradientFilter(scale, delta);
+    }
     if (jf["scharr"].is_object()) {
         bool vert = false;
         double scale = 1;

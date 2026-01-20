@@ -1692,7 +1692,7 @@ spGameEvent BaseDockStep::requestDockingPermit() {
         // poll for docking event
         timer = utc_timer(5s);
         kbd::send("UI_Right");
-        kbd::send("UI_Select", 0, 800);
+        kbd::send("UI_Select", 100, 700);
         kbd::send("UI_Select");
         while (!timer.expired()) {
             auto de = Cfg.dockingEvent;
@@ -2541,7 +2541,7 @@ bool CruiseToSignal::run() {
     failCount = 0;
     if (st::guiFocus == GuiFocus::None) {
         ai::detectEDState(DetectLevel::Screen);
-        gotDistance(ai::compassInfo.nav_target_dist);
+        gotDistance(st::autopilot.distanceToTarget);
     } else {
         dist_t dist = task->nl.getFocusedDist(3);
         gotDistance(dist);
@@ -2612,7 +2612,7 @@ bool CruiseToSignal::run() {
             } else {
                 noCompassCount = 0;
             }
-            dist_t compass_dist = ai::compassInfo.nav_target_dist;
+            dist_t compass_dist = st::autopilot.distanceToTarget;
             if (!gotDistance(compass_dist)) {
                 if (ai::compassInfo.has_nav_target) {
                     if (failCount >= 15) {
@@ -2735,7 +2735,7 @@ bool CruiseToDistStep::run() {
     requiredDist = maxDist;
     if (st::guiFocus == GuiFocus::None) {
         ai::detectEDState(DetectLevel::Screen);
-        gotDistance(ai::compassInfo.nav_target_dist);
+        gotDistance(st::autopilot.distanceToTarget);
     } else {
         dist_t dist = task->nl.getFocusedDist(3);
         gotDistance(dist);
@@ -2828,7 +2828,7 @@ bool CruiseToDistStep::run() {
             } else {
                 noCompassCount = 0;
             }
-            dist_t compass_dist = ai::compassInfo.nav_target_dist;
+            dist_t compass_dist = st::autopilot.distanceToTarget;
             if (!gotDistance(compass_dist)) {
                 LOG(DEBUG) << "CruiseToDist: cannot get distance from target mark, failCount=" << failCount;
                 if (ai::compassInfo.has_nav_target) {
@@ -3492,9 +3492,9 @@ bool ExitCruiseToSpace::run() {
         if (st::guiFocus != GuiFocus::None)
             sendUiBack();
         ai::detectEDState(DetectLevel::Screen);
-        if (ai::compassInfo.nav_target_dist) {
-            if (ai::compassInfo.nav_target_dist > 25_km) {
-                throw_trouble("Unexpected distance after cruise exit: {}", ai::compassInfo.nav_target_dist.to_string());
+        if (st::autopilot.distanceToTarget) {
+            if (st::autopilot.distanceToTarget > 25_km) {
+                throw_trouble("Unexpected distance after cruise exit: {}", st::autopilot.distanceToTarget.to_string());
             }
             LOG(DEBUG) << "ExitCruise to space, done";
             prevSubStep.reset();
@@ -3647,7 +3647,7 @@ bool ExitCruiseToPlanet::run() {
     double prev_dist_km = 0;
     for (int retry=0; retry < 40; retry++) {
         ai::detectEDState(DetectLevel::Screen);
-        auto ai_dist = ai::compassInfo.nav_target_dist;
+        auto ai_dist = st::autopilot.distanceToTarget;
         if (ai_dist) {
             double dist_km = ai_dist.get_km();
             if (prev_dist_km > 0 && std::abs(prev_dist_km - dist_km) < 1) {

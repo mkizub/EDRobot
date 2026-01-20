@@ -120,8 +120,10 @@ bool CapturerWinRT::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect
         return false;
     }
     auto gameSize = Cfg.getConfigDisplaySize();
-    if (gameSize.width > clientRect.width || gameSize.height > clientRect.height)
+    if (gameSize.width > clientRect.width || gameSize.height > clientRect.height) {
+        LOG(ERROR) << "CapturerWinRT: Game size " << gameSize << " doers not match window client size " << clientRect.size();
         return false;
+    }
     // Init COM
     winrt::init_apartment();
 
@@ -132,6 +134,7 @@ bool CapturerWinRT::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect
     this->titleHeight = clientRect.y - windowRect.y;
     this->borderWidth = clientRect.x - windowRect.x;
 
+    LOG(INFO) << "CapturerWinRT: possible";
     return true;
 }
 

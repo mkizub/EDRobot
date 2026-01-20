@@ -190,14 +190,16 @@ std::vector<TilesDetector::Range> TilesDetector::split(ClassifyEnv &env, bool co
     }
     if (!in_gap)
         detectedGaps.emplace_back(size-1,size-1);
+    int min_gap = std::min(gap-1, int(std::floor(gap*0.7)));
+    int max_gap = std::max(gap+1, int(std::ceil(gap*1.3)));
     for (int g=1; g < detectedGaps.size()-1; g++) {
         int b = detectedGaps[g].bgn;
         int e = detectedGaps[g].end;
-        if ((e - b + 1) < gap*0.7) {
+        if ((e - b + 1) < min_gap) {
             detectedGaps.erase(detectedGaps.begin()+g);
             continue;
         }
-        else if ((e - b - 1) > gap*1.3) {
+        else if ((e - b - 1) > max_gap) {
             detectedGaps[g].end = b + gap*1.2;
         }
     }

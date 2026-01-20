@@ -6,4 +6,7 @@ python pupulate.py D:\Work\ED\EDRobot\training\unichar\nav3-1920 D:\Work\ED\tess
 python pupulate.py D:\Work\ED\EDRobot\training\unichar\nav4-1920 D:\Work\ED\tesstrain-windows-gui\testset-edr\nav4-1920
 python pupulate.py D:\Work\ED\EDRobot\training\unichar\nav5-1920 D:\Work\ED\tesstrain-windows-gui\testset-edr\nav5-1920
 python pupulate.py D:\Work\ED\EDRobot\training\unichar\nav6-1920 D:\Work\ED\tesstrain-windows-gui\testset-edr\nav6-1920
+python pupulate.py D:\Work\ED\EDRobot\training\unichar\nav7-1920 D:\Work\ED\tesstrain-windows-gui\testset-edr\nav7-1920
+python pupulate.py D:\Work\ED\EDRobot\training\unichar\nav8-1920 D:\Work\ED\tesstrain-windows-gui\testset-edr\nav8-1920
+python pupulate.py D:\Work\ED\EDRobot\training\unichar\nav9-1920 D:\Work\ED\tesstrain-windows-gui\testset-edr\nav9-1920
 python pupulate.py D:\Work\ED\EDRobot\training\unichar\contacts D:\Work\ED\tesstrain-windows-gui\testset-edr\contacts

@@ -132,7 +132,7 @@ NavType FLEET_CARRIER {
         {"FleetCarrier", "Drake-Class Carrier", "Fleet Carrier"}
 };
 NavType SQUADRON_CARRIER {
-        u'\u2708', // ⛴
+        u'\u26F4', // ⛴
         TypeNav::SquadronCarrier,
         {"nav_select_icon_squadron.png"},
         {"SquadronCarrier", "Squadron Carrier"}

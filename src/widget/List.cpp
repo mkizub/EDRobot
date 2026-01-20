@@ -263,7 +263,7 @@ void Redused::detect_rows() {
 void Redused::calc_threshold() {
     int threshold;
     if (list->header > 0) {
-        threshold = 60;
+        threshold = 45;
     } else {
         bool have_gaps = false;
         uint8_t max_threshold = 100;
@@ -517,6 +517,14 @@ std::vector<Redused::Row> Redused::get_rows() {
         stddev = stddev_val[0];
     }
     //LOG(INFO) << "list mean offs: " << mean;
+    for (int i=0; i < offsets1.size() && offsets1.size() > 2; i++) {
+        double delta = std::abs(offsets1[i]-mean);
+        if (delta > 1.5*dgap)
+            offsets1.erase(offsets1.begin()+i);
+    }
+    if (offsets1.size() <= 1)
+        return {};
+    cv::meanStdDev(offsets1, mean_val, stddev_val);
 
     std::vector<XY> leastApproxData;
     leastApproxData.reserve(gaps.size());
@@ -594,7 +602,7 @@ bool List::detect(DetectParams& params) {
         rowTestRect.width = env.getScale() * (row_test_end - row_test_bgn);
     }
     detect::HsvValueCropFilter hsvFilter;
-    hsvFilter.rangesU.emplace_back(cv::Vec3b(5,100,30),cv::Vec3b(35,255,255));
+    hsvFilter.rangesU.emplace_back(cv::Vec3b(5,100,15),cv::Vec3b(35,255,255));
     XMat testImage = hsvFilter.apply(env.getColorImage()(rowTestRect), {});
 #ifdef  DEBUG_LIST_DETECTOR
     XMat origImage = env.getColorImage()(rowTestRect);

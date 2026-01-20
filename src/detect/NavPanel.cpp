@@ -156,15 +156,15 @@ double NavPanelDetector::match(ClassifyEnv &env) {
     auto topCaptLine = env.cvtReferenceToCaptured(topRefLine);
     {
         // rotate for anchor detection
-        const int roughExtW = 300 * env.getScale();
-        const int roughExtH = 120 * env.getScale();
-        int topWidth = topCaptLine.length();
-        float roughW = topWidth + roughExtW;
-        float roughH = roughExtH;
-        lastRotRect = {roughCenter, {roughW, roughH}, roughAngle};
+        const int roughExtW = 300;
+        const int roughExtH = 120;
+        float refRoughW = topRefLine.length() + roughExtW;
+        float captRoughW = topCaptLine.length() + roughExtW*env.getScale();
+        float captRoughH = roughExtH*env.getScale();
+        lastRotRect = {roughCenter, {captRoughW, captRoughH}, roughAngle};
         cv::Point2f pointsSrc[4];
         lastRotRect.points(pointsSrc); // bottomLeft, topLeft, topRight, bottomRight
-        cv::Point2f pointsDst[4] = { {0,roughH}, {0,0}, {roughW,0}, {roughW,roughH} };
+        cv::Point2f pointsDst[4] = { {0,roughExtH}, {0,0}, {refRoughW,0}, {refRoughW,roughExtH} };
         roughAffineMatrix = cv::getAffineTransform(pointsSrc, pointsDst);
         cv::invertAffineTransform(roughAffineMatrix, roughAffineInverted);
 #ifdef DEBUG_DETECTOR
@@ -172,7 +172,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
             cv::line(debugImage, pointsSrc[j], pointsSrc[(j+1) % 4], {160,160,160}, 1, cv::LINE_AA);
 #endif
         XMat roughImage;
-        cv::warpAffine(env.getColorImage(), roughImage, roughAffineMatrix, {topWidth+roughExtW, roughExtH});
+        cv::warpAffine(env.getColorImage(), roughImage, roughAffineMatrix, {int(refRoughW), roughExtH});
         cv::Point offset{roughExtW/2, roughExtH/2};
         ClassifyEnv roughEnv;
         roughEnv.init(roughImage, roughAffineInverted);
@@ -238,14 +238,14 @@ double NavPanelDetector::match(ClassifyEnv &env) {
             cv::Line refLine {lan->refEvalRect->calcReferenceRect(env).tl(), ran->refEvalRect->calcReferenceRect(env).tl()};
             cv::Line detLine {lan->captureRect.tl(), ran->captureRect.tl()};
             double len1 = detLine.length();
-            double len2 = refLine.length() * env.getScale();
+            double len2 = refLine.length();
             deltaScale = len1 / len2;
-            roughTopLine = {lan->captureRect.tl() + lan->anchor_of * deltaScale * env.getScale(),
-                            ran->captureRect.tl() + ran->anchor_of * deltaScale * env.getScale()};
+            roughTopLine = {lan->captureRect.tl() + lan->anchor_of * deltaScale,
+                            ran->captureRect.tl() + ran->anchor_of * deltaScale};
             deltaAngle = roughAngle + roughTopLine.angle() - topCaptLine.angle();
         }
         else if (lan) {
-            cv::Point2f p0 = lan->captureRect.tl() + lan->anchor_of * env.getScale();
+            cv::Point2f p0 = lan->captureRect.tl() + lan->anchor_of;
             cv::Point2f p1 = topCaptLine.p1() - topCaptLine.p0();
             p1 = p0 + rotateAround(p1, cv::Point2f(), -roughAngle, 1);
             roughTopLine = {p0, p1};
@@ -270,12 +270,12 @@ double NavPanelDetector::match(ClassifyEnv &env) {
         if (!lastSelectedTab) {
             uchar selectedTabValue = 0;
             double sin_a = std::sin(roughTopLine.angle() * M_PI / 180);
-            cv::Rect tabsRect {roughTopLine.p0(), cv::Point(roughTopLine.x1, roughTopLine.y1+40*env.getScale())};
+            cv::Rect tabsRect {roughTopLine.p0(), cv::Point(roughTopLine.x1, roughTopLine.y1+40)};
             tabsRect &= cv::Rect(0,0,roughImage.cols,roughImage.rows);
             cv::Mat tabImage;
             cv::cvtColor(roughImage(tabsRect), tabImage, cv::COLOR_BGR2GRAY);
             for (auto &tab: mTabs) {
-                cv::Rect r = env.scaleToCaptured(tab.rect);
+                cv::Rect r = tab.rect;
                 if (r.empty())
                     continue;
                 r.x *= deltaScale;

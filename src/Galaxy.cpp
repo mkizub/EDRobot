@@ -768,12 +768,19 @@ void StarSystem::checkType(spEntity& site, TypeNav type, Timestamp timestamp) {
     }
 }
 void StarSystem::checkName(spEntity& site, const std::string& name, Timestamp timestamp) {
-    if (site && !site->nameEq(name) && site->updated < timestamp) {
-        if (site->setName(name)) {
+    if (site && site->updated < timestamp) {
+        if (site->type == TypeNav::FleetCarrier) {
+            if (site->name != name && site->setName(name)) {
+                site->updated = timestamp;
+                saved = false;
+            }
+        }
+        else if (!site->nameEq(name) && site->setName(name)) {
             site->updated = timestamp;
             saved = false;
         }
     }
+
 }
 void StarSystem::checkNloc(spEntity& site, const std::string& nloc, Timestamp timestamp) {
     if (site && site->nloc != nloc) {

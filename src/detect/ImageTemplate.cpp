@@ -243,7 +243,7 @@ void ImageTemplate::prepareImages(ClassifyEnv& env) {
 void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<ImageMatrix>& templates, MatchResult& out) {
     if (!templates.size())
         return;
-    const bool use_float = useOpenCL() || templates.size() > 1;
+    const bool use_float = useOpenCL() || templates.size() > 1 || image.depth() == CV_32F;
     XMat preparedImage;
     if (use_float && image.depth() != CV_32F) {
         assert (image.depth() == CV_8U);

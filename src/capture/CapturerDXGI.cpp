@@ -183,6 +183,7 @@ bool CapturerDXGI::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect)
     this->titleHeight = clientRect.y - windowRect.y;
     this->borderWidth = clientRect.x - windowRect.x;
 
+    LOG(INFO) << "CapturerDXGI: possible";
     return true;
 }
 

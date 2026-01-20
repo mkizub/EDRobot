@@ -92,14 +92,22 @@ bool Configuration::load() {
             if (tm.as_integer() >= 25 && tm.as_integer() <= 400)
                 mUiScalePercents = tm.as_integer();
         }
-        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer())
+        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer()) {
             defaultKeyHoldTime = tm.as_integer();
-        if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer())
+            LOG(INFO) << "default-key-hold-time: " << defaultKeyHoldTime;
+        }
+        if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer()) {
             defaultKeyAfterTime = tm.as_integer();
-        if (auto& tm = j_config.at("search-region-extent"); tm.is_integer())
+            LOG(INFO) << "default-key-after-time: " << defaultKeyAfterTime;
+        }
+        if (auto& tm = j_config.at("search-region-extent"); tm.is_integer()) {
             searchRegionExtent = tm.as_integer();
-        if (auto& tm = j_config.at("auto-pause"); tm.is_boolean())
+            LOG(INFO) << "search-region-extent: " << searchRegionExtent;
+        }
+        if (auto& tm = j_config.at("auto-pause"); tm.is_boolean()) {
             autoPause = tm.as_boolean();
+            LOG(INFO) << "auto-pause: " << autoPause;
+        }
         if (j_config.at("shortcuts").is_object()) {
             auto &obj = j_config.at("shortcuts");
             parseShortcutConfig(Command::Start, "start", obj);
@@ -123,12 +131,18 @@ bool Configuration::load() {
             if (tm.is_integer())
                 forceDXGIDeviceId = tm.as_integer();
         }
-        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean()) {
             capturerWin32Disabled = tm.as_boolean();
-        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean())
+            LOG(INFO) << "capturer-Win32-disabled: " << capturerWin32Disabled;
+        }
+        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean()) {
             capturerWinRTDisabled = tm.as_boolean();
-        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean())
+            LOG(INFO) << "capturer-WinRT-disabled: " << capturerWinRTDisabled;
+        }
+        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean()) {
             capturerDXGIDisabled = tm.as_boolean();
+            LOG(INFO) << "capturer-DXGI-disabled: " << capturerDXGIDisabled;
+        }
         if (auto& tm = j_config.at("curl-insecure"); tm.is_boolean())
             mCurlInsecure = tm.as_boolean();
         if (auto& tm = j_config.at("curl-proxy"); tm.is_string()){
@@ -138,10 +152,14 @@ bool Configuration::load() {
         if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
             vJoyDeviceID = (uint8_t) tm.as_integer();
 #ifdef EDROBOT_USE_OPENCL
-        if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean())
+        if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean()) {
             openclDisabled = tm.as_boolean();
-        if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_boolean())
+            LOG(INFO) << "opencl-disabled: " << openclDisabled;
+        }
+        if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_boolean()) {
             openclD3dInterop = tm.as_boolean();
+            LOG(INFO) << "opencl-d3d11-interop: " << openclD3dInterop;
+        }
         g_DisableOpenCL = openclDisabled;
         if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
             _putenv_s("OPENCV_OPENCL_CACHE_DIR", tm.as_string().c_str());
@@ -153,6 +171,9 @@ bool Configuration::load() {
 #endif
         std::filesystem::create_directories("cache/systems");
         std::filesystem::create_directories("cache/markets");
+
+        LOG(INFO) << "ED log files path: " << mEDLogsPath;
+        LOG(INFO) << "ED settings  path: " << mEDSettingsPath;
 
         LOG(INFO) << "Initializing D3D device";
         if (!Capturer::InitD3DDevice())
@@ -407,10 +428,14 @@ bool Configuration::loadGameSettings(bool initial) {
         return false;
     }
     if (!initial) {
-        if (displaySettingsBuffer.crc32 == mDisplaySettingsCRC32 && settingsBuffer.crc32 == mSettingsCRC32)
+        if (displaySettingsBuffer.crc32 == mDisplaySettingsCRC32 && settingsBuffer.crc32 == mSettingsCRC32) {
+            LOG(DEBUG) << "Settings not changed";
             return true;
+        }
     }
     LOG(INFO) << "Loading game settings";
+    LOG(INFO) << "Loaded " << displaySettingsBuffer.path;
+    LOG(INFO) << "Loaded " << settingsBuffer.path;
     bool ok = true;
     bool needCapturerReset = false;
 
@@ -491,7 +516,8 @@ bool Configuration::loadGameSettings(bool initial) {
                                          scaledScreenWidth, scaledScreenHeight,
                                          croppedScreenRect.x, croppedScreenRect.y,
                                          croppedScreenRect.width, croppedScreenRect.height);
-
+            LOG(INFO) << "Game screen mode: " << enum_name<GameScreenMode>(configScreenMode);
+            LOG(INFO) << "Game monitor id: " << configMonitorID;
         } else {
             ok = false;
             LOG(ERROR) << "Cannot parse " << displaySettingsBuffer.path;

@@ -58,10 +58,10 @@ enum TextPSM {
 extern bool init(const std::string& tessdata);
 extern void shutdown();
 
-extern int ocrPageSegm(const cv::Mat& grayImage, cv::Rect& rectOut, std::vector<cv::Line>& baselineOut);
+extern bool ocrPageSegm(const cv::Mat& grayImage, cv::Rect& rectOut, std::vector<cv::Line>& baselineOut);
 // returns confidence 0..100, fill text, rect
 extern int ocrLine(TextType tt, int psm, const char* dbg, const cv::Mat& grayImage, int minConf, std::string& text, cv::Rect* rectOut);
-extern cv::Mat normalizeTextImage(const cv::Mat& grayImage, int blackPixelsLimit=50, int blackAdd=10, int whiteSub=10, int bin=4);
+extern cv::Mat normalizeTextImage(cv::Mat& grayImage, int blackPixelsLimit=50, int blackAdd=10, int whiteSub=10, int bin=4);
 
 extern int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Rect* rectOut=nullptr);
 extern int ocrRowTextForTraining(TextType tt, const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string_view tab_name, std::string& text, cv::Mat& dumpImage);
@@ -72,10 +72,10 @@ extern int ocrMarketLblTextForTraining(const cv::Mat& grayImage, const ResolvedE
 extern int ocrNavigationLblText(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string& text);
 extern int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const ResolvedEnv&, const ClassifiedRect&, std::string& text, cv::Mat& dumpImage);
 
-extern cv::Mat normalizeTargetDistText(const cv::Mat& grayImage);
-extern int ocrTargetDistText(const cv::Mat& grayImage, std::string& text);
+extern cv::Mat normalizeTargetDistText(cv::Mat& grayImage);
+extern int ocrTargetDistText(cv::Mat grayImage, std::string& text);
 
-extern int ocrTileLblText(double font_height, const cv::Mat& grayImage, WState ws, std::string& text);
+extern int ocrTileLblText(double font_height, cv::Mat& grayImage, WState ws, std::string& text);
 
 extern int ocrDetectorText(TextType tt, double font_height, bool multiline, const cv::Mat& grayImage, const ResolvedEnv&, std::string& text, cv::Rect* rectOut);
 }

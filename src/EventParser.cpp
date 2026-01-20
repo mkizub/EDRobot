@@ -726,13 +726,22 @@ void parseEvent_Scan(spGameEvent& ge) {
             ss->saved = false;
         }
     } else {
-        if (body->type != TypeNav::Planet) {
+        if (auto &cl = je["PlanetClass"]; cl.is_string()) {
             body->type = TypeNav::Planet;
             ss->saved = false;
+            bool landable = (bool)je["Landable"];
+            if (landable != body->special) {
+                body->special = landable;
+                ss->saved = false;
+            }
         }
-        bool landable = (bool)je["Landable"];
-        if (landable != body->special) {
-            body->special = landable;
+        else if (auto &nm = je["BodyName"]; nm.is_string() && gal::BELT.match_name(nm.as_string())) {
+            if (body->type != TypeNav::AsteroidCluster) {
+                body->type = TypeNav::AsteroidCluster;
+                ss->saved = false;
+            }
+        } else if (!isBody(body->type)) {
+            body->type = TypeNav::Body;
             ss->saved = false;
         }
         if (je["Parents"].is_array()) {

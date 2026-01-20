@@ -15,7 +15,7 @@ public:
     bool nameEq(const std::string& nm) const;
     bool setName(const std::string& nm);
     TypeNav type {TypeNav::Other};
-    Timestamp updated;
+    Timestamp updated {};
     short bodyId {-1};
     short parentBodyId {-1}; // on orbit of
     int64_t marketId {0};
@@ -25,7 +25,7 @@ public:
     std::string name;
     std::string nloc; // localized name
     std::string code; // star class or planet type, fleet carrier code, etc
-    bool special; // main star, dockable for stations, landable for planets
+    bool special {false}; // main star, dockable for stations, landable for planets
 };
 
 typedef std::shared_ptr<Entity> spEntity;

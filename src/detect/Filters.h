@@ -76,6 +76,13 @@ public:
     const bool vert;
     const double scale;
 };
+class ColorGradientFilter : public ImageFilter {
+public:
+    explicit ColorGradientFilter(double scale=1, double delta=0)  : scale(scale), delta(delta) {}
+    XMat apply(XMat image, Params params) final;
+    const double scale;
+    const double delta;
+};
 class LinesFilter : public ImageFilter {
 public:
 

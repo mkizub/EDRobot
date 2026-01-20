@@ -64,6 +64,7 @@ bool CapturerWin32::trySetup(HWND hWnd, cv::Rect windowRect, cv::Rect clientRect
     this->captureSize = Cfg.getCaptureDisplaySize();
     this->titleHeight = clientRect.y - windowRect.y;
     this->borderWidth = clientRect.x - windowRect.x;
+    LOG(INFO) << "CapturerWin32: possible";
     return true;
 }
 

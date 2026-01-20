@@ -19,7 +19,7 @@
 namespace ai {
 
 void TaskDebugFindAllBase::checkAndFixOCRText() {
-    std::string dirname = "testset-edr";
+    std::string dirname = "cache/testset-edr";
 
     LOG(INFO) << "Checking OCR texts in dir: " << dirname;
     FuzzyMatch fuzzyMatch;
@@ -97,7 +97,7 @@ bool TaskDebugFindAllCommodities::run() {
     checkAndFixOCRText();
     ai::detectEDState(DetectLevel::Screen);
     if (!ai::uiState.match("scr-market:*"))
-        throw_failed("Not in market?");
+        throw_failed_("Not in market?");
     std::string marketMode = ai::uiState.path().substr(11);
     std::vector<Commodity*> table;
     if (marketMode == "mod-sell")
@@ -105,9 +105,9 @@ bool TaskDebugFindAllCommodities::run() {
     else if (marketMode == "mod-buy")
         table = Cfg.getMarketInBuyOrder();
     else
-        throw_failed("Unknown market mode {}", marketMode);
+        throw_failed_(std::format("Unknown market mode {}", marketMode));
     if (table.empty())
-        throw_failed("Empty market?");
+        throw_failed_("Empty market?");
     struct VerifyStats {
         int ocr_min_conf = 100;
         int ocr_max_conf = 0;
@@ -196,8 +196,8 @@ bool TaskDebugFindAllCommodities::checkCommodity(Commodity *currCommodity, const
                                                  std::vector<CommodityMatch> *verify)
 {
     if (dump_images) {
-        std::string lbl_filename = std::format("testset-edr/{}-lbl-gray.png", currCommodity->nameId);
-        std::string row_filename = std::format("testset-edr/{}-row-gray.png", currCommodity->nameId);
+        std::string lbl_filename = std::format("cache/testset-edr/{}-lbl-gray.png", currCommodity->nameId);
+        std::string row_filename = std::format("cache/testset-edr/{}-row-gray.png", currCommodity->nameId);
         if (std::filesystem::exists(lbl_filename) && std::filesystem::exists(row_filename)) {
             LOG(INFO) << "Files already generated for: " << currCommodity->nameId;
             return true;
@@ -333,7 +333,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
     assert(cr.u.lrow.commodity == commodity);
     if (commodity != cr.u.lrow.commodity)
         return;
-    std::string filename = std::format("testset-edr/{}-row-gray.png", commodity->nameId);
+    std::string filename = std::format("cache/testset-edr/{}-row-gray.png", commodity->nameId);
     if (std::filesystem::exists(filename))
         return;
 
@@ -341,23 +341,23 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
     cv::Mat rowDumpImage;
     int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", text, rowDumpImage);
 
-    filename = std::format("testset-edr/{}-row-gray.png", commodity->nameId);
+    filename = std::format("cache/testset-edr/{}-row-gray.png", commodity->nameId);
     cv::imwrite(filename, rowDumpImage);
 
 //    cv::Mat rowOtsuImage;
 //    cv::threshold(rowDumpImage, rowOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-//    filename = std::format("testset-edr/{}-row-otsu.png", commodity->nameId);
+//    filename = std::format("cache/testset-edr/{}-row-otsu.png", commodity->nameId);
 //    cv::imwrite(filename, rowOtsuImage);
 
     FuzzyMatch fm;
     std::wstring nameOCR = fm.toOCR(commodity->wide);
 
     std::ofstream gt_txt;
-    filename = std::format("testset-edr/{}-row-gray.gt.txt", commodity->nameId);
+    filename = std::format("cache/testset-edr/{}-row-gray.gt.txt", commodity->nameId);
     gt_txt.open(filename, std::ios::trunc | std::ios::binary);
     gt_txt << toUtf8(nameOCR);
     gt_txt.close();
-//    filename = std::format("testset-edr/{}-row-otsu.gt.txt", commodity->nameId);
+//    filename = std::format("cache/testset-edr/{}-row-otsu.gt.txt", commodity->nameId);
 //    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
 //    gt_txt << toUtf8(nameOCR);
 //    gt_txt.close();
@@ -372,7 +372,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketLbl(const cv::Mat& grayImage, con
     assert(commodity);
     if (!commodity)
         return;
-    std::string filename = std::format("testset-edr/{}-lbl-gray.png", commodity->nameId);
+    std::string filename = std::format("cache/testset-edr/{}-lbl-gray.png", commodity->nameId);
     if (std::filesystem::exists(filename))
         return;
 
@@ -400,23 +400,23 @@ void TaskDebugFindAllCommodities::saveOcrMarketLbl(const cv::Mat& grayImage, con
 
     for (int l=0; l < texts.size(); l++) {
         if (l > 0)
-            filename = std::format("testset-edr/{}-lbl{}-gray.png", commodity->nameId, l);
+            filename = std::format("cache/testset-edr/{}-lbl{}-gray.png", commodity->nameId, l);
         else
-            filename = std::format("testset-edr/{}-lbl-gray.png", commodity->nameId);
+            filename = std::format("cache/testset-edr/{}-lbl-gray.png", commodity->nameId);
         cv::imwrite(filename, lblDumpImages[l]);
 
 //        cv::Mat lblOtsuImage;
 //        cv::threshold(lblDumpImages[l], lblOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
 //        if (l > 0)
-//            filename = std::format("testset-edr/{}-lbl{}-otsu.png", commodity->nameId, l);
+//            filename = std::format("cache/testset-edr/{}-lbl{}-otsu.png", commodity->nameId, l);
 //        else
-//            filename = std::format("testset-edr/{}-lbl-otsu.png", commodity->nameId);
+//            filename = std::format("cache/testset-edr/{}-lbl-otsu.png", commodity->nameId);
 //        cv::imwrite(filename, lblOtsuImage);
 
         if (l > 0)
-            filename = std::format("testset-edr/{}-lbl{}-gray.gt.txt", commodity->nameId, l);
+            filename = std::format("cache/testset-edr/{}-lbl{}-gray.gt.txt", commodity->nameId, l);
         else
-            filename = std::format("testset-edr/{}-lbl-gray.gt.txt", commodity->nameId);
+            filename = std::format("cache/testset-edr/{}-lbl-gray.gt.txt", commodity->nameId);
         std::ofstream gt_txt(filename, std::ios::trunc | std::ios::binary);
         if (textsMatch) {
             gt_txt << toUtf8(dumpTexts[l]);
@@ -427,9 +427,9 @@ void TaskDebugFindAllCommodities::saveOcrMarketLbl(const cv::Mat& grayImage, con
         gt_txt.close();
 
 //        if (l > 0)
-//            filename = std::format("testset-edr/{}-lbl{}-otsu.gt.txt", commodity->nameId, l);
+//            filename = std::format("cache/testset-edr/{}-lbl{}-otsu.gt.txt", commodity->nameId, l);
 //        else
-//            filename = std::format("testset-edr/{}-lbl-otsu.gt.txt", commodity->nameId);
+//            filename = std::format("cache/testset-edr/{}-lbl-otsu.gt.txt", commodity->nameId);
 //        gt_txt.open(filename, std::ios::trunc | std::ios::binary);
 //        if (textsMatch) {
 //            gt_txt << toUtf8(dumpTexts[l]);
@@ -462,10 +462,11 @@ TaskDebugFindAllNavPoints::TaskDebugFindAllNavPoints(const TaskTemplate &templ)
         if (p.id == "txt_confidence")
             txt_confidence = p.as_integer();
     }
-    //std::string filename = std::format("testset-edr/nav-{}-lbl-gray.png", lng, offset);
-    //std::string filename = std::format("testset-edr/nav-{}-row-gray.png", lng, offset);
-    //std::string filename = std::format("testset-edr/nav-{}-num-gray.png", lng, offset);
-    std::string dirname = "testset-edr";
+    //std::string filename = std::format("cache/testset-edr/nav-{}-lbl-gray.png", lng, offset);
+    //std::string filename = std::format("cache/testset-edr/nav-{}-row-gray.png", lng, offset);
+    //std::string filename = std::format("cache/testset-edr/nav-{}-num-gray.png", lng, offset);
+    std::string dirname = "cache/testset-edr";
+    std::filesystem::create_directories(dirname);
 
     int max_offset = -1;
     for (const auto &entry: std::filesystem::directory_iterator(dirname)) {
@@ -488,113 +489,82 @@ bool TaskDebugFindAllNavPoints::run() {
     checkAndFixOCRText();
     ai::detectEDState(DetectLevel::Screen);
     if (!ai::uiState.match("scr-left-panel:mod-nav-list"))
-        throw_failed("Not in mod-nav-list?");
+        throw_failed_("Not in mod-nav-list?");
 
-    if (!getSpanishInfo())
+    if (!getSpanishInfo()) {
         LOG(ERROR) << "Cannot get system info from spansh.co.uk";
+        throw_failed_("Cannot get system info from spansh.co.uk");
+    }
 
     if (!(resume || unfocused)) {
         kbd::send("UI_Right");
         kbd::send("UI_Down");
-        kbd::send("UI_Up", 2000, 100);
+        kbd::send("UI_Up", 3000, 100);
     }
 
     int offset = 0;
     int failCount=0;
     if (unfocused) {
         cv::Mat grayImage;
-        ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
-        for (auto &cr: ai::rEnv.classified) {
-            if (cr.cdt != ClsDetType::ListRow)
-                continue;
-            int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", cr.text);
-            cr.u.lrow.text_confidence = conf;
-            if (conf <= ocr_confidence || checkOcrError(cr)) {
-                LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << conf << "%";
-                saveOcrNavigationRow(grayImage, cr, offset, "", nullptr);
+        int focusIdx = -1;
+        auto rows = nl.recognizeWholePage(grayImage, focusIdx);
+        if (rows.empty())
+            throw_failed_("Cannot recognize nav list");
+        for (auto &nle: nl.list) {
+            if (checkOcrError(nle)) {
+                LOG(INFO) << std::format("Checking nav-point at offset {}, ocr conf={}%, text conf={}%",
+                                         offset, nle.ocr_conf, nle.txt_conf);
+                saveOcrNavigationRow(grayImage, *rows[nle.index], offset, nle);
                 offset += 1;
+            } else {
+                LOG(INFO) << std::format("Skip nav-point at offset {}, ocr conf={}%, text conf={}%: {} {}",
+                                         offset, nle.ocr_conf, nle.txt_conf,
+                                         toUtf8(&nle.icon, 1), toUtf8(nle.name));
             }
         }
     } else {
-        for (;;) {
-            int row = 0;
-            int focused_row = -1;
-            std::vector<int> rows_with_error;
-            ClassifiedRect *focused = nullptr;
+        for (bool first=true;; first=false) {
             cv::Mat grayImage;
-            ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
-            for (auto &cr: ai::rEnv.classified) {
-                if (cr.cdt != ClsDetType::ListRow)
-                    continue;
-                if (!focused && cr.u.lrow.ws == WState::Focused) {
-                    focused = &cr;
-                    focused_row = row;
-                }
-                int conf = ocr::ocrRowText(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", cr.text);
-                cr.u.lrow.text_confidence = conf;
-                if (conf <= ocr_confidence && checkOcrError(cr))
-                    rows_with_error.push_back(row);
-                row += 1;
-            }
-            if (!focused) {
-                LOG(ERROR) << "Focused row not found";
-                failCount += 1;
-                if (failCount >= 3)
-                    throw_failed("Focused row not found");
-                kbd::send("UI_Down", 0, 500);
-                kbd::send("UI_Up", 0, 500);
+            int focusIdx = 0;
+            auto rows = nl.initNavList(grayImage, focusIdx);
+            if (rows.empty()) {
+                LOG(ERROR) << "Cannot recognize nav list";
+                //throw_failed_("Cannot recognize nav list");
+                kbd::send("UI_Down", 0, 100);
                 continue;
             }
-            failCount = 0;
-            if (focused_row == 0 && offset > 0) {
-                LOG(INFO) << "Nav list wrapped at offset " << offset << "; finishing task";
+            nl.parseNavRow(grayImage, ai::rEnv, *rows[focusIdx], focusIdx);
+            if (focusIdx == 0 && !first) {
+                LOG(INFO) << std::format("Nav list wrapped at offset {}; finishing task", offset);
                 break;
             }
-            if (focused->u.lrow.text_confidence <= ocr_confidence && checkOcrError(*focused)) {
-                LOG(INFO) << "Checking nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
-                checkNavPoint(offset);
+            nl.guessNavItem(focusIdx);
+            auto& nle = nl.list[focusIdx];
+            if (checkOcrError(nle)) {
+                LOG(INFO) << std::format("Checking nav-point at offset {}, ocr conf={}%, text conf={}%",
+                                         offset, nle.ocr_conf, nle.txt_conf);
+                saveOcrNavigationRow(grayImage, *rows[nle.index], offset, nle);
                 offset += 1;
                 kbd::send("UI_Down", 0, 100);
                 continue;
             }
-            LOG(INFO) << "Skip nav-point at offset " << offset << ", detected conf=" << focused->u.lrow.text_confidence << "%";
-            int skip_rows = -1;
-            for (int bad_row: rows_with_error) {
-                if (bad_row > focused_row) {
-                    skip_rows = bad_row - focused_row;
-                    break;
-                }
-            }
-            if (skip_rows > 0) {
-                for (int dn = 0; dn < skip_rows; dn++)
-                    kbd::send("UI_Down", 0, 100);
-                continue;
-            }
-            for (int dn = 0; dn < (10 - focused_row) + 8; dn++)
-                kbd::send("UI_Down", 0, 100);
-            for (int up = 0; up < 8; up++)
-                kbd::send("UI_Up", 0, 100);
+            LOG(INFO) << std::format("Skip nav-point at offset {}, ocr conf={}%",
+                                     offset, nle.ocr_conf, nle.txt_conf);
+            kbd::send("UI_Down", 0, 100);
         }
     }
     return true;
 }
 
-bool TaskDebugFindAllNavPoints::checkOcrError(const ClassifiedRect& cr) {
-    std::wstring wide = toUtf16(cr.text);
-    StationRowInfo rowInfo {};
-    if (!parseRowInfo(wide, rowInfo))
+bool TaskDebugFindAllNavPoints::checkOcrError(const NavListEntry& nle) {
+    if (nle.icon == 0 || nle.icon == gal::ERROR_MARK)
         return true;
-    gal::NavType* nav_type = nullptr;
-    for (auto nt : gal::ALL_NAV_TYPES) {
-        if (nt->charOCR == rowInfo.type) {
-            nav_type = nt;
-            break;
-        }
-    }
-    if (!nav_type)
+    if (nle.ocr_conf < ocr_confidence)
         return true;
-    std::string text = toUtf8(rowInfo.name);
-    if (guessBestStation(text, nav_type) < txt_confidence)
+    // ignore construction depots
+    if (nle.item && (nle.item->type == TypeNav::PlanetaryConstrDepot || nle.item->type == TypeNav::SpaceConstrDepot))
+        return false;
+    if (nle.txt_conf < txt_confidence)
         return true;
     return false;
 }
@@ -643,7 +613,7 @@ json5pp::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10);
     //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     char errbuf[CURL_ERROR_SIZE] = {};
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
@@ -704,7 +674,7 @@ json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10);
     std::string payload = data.stringify();
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, payload.size());
@@ -768,11 +738,11 @@ json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, 
 //}
 //
 bool TaskDebugFindAllNavPoints::getSpanishInfo() {
-    auto j = curlGetRequest("https://www.spansh.co.uk/api/system/");
-    if (!j)
-        return false;
-    spanishSystemInfo = std::move(j);
-    LOG(DEBUG) << "Got system info: " << spanishSystemInfo;
+//    auto j = curlGetRequest("https://www.spansh.co.uk/api/system/");
+//    if (!j)
+//        return false;
+//    spanshSystemInfo = std::move(j);
+//    LOG(DEBUG) << "Got system info: " << spanshSystemInfo;
 
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     std::string systemName = ss->systemName;
@@ -784,11 +754,15 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
             { "page", 0}
     });
 
-    j = curlPostRequest("https://www.spansh.co.uk/api/systems/search", payload);
-    if (!j)
+    auto jn = curlPostRequest("https://www.spansh.co.uk/api/systems/search", payload);
+    if (!jn.is_array())
         return false;
-    spanishNearSystems = std::move(j);
-    LOG(DEBUG) << "Got near systems: " << spanishNearSystems;
+    std::vector<std::string> systems;
+    for (auto& s : jn.as_array())
+        systems.push_back(s["name"].as_string());
+    nl.setNearestSystems(systemName, systems);
+    spanshNearSystems = std::move(jn);
+    LOG(DEBUG) << "Got near systems: " << spanshNearSystems;
 
     return true;
 }
@@ -810,36 +784,16 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
 //}
 
 
-bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
-    std::string lbl_text;
-    std::string lbl_anchor;
-    const gal::NavType* navType = nullptr;
-    cv::Mat grayImage;
-    kbd::send("UI_Select", 0, 1500);
-    ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
-    for (auto& cr : ai::rEnv.classified) {
-        if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
-            lbl_anchor = cr.text.substr(7);
-            navType = guessNavType(lbl_text, lbl_anchor);
-        }
-        if (cr.cdt == ClsDetType::Widget && cr.text == "lbl-title") {
-            saveOcrNavigationLbl(grayImage, cr, offset, lbl_text, navType);
-        }
-    }
-
-    kbd::send("UI_Back", 50, 1000);
-
-    ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
-    for (auto& cr : ai::rEnv.classified) {
-        if (cr.cdt != ClsDetType::ListRow)
-            continue;
-        if (cr.u.lrow.ws == WState::Focused) {
-            saveOcrNavigationRow(grayImage, cr, offset, lbl_text, navType);
-            break;
-        }
-    }
-    return true;
-}
+//bool TaskDebugFindAllNavPoints::checkNavPoint(int offset) {
+//    kbd::send("UI_Select");
+//    kbd::send("UI_Select");
+//    sleep(1000);
+//    std::string name = st::destination.name;
+//    kbd::send("UI_Select");
+//    kbd::send("UI_Select");
+//    saveOcrNavigationRow(grayImage, cr, offset, lbl_text, navType);
+//    return true;
+//}
 
 const gal::NavType* TaskDebugFindAllNavPoints::guessNavType(const std::string& lbl_name, const std::string& lbl_anchor) const {
     for (auto nt : gal::ALL_NAV_TYPES) {
@@ -868,8 +822,8 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::Barycenter:
     case TypeNav::Ring:
     case TypeNav::AsteroidCluster:
-        if (spanishSystemInfo["bodies"].is_array()) {
-            for (auto &js: spanishSystemInfo.at("bodies").as_array()) {
+        if (spanshSystemInfo["bodies"].is_array()) {
+            for (auto &js: spanshSystemInfo.at("bodies").as_array()) {
                 if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
                     continue;
                 std::string name = js.at("name").as_string();
@@ -883,8 +837,8 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
         }
         break;
     case TypeNav::StarSystem:
-        if (spanishNearSystems.is_array()) {
-            for (auto &js: spanishNearSystems.as_array()) {
+        if (spanshNearSystems.is_array()) {
+            for (auto &js: spanshNearSystems.as_array()) {
                 std::string name = js.at("name").as_string();
                 std::wstring name_ocr = fm.toOCR(toUtf16(name));
                 double rate = fm.ratio(text_ocr, name_ocr);
@@ -917,8 +871,8 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::Settlement:
     case TypeNav::PlanetaryInstallation:
     case TypeNav::PlanetaryConstrDepot:
-        if (spanishSystemInfo["stations"].is_array()) {
-            for (auto &js: spanishSystemInfo.at("stations").as_array()) {
+        if (spanshSystemInfo["stations"].is_array()) {
+            for (auto &js: spanshSystemInfo.at("stations").as_array()) {
                 if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
                     continue;
                 std::string name = js.at("name").as_string();
@@ -951,7 +905,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationLbl(const cv::Mat &grayImage, c
     lbl_text.clear();
     offset += offset_append;
 
-    std::string filename = std::format("testset-edr/nav-{}-lbl-gray.png", offset);
+    std::string filename = std::format("cache/testset-edr/nav-{}-lbl-gray.png", offset);
     if (std::filesystem::exists(filename))
         return;
 
@@ -976,173 +930,123 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationLbl(const cv::Mat &grayImage, c
     if (!dump_images)
         return;
 
-    filename = std::format("testset-edr/nav-{}-lbl-gray.png", offset);
+    filename = std::format("cache/testset-edr/nav-{}-lbl-gray.png", offset);
     cv::imwrite(filename, dumpImage);
 
 //    cv::Mat otsuImage;
 //    cv::threshold(dumpImage, otsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-//    filename = std::format("testset-edr/nav-{}-lbl-otsu.png", offset);
+//    filename = std::format("cache/testset-edr/nav-{}-lbl-otsu.png", offset);
 //    cv::imwrite(filename, otsuImage);
 
     FuzzyMatch fm;
     std::wstring wide = toUtf16(text);
     std::wstring nameOCR = fm.toOCR(wide);
 
-    filename = std::format("testset-edr/nav-{}-lbl-gray.gt.txt", offset);
+    filename = std::format("cache/testset-edr/nav-{}-lbl-gray.gt.txt", offset);
     std::ofstream gt_txt(filename, std::ios::trunc | std::ios::binary);
     gt_txt << toUtf8(nameOCR);
     gt_txt.close();
 
-//    filename = std::format("testset-edr/nav-{}-lbl-otsu.gt.txt", offset);
+//    filename = std::format("cache/testset-edr/nav-{}-lbl-otsu.gt.txt", offset);
 //    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
 //    gt_txt << toUtf8(nameOCR);
 //    gt_txt.close();
 }
 
-bool TaskDebugFindAllNavPoints::parseRowInfo(std::wstring text, StationRowInfo& rowInfo) {
-    text = trim(text);
-    if (text.empty())
-        return false;
-    wchar_t ch = text.front();
-    if (text[0] >= 0x2000 && text[0] <= 0x2FFF) {
-        rowInfo.type = text[0];
-        text = trim(text.substr(1));
-        if (text.empty())
-            return false;
-    }
-    ch = text.back();
-    wchar_t ch1 = text[text.size()-2];
-    wchar_t ch2 = text[text.size()-3];
-    if (ch == gal::LOCATION_MARK ||
-        (ch1 == gal::SHIELD1_MARK || ch1 == gal::SHIELD2_MARK || ch1 == gal::SHIELD3_MARK) ||
-        (ch1 == L' ' && (ch2 == gal::SHIELD1_MARK || ch2 == gal::SHIELD2_MARK || ch2 == gal::SHIELD3_MARK))
-    ) {
-        rowInfo.isLocation = true;
-        text.pop_back();
-        text = trim(text);
-        if (text.empty())
-            return false;
-    }
-    ch = text.back();
-    if (ch == gal::SHIELD1_MARK || ch == gal::SHIELD2_MARK || ch == gal::SHIELD3_MARK) {
-        rowInfo.danger = ch;
-        text.pop_back();
-        text = trim(text);
-        if (text.empty())
-            return false;
-    }
-    ch = text.back();
-    while (ch == L'+') {
-        rowInfo.size += 1;
-        text.pop_back();
-        text = trim(text);
-        if (text.empty())
-            return false;
-        ch = text.back();
-    }
-    if (text[0] == L'<' && ch == '>') {
-        rowInfo.isTarget = true;
-        text = text.substr(1,text.size()-2);
-        text.pop_back();
-        text = trim(text.substr(1));
-        if (text.empty())
-            return false;
-    }
-    rowInfo.name = text;
-    return true;
-}
-
-void TaskDebugFindAllNavPoints::saveOcrNavigationRow(const cv::Mat &grayImage, const ClassifiedRect& cr, int offset,
-                                                     const std::string& lbl_text, const gal::NavType* navType)
+void TaskDebugFindAllNavPoints::saveOcrNavigationRow(
+        const cv::Mat &grayImage, const ClassifiedRect& cr, int offset, const NavListEntry& nle)
 {
     offset += offset_append;
 
-    std::string filename = std::format("testset-edr/nav-{}-row-gray.png", offset);
+    std::string filename = std::format("cache/testset-edr/nav-{}-row-gray.png", offset);
     if (std::filesystem::exists(filename))
         return;
 
-    StationRowInfo rowInfo {};
-    std::string text;
+    std::string nameText;
     cv::Mat dumpImage;
-    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", text, dumpImage);
+    int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", nameText, dumpImage);
     if (conf < 50) {
-        LOG(ERROR) << "Bad ocr for nav row, conf: " << conf << ", text: "<< text;
-        text.clear();
+        LOG(ERROR) << "Bad ocr for nav row, conf: " << conf << ", text: "<< nameText;
+        nameText.clear();
     }
-    else if (conf < 93) {
-        LOG(INFO) << "Unsure ocr for nav row, conf: " << conf << ", text: "<< text;
-        parseRowInfo(toUtf16(text), rowInfo);
+    else if (conf < ocr_confidence) {
+        LOG(INFO) << "Unsure ocr for nav row, conf: " << conf << ", text: "<< nameText;
     }
     else {
-        LOG(INFO) << "Confident ocr for nav row, conf: " << conf << ", text: "<< text;
-        parseRowInfo(toUtf16(text), rowInfo);
+        LOG(INFO) << "Confident ocr for nav row, conf: " << conf << ", text: "<< nameText;
     }
+    if (nle.item)
+        nameText = nle.item->name;
 
     std::string distText;
     cv::Mat distImage;
-    conf = ocr::ocrRowTextForTraining(ocr::DISTANCE, grayImage, ai::rEnv, cr, "dist", distText, distImage);
-    if (conf < 50) {
-        LOG(ERROR) << "Bad ocr for nav dist, conf: " << conf << ", text: "<< distText;
+    int distConf = ocr::ocrRowTextForTraining(ocr::DISTANCE, grayImage, ai::rEnv, cr, "dist", distText, distImage);
+    if (distConf < 50) {
+        LOG(ERROR) << "Bad ocr for nav dist, conf: " << distConf << ", text: "<< distText;
         distText.clear();
     }
-    else if (conf < 93) {
-        LOG(INFO) << "Unsure ocr for nav dist, conf: " << conf << ", text: "<< distText;
+    else if (distConf < ocr_confidence) {
+        LOG(INFO) << "Unsure ocr for nav dist, conf: " << distConf << ", text: "<< distText;
     }
     else {
-        LOG(INFO) << "Confident ocr for nav dist, conf: " << conf << ", text: "<< distText;
+        LOG(INFO) << "Confident ocr for nav dist, conf: " << distConf << ", text: "<< distText;
     }
+    dist_t dist = parseDist(toUtf16(distText), distConf);
+    bool save_dist = !dist.valid() || distConf < ocr_confidence || dist.conf < txt_confidence;
+    if (distImage.empty())
+        save_dist = false;
 
     if (!dump_images)
         return;
 
     FuzzyMatch fm;
     std::wstring distOCR = fm.toOCR(toUtf16(distText));
-    std::wstring nameOCR = fm.toOCR(toUtf16(lbl_text));
-    if (rowInfo.size > 0) {
+    std::wstring nameOCR = fm.toOCR(toUtf16(nameText));
+    if (nle.portSize > 0) {
         nameOCR += L" ";
-        for (int i = 0; i < rowInfo.size; i++)
+        for (int i = 0; i < nle.portSize; i++)
             nameOCR += L"+";
     }
-    if (rowInfo.isTarget)
+    if (nle.isTarget)
         nameOCR = L"< " + nameOCR + L" > ";
-    if (rowInfo.danger)
-        nameOCR += rowInfo.danger;
-    if (rowInfo.isLocation)
+    if (nle.portDanger == 1) nameOCR += gal::SHIELD1_MARK;
+    if (nle.portDanger == 2) nameOCR += gal::SHIELD2_MARK;
+    if (nle.portDanger == 3) nameOCR += gal::SHIELD3_MARK;
+    if (nle.isMarked)
         nameOCR += gal::LOCATION_MARK;
-    if (navType)
-        nameOCR = navType->charOCR + (L" " + nameOCR);
+    gal::NavType* nt = nle.item ? gal::NavType::findNavType(nle.item->type) : nullptr;
+    if (nt) {
+        if (nle.item->type == TypeNav::Planet) {
+            if (nle.item->special)
+                nameOCR = gal::LAND.charOCR + (L" " + nameOCR);
+            else
+                nameOCR = gal::BODY.charOCR + (L" " + nameOCR);
+        }
+        nameOCR = nt->charOCR + (L" " + nameOCR);
+    }
+    else if (nle.icon)
+        nameOCR = nle.icon + (L" " + nameOCR);
 
-    filename = std::format("testset-edr/nav-{}-row-gray.png", offset);
+    filename = std::format("cache/testset-edr/nav-{}-row-gray.png", offset);
     cv::imwrite(filename, dumpImage);
-//    cv::Mat rowOtsuImage;
-//    cv::threshold(dumpImage, rowOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-//    filename = std::format("testset-edr/nav-{}-row-otsu.png", offset);
-//    cv::imwrite(filename, rowOtsuImage);
 
-    filename = std::format("testset-edr/nav-{}-num-gray.png", offset);
-    cv::imwrite(filename, distImage);
-//    cv::Mat distOtsuImage;
-//    cv::threshold(distImage, distOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
-//    filename = std::format("testset-edr/nav-{}-num-otsu.png", offset);
-//    cv::imwrite(filename, distOtsuImage);
+    if (save_dist) {
+        filename = std::format("cache/testset-edr/nav-{}-num-gray.png", offset);
+        cv::imwrite(filename, distImage);
+    }
 
     std::ofstream gt_txt;
-    filename = std::format("testset-edr/nav-{}-row-gray.gt.txt", offset);
+    filename = std::format("cache/testset-edr/nav-{}-row-gray.gt.txt", offset);
     gt_txt.open(filename, std::ios::trunc | std::ios::binary);
     gt_txt << toUtf8(nameOCR);
     gt_txt.close();
-//    filename = std::format("testset-edr/nav-{}-row-otsu.gt.txt", offset);
-//    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
-//    gt_txt << toUtf8(nameOCR);
-//    gt_txt.close();
-    filename = std::format("testset-edr/nav-{}-num-gray.gt.txt", offset);
-    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
-    gt_txt << toUtf8(distOCR);
-    gt_txt.close();
-//    filename = std::format("testset-edr/nav-{}-num-otsu.gt.txt", offset);
-//    gt_txt.open(filename, std::ios::trunc | std::ios::binary);
-//    gt_txt << toUtf8(distOCR);
-//    gt_txt.close();
+
+    if (save_dist) {
+        filename = std::format("cache/testset-edr/nav-{}-num-gray.gt.txt", offset);
+        gt_txt.open(filename, std::ios::trunc | std::ios::binary);
+        gt_txt << toUtf8(distOCR);
+        gt_txt.close();
+    }
 }
 
 

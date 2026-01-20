@@ -8,6 +8,7 @@
 #define EDROBOT_TASKDEBUG_H
 
 #include "Task.h"
+#include "NavList.h"
 
 namespace widget {
 class Label;
@@ -32,7 +33,7 @@ protected:
 
 class TaskDebugFindAllCommodities final : public TaskDebugFindAllBase {
 public:
-    TaskDebugFindAllCommodities(const TaskTemplate& templ);
+    explicit TaskDebugFindAllCommodities(const TaskTemplate& templ);
     bool run() final;
 private:
     bool checkCommodity(Commodity* commodity, const std::string& marketMode, const std::vector<Commodity*>& table, std::vector<CommodityMatch>* verify);
@@ -46,13 +47,13 @@ private:
 
 class TaskDebugFindAllNavPoints final : public TaskDebugFindAllBase {
 public:
-    TaskDebugFindAllNavPoints(const TaskTemplate& templ);
+    explicit TaskDebugFindAllNavPoints(const TaskTemplate& templ);
     bool run() final;
 private:
-    bool checkOcrError(const ClassifiedRect& cr);
-    bool checkNavPoint(int offset);
+    bool checkOcrError(const NavListEntry& nle);
+    //bool checkNavPoint(int offset);
     void saveOcrNavigationRow(const cv::Mat& grayImage, const ClassifiedRect& cr, int offset,
-                                const std::string& lbl_text, const gal::NavType* nt);
+                              const NavListEntry& nle);
     void saveOcrNavigationLbl(const cv::Mat& grayImage, const ClassifiedRect& cr, int offset,
                                 std::string& lbl_text, const gal::NavType* nt);
     json5pp::value curlGetRequest(const char* url);
@@ -71,20 +72,10 @@ private:
     int txt_confidence;
     int offset_append;
 
-    json5pp::value spanishSystemInfo;
-    json5pp::value spanishNearSystems;
-    //json5pp::array systemStations;
-    //json5pp::array systemBodies;
+    json5pp::value spanshSystemInfo;
+    json5pp::value spanshNearSystems;
 
-    struct StationRowInfo {
-        wchar_t type;  // ✦ / ☄ / ✇ / etc.
-        bool isTarget; // < Name >
-        bool isLocation; // Name∇
-        uint8_t size; // Name ++
-        wchar_t danger; // ◇ / ⬖ / ◆
-        std::wstring name;
-    };
-    bool parseRowInfo(std::wstring text, StationRowInfo& rowInfo);
+    NavList nl;
 };
 
 } // ai

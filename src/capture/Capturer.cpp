@@ -18,6 +18,9 @@
 #include <opencv2/core/directx.hpp>
 #include <shellscalingapi.h>
 
+#ifdef DEBUG
+# undef DEBUG
+#endif
 
 static CComPtr<ID3D11Device1> D3dDevice;
 static CComPtr<ID3D11DeviceContext1> D3dContext;
@@ -184,6 +187,8 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
     if (!GetMonitorInfo(hMonitor, &monitorInfo)) {
         LOG(ERROR) << "Could not get monitor information.";
         return nullptr;
+    } else {
+        LOG(DEBUG) << "Lookup capturer for monitor " << monitorInfo.szDevice;
     }
 
     RECT windowRect;
