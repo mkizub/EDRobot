@@ -713,11 +713,11 @@ bool TaskBuyConstr::run() {
     auto depot = starSystem->getDock(destConstrName);
     if (!depot)
         throw_failed("Construction depot '{}' not known", destConstrName);
-    if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot))
-        throw_failed("Site '{}' is not a construction depot", destConstrName);
     spMarket depotMarket = gal::getMarket(depot->marketId);
     if (!depotMarket|| depotMarket->items.empty())
         throw_failed("Construction depot '{}' demand is not known", destConstrName);
+    if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot || depot->type == TypeNav::ColonisationShip || depotMarket->stationType == "ConstrDepot"))
+        throw_failed("Site '{}' is not a construction depot", destConstrName);
 
     if (st::shipStats.cargo >= st::shipStats.cargoCapacity)
         return true;

@@ -108,8 +108,12 @@ bool ocrPageSegm(const cv::Mat& grayImage, cv::Rect& rectOut, std::vector<cv::Li
         rectOut = bb;
     }
     do {
-        if (ri->Baseline(tesseract::PageIteratorLevel::RIL_TEXTLINE, &x1, &y1, &x2, &y2))
+        if (ri->Baseline(tesseract::PageIteratorLevel::RIL_TEXTLINE, &x1, &y1, &x2, &y2)) {
             baselineOut.emplace_back(x1, y1, x2, y2);
+            int y_min = std::min(y1, y2)-1;
+            int y_max = std::min(y1, y2)+1;
+            rectOut |= cv::Rect(cv::Point(x1,y_min), cv::Point(x2, y_max));
+        }
     } while (ri->Next(tesseract::PageIteratorLevel::RIL_TEXTLINE));
 
     return !baselineOut.empty();
@@ -325,9 +329,10 @@ int ocrRowText(TextType tt, const cv::Mat& grayImage, const ResolvedEnv& rEnv, c
         if (!text.empty())
             text += " ";
         text += text_line;
+        break;
     }
-    if (baselines.size() > 1)
-        conf /= baselines.size();
+    //if (baselines.size() > 1)
+    //    conf /= baselines.size();
     return conf;
 }
 

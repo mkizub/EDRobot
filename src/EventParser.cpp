@@ -863,7 +863,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             .timestamp = ge->timestamp,
             .marketId = marketId,
             .stationName = dock ? dock->name : "",
-            .stationType = "",
+            .stationType = "ConstrDepot",
             .starSystem = starSystem->systemName,
     });
     bool complete = je["ConstructionComplete"].as_boolean();

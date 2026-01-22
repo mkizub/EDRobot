@@ -20,6 +20,7 @@ struct List : public Widget {
     float header {0};
     int row_test_bgn {0};
     int row_test_end {0};
+    std::vector<std::unique_ptr<detect::ImageFilter>> filters;
     struct Tab {
         std::string name;
         int tab_left {0};

@@ -3403,8 +3403,8 @@ bool ExitCruiseToSpace::run() {
         else
             dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius*25).convertTo(dist_t::LS);
     }
-    if (!dist_too_far || dist_too_far < 5_ls)
-        dist_too_far = 5_ls;
+    if (!dist_too_far || dist_too_far < 11_ls)
+        dist_too_far = 11_ls;
     status = ORIENT;
     setSpeed(0, true, "ExitCruiseToSpace, start");
     if (!st::autopilot.destDock || !st::autopilot.destDock->nameEq(st::destination.name)) {

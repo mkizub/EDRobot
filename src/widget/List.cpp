@@ -560,7 +560,7 @@ std::vector<Redused::Row> Redused::get_rows() {
         if (avr > min+4)
             val = avr - 4;
 
-        if (val < empty_threshold /*&& list->header > 0*/) {
+        if (avr < empty_threshold /*&& list->header > 0*/) {
             if (prev_was_empty)
                 break;
             prev_was_empty = true;
@@ -601,9 +601,12 @@ bool List::detect(DetectParams& params) {
         rowTestRect.x += env.getScale() * row_test_bgn;
         rowTestRect.width = env.getScale() * (row_test_end - row_test_bgn);
     }
-    detect::HsvValueCropFilter hsvFilter;
-    hsvFilter.rangesU.emplace_back(cv::Vec3b(5,100,15),cv::Vec3b(35,255,255));
-    XMat testImage = hsvFilter.apply(env.getColorImage()(rowTestRect), {});
+    if (filters.empty()) {
+        detect::HsvValueCropFilter* hsvFilter = new detect::HsvValueCropFilter;
+        hsvFilter->rangesU.emplace_back(cv::Vec3b(5,100,15),cv::Vec3b(35,255,255));
+        filters.push_back(std::unique_ptr<detect::ImageFilter>(hsvFilter));
+    }
+    XMat testImage = detect::ImageTemplate::applyFilters(filters, env.getColorImage()(rowTestRect), {});
 #ifdef  DEBUG_LIST_DETECTOR
     XMat origImage = env.getColorImage()(rowTestRect);
     cv::Mat origImageDebug = toMat(origImage).clone();

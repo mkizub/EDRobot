@@ -167,7 +167,7 @@ NavType MEGASHIP {
 //        {{Lang::XX,"Trailblazer Dream"}}
 //};
 NavType COLONIZATION_SHIP {
-        u'\u0000',
+        u'\u267B', // ♻
         TypeNav::ColonisationShip,
         {},
         {},

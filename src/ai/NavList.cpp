@@ -515,6 +515,8 @@ bool NavList::focusDestDock(int* conf) {
         rows = initNavList(grayImage, focusIdx);
         if (rows.empty() || focusIdx < 0)
             continue;
+        if (startIdx > rows.size())
+            startIdx = 0;
         for (int idx = startIdx; !list[idx].parsed; nextIdx(idx, 1, list.size())) {
             parseNavRow(grayImage, ai::rEnv, *rows[idx], idx);
             guessNavItem(idx);
@@ -653,6 +655,8 @@ bool NavList::focusDestBody(int* conf) {
         rows = initNavList(grayImage, focusIdx);
         if (rows.empty() || focusIdx < 0)
             continue;
+        if (startIdx > rows.size())
+            startIdx = 0;
         for (int idx = startIdx; !list[idx].parsed; nextIdx(idx, 1, list.size())) {
             parseNavRow(grayImage, ai::rEnv, *rows[idx], idx);
             guessNavItem(idx);
@@ -740,6 +744,8 @@ bool NavList::focusDestination(int& focusIdx) {
         rows = initNavList(grayImage, focusIdx);
         if (rows.empty() || focusIdx < 0)
             continue;
+        if (startIdx > rows.size())
+            startIdx = 0;
         for (int idx = startIdx; !list[idx].parsed; nextIdx(idx, 1, list.size())) {
             parseNavRow(grayImage, ai::rEnv, *rows[idx], idx);
             guessNavItem(idx);
@@ -831,6 +837,8 @@ bool NavList::focusDockBody(int* conf) {
     LOG(DEBUG) << "NavList::focusDockBody";
     if (!st::autopilot.destDock)
         return false;
+    st::autopilot.isDestDockFocused = false;
+    st::autopilot.isDestBodyFocused = false;
     for (int retry=0; retry < 7; retry++) {
         int focusIdx;
         cv::Mat grayImage;
@@ -854,6 +862,7 @@ bool NavList::focusDockBody(int* conf) {
                             parseNavDist(grayImage, ai::rEnv, *rows[j], j);
                             if (list[j].item.get() == st::autopilot.destBody.get()) {
                                 st::autopilot.isDestBodyFocused = true;
+                                st::autopilot.isDestDockFocused = false;
                                 if (list[j].dist)
                                     st::autopilot.distanceToBody = list[j].dist;
                             }

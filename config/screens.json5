@@ -131,7 +131,7 @@
     fov_size: [ [128,62,1665,956, 54.32], [221,115,1479,849, 60.00] ],
     detect: [
       { img: "at_constr_lbl-*.png", t: [0.6, 0.8], rect:[228,120,230,41, 54.32], ext: [10,10] },
-      { img: "at_constr.png", t: [0.6, 0.8], rect:[153,98,50,57, 54.32], ext: [10,10] },
+      { img: "at_constr*.png", t: [0.6, 0.8], rect:[153,98,50,57, 54.32], ext: [10,10] },
     ],
     have: [
       { name: 'btn-exit', rect: [128,977,322,41, 54.32] },
@@ -517,6 +517,7 @@
           { name: 'btn-system', rect: [11,592,104,60] },
           { name: 'lst-bodies', rect: [265,"btn-filter.t - 3",880,"btn-system.b - btn-filter.t + 8"],
             row_height: 36, row_gap: 3.55, row_test: [400,730],
+            filter: { channel: 'gray' },
             tabs: [
               {left:0,   right:750, font_height: 24, ocr_psm: 7, name: 'name' }, // nav/body name
               {left:750, right:875, font_height: 20, ocr_psm: 7, name: 'dist' }, // distance

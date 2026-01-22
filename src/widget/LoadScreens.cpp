@@ -778,6 +778,8 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
             lst->row_test_bgn = j["row_test"][0].as_integer();
             lst->row_test_end = j["row_test"][1].as_integer();
         }
+        if (jo.contains("filter"))
+            lst->filters = filters_from_json(j["filter"]);
         if (jo.contains("tabs")) {
             auto& jtabs = jo.at("tabs").as_array();
             for (auto& jt : jtabs) {
