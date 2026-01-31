@@ -234,7 +234,7 @@ void UIMainDialog::on_command_pause_resume() {
                     return;
             } else {
                 // pause
-                ai::interrupt();
+                ai::interrupt(ai::InterruptReason::UNKNOWN);
             }
         }
         update_curr_task();

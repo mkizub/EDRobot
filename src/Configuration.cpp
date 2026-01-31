@@ -1352,6 +1352,7 @@ void Configuration::changeDirThreadLoop() {
     std::ifstream journalStream(mEDCurrentJournalFile, std::ifstream::in);
     // read all events from journal
     readJournalChanges(journalStream, journalLine);
+    preloadOldEventsComplete();
     // read last ship status after all events
     loadGameStatus();
 
@@ -1416,32 +1417,3 @@ void Configuration::changeDirThreadLoop() {
         }
     }
 }
-
-void Configuration::readJournalChanges(std::ifstream& journalStream, std::string& journalLine) {
-    if (!journalStream.is_open())
-        return;
-    for (;;) {
-        journalStream.clear();
-        char buffer[1024];
-        journalStream.getline(buffer, sizeof(buffer));
-        int count = journalStream.gcount();
-        if (count == 0) {
-            if (journalStream.eof())
-                return;
-            if (journalStream.fail()) {
-                LOG(ERROR) << "Journal read error: " << strerror(errno);
-                return;
-            }
-        } else {
-            int len = strlen(buffer);
-            journalLine.append(buffer, len);
-            if (len == count)
-                continue; // no '\n' was extracted from stream
-            auto ge = parseEvent(journalLine);
-            if (ge && ge->event == "Shutdown")
-                journalStream.close();
-            journalLine.clear();
-        }
-    }
-}
-

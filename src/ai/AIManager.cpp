@@ -5,6 +5,7 @@
 #include "../pch.h"
 
 #include "AIManager.h"
+#include "ContactsTasks.h"
 #include "../ui/UIManager.h"
 #include "../Keyboard.h"
 
@@ -42,6 +43,8 @@ namespace {
     std::atomic_bool isLoopWaiting;
     std::atomic_bool isDebugPaused;
     std::atomic_bool isInterrupted;
+
+    InterruptReason interruptReason { InterruptReason::UNKNOWN };
 }
 
 void task_loop();
@@ -62,7 +65,6 @@ void check_interrupted() {
             throw interrupted_error();
         }
         Sleep(250);
-        continue;
     }
     if (isInterrupted)
         throw interrupted_error();
@@ -84,7 +86,7 @@ bool init() {
 
 bool shutdown() {
     isWorking = false;
-    interrupt();
+    interrupt(InterruptReason::SHUTDOWN);
     taskCond.notify_all();
     if (taskThread.joinable())
         taskThread.join();
@@ -101,6 +103,7 @@ void stop() {
     LOG(INFO) << "ai::stop() task " << activeTask->getTitle();
     UIManager::showToast("EDRobot stop", std::format("Stop task '{}'", activeTask->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
+    interruptReason = InterruptReason::UNKNOWN;
     isInterrupted = true;
     taskCond.notify_one();
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
@@ -111,7 +114,8 @@ void stop() {
     taskCond.notify_one();
 }
 
-void interrupt() {
+void interrupt(InterruptReason reason) {
+    interruptReason = reason;
     if (isInterrupted || !activeTask)
         return;
     LOG(INFO) << "AIManager::interrupt() task " << activeTask->getTitle();
@@ -225,6 +229,7 @@ bool new_task(spTask&& task) {
     UIManager::showToast("EDRobot task", std::format("Starting task '{}'", task->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
+    isDebugPaused = false;
     lastTask.reset();
     activeTask.reset();
     taskCond.notify_one();
@@ -271,6 +276,17 @@ void task_loop() {
                 break;
             if (!wasActive && !active())
                 Mgr.pushCommand(Command::ResetCapturer);
+            if (isInterrupted && interruptReason == InterruptReason::DEATH) {
+                if (st::isDead && activeTask) {
+                    lastTask.reset();
+                    activeTask.swap(lastTask);
+                    TaskTemplate tt {ED_TASK_RESURRECT, _lc("Resurrect"), [](const TaskTemplate &templ) { return new TaskResurrect(templ); }};
+                    spTask task(new TaskResurrect(tt));
+                    activeTask.swap(task);
+                    isInterrupted = false;
+                }
+                interruptReason = InterruptReason::UNKNOWN;
+            }
             if (isInterrupted) {
                 LOG(INFO) << "ai::task_loop(): steel interrupted";
                 continue;
@@ -307,14 +323,17 @@ void task_step() {
             LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
     }
     if (ok || failed) {
-        lastTask.reset();
-        lastTask.swap(activeTask);
+        if (ok && activeTask && activeTask->templ.id == ED_TASK_RESURRECT) {
+            lastTask.swap(activeTask);
+        } else {
+            lastTask.reset();
+            lastTask.swap(activeTask);
+        }
     }
     LOG(INFO) << "ai::task_loop(): active task: " << (isInterrupted ? "interrupted" : failed ? "failed" : ok ? "passed" : "not complete");
     kbd::reset_vJoy();
     disableAutoTurn();
     st::autopilot = {};
-    return;
 }
 
 bool detectEDStateReq(DetectRequest&& req) {

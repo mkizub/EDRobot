@@ -19,7 +19,7 @@ extern Lang lng;
 extern std::string currentStarSystem;
 
 extern GuiFocus guiFocus;
-
+extern bool isDead;
 
 extern struct Commander {
     std::string name;

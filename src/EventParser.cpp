@@ -6,12 +6,14 @@
 #include "Configuration.h"
 #include "Galaxy.h"
 #include "ShipStats.h"
+#include "ai/AIManager.h"
 
 namespace st {
 Lang lng {Lang::XX};
 std::string currentStarSystem;
 
 GuiFocus guiFocus {GuiFocus::None};
+bool isDead {};
 
 const Commander cmdr {};
 const GameClient client {};
@@ -101,6 +103,7 @@ std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
 
 static int64_t fssSignalSystemAddress;
 static std::vector<spGameEvent> allFSSSignalEvents;
+static bool scanningOldEvents = true;
 
 inline void set(std::string& field, const json5pp::value& value) {
     if (!value.is_string()) {
@@ -127,6 +130,8 @@ void parseEvent_LoadGame(spGameEvent& ge);
 void parseEvent_CarrierLocation(spGameEvent& ge);
 void parseEvent_Location(spGameEvent& ge);
 void parseEvent_Loadout(spGameEvent& ge);
+void parseEvent_Died(spGameEvent& ge);
+void parseEvent_Resurrect(spGameEvent& ge);
 void parseEvent_Cargo(spGameEvent& ge);
 void parseEvent_Market(spGameEvent& ge);
 void parseEvent_NavRoute(spGameEvent& ge);
@@ -158,6 +163,8 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"CarrierLocation", parseEvent_CarrierLocation},
         {"Location", parseEvent_Location},
         {"Loadout", parseEvent_Loadout},
+        {"Died", parseEvent_Died},
+        {"Resurrect", parseEvent_Resurrect},
         {"Cargo", parseEvent_Cargo},
         {"Market", parseEvent_Market},
         {"NavRoute", parseEvent_NavRoute},
@@ -217,6 +224,38 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
         it->second(gameEvent);
 
     return gameEvent;
+}
+
+void Configuration::preloadOldEventsComplete() {
+    scanningOldEvents = false;
+}
+
+void Configuration::readJournalChanges(std::ifstream& journalStream, std::string& journalLine) {
+    if (!journalStream.is_open())
+        return;
+    for (;;) {
+        journalStream.clear();
+        char buffer[1024];
+        journalStream.getline(buffer, sizeof(buffer));
+        int count = journalStream.gcount();
+        if (count == 0) {
+            if (journalStream.eof())
+                return;
+            if (journalStream.fail()) {
+                LOG(ERROR) << "Journal read error: " << strerror(errno);
+                return;
+            }
+        } else {
+            int len = strlen(buffer);
+            journalLine.append(buffer, len);
+            if (len == count)
+                continue; // no '\n' was extracted from stream
+            auto ge = parseEvent(journalLine);
+            if (ge && ge->event == "Shutdown")
+                journalStream.close();
+            journalLine.clear();
+        }
+    }
 }
 
 bool Configuration::loadGameStatus() {
@@ -480,6 +519,16 @@ void parseEvent_Loadout(spGameEvent& ge) {
         ss->updateStats();
     }
     eddb::setShipStats(ss);
+}
+
+void parseEvent_Died(spGameEvent& ge) {
+    st::isDead = true;
+    if (!scanningOldEvents)
+        ai::interrupt(ai::InterruptReason::DEATH);
+}
+
+void parseEvent_Resurrect(spGameEvent& ge) {
+    st::isDead = false;
 }
 
 void parseEvent_Cargo(spGameEvent& ge) {

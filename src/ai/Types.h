@@ -35,6 +35,8 @@ public:
 
 enum MessageSeverity { MSG_INFO, MSG_WARN, MSG_ERROR, MSG_FATAL };
 
+enum class InterruptReason { UNKNOWN, DEATH, SHUTDOWN };
+
 void check_interrupted();
 void sleep(int milliseconds, bool precise=false);
 

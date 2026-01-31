@@ -58,6 +58,60 @@ class ThresholdFilter(Filter):
         return out
 
 
+class ErodeFilter(Filter):
+
+    tb_sizeX: Trackbar
+    tb_sizeY: Trackbar
+    tb_iters: Trackbar
+
+    def __init__(self):
+        super().__init__('Erode')
+        self.tb_sizeX = Trackbar('SizeX', self.name, 1, 4, 1)
+        self.tb_sizeY = Trackbar('SizeY', self.name, 1, 4, 1)
+        self.tb_iters = Trackbar('Iters', self.name, 1, 10, 1)
+
+    def apply(self, image):
+        sizeX = self.tb_sizeX.get()
+        sizeY = self.tb_sizeY.get()
+        iters = self.tb_iters.get()
+        self.title(f'Size=({sizeX*2+1},{sizeY*2+1})  Iterations={iters}')
+        if sizeX < 1 or sizeY < 1 or iters < 1:
+            self.show(image)
+            return image
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (sizeX*2+1, sizeY*2+1), (sizeX, sizeY))
+        out = cv2.erode(image, kernel=kernel, iterations=iters)
+        self.show(out)
+        return out
+
+
+class DilateFilter(Filter):
+
+    tb_kernX: Trackbar
+    tb_kernY: Trackbar
+    tb_iters: Trackbar
+
+    def __init__(self):
+        super().__init__('Dilate')
+        self.tb_kernX = Trackbar('KernX', self.name, 3, 9, 3)
+        self.tb_kernY = Trackbar('KernY', self.name, 3, 9, 3)
+        self.tb_iters = Trackbar('Iters', self.name, 1, 10, 1)
+
+    def apply(self, image):
+        kernX = self.tb_kernX.get()
+        kernX = (kernX & ~1) + 1
+        kernY = self.tb_kernY.get()
+        kernY = (kernY & ~1) + 1
+        iters = self.tb_iters.get()
+        self.title(f'KernX={kernX} KernY={kernY} Iterations={iters}')
+        if kernX < 3 or kernY < 3 or iters < 1:
+            self.show(image)
+            return image
+        kernel = np.ones((kernX,kernY),np.uint8)
+        out = cv2.dilate(image, kern=kernel, iterations=iters)
+        self.show(out)
+        return out
+
+
 class GaussFilter(Filter):
 
     tb_ky: Trackbar
@@ -475,6 +529,10 @@ for arg in range(1, len(sys.argv)):
         filters.append(DoGFilter())
     elif sys.argv[arg] == '--thr' or sys.argv[arg] == '--threshold':
         filters.append(ThresholdFilter())
+    elif sys.argv[arg] == '--erode':
+        filters.append(ErodeFilter())
+    elif sys.argv[arg] == '--dilate':
+        filters.append(DilateFilter())
     elif sys.argv[arg] == '--scale' or sys.argv[arg] == '--gain':
         filters.append(GainBiasFilter())
     elif sys.argv[arg] == '--hsv':

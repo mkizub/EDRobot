@@ -943,7 +943,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
 
 bool Master::stopAITask() {
     kbd::reset_vJoy();
-    ai::interrupt();
+    ai::interrupt(ai::InterruptReason::UNKNOWN);
     UIManager::hideMainDialog(true);
     return true;
 }

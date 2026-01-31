@@ -217,7 +217,7 @@ struct CompassDist {
     Timestamp timestamp;
     dist_t dist;
 };
-boost::circular_buffer<CompassDist> buffer(4);
+boost::circular_buffer<CompassDist> buffer(6);
 std::string buffer_target_name;
 
 void resetCompassDetects() {

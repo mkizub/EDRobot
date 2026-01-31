@@ -20,7 +20,7 @@ bool shutdown();
 bool shutdown_ship_tracker();
 bool active();
 void stop();
-void interrupt();
+void interrupt(InterruptReason reason);
 void resume();
 bool autopilot();
 spTask curr_task();

@@ -542,7 +542,7 @@
         detect: "nav_panel:contacts",
         have: [
           { name: 'btn-landing', rect: [657,335,500,58], ext: [5,40], force_present: false,
-            filter: [ {channel: 'gray'}, {laplacian: { kern: 5 }}, {threshold: 127} ] },
+            filter: [ {channel: 'red'}, {erode: 3, iter: 3}, {sobel: { kern: 3 }}, {threshold: 30} ] },
           { name: 'lst-contacts', rect: [2,68,636,582] }, // rect: [2,64,584,590]
         ]
       },
@@ -667,6 +667,35 @@
       {
         name: "mod-transfer",
         detect: ["nav_panel:transfer"],
+      }
+    ]
+  },
+  {
+    name: 'scr-death',
+    status: { gui: 'None', dead: true },
+    detect: [
+      { name: 'title', rect:[88,75,555,49],
+        texts: {
+          'report' : "Отчет о происшествии",
+          'deploy' : "Отчет о повторном размещении"
+        },
+        font_height: 40,
+      },
+    ],
+    have: [
+      { name: 'mod-report',
+        detect: 'title:report',
+        have: [
+          { name: 'btn-exit', rect: [88,971,350,38] },
+          { name: 'btn-next', rect: [458,971,350,38] },
+        ]
+      },
+      { name: 'mod-deploy',
+        detect: 'title:deploy',
+        have: [
+          { name: 'btn-back', rect: [88,971,350,38] },
+          { name: 'btn-deploy', rect: [1258,933,574,76] },
+        ]
       }
     ]
   },

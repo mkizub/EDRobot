@@ -205,6 +205,8 @@ bool Label::detect(DetectParams& params) {
 bool Screen::checkStatus() const {
     if (!status.is_object())
         return false;
+    if (st::isDead && !status["dead"])
+        return false;
     for (auto& kv : status.as_object()) {
         auto& key = kv.first;
         auto& val = kv.second;
@@ -247,6 +249,11 @@ bool Screen::checkStatus() const {
                 if (val.as_string() != st::autopilot.expect_screen)
                     return false;
             }
+            continue;
+        }
+        if (key == "dead") {
+            if (val.as_boolean() != st::isDead)
+                return false;
             continue;
         }
         LOG(ERROR) << "Unknown or unimplemented status key: " << key;

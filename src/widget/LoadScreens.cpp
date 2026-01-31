@@ -205,17 +205,17 @@ static detect::ImageFilter* filter_from_json(const json5pp::value& jf) {
             delta = jf["laplacian"]["delta"].as_number();
         return new LaplacianFilter(kern, scale, delta);
     }
-    if (jf["laplacian"].is_object()) {
+    if (jf["sobel"].is_object()) {
         int kern = 3;
         double scale = 1;
         double delta = 0;
-        if (jf["laplacian"]["kern"].is_integer())
-            kern = jf["laplacian"]["kern"].as_integer();
-        if (jf["laplacian"]["scale"].is_number())
-            scale = jf["laplacian"]["scale"].as_number();
-        if (jf["laplacian"]["delta"].is_number())
-            delta = jf["laplacian"]["delta"].as_number();
-        return new LaplacianFilter(kern, scale, delta);
+        if (jf["sobel"]["kern"].is_integer())
+            kern = jf["sobel"]["kern"].as_integer();
+        if (jf["sobel"]["scale"].is_number())
+            scale = jf["sobel"]["scale"].as_number();
+        if (jf["sobel"]["delta"].is_number())
+            delta = jf["sobel"]["delta"].as_number();
+        return new SobelFilter(kern, scale, delta);
     }
     if (jf["grad"].is_object()) {
         double scale = 1;

@@ -9,6 +9,10 @@
 #include "vjoy/vjoyinterface.h"
 #include "Capturer.h"
 
+namespace ai {
+void check_interrupted();
+}
+
 namespace kbd
 {
 static bool keyboardShutdown;

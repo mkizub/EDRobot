@@ -1356,6 +1356,8 @@ bool HyperJumpStep::run() {
     if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
         kbd::send("HyperSuperCombination", 100, 1000);
         if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+            if (!st::ship.flags.cruise)
+                run_sub_step(new LeaveBodyStep);
             notify_error("Entering jump failed");
             return false;
         }
@@ -1411,13 +1413,21 @@ bool HyperJumpStep::run() {
             //case 'C': case 'M': case 'S': // Carbon Stars
                 rotate_speed = 0;
                 fly_away_time = 15s;
-                LOG(DEBUG) << "HyperJump: avoid dwarf star";
+                break;
+            case 'K': // White Dwarfs, Neutron, Black Hole
+                if (star->code == "K6") {
+                    rotate_speed = 0;
+                    fly_away_time = 15s;
+                }
                 break;
             }
         }
+        LOG(DEBUG) << "HyperJump: avoid dwarf star";
     }
     setSpeed(rotate_speed, false, "HyperJump: avoid star");
     task->orientPitchStep(100, 20000);
+    if (!st::ship.flags.cruise)
+        run_sub_step(new LeaveBodyStep);
 
     LOG(DEBUG) << "HyperJump: fly away from star";
     status = FLY_AWAY;
@@ -1441,6 +1451,8 @@ bool HyperJumpStep::run() {
         }
         sleep(1000);
     }
+    if (!st::ship.flags.cruise)
+        run_sub_step(new LeaveBodyStep);
 
     LOG(DEBUG) << "HyperJump: done";
     prevSubStep.reset();
@@ -3092,6 +3104,8 @@ bool DiveUnderPlanetStep::run() {
                     to_body_center_angle = std::min(to_body_center_angle, visible_body_angle);
                 if (ai::compassInfo.hemisphere > 0)
                     disk_part = to_body_center_angle / visible_body_angle;
+                else if (ai::compassInfo.hemisphere < 0)
+                    disk_part = 100;
             }
             if (dockIsVisible) {
                 if (toPort) {
@@ -3396,6 +3410,7 @@ bool ExitCruiseToSpace::run() {
         throw_trouble("Unexpected cruise exit");
     LOG(INFO) << "ExitCruise to space";
 
+    st::autopilot.distanceToDock = {};
     dist_t dist_too_far;
     if (st::autopilot.destBody && st::autopilot.destBody->radius > 0) {
         if (st::autopilot.destBody->type == TypeNav::Star)
@@ -3417,13 +3432,14 @@ bool ExitCruiseToSpace::run() {
         return false;
     }
     double dist_km = st::autopilot.distanceToDock? st::autopilot.distanceToDock.get_km() : 15000;
-    if (dist_km > dist_too_far.get_km()) {
-        if (st::autopilot.destBody)
-            run_sub_step(new NavBodySelect(st::autopilot.destBody, true));
-        throw_trouble("Too far from dock");
-    }
+    //if (dist_km > dist_too_far.get_km()) {
+    //    if (st::autopilot.destBody)
+    //        run_sub_step(new NavBodySelect(st::autopilot.destBody, true));
+    //    throw_trouble("Too far from dock");
+    //}
     LOG(DEBUG) << "ExitCruiseToSpace, approaching";
     status = APPROACH;
+    int dist_too_far_counter = 0;
     CourseLocker course(keepPitch);
     // wait until we get to 1mm
     for (;;) {
@@ -3451,8 +3467,12 @@ bool ExitCruiseToSpace::run() {
         }
         dist_fails = 0;
         dist_km = st::autopilot.distanceToDock.get_km();
-        if (dist_km > dist_too_far.get_km())
-            throw_trouble("Too far from dock");
+        if (dist_km > dist_too_far.get_km()) {
+            if (++dist_too_far_counter > 10)
+                throw_trouble("Too far from dock");
+        } else {
+            dist_too_far_counter = 0;
+        }
         if (dist_km < 1000)
             exit_confirm += 1;
         else
@@ -3461,7 +3481,7 @@ bool ExitCruiseToSpace::run() {
         if (exit_confirm >= 2)
             break;
         if (dist_km < 3000) {
-            setSpeed(25, false, "ExitCruiseToSpace, dist_km < 3000km");
+            setSpeed(50, true, "ExitCruiseToSpace, dist_km < 3000km");
             if (keepPitch) {
                 keepPitch = 0;
                 course.requestPitchRoll(0);
@@ -3469,8 +3489,10 @@ bool ExitCruiseToSpace::run() {
         }
         else if (dist_km <= 6000)
             setSpeed(50, false, "ExitCruiseToSpace, dist_km <= 6000km");
-        else
+        else {
             setSpeed(75, false, "ExitCruiseToSpace, dist_km > 6000km");
+            sleep(250);
+        }
     }
 
     // wait until we exit super-cruise
@@ -3486,6 +3508,7 @@ bool ExitCruiseToSpace::run() {
 
     notify_info("Arrived, speed zero");
     setSpeed(0, false, "ExitCruiseToSpace, arrived");
+    resetCompassDetects();
     sleep(500);
 
     for (dist_fails=0; dist_fails < 15; dist_fails++) {
@@ -3638,6 +3661,7 @@ bool ExitCruiseToPlanet::run() {
     if (st::ship.flags.cruise)
         throw_trouble("Cannot reach planetary port");
 
+    resetCompassDetects();
     status = CONFIRM;
     notify_info("Arrived, speed zero");
     setSpeed(0, true, "ExitCruiseToPlanet, cruise exited, gliding");
@@ -4018,6 +4042,7 @@ bool CruiseAndDock::run() {
     }
 
     LOG(DEBUG) << "CruiseAndDock, docking";
+    resetCompassDetects();
     status = DOCK;
     if (!toPort) {
         if (!run_sub_step(new DockSpaceStation))
@@ -4089,6 +4114,8 @@ std::string TaskTravel::getTitle() {
 }
 
 bool TaskTravel::run() {
+    st::autopilot = {};
+    resetCompassDetects();
     if (destSystemName.empty() || destDockName.empty())
         throw_failed("Destination system and dock required");
 
@@ -4162,6 +4189,8 @@ std::string Autopilot::getTitle() {
 }
 
 bool Autopilot::run() {
+    st::autopilot = {};
+    resetCompassDetects();
     LOG(INFO) << "Autopilot, start";
     if (getNavRoutePosition() >= 0) {
         nl.init(st::navFilters);

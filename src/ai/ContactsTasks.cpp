@@ -10,6 +10,71 @@
 #include "../widget/List.h"
 #include "../Keyboard.h"
 
+ai::TaskResurrect::TaskResurrect(const TaskTemplate& templ)
+    : Task(templ)
+{
+    assert (templ.id == ED_TASK_RESURRECT);
+}
+
+bool ai::TaskResurrect::run() {
+    if (!st::isDead)
+        return true;
+    sleep(3000);
+    for (int retry=0; retry < 5; retry++) {
+        if (!st::isDead)
+            return true;
+        cv::Mat grayImage;
+        ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
+        if (ai::uiState.match("scr-death:mod-report")) {
+            status = REPORT;
+            if (ai::uiState.focused_name() == "btn-next")
+                kbd::send("UI_Select", 100, 3000);
+            else
+                kbd::send("UI_Right", 100, 1000);
+            continue;
+        }
+        if (ai::uiState.match("scr-death:mod-deploy")) {
+            status = DEPLOY;
+            kbd::send("UI_Right");
+            kbd::send("UI_Right");
+            kbd::send("UI_Right");
+            kbd::send("UI_Right");
+            kbd::send("UI_Select", 100, 250);
+            kbd::send("UI_Up", 0, 250);
+            kbd::send("UI_Select", 100, 250);
+            sleep(15000);
+            continue;
+        }
+        // check black screen
+        cv::Rect rect {1110, 480, 150, 120};
+        rect = ai::rEnv.cvtReferenceToCaptured(rect);
+        cv::Mat blackImage;
+        cv::threshold(grayImage(rect), blackImage, 10, 255, cv::THRESH_BINARY);
+        int count = cv::countNonZero(blackImage);
+        if (count == 0) {
+            kbd::send("UI_Select", 0, 1000);
+            sleep(10000);
+            continue;
+        }
+        sleep(10000);
+    }
+    throw_failed_("Unknown death screen");
+}
+
+std::string ai::TaskResurrect::getStatus() {
+    switch (status) {
+    case DONE:
+    case READY:
+        return {};
+    case REPORT:
+        return _gt("Death report");
+    case DEPLOY:
+        return _gt("Deploing ship");
+    }
+    return {};
+}
+
+
 ai::TaskAcquirePPC::TaskAcquirePPC(const ai::TaskTemplate &templ)
     : Task(templ)
 {

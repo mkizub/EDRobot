@@ -173,6 +173,7 @@ private:
     Commodity& getOrAddCommodity(Commodity&& c);
     void changeDirThreadLoop();
 
+    void preloadOldEventsComplete();
     void readJournalChanges(std::ifstream& journalStream, std::string& journalLine);
     spGameEvent parseEvent(const std::string& line);
 

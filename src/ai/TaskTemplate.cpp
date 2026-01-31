@@ -27,8 +27,8 @@ const std::string ED_TASK_TRADE_LOOP = "tsk-trade-loop";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
 const std::string ED_TASK_TRAVEL = "tsk-travel";
 const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
+const std::string ED_TASK_RESURRECT = "tsk-resurrect";
 
-const std::string ED_TASK_CALIBRATE = "tsk-calibrate";
 const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES = "tsk-debug-find-all-commodities";
 const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS = "tsk-debug-find-all-nav-points";
 const std::string ED_TASK_DEBUG_AUTOPILOT = "tsk-debug-autopilot";
