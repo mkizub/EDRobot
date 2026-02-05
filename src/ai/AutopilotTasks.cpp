@@ -1189,10 +1189,10 @@ bool EnterCruiseStep::run() {
             status = ORIENT;
             sendUiBack();
             task->orientAwayFromTarget(10);
-        } else if (wasDestBodyFocused || !wasDestDockFocused) {
+        } else if (st::autopilot.destBody && (wasDestBodyFocused || !wasDestDockFocused)) {
             run_sub_step(new NavBodySelect);
             task->orientTowardTarget(10);
-        } else {
+        } else if (st::autopilot.destDock) {
             run_sub_step(new NavDockSelect);
             task->orientTowardTarget(10);
         }

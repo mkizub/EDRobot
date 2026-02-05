@@ -876,6 +876,14 @@ std::string TaskConstrUnload::getStatus() {
     return {};
 }
 
+gal::spEntity getCurrDock() {
+    gal::spEntity dock;
+    if (st::dockedAt.marketId)
+        dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.marketId);
+    if (!dock && !st::dockedAt.stationName.empty())
+        dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.stationName);
+    return dock;
+}
 
 TaskTradeAt::TaskTradeAt(const TaskTemplate& templ_)
         : Task(templ_)
@@ -884,7 +892,18 @@ TaskTradeAt::TaskTradeAt(const TaskTemplate& templ_)
 }
 
 bool TaskTradeAt::run() {
-    throw_failed_("Task TaskTradeAt is not implemented yet");
+    auto systemName = templ.get("system").as_string();
+    auto dockName = templ.get("dock").as_string();
+    TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
+    impl.set("system", systemName);
+    impl.set("dock", dockName);
+    if (!run_sub_step(impl.factory(impl)))
+        throw_trouble("Trouble traveling to market {}", dockName);
+    auto dock = getCurrDock();
+    if (!dock || !dock->nameEq(dockName))
+        throw_trouble("Trouble traveling to market {}", dockName);
+    gotoMarketScreen(true);
+    return true;
 }
 
 TradeLoopTask::TradeLoopTask(const TaskTemplate& templ_)
@@ -899,14 +918,6 @@ TradeLoopTask::TradeLoopTask(const TaskTemplate& templ_)
 //    return lc_format("{}: {} ", templ.name, mCompleted+1);
 //}
 
-gal::spEntity getCurrDock() {
-    gal::spEntity dock;
-    if (st::dockedAt.marketId)
-        dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.marketId);
-    if (!dock && !st::dockedAt.stationName.empty())
-        dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.stationName);
-    return dock;
-}
 bool TradeLoopTask::run() {
     if (markets.empty()) {
         Param &p = templ.get("markets");

@@ -406,7 +406,7 @@ void initTemplates() {
             { Param::System,   "system", _lc("Star system") },
             { Param::Dock,     "dock",   _lc("Dock") },
             { Param::Array,    "tasks",  _lc("Tasks"), META(
-                    R"({elements:{type:'Task', values: [
+                    R"({optional:true, elements:{type:'Task', values: [
                         'tsk-market-sell-all', 'tsk-market-sell',
                         'tsk-market-buy-all', 'tsk-market-buy',
                         'tsk-market-buy-constr', 'tsk-constr-unload',
@@ -444,13 +444,13 @@ void initTemplates() {
                        ]})"), "ExceptLittleFirst"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
+    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
     templates.emplace_back(ED_TASK_ACQUIRE_PPC, _lc("Acquire PowerPlay resource"), FACTORY(TaskAcquirePPC), P{
             { Param::Commodity, "commodity", _lc("Commodity") },
     });
     templates.emplace_back(ED_TASK_DELIVER_PPC, _lc("Deliver PowerPlay resource"), FACTORY(TaskDeliverPPC), P{
             { Param::Commodity, "commodity", _lc("Commodity") },
     });
-    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
     templates.emplace_back(ED_TASK_TRAVEL, _lc("Travel to dock"), FACTORY(TaskTravel), P{
             { Param::System,   "system", _lc("Star system") },
             { Param::Dock,     "dock",   _lc("Dock") },
