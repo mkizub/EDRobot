@@ -14,8 +14,10 @@
 #include <winlamb/checkbox.h>
 
 #include "../ai/AIManager.h"
+#include "UIShowCargo.h"
 
 class UIMainDialog : public wl::dialog_main {
+    friend class UIShowCargo;
 public:
     UIMainDialog();
 
@@ -25,6 +27,7 @@ public:
     void relayout();
     void on_command_stop_new();
     void on_command_pause_resume();
+    void on_command_show_cargo();
 
     void update_curr_task();
 
@@ -40,6 +43,8 @@ public:
     wl::button btn_ok;
     wl::button btn_watch;
     wl::button btn_exit;
+
+    std::unique_ptr<UIShowCargo> dlg_showCargo;
 
     UINT_PTR mUpdateTimerId {};
 

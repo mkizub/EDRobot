@@ -143,6 +143,39 @@ std::string toUpper(const std::string& str) {
     return upper;
 }
 
+std::wstring toLower(const std::wstring& str) {
+    std::wstring lower;
+    lower.resize(str.length() + 1);
+    int result_size = LCMapStringEx(
+            LOCALE_NAME_SYSTEM_DEFAULT,
+            LCMAP_LOWERCASE,
+            str.c_str(),
+            static_cast<int>(str.length()),
+            lower.data(),
+            static_cast<int>(lower.length()),
+            0, 0, 0
+    );
+    if (result_size > 0)
+        lower.resize(result_size - 1); // Resize to actual length, excluding null
+    return lower;
+}
+std::wstring toUpper(const std::wstring& str) {
+    std::wstring upper;
+    upper.resize(str.length() + 1);
+    int result_size = LCMapStringEx(
+            LOCALE_NAME_SYSTEM_DEFAULT,
+            LCMAP_LOWERCASE,
+            str.c_str(),
+            static_cast<int>(str.length()),
+            upper.data(),
+            static_cast<int>(upper.length()),
+            0, 0, 0
+    );
+    if (result_size > 0)
+        upper.resize(result_size - 1); // Resize to actual length, excluding null
+    return upper;
+}
+
 bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2) {
     if (str1.length() != str2.length())
         return false;
@@ -512,6 +545,24 @@ dist_t parseDist(std::wstring dist, int conf) {
     if (std::from_chars(num.c_str(), num.c_str()+num.size(), d).ec != std::errc{})
         return {};
     return dist_t(d, unit, conf);
+}
+
+bool parseInt(const std::string& str, int64_t& out) {
+    if (str.empty())
+        return false;
+    auto* bgn = str.c_str();
+    auto* end = bgn + str.size();
+    std::from_chars_result res = std::from_chars(str.c_str(), str.c_str()+str.size(), out);
+    return res.ec == std::errc{} && res.ptr == end;
+}
+
+bool parseReal(const std::string& str, double& out) {
+    if (str.empty())
+        return false;
+    auto* bgn = str.c_str();
+    auto* end = bgn + str.size();
+    std::from_chars_result res = std::from_chars(str.c_str(), str.c_str()+str.size(), out);
+    return res.ec == std::errc{} && res.ptr == end;
 }
 
 bool utc_timer::started() const {

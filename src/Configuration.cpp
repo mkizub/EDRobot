@@ -171,6 +171,7 @@ bool Configuration::load() {
 #endif
         std::filesystem::create_directories("cache/systems");
         std::filesystem::create_directories("cache/markets");
+        std::filesystem::create_directories("cache/carriers");
 
         LOG(INFO) << "ED log files path: " << mEDLogsPath;
         LOG(INFO) << "ED settings  path: " << mEDSettingsPath;
@@ -833,6 +834,8 @@ Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
                 c.category = c_add.category;
                 mCommodityDatabaseUpdated = true;
             }
+            else if (!c.category)
+                c.category = c_add.category;
             if (c.translation[i].empty() && !c_add.translation[i].empty()) {
                 c.translation[i] = c_add.translation[i];
                 mCommodityDatabaseUpdated = true;
@@ -858,6 +861,14 @@ Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
     if (changeDirListener)
         LOG(ERROR) << "New Commodity added: " << nameId;
     return c;
+}
+
+CommodityCategory* Configuration::getCommodityCategoryById(int id) {
+    for (auto& cc : allKnownCommodityCategories) {
+        if (id == cc.intId)
+            return &cc;
+    }
+    return nullptr;
 }
 
 CommodityCategory* Configuration::getCommodityCategoryByName(const std::string& name) {
@@ -1106,7 +1117,7 @@ bool Configuration::loadMarket(Timestamp event_timestamp) {
     return true;
 }
 
-bool Configuration::loadCargo(Timestamp event_timestamp) {
+bool Configuration::loadShipCargo(Timestamp event_timestamp) {
     json5pp::value j_cargo;
     try {
         std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
@@ -1143,7 +1154,7 @@ bool Configuration::loadCargo(Timestamp event_timestamp) {
         if (!c) {
             LOG(ERROR) << "Unknown cargo item name: " << name << ", adding to dummy category";
             std::array<std::string,2> translation;
-            CommodityCategory* cc = getCommodityCategoryByName("");
+            CommodityCategory* cc = getCommodityCategoryById(0);
             if (st::lng == Lang::EN)
                 translation = {item.at("Name_Localised").as_string(),""};
             if (st::lng == Lang::RU)
@@ -1162,6 +1173,96 @@ bool Configuration::loadCargo(Timestamp event_timestamp) {
             c.ship = {};
         }
     }
+    return true;
+}
+
+bool Configuration::loadCarrierCargo() {
+    if (!st::cmdr.fleetCarrierId || allKnownCommodities.empty())
+        return false;
+    std::string fname = std::format("cache/carriers/{}.json", st::cmdr.fleetCarrierId);
+    json5pp::value j_cargo;
+    try {
+        std::ifstream cargoFile(fname, std::ifstream::in);
+        if (cargoFile.fail()) {
+            LOG(ERROR) << "Cannot read file: " << fname;
+            return false;
+        }
+        j_cargo = json5pp::parse5(cargoFile);
+        cargoFile.close();
+    } catch (...) {
+        LOG(ERROR) << "Failed to read/parse file: " << fname;
+        return false;
+    }
+    if (!j_cargo)
+        return false;
+    Timestamp timestamp;
+    if (!parseTimestamp(j_cargo, timestamp))
+        return false;
+
+    Timestamp zero_time;
+    for (auto& c : allKnownCommodities) {
+        if (c.ship.timestamp > zero_time && c.fc.timestamp < timestamp) {
+            c.fc = {};
+        }
+    }
+
+    spShipCargo cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
+        .timestamp = timestamp,
+        .vessel = "FleetCarrier",
+        }));
+    auto items = j_cargo.at("Cargo").as_array();
+    for (auto& j_item : items) {
+        auto item = j_item.as_object();
+        auto name = item.at("Name").as_string();
+        if (name.empty()) {
+            LOG(ERROR) << "Bad cargo item name: " << name;
+            continue;
+        }
+        Commodity* c = getCommodityByName(name, false);
+        if (!c) {
+            LOG(ERROR) << "Unknown cargo item name: " << name << ", adding to dummy category";
+            std::array<std::string,2> translation;
+            CommodityCategory* cc = getCommodityCategoryById(0);
+            if (st::lng == Lang::EN)
+                translation = {item.at("Name_Localised").as_string(),""};
+            if (st::lng == Lang::RU)
+                translation = {"",item.at("Name_Localised").as_string()};
+            c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
+        }
+        c->fc.timestamp = timestamp;
+        c->fc.count += item.at("Count").as_integer();
+        if (!contains(cargo->inventory, c))
+            cargo->inventory.push_back(c);
+    }
+    st::carrierCargo.swap(cargo);
+    return true;
+}
+
+bool Configuration::saveCarrierCargo() {
+    if (!st::cmdr.fleetCarrierId)
+        return false;
+
+    Timestamp timestamp = Timestamp::clock::now();
+    json5pp::value jm = json5pp::object({
+        {"timestamp", formatTimestampString(timestamp)},
+        {"Vessel", "FleetCarrier"},
+        {"Cargo", json5pp::array({})},
+        });
+    auto& jarr = jm.as_object()["Cargo"].as_array();
+    for (auto& c : allKnownCommodities) {
+        if (c.fc.count <= 0)
+            continue;
+        json5pp::value& jv = jarr.emplace_back(json5pp::object({{"Id", c.intId},{"Name", c.nameId}}));
+        auto& jo = jv.as_object();
+        if (!c.translation[int(st::lng)].empty())
+            jo.emplace("Name_Localised", c.name);
+        jo.emplace("Count", c.fc.count);
+    }
+
+    std::filesystem::path fp("cache/carriers/"+std::to_string(st::cmdr.fleetCarrierId)+".json");
+    std::ofstream ofs(fp);
+    ofs << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jm;
+    ofs.close();
     return true;
 }
 

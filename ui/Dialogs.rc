@@ -54,6 +54,7 @@ END
 IDD_ED_ROBOT DIALOGEX 0, 0, 201, 245
 STYLE DS_ABSALIGN | DS_SETFONT | DS_SETFOREGROUND | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "EDRobot"
+MENU IDR_MENU
 FONT 10, "Microsoft Sans Serif", 400, 0, 0xCC
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,12,223,50,14
@@ -66,6 +67,16 @@ BEGIN
     LTEXT           "Task Status",IDC_TASK_STATUS,7,48,187,158,WS_BORDER
     LTEXT           "Status",IDC_STATUS,7,210,187,8
     CONTROL         "Top",IDC_KEEP_ON_TOP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,31,54,10
+END
+
+IDD_SHOW_CARGO DIALOGEX 0, 0, 209, 178
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "EDRobot Cargo"
+FONT 10, "Microsoft Sans Serif", 400, 0, 0xCC
+BEGIN
+    DEFPUSHBUTTON   "Run",ID_RUN,27,157,31,14
+    PUSHBUTTON      "Save",ID_SAVE,88,157,31,14
+    PUSHBUTTON      "Load",ID_LOAD,150,157,31,14
 END
 
 
@@ -100,8 +111,44 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 238
     END
+
+    IDD_SHOW_CARGO, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 202
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 171
+    END
 END
 #endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_MENU MENU
+BEGIN
+    POPUP "Task"
+    BEGIN
+        MENUITEM "New Task",                    IDM_TASK_NEW
+        MENUITEM "Stop",                        IDM_TASK_STOP
+        MENUITEM "Repeat",                      IDM_TASK_REPEAT
+        MENUITEM SEPARATOR
+        MENUITEM "Exit",                        IDM_FILE_EXIT
+    END
+    MENUITEM SEPARATOR
+    POPUP "More"
+    BEGIN
+        MENUITEM "Commodities",                 IDM_COMMODITIES
+    END
+    MENUITEM SEPARATOR
+    POPUP "Debug"
+    BEGIN
+        MENUITEM "Watch",                       IDM_DEBUG_WATCH
+    END
+END
 
 #endif    // Neutral (Default) resources
 /////////////////////////////////////////////////////////////////////////////

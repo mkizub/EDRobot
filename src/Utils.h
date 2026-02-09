@@ -31,6 +31,8 @@ extern std::wstring toUtf16(const char* buffer, size_t size);
 extern std::wstring toUtf16(const std::string& str);
 extern std::string toLower(const std::string& str);
 extern std::string toUpper(const std::string& str);
+extern std::wstring toLower(const std::wstring& str);
+extern std::wstring toUpper(const std::wstring& str);
 extern bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2);
 inline bool isLatinLetter(char ch) { return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z'; }
 std::vector<std::string> split(const std::string &s, char delim);
@@ -60,6 +62,7 @@ extern std::string formatTimestampString(Timestamp timestamp);
 extern bool parseTimestampString(const std::string& str, Timestamp& timestamp);
 extern bool parseTimestamp(const json5pp::value& value, Timestamp& timestamp);
 extern dist_t parseDist(std::wstring dist, int conf);
-
+extern bool parseInt(const std::string& str, int64_t& out);
+extern bool parseReal(const std::string& str, double& out);
 
 #endif //EDROBOT_UTILS_H

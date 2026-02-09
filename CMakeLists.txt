@@ -148,6 +148,13 @@ add_executable(EDRobot
         src/widget/List.h
         src/widget/List.cpp
         src/widget/LoadScreens.cpp
+        src/ui/UICargoEditor.cpp
+        src/ui/UICargoEditor.h
+        src/ui/wl_panel.h
+        src/ui/UIShowCargo.cpp
+        src/ui/UIShowCargo.h
+        src/net/NetUtils.h
+        src/net/NetUtils.cpp
 )
 
 

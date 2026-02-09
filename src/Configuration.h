@@ -125,13 +125,16 @@ public:
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }
     int getSearchRegionExtent() const { return searchRegionExtent; }
     std::string getShortcutFor(Command cmd) const;
+    CommodityCategory* getCommodityCategoryById(int id);
     CommodityCategory* getCommodityCategoryByName(const std::string& name);
     Commodity* getCommodityById(const std::string& name);
     Commodity* getCommodityByName(const std::string& name, bool fuzzy_ocr);
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);
 
     bool loadMarket(Timestamp timestamp);
-    bool loadCargo(Timestamp timestamp);
+    bool loadShipCargo(Timestamp timestamp);
+    bool loadCarrierCargo();
+    bool saveCarrierCargo();
     bool loadNavRoute(Timestamp timestamp);
     const char* makeTesseractWordsFile();
 

@@ -15,6 +15,7 @@
 #include "FuzzyMatch.h"
 #include "widget/EDWidget.h"
 #include "widget/List.h"
+#include "net/NetUtils.h"
 #include "OCR.h"
 #include <fstream>
 #include <memory>
@@ -24,7 +25,7 @@
 #include "opencv2/core/utils/logger.hpp"
 #include <CLI11/CLI11.hpp>
 #include <magic_enum/magic_enum.hpp>
-#include <curl/curl.h>
+
 
 #ifndef NDEBUG
 #include <cpptrace/cpptrace.hpp>
@@ -94,64 +95,6 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
     }
     static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
     el::base::Writer(elLevel, file, line, func).construct(cvLogger) << msg;
-}
-
-static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
-}
-
-static std::string curlRequestGithubLatest() {
-    json5pp::value result;
-    std::string readBuffer;
-
-    std::string url = "https://api.github.com/repos/mkizub/EDRobot/releases/latest";
-    std::string ua = std::format("EDRobot {} {}", EDROBOT_VERSION, curl_version());
-
-    CURL* curl = curl_easy_init();
-    if (!curl)
-        return {};
-
-    // Set URL and perform the request
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3);
-
-    if (Cfg.getCurlInsecure()) {
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
-        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
-        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
-        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
-    }
-    if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty())
-        curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
-
-    struct curl_slist* headers = NULL;
-    headers = curl_slist_append(headers, "Accept: application/vnd.github+json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, ua.c_str());
-    char errbuf[CURL_ERROR_SIZE] = {};
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-    CURLcode res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK)
-        LOG(ERROR) << "Curl error: " << errbuf;
-
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
-
-    if (res != CURLE_OK)
-        return {};
-
-    return readBuffer;
 }
 
 static std::pair<std::string,std::string> getLatestVersionAndUrl() {

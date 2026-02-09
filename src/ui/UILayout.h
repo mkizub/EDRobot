@@ -14,5 +14,7 @@ const int LO_V_GAP          = 4;
 const int LO_H_GAP          = 10;
 const int LO_V_ROW          = 22;
 const int LO_FONT_SIZE      = 12;
+const int LO_TXT_20_W       = 200;
+const int LO_TXT_6_W        = 80;
 
 #endif //EDROBOT_UILAYOUT_H

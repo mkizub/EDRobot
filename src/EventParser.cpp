@@ -28,6 +28,7 @@ ShipAtBody shipAtBody {};
 
 spMarket currentMarket;
 spShipCargo currentCargo;
+spShipCargo carrierCargo;
 spNavRoute currentNavRoute;
 CompassInfo compass;
 Autopilot autopilot;
@@ -447,6 +448,7 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
         cmdr.fleetCarrierInSystem = je.at("StarSystem","").as_string();
         cmdr.fleetCarrierAtBodyId = je.at("BodyID",-1).as_integer();
         LOG(INFO) << "Fleet Carrier: " << cmdr.fleetCarrierId << " in system " << cmdr.fleetCarrierInSystem;
+        Cfg.loadCarrierCargo();
     }
     if (gal::SQUADRON_CARRIER.match_type(type)) {
         cmdr.squadronCarrierId = je.at("CarrierID",0).as_int64();
@@ -532,7 +534,7 @@ void parseEvent_Resurrect(spGameEvent& ge) {
 }
 
 void parseEvent_Cargo(spGameEvent& ge) {
-    Cfg.loadCargo(ge->timestamp);
+    Cfg.loadShipCargo(ge->timestamp);
 }
 void parseEvent_Market(spGameEvent& ge) {
     Cfg.loadMarket(ge->timestamp);

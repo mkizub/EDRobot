@@ -196,6 +196,7 @@ extern struct ShipAtBody {
 
 extern std::shared_ptr<Market> currentMarket;
 extern std::shared_ptr<ShipCargo> currentCargo;
+extern std::shared_ptr<ShipCargo> carrierCargo;
 extern std::shared_ptr<NavRoute> currentNavRoute;
 
 extern CompassInfo compass;

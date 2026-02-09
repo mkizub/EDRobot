@@ -7,6 +7,7 @@
 #include "UIMainDialog.h"
 #include "UIManager.h"
 #include "UIAddTask.h"
+#include "UIShowCargo.h"
 #include "UILayout.h"
 #include "../../ui/resource.h"
 
@@ -64,6 +65,10 @@ UIMainDialog::UIMainDialog()
         hide(false);
         return 0;
     });
+    this->base_msg_pubm::on_command(IDM_COMMODITIES, [this](wl::params p){
+        on_command_show_cargo();
+        return 0;
+    });
     this->base_msg_pubm::on_command(IDC_BUTTON_STOP_NEW, [this](wl::params p){
         on_command_stop_new();
         return 0;
@@ -73,6 +78,10 @@ UIMainDialog::UIMainDialog()
         return 0;
     });
     this->base_msg_pubm::on_command(IDC_BUTTON_WATCH, [](wl::params p){
+        UIManager::showDebugWindow();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_DEBUG_WATCH, [](wl::params p){
         UIManager::showDebugWindow();
         return 0;
     });
@@ -86,6 +95,10 @@ UIMainDialog::UIMainDialog()
         return 0;
     });
     this->base_msg_pubm::on_command(IDC_EXIT, [](wl::params p){
+        Master::getInstance().pushCommand(Command::Shutdown);
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_FILE_EXIT, [](wl::params p){
         Master::getInstance().pushCommand(Command::Shutdown);
         return 0;
     });
@@ -110,6 +123,9 @@ void UIMainDialog::initialize() {
     SetDialogDpiChangeBehavior(hwnd(), DDC_DISABLE_ALL, DDC_DISABLE_ALL);
 
     HINSTANCE hInstance = GetModuleHandle(nullptr);
+    HMENU hMenu = LoadMenu(hInstance, MAKEINTRESOURCE(IDR_MENU));
+    SetMenu(hwnd(), hMenu);
+
     mNotifyIconData.cbSize = sizeof(NOTIFYICONDATA);
     mNotifyIconData.hWnd = hwnd();
     mNotifyIconData.uID = TRAY_ICONUID;
@@ -238,6 +254,21 @@ void UIMainDialog::on_command_pause_resume() {
             }
         }
         update_curr_task();
+    } catch (const std::system_error& ex) {
+        LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << ex.what();
+    }
+}
+
+void UIMainDialog::on_command_show_cargo() {
+    try {
+        if (dlg_showCargo && !dlg_showCargo->isDestroyed) {
+            SetForegroundWindow(dlg_showCargo->hwnd());
+        } else {
+            dlg_showCargo = std::make_unique<UIShowCargo>();
+            dlg_showCargo->create(this);
+        }
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {

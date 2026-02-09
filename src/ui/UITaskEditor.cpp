@@ -4,6 +4,8 @@
 
 #include "../pch.h"
 
+#include "windowsx.h"
+
 #include "UITaskEditor.h"
 #include "UILayout.h"
 
@@ -131,12 +133,13 @@ void UITaskEditor::relayout(bool scroll_to_top) {
 void UITaskEditor::on_ctrl_change(wl::params& p) {
     if (initializing)
         return;
-    if (HIWORD(p.wParam) != EN_CHANGE && HIWORD(p.wParam) != BN_CLICKED && HIWORD(p.wParam) != CBN_SELCHANGE)
+    auto hw = HIWORD(p.wParam);
+    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELCHANGE && hw != CBN_EDITCHANGE)
         return;
     int id = LOWORD(p.wParam);
     if (id < ctrlIdBase)
         return;
-    bool ok = on_ctrl_edit(id);
+    bool ok = on_ctrl_edit(id, hw);
     if (validate_callback)
         validate_callback(ok);
 }
@@ -154,8 +157,9 @@ std::unique_ptr<ParamCtrl> UITaskEditor::create_ctrl(ai::Param& param) {
     case ai::Param::String:
     case ai::Param::System:
     case ai::Param::Dock:
-    case ai::Param::Commodity:
         return std::make_unique<TextCtrl>(this, param);
+    case ai::Param::Commodity:
+        return std::make_unique<CargoCtrl>(this, param);
     case ai::Param::Task:
         return std::make_unique<TaskCtrl>(this, param);
     case ai::Param::Array:
@@ -167,11 +171,11 @@ std::unique_ptr<ParamCtrl> UITaskEditor::create_ctrl(ai::Param& param) {
 bool UITaskEditor::validate() const {
     return task_ctrl && task_ctrl->validate();
 }
-bool UITaskEditor::on_ctrl_edit(int id) {
+bool UITaskEditor::on_ctrl_edit(int id, WORD msg) {
     if (!task_ctrl)
         return false;
     HWND changed = GetDlgItem(hwnd(), id);
-    task_ctrl->on_ctrl_edit(changed);
+    task_ctrl->on_ctrl_edit(changed, msg);
     return task_ctrl->validate();
 }
 
@@ -194,7 +198,7 @@ void ParamCtrl::create() {
 }
 void ParamCtrl::layout() {
 }
-void ParamCtrl::on_ctrl_edit(HWND changed) {
+void ParamCtrl::on_ctrl_edit(HWND changed, WORD msg) {
 }
 bool ParamCtrl::validate() {
     return false;
@@ -226,7 +230,7 @@ void BoolCtrl::layout() {
     l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, cb.hwnd(), nullptr, l.left, l.top, l.width, l.vrow, SWP_NOZORDER);
     l.top += l.vrow + l.vgap;
 }
-void BoolCtrl::on_ctrl_edit(HWND changed) {
+void BoolCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed == cb.hwnd())
         checked = cb.is_checked();
 }
@@ -308,7 +312,7 @@ void EnumCtrl::layout() {
     }
     l.top += l.vrow + l.vgap;
 }
-void EnumCtrl::on_ctrl_edit(HWND changed) {
+void EnumCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed == dl.hwnd()) {
         selected_index = dl.get_selected_index();
         if (selected_index < 0 || selected_index >= entries.size())
@@ -392,27 +396,27 @@ void TextCtrl::layout() {
     }
     l.top += l.vrow + l.vgap;
 }
-void TextCtrl::on_ctrl_edit(HWND changed) {
+void TextCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed == tb.hwnd())
         text = tb.get_text();
 }
 bool TextCtrl::validate() {
     ai::Param param{type, "", "", meta};
-    param.set(toUtf8(text), true);
+    param.set(trim(toUtf8(text)), true);
     return param.valid();
 }
 json5pp::value TextCtrl::value() {
     if (text.empty())
         return {};
-    std::string s = toUtf8(text);
+    std::string s = trim(toUtf8(text));
     if (type == ai::Param::Int) {
         int64_t result = 0;
-        if (std::from_chars(s.c_str(), s.c_str()+s.size(), result).ec == std::errc{})
+        if (parseInt(s, result))
             return result;
     }
     if (type == ai::Param::Real) {
         double result = 0;
-        if (std::from_chars(s.c_str(), s.c_str()+s.size(), result).ec == std::errc{})
+        if (parseReal(s, result))
             return result;
     }
     if (type == ai::Param::Commodity) {
@@ -420,6 +424,129 @@ json5pp::value TextCtrl::value() {
         if (com)
             return com->nameId;
     }
+    return s;
+}
+
+CargoCtrl::CargoCtrl(UITaskEditor* ui, ai::Param& param)
+        : ParamCtrl(ui, param)
+{
+    assert (param.type == ai::Param::Commodity);
+    if (!param.empty()) {
+        auto* com = Cfg.getCommodityByName(param.as_string(), false);
+        if (com)
+            text = com->wide;
+        else
+            text = toUtf16(param.as_string());
+    }
+}
+CargoCtrl::~CargoCtrl() {
+    ui->freeCtrl(dl);
+}
+void CargoCtrl::create() {
+    auto& l = ui->layout;
+    int drop_down_height = l.vrow * 11;
+    const int lw = l.width / 3 - l.vgap;
+    const int rw = l.width * 2 / 3;
+    const int cx = l.left + l.width / 3;
+    dl.assign(CreateWindowExW(0, WC_COMBOBOX, nullptr,
+                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWN | WS_VSCROLL,
+                              cx, l.top, rw, drop_down_height, ui->hwnd(),
+                              reinterpret_cast<HMENU>(static_cast<UINT_PTR>(ui->nextID())),
+                              reinterpret_cast<HINSTANCE>(GetWindowLongPtrW(ui->hwnd(), GWLP_HINSTANCE)),
+                              nullptr));
+    if (!text.empty()) {
+        SendMessage(dl.hwnd(), CB_ADDSTRING, 0, (LPARAM) text.c_str());
+        SetWindowText(dl.hwnd(), text.c_str());
+    }
+    if (meta["placeholder"].is_string()) {
+        const char* ph = gettext(meta["placeholder"].as_string().c_str());
+        if (ph && *ph)
+            Edit_SetCueBannerText(dl.hwnd(), toUtf16(ph).c_str());
+    }
+    ui->font.set_on(dl);
+    if (!name.empty()) {
+        label.create(ui->hwnd(), ui->nextID(), name.c_str(), {l.left, l.top}, {lw, l.vrow});
+        ui->font.set_on(label);
+    }
+    l.top += l.vrow + l.vgap;
+
+    ui->font.set_on(dl);
+    l.top += l.vrow + l.vgap;
+}
+void CargoCtrl::layout() {
+    auto& l = ui->layout;
+    if (l.update_font) {
+        ui->font.set_on(label);
+        ui->font.set_on(dl);
+    }
+    int drop_down_height = l.vrow * 11;
+    const int lw = l.width / 3 - l.vgap;
+    const int rw = l.width * 2 / 3;
+    const int cx = l.left + l.width / 3;
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, cx, l.top, rw, drop_down_height, SWP_NOZORDER);
+    if (!name.empty()) {
+        l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, label.hwnd(), nullptr, l.left, l.top, lw, l.vrow, SWP_NOZORDER);
+    }
+    l.top += l.vrow + l.vgap;
+}
+void CargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
+    if (changed != dl.hwnd())
+        return;
+    if (msg == CBN_SELCHANGE) {
+        text = dl.get_selected_text();
+        for (int i=0; i < dl.count(); i++) {
+            if (dl.get_text(i) != text) {
+                SendMessage(dl.hwnd(), CB_DELETESTRING, i, 0);
+                i -= 1;
+            }
+        }
+        return;
+    } else {
+        int len = GetWindowTextLengthW(dl.hwnd());
+        if (len) {
+            text.resize(len + 1, L'\0');
+            GetWindowTextW(dl.hwnd(), &text[0], len + 1);
+            text.resize(len);
+        } else {
+            text.clear();
+        }
+    }
+    if (text.empty()) {
+        dl.remove_all();
+        return;
+    }
+    for (int count = dl.count(); count > 0; count--)
+        SendMessage(dl.hwnd(), CB_DELETESTRING, count-1, 0);
+    std::wstring text_l = toLower(text);
+    for (auto* c : Cfg.getAllKnownCommodities()) {
+        if (toUtf16(c->nameId).starts_with(text)) {
+            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
+            continue;
+        }
+        if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text)) {
+            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
+            continue;
+        }
+        if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text)) {
+            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
+            continue;
+        }
+    }
+    if (dl.count() <= 10)
+        SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
+}
+bool CargoCtrl::validate() {
+    ai::Param param{ai::Param::Commodity, "", "", meta};
+    param.set(toUtf8(text), true);
+    return param.valid();
+}
+json5pp::value CargoCtrl::value() {
+    if (text.empty())
+        return {};
+    std::string s = toUtf8(text);
+    auto* com = Cfg.getCommodityByName(s, false);
+    if (com)
+        return com->nameId;
     return s;
 }
 
@@ -441,8 +568,8 @@ void ElemCtrl::create() {
 void ElemCtrl::layout() {
     el_ctrl->layout();
 }
-void ElemCtrl::on_ctrl_edit(HWND changed) {
-    el_ctrl->on_ctrl_edit(changed);
+void ElemCtrl::on_ctrl_edit(HWND changed, WORD msg) {
+    el_ctrl->on_ctrl_edit(changed, msg);
 }
 bool ElemCtrl::validate() {
     if (!el_ctrl)
@@ -508,9 +635,9 @@ void ArrayCtrl::layout() {
         l.width += l.hgap;
     }
 }
-void ArrayCtrl::on_ctrl_edit(HWND changed) {
+void ArrayCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     for (auto& c : controls) {
-        c->on_ctrl_edit(changed);
+        c->on_ctrl_edit(changed, msg);
     }
 }
 bool ArrayCtrl::validate() {
@@ -659,7 +786,7 @@ void TaskCtrl::layout() {
     l.left -= l.hgap;
     l.width += l.hgap;
 }
-void TaskCtrl::on_ctrl_edit(HWND changed) {
+void TaskCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (toplevel && changed == tb.hwnd()) {
         name = tb.get_text();
         return;
@@ -683,7 +810,7 @@ void TaskCtrl::on_ctrl_edit(HWND changed) {
         return;
     }
     for (auto& c : controls) {
-        c->on_ctrl_edit(changed);
+        c->on_ctrl_edit(changed, msg);
     }
 }
 bool TaskCtrl::validate() {

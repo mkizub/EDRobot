@@ -5,9 +5,7 @@
 #include "pch.h"
 
 #include "Galaxy.h"
-#include "ai/Types.h"
-
-#include <curl/curl.h>
+#include "net/NetUtils.h"
 
 namespace gal {
 
@@ -99,63 +97,6 @@ spMarket loadMarket(int64_t marketId) {
     }
 
     return market;
-}
-
-static json5pp::value curlRequestEDSM(std::string url, std::string systemName) {
-    json5pp::value result;
-    std::string readBuffer;
-
-    CURL* curl = curl_easy_init();
-    if (!curl)
-        return result;
-    url += curl_easy_escape(curl, systemName.c_str(), systemName.length());
-
-    // Set URL and perform the request
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5);
-
-    if (Cfg.getCurlInsecure()) {
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
-        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
-        curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
-        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
-    }
-    if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty())
-        curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
-
-    struct curl_slist* headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/json; charset: utf-8");
-    headers = curl_slist_append(headers, "Accept: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    char errbuf[CURL_ERROR_SIZE] = {};
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-    CURLcode res = curl_easy_perform(curl);
-
-    if (res != CURLE_OK)
-        LOG(ERROR) << "Curl error: " << errbuf;
-
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
-
-    if (res != CURLE_OK)
-        return result;
-
-    try {
-        result = json5pp::parse5(readBuffer);
-    } catch (const json5pp::syntax_error& ex) {
-        LOG(ERROR) << ex.what();
-    }
-
-    return result;
 }
 
 static void parseUpdated(spEntity& entity, const json5pp::value& j) {

@@ -143,7 +143,7 @@ bool Param::set(const json5pp::value& val, bool silent) {
         if (val.is_string()) {
             auto& str = val.as_string();
             int64_t result = 0;
-            if (std::from_chars(str.c_str(), str.c_str()+str.size(), result).ec == std::errc{}) {
+            if (parseInt(str, result)) {
                 value = result;
                 return true;
             }
@@ -157,7 +157,7 @@ bool Param::set(const json5pp::value& val, bool silent) {
         if (val.is_string()) {
             auto& str = val.as_string();
             double result = 0;
-            if (std::from_chars(str.c_str(), str.c_str()+str.size(), result).ec == std::errc{}) {
+            if (parseReal(str, result)) {
                 value = result;
                 return true;
             }
