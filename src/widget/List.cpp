@@ -522,17 +522,18 @@ std::vector<Redused::Row> Redused::get_rows() {
         if (delta > 1.5*dgap)
             offsets1.erase(offsets1.begin()+i);
     }
-    if (offsets1.size() <= 1)
+    if (offsets1.size() < 1)
         return {};
-    cv::meanStdDev(offsets1, mean_val, stddev_val);
-
-    std::vector<XY> leastApproxData;
-    leastApproxData.reserve(gaps.size());
-    for (int i=0; i < offsets1.size(); i++) {
-        leastApproxData.emplace_back(gaps[i].second,offsets1[i]-mean);
+    double A=0, B=0;
+    if (offsets1.size() > 1) {
+        cv::meanStdDev(offsets1, mean_val, stddev_val);
+        std::vector<XY> leastApproxData;
+        leastApproxData.reserve(gaps.size());
+        for (int i = 0; i < offsets1.size(); i++) {
+            leastApproxData.emplace_back(gaps[i].second, offsets1[i] - mean);
+        }
+        leastSquare(leastApproxData, &A, &B);
     }
-    double A, B;
-    leastSquare(leastApproxData, &A, &B);
 
     std::vector<Row> rows;
     double y_end = size-drow+dgap;

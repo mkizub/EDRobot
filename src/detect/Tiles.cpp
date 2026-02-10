@@ -197,6 +197,7 @@ std::vector<TilesDetector::Range> TilesDetector::split(ClassifyEnv &env, bool co
         int e = detectedGaps[g].end;
         if ((e - b + 1) < min_gap) {
             detectedGaps.erase(detectedGaps.begin()+g);
+            g -= 1;
             continue;
         }
         else if ((e - b - 1) > max_gap) {
@@ -238,7 +239,7 @@ std::vector<cv::Rect> TilesDetector::detectColumns(ClassifyEnv& env, XMat& roiIm
     const int H = roiImage.rows;
     int colThreshold = -1;
     std::vector<Range> columns;
-    if (mMinCols != mMaxCols) {
+    /*if (mMinCols != mMaxCols)*/ {
         cv::Rect reduceRect(0, 0, W, H / 3); // cut 1/3 in the middle
         XMat subImage = roiImage(reduceRect);
         XMat reducedImage;
@@ -247,12 +248,12 @@ std::vector<cv::Rect> TilesDetector::detectColumns(ClassifyEnv& env, XMat& roiIm
         columns = split(env, true, reducedMat.data, W, gap, colThreshold);
         if (columns.size() < mMinCols || columns.size() > mMaxCols)
             return {};
-    } else {
+    }/* else {
         int sz = (W - gap * (mMinCols-1)) / mMinCols;
         for (int i=0, x=0; i < mMinCols; i++, x+=sz+gap) {
             columns.emplace_back(x, x+sz, 100);
         }
-    }
+    }*/
 
     std::vector<cv::Rect> tiles;
     for (auto& col : columns) {

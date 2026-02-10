@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release)
 
-project(EDRobot VERSION 0.8.9)
+project(EDRobot VERSION 0.9.0)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -90,8 +90,13 @@ add_executable(EDRobot
         src/detect/Tiles.cpp
         src/detect/Tiles.h
 
+        src/net/NetUtils.h
+        src/net/NetUtils.cpp
+
         src/ui/UIAddTask.cpp
         src/ui/UIAddTask.h
+        src/ui/UICargoEditor.cpp
+        src/ui/UICargoEditor.h
         src/ui/UIMainDialog.cpp
         src/ui/UIMainDialog.h
         src/ui/UIDebug.cpp
@@ -103,6 +108,8 @@ add_executable(EDRobot
         src/ui/UIManager.h
         src/ui/UISelectRect.cpp
         src/ui/UISelectRect.h
+        src/ui/UIShowCargo.cpp
+        src/ui/UIShowCargo.h
         src/ui/UIStartupDialog.cpp
         src/ui/UIStartupDialog.h
         src/ui/UITaskEditor.cpp
@@ -111,6 +118,7 @@ add_executable(EDRobot
         src/ui/UIToast.h
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
+        src/ui/wl_panel.h
 
         src/Capturer.h
         src/capture/Capturer.cpp
@@ -148,13 +156,6 @@ add_executable(EDRobot
         src/widget/List.h
         src/widget/List.cpp
         src/widget/LoadScreens.cpp
-        src/ui/UICargoEditor.cpp
-        src/ui/UICargoEditor.h
-        src/ui/wl_panel.h
-        src/ui/UIShowCargo.cpp
-        src/ui/UIShowCargo.h
-        src/net/NetUtils.h
-        src/net/NetUtils.cpp
 )
 
 

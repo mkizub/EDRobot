@@ -29,6 +29,7 @@
       { name: 'btn-to-buy',  rect: [96,177,133,129] },
       { name: 'lst-goods', rect: [250,252,1018,718],
         row_height: 35, row_gap: 3.3333333, header: 38, row_test: [300,540],
+        filter: { channel: 'gray' },
         tabs: [
           {left:0,   right:114 },
           {left:120, right:548, font_height: 18, name: 'name' }, // commodity name
