@@ -82,6 +82,13 @@ bool UIManager::hideMainDialog(bool force) {
     return mgr.uiMain.hide(force);
 }
 
+bool UIManager::updateCargoDialog() {
+    UIShowCargo* dlg = UIShowCargo::getInstance();
+    if (!dlg)
+        return false;
+    return dlg->updateCargo();
+}
+
 bool UIManager::showToast(const std::string &title, const std::string &text) {
 //    std::shared_ptr<UIToast> wnd = UIToast::getInstance();
 //    if (!wnd)

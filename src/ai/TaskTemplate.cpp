@@ -436,12 +436,15 @@ void initTemplates() {
     templates.emplace_back(ED_TASK_MARKET_BUY_CONSTR, _lc("Buy for construction"), FACTORY(TaskBuyConstr), P{
             { Param::System,   "system", _lc("Star system") },
             { Param::Dock,     "dock",   _lc("Construction depot") },
-            { Param::Enum,     "mode",   _lc("Mode"), META(R"({values: [
-                         { id: 'ExceptLittleFirst', name: 'Except in list, Little first' },
-                         { id: 'ExceptBulkFirst', name: 'Except in list, Bulk first' },
-                         { id: 'OnlyLittleFirst', name: 'Only listed, Little first' },
-                         { id: 'OnlyBulkFirst', name: 'Only listed, Bulk first' },
-                       ]})"), "ExceptLittleFirst"},
+            { Param::Bool,     "carrier",_lc("Consider Fleet Carrier")  },
+            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
+                json5pp::object({{"id", "ListLittleFirst"},   {"name",  _lc("Listed, then Little first")}}),
+                json5pp::object({{"id", "ListBulkFirst"},     {"name",  _lc("Listed, then Bulk first")}}),
+                json5pp::object({{"id", "ExceptLittleFirst"}, {"name",  _lc("Except in list, Little first")}}),
+                json5pp::object({{"id", "ExceptBulkFirst"},   {"name",  _lc("Except in list, Bulk first")}}),
+                json5pp::object({{"id", "OnlyLittleFirst"},   {"name",  _lc("Only listed, Little first")}}),
+                json5pp::object({{"id", "OnlyBulkFirst"},     {"name",  _lc("Only listed, Bulk first")}})
+            })}}), "ListLittleFirst"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
     templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));

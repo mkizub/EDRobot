@@ -144,8 +144,10 @@ std::string toUpper(const std::string& str) {
 }
 
 std::wstring toLower(const std::wstring& str) {
+    if (str.empty())
+        return str;
     std::wstring lower;
-    lower.resize(str.length() + 1);
+    lower.resize(str.length() + 2);
     int result_size = LCMapStringEx(
             LOCALE_NAME_SYSTEM_DEFAULT,
             LCMAP_LOWERCASE,
@@ -156,15 +158,19 @@ std::wstring toLower(const std::wstring& str) {
             0, 0, 0
     );
     if (result_size > 0)
-        lower.resize(result_size - 1); // Resize to actual length, excluding null
+        lower.resize(result_size);
+    else
+        return str;
     return lower;
 }
 std::wstring toUpper(const std::wstring& str) {
+    if (str.empty())
+        return str;
     std::wstring upper;
-    upper.resize(str.length() + 1);
+    upper.resize(str.length() + 2);
     int result_size = LCMapStringEx(
             LOCALE_NAME_SYSTEM_DEFAULT,
-            LCMAP_LOWERCASE,
+            LCMAP_UPPERCASE,
             str.c_str(),
             static_cast<int>(str.length()),
             upper.data(),
@@ -172,7 +178,9 @@ std::wstring toUpper(const std::wstring& str) {
             0, 0, 0
     );
     if (result_size > 0)
-        upper.resize(result_size - 1); // Resize to actual length, excluding null
+        upper.resize(result_size);
+    else
+        return str;
     return upper;
 }
 

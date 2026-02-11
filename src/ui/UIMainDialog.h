@@ -44,8 +44,6 @@ public:
     wl::button btn_watch;
     wl::button btn_exit;
 
-    std::unique_ptr<UIShowCargo> dlg_showCargo;
-
     UINT_PTR mUpdateTimerId {};
 
     // for (re)layout

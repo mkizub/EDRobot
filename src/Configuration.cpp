@@ -11,6 +11,7 @@
 #include "Capturer.h"
 #include "ShipStats.h"
 #include "Galaxy.h"
+#include "ui/UIManager.h"
 
 #include <zlib.h>
 #include <dirlistener/ReadDirectoryChanges.h>
@@ -210,6 +211,8 @@ bool Configuration::load() {
             errorMessage = _gt("Failed to load commodity database");
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
+        if (st::cmdr.fleetCarrierId)
+            loadCarrierCargo();
 
         LOG(INFO) << "Setting journal directory listener";
         if (!changeDirListener) {
@@ -1198,12 +1201,12 @@ bool Configuration::loadCarrierCargo() {
     Timestamp timestamp;
     if (!parseTimestamp(j_cargo, timestamp))
         return false;
+    if (st::carrierCargo && st::carrierCargo->timestamp >= timestamp)
+        return false;
 
-    Timestamp zero_time;
     for (auto& c : allKnownCommodities) {
-        if (c.ship.timestamp > zero_time && c.fc.timestamp < timestamp) {
-            c.fc = {};
-        }
+        c.fc.timestamp = timestamp;
+        c.fc.count = 0;
     }
 
     spShipCargo cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
@@ -1230,7 +1233,7 @@ bool Configuration::loadCarrierCargo() {
             c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
         }
         c->fc.timestamp = timestamp;
-        c->fc.count += item.at("Count").as_integer();
+        c->fc.count = item.at("Count").as_integer();
         if (!contains(cargo->inventory, c))
             cargo->inventory.push_back(c);
     }
@@ -1238,11 +1241,11 @@ bool Configuration::loadCarrierCargo() {
     return true;
 }
 
-bool Configuration::saveCarrierCargo() {
+bool Configuration::saveCarrierCargo(Timestamp timestamp) {
     if (!st::cmdr.fleetCarrierId)
         return false;
 
-    Timestamp timestamp = Timestamp::clock::now();
+    //Timestamp timestamp = Timestamp::clock::now();
     json5pp::value jm = json5pp::object({
         {"timestamp", formatTimestampString(timestamp)},
         {"Vessel", "FleetCarrier"},
@@ -1263,6 +1266,8 @@ bool Configuration::saveCarrierCargo() {
     std::ofstream ofs(fp);
     ofs << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jm;
     ofs.close();
+
+    UIManager::updateCargoDialog();
     return true;
 }
 

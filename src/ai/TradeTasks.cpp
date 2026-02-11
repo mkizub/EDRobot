@@ -673,9 +673,19 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
             destSystemName = p.as_string();
         else if (p.id == "dock")
             destConstrName = p.as_string();
+        else if (p.id == "carrier")
+            considerCarrier = p.as_boolean();
         else if (p.id == "mode") {
             auto mode = p.as_string();
-            if (mode == "ExceptLittleFirst") {
+            if (mode == "ListLittleFirst") {
+                firstListed = true,
+                bulkFirst = false;
+                onlyListed = false;
+            } else if (mode == "ListBulkFirst") {
+                firstListed = true,
+                bulkFirst = true;
+                onlyListed = false;
+            } else if (mode == "ExceptLittleFirst") {
                 bulkFirst = false;
                 onlyListed = false;
             } else if (mode == "ExceptBulkFirst") {
@@ -729,16 +739,13 @@ bool TaskBuyConstr::run() {
             Commodity* commodity = it.first;
             MarketLine& ml = it.second;
             int demand = ml.demand - ml.stock - commodity->ship.count;
+            if (considerCarrier)
+                demand -= commodity->fc.count;
             if (demand <= 0)
                 continue;
-            if (!commodities.empty()) {
-                if (onlyListed) {
-                    if (!contains(commodities, commodity))
-                        continue;
-                } else {
-                    if (contains(commodities, commodity))
-                        continue;
-                }
+            if (!commodities.empty() && onlyListed) {
+                if (!contains(commodities, commodity))
+                    continue;
             }
             int buy = Mgr.canBuy(commodity);
             buy = std::min(buy, demand);
@@ -768,6 +775,20 @@ bool TaskBuyConstr::run() {
         } else {
             std::sort(buy_queue.begin(), buy_queue.end(), [](const SubTask &a, const SubTask &b) {
                 return a.total_demand < b.total_demand;
+            });
+        }
+        if (firstListed && !commodities.empty()) {
+            const auto& lc = commodities;
+            std::stable_sort(buy_queue.begin(), buy_queue.end(), [lc](const SubTask &a, const SubTask &b) {
+                int a_pos = 10000;
+                int b_pos = 10000;
+                auto it = std::find(lc.begin(), lc.end(), a.commodity);
+                if (it != lc.end())
+                    a_pos = it - lc.begin();
+                it = std::find(lc.begin(), lc.end(), b.commodity);
+                if (it != lc.end())
+                    b_pos = it - lc.begin();
+                return a_pos < b_pos;
             });
         }
     }

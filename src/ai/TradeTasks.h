@@ -99,6 +99,8 @@ public:
 
     std::string destSystemName;
     std::string destConstrName;
+    bool considerCarrier {};
+    bool firstListed {};
     bool bulkFirst {};
     bool onlyListed {};
     std::vector<Commodity*> commodities;

@@ -10,6 +10,21 @@
 
 #include "../../ui/resource.h"
 
+std::unique_ptr<UIShowCargo> UIShowCargo::g_showCargo;
+
+UIShowCargo* UIShowCargo::getInstance() {
+    if (g_showCargo && !g_showCargo->isDestroyed)
+        return g_showCargo.get();
+    return nullptr;
+}
+UIShowCargo* UIShowCargo::makeInstance() {
+    if (g_showCargo && !g_showCargo->isDestroyed)
+        return g_showCargo.get();
+    g_showCargo.reset(new UIShowCargo());
+    g_showCargo->create(&UIManager::getInstance().uiMain);
+    return g_showCargo.get();
+}
+
 UIShowCargo::UIShowCargo() {
     setup.dialogId = IDD_SHOW_CARGO;
 
@@ -94,6 +109,7 @@ void UIShowCargo::relayout() {
         font.create(L"Segoe UI", font_size);
         font.set_on(btn_run);
         font.set_on(btn_save);
+        font.set_on(btn_load);
     }
 
     auto wpi = BeginDeferWindowPos(10);
@@ -132,6 +148,12 @@ void UIShowCargo::validate_callback(bool valid, bool changed) {
     btn_save.set_enabled(valid && changed);
 }
 
+bool UIShowCargo::updateCargo() {
+    if (isDestroyed)
+        return false;
+    return cargoEditor.updateCargo();
+}
+
 void UIShowCargo::on_cargo_load() {
     auto jv = curlRequestRavenFC(st::cmdr.fleetCarrierId);
     if (!jv.is_object() || jv.empty() || !jv["cargo"].is_object()) {
@@ -156,13 +178,13 @@ void UIShowCargo::on_cargo_load() {
     cargoEditor.initControls();
     validate_callback(cargoEditor.validate(nullptr), false);
     if (!st::carrierCargo)
-        Cfg.saveCarrierCargo();
+        Cfg.saveCarrierCargo(Timestamp::clock::now());
 }
 
 void UIShowCargo::on_cargo_save() {
     if (cargoEditor.validate(nullptr)) {
         cargoEditor.save();
-        Cfg.saveCarrierCargo();
+        Cfg.saveCarrierCargo(Timestamp::clock::now());
         btn_save.set_enabled(false);
     }
 }

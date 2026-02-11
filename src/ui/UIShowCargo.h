@@ -14,16 +14,21 @@
 
 class UIShowCargo : public wl::dialog_modeless {
 public:
-    UIShowCargo();
+    static UIShowCargo* getInstance();
+    static UIShowCargo* makeInstance();
 
     void initialize();
     void relayout();
     void on_cargo_load();
     void on_cargo_save();
     void validate_callback(bool valid, bool changed);
+    bool updateCargo();
 
     bool isDestroyed {};
 private:
+    static std::unique_ptr<UIShowCargo> g_showCargo;
+    UIShowCargo();
+
     wl::font font;
     wl::button btn_run;
     wl::button btn_save;

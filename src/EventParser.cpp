@@ -141,6 +141,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge);
 void parseEvent_ColonisationContribution(spGameEvent& ge);
 void parseEvent_MarketBuy(spGameEvent& ge);
 void parseEvent_MarketSell(spGameEvent& ge);
+void parseEvent_CargoTransfer(spGameEvent& ge);
 void parseEvent_ShipyardSwap(spGameEvent& ge);
 void parseEvent_Docked(spGameEvent& ge);
 void parseEvent_Undocked(spGameEvent& ge);
@@ -174,6 +175,7 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"ColonisationContribution", parseEvent_ColonisationContribution},
         {"MarketBuy", parseEvent_MarketBuy},
         {"MarketSell", parseEvent_MarketSell},
+        {"CargoTransfer", parseEvent_CargoTransfer},
         {"ShipyardSwap", parseEvent_ShipyardSwap},
         {"Docked", parseEvent_Docked},
         {"Undocked", parseEvent_Undocked},
@@ -396,20 +398,24 @@ void parseEvent_Fileheader(spGameEvent& ge) {
     LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(st::lng);
 }
 
+static void setCommander(const std::string& name, const std::string& fid) {
+    if (name != st::cmdr.name || fid != st::cmdr.fid) {
+        LOG(INFO) << "CMDR: " << name;
+        const_cast<st::Commander&>(st::cmdr) = {};
+        const_cast<st::Commander&>(st::cmdr).name = name;
+        const_cast<st::Commander&>(st::cmdr).fid = fid;
+    }
+}
+
 void parseEvent_Commander(spGameEvent& ge) {
     auto& je = ge->data;
-    const_cast<st::Commander&>(st::cmdr).name = je["Name"].as_string();
-    const_cast<st::Commander&>(st::cmdr).fid = je["FID"].as_string();
-    LOG(INFO) << "CMDR: " << st::cmdr.name;
+    setCommander(je["Name"].as_string(), je["FID"].as_string());
 }
 
 void parseEvent_LoadGame(spGameEvent& ge) {
     auto& je = ge->data;
-    if (je["Commander"].is_string()) {
-        const_cast<st::Commander&>(st::cmdr).name = je["Commander"].as_string();
-        const_cast<st::Commander&>(st::cmdr).fid = je["FID"].as_string();
-        LOG(INFO) << "CMDR: " << st::cmdr.name;
-    }
+    if (je["Commander"].is_string())
+        setCommander(je["Commander"].as_string(), je["FID"].as_string());
 
     auto& client = const_cast<st::GameClient&>(st::client);
     client.isOdyssey = bool(je["Odyssey"]);
@@ -957,7 +963,7 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
     if (st::currentCargo)
         cargo_timestamp = st::currentCargo->timestamp;
     auto* market = st::currentMarket.get();
-    if (!market || ge->timestamp <= market->timestamp)
+    if (!market)
         return;
 
     auto* commodity = Cfg.getCommodityById(je["Type"].asif_string());
@@ -967,10 +973,17 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
             commodity->ship.count += count;
             commodity->ship.timestamp = ge->timestamp;
         }
-        auto it = market->items.find(commodity);
-        if (it != market->items.end()) {
-            MarketLine &ml = it->second;
-            ml.stock = std::max(0, ml.stock - count);
+        if (market->marketId == st::cmdr.fleetCarrierId && commodity->fc.timestamp < ge->timestamp) {
+            commodity->fc.count = std::max(0, commodity->fc.count-count);
+            commodity->fc.timestamp = ge->timestamp;
+            Cfg.saveCarrierCargo(ge->timestamp);
+        }
+        if (market->timestamp < ge->timestamp) {
+            auto it = market->items.find(commodity);
+            if (it != market->items.end()) {
+                MarketLine &ml = it->second;
+                ml.stock = std::max(0, ml.stock - count);
+            }
         }
     }
 }
@@ -982,22 +995,85 @@ void parseEvent_MarketSell(spGameEvent& ge) {
     if (st::currentCargo)
         cargo_timestamp = st::currentCargo->timestamp;
     auto* market = st::currentMarket.get();
-    if (!market || ge->timestamp <= market->timestamp)
+    if (!market)
         return;
 
     auto* commodity = Cfg.getCommodityById(je["Type"].asif_string());
     auto count = je.at("Count",0).as_integer();
     if (commodity) {
         if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
-            commodity->ship.count -= count;
+            commodity->ship.count = std::max(0, commodity->ship.count-count);
             commodity->ship.timestamp = ge->timestamp;
         }
-        auto it = market->items.find(commodity);
-        if (it != market->items.end()) {
-            MarketLine &ml = it->second;
-            if (market->stationType != "FleetCarrier" && !ml.isConsumer)
-                ml.stock += count;
-            ml.demand = std::max(0, ml.demand - count);
+        if (market->marketId == st::cmdr.fleetCarrierId && commodity->fc.timestamp < ge->timestamp) {
+            commodity->fc.count += count;
+            commodity->fc.timestamp = ge->timestamp;
+            Cfg.saveCarrierCargo(ge->timestamp);
         }
+        if (market->timestamp < ge->timestamp) {
+            auto it = market->items.find(commodity);
+            if (it != market->items.end()) {
+                MarketLine &ml = it->second;
+                if (market->stationType != "FleetCarrier" && !ml.isConsumer)
+                    ml.stock += count;
+                ml.demand = std::max(0, ml.demand - count);
+            }
+        }
+    }
+}
+
+void parseEvent_CargoTransfer(spGameEvent& ge) {
+    Cfg.marketEvent = ge;
+    auto& je = ge->data;
+
+    if (!je["Transfers"].is_array())
+        return;
+
+    Timestamp cargo_timestamp;
+    if (st::currentCargo)
+        cargo_timestamp = st::currentCargo->timestamp;
+    bool atMyCarrier = st::dockedAt.marketId == st::cmdr.fleetCarrierId;
+    std::vector<Commodity*> fcTransferred;
+
+    for (auto& jt : je["Transfers"].as_array()) {
+        auto *commodity = Cfg.getCommodityById(jt["Type"].asif_string());
+        auto direction = jt["Direction"].asif_string();
+        auto count = jt.at("Count", 0).as_integer();
+        if (!commodity || count <= 0 || direction.empty()) {
+            LOG(ERROR) << "CargoTransfer, commodity not found: " << jt;
+            continue;
+        }
+        if (direction == "toship") {
+            if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
+                commodity->ship.count += count;
+                commodity->ship.timestamp = ge->timestamp;
+            }
+            if (atMyCarrier && (commodity->fc.timestamp < ge->timestamp || contains(fcTransferred, commodity))) {
+                commodity->fc.count = std::max(0, commodity->fc.count - count);
+                commodity->fc.timestamp = ge->timestamp;
+                fcTransferred.push_back(commodity);
+            }
+        }
+        else if (direction == "tocarrier") {
+            atMyCarrier = true;
+            if (commodity->fc.timestamp < ge->timestamp || contains(fcTransferred, commodity)) {
+                commodity->fc.count += count;
+                commodity->fc.timestamp = ge->timestamp;
+                fcTransferred.push_back(commodity);
+            }
+            if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
+                commodity->ship.count = std::max(0, commodity->ship.count - count);
+                commodity->ship.timestamp = ge->timestamp;
+            }
+        }
+        else if (direction == "tosrv") {
+            if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
+                commodity->ship.count = std::max(0, commodity->ship.count - count);
+                commodity->ship.timestamp = ge->timestamp;
+            }
+        }
+    }
+    if (!fcTransferred.empty()) {
+        Cfg.saveCarrierCargo(ge->timestamp);
     }
 }

@@ -24,6 +24,7 @@ public:
     virtual void on_ctrl_edit(HWND changed, WORD msg) = 0;
     virtual bool validate(bool* changed) = 0;
     virtual bool save() = 0;
+    virtual Commodity* updateCargo() = 0;
     UICargoEditor* ui;
 };
 
@@ -36,6 +37,7 @@ public:
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate(bool* changed) override;
     bool save() override;
+    Commodity * updateCargo() override;
     std::wstring com_text;
     std::wstring sh_text;
     std::wstring fc_text;
@@ -55,7 +57,9 @@ public:
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate(bool* changed) override;
     bool save() override;
+    Commodity* updateCargo() override;
     std::wstring text;
+    std::set<std::wstring> dl_set;
 
     wl::combobox dl;
     wl::button btn_add;
@@ -74,6 +78,7 @@ public:
     void save();
     void clear();
     void relayout(bool scroll_to_top);
+    bool updateCargo();
 
     void on_ctrl_change(wl::params& params);
     bool validate(bool* changed) const;

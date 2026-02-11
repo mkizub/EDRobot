@@ -105,6 +105,33 @@ void UICargoEditor::clear() {
     nextTryId = 0;
     usedIds = {};
 }
+
+bool UICargoEditor::updateCargo() {
+    std::set<Commodity*> hasCommodities;
+    for (auto& cc : controls) {
+        Commodity* c = cc->updateCargo();
+        if (c)
+            hasCommodities.insert(c);
+    }
+    std::vector<Commodity*> addCommodities;
+    for (auto* c : Cfg.getAllKnownCommodities()) {
+        if ((c->ship.count > 0 || c->fc.count > 0) && !hasCommodities.contains(c))
+            addCommodities.push_back(c);
+    }
+    if (!addCommodities.empty() && !controls.empty()) {
+        beginControls();
+        auto back = std::move(controls.back());
+        controls.pop_back();
+        for (auto* c : addCommodities) {
+            controls.emplace_back(new FullCargoCtrl(this, c))->create();
+        }
+        controls.push_back(std::move(back));
+        endControls();
+        relayout(true);
+    }
+    return true;
+}
+
 void UICargoEditor::relayout(bool scroll_to_top) {
     if (scroll_to_top)
         reset_scroll(true);
@@ -146,7 +173,7 @@ void UICargoEditor::on_ctrl_change(wl::params& p) {
     if (initializing)
         return;
     auto hw = HIWORD(p.wParam);
-    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELCHANGE && hw != CBN_EDITCHANGE)
+    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELENDOK && hw != CBN_EDITCHANGE)
         return;
     int id = LOWORD(p.wParam);
     if (id < ctrlIdBase)
@@ -193,15 +220,21 @@ FullCargoCtrl::~FullCargoCtrl()
 #define S(N) MulDiv((N), l.scaled_to_dpi * Cfg.getUiScalePercents(), 100*USER_DEFAULT_SCREEN_DPI)
 void FullCargoCtrl::create() {
     auto& l = ui->layout;
-    int drop_down_height = l.vrow * 11;
+    int w_txt = S(LO_TXT_6_W);
+    int w_lbl = l.width - 2*w_txt - 2*l.hgap;
+    if (w_lbl > S(LO_TXT_50_W))
+        w_lbl = S(LO_TXT_50_W);
+    else if (w_lbl < S(LO_TXT_20_W))
+        w_lbl = S(LO_TXT_20_W);
     int x = l.left;
-    lbl_cargo.create(ui->hwnd(), ui->nextID(), commodity->wide.c_str(), {x, l.top}, {S(LO_TXT_20_W), l.vrow});
-    x += S(LO_TXT_20_W + LO_H_GAP);
-    txt_sh_count.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {x, l.top}, S(LO_TXT_6_W), l.vrow);
+    lbl_cargo.create(ui->hwnd(), ui->nextID(), commodity->wide.c_str(), {x, l.top}, {w_lbl, l.vrow});
+    lbl_cargo.style.set_style(TRUE, SS_WORDELLIPSIS|SS_NOTIFY);
+    x += w_lbl + l.hgap;
+    txt_sh_count.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {x, l.top}, w_txt, l.vrow);
     txt_sh_count.style.set_style(TRUE, ES_RIGHT);
     txt_sh_count.set_enabled(false);
-    x += S(LO_TXT_6_W + LO_H_GAP);
-    txt_fc_count.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {x, l.top}, S(LO_TXT_6_W), l.vrow);
+    x += w_txt + l.hgap;
+    txt_fc_count.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {x, l.top}, w_txt, l.vrow);
     txt_fc_count.style.set_style(TRUE, ES_RIGHT);
     txt_fc_count.style.set_style(TRUE, WS_TABSTOP);
     if (commodity->ship.count) {
@@ -226,12 +259,18 @@ void FullCargoCtrl::layout() {
         ui->font.set_on(txt_sh_count);
         ui->font.set_on(txt_fc_count);
     }
+    int w_txt = S(LO_TXT_6_W);
+    int w_lbl = l.width - 2*w_txt - 2*l.hgap;
+    if (w_lbl > S(LO_TXT_50_W))
+        w_lbl = S(LO_TXT_50_W);
+    else if (w_lbl < S(LO_TXT_20_W))
+        w_lbl = S(LO_TXT_20_W);
     int x = l.left;
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, lbl_cargo.hwnd(), nullptr, x, l.top, S(LO_TXT_20_W), l.vrow, SWP_NOZORDER);
-    x += S(LO_TXT_20_W + LO_H_GAP);
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, txt_sh_count.hwnd(), nullptr, x, l.top, S(LO_TXT_6_W), l.vrow, SWP_NOZORDER);
-    x += S(LO_TXT_6_W + LO_H_GAP);
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, txt_fc_count.hwnd(), nullptr, x, l.top, S(LO_TXT_6_W), l.vrow, SWP_NOZORDER);
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, lbl_cargo.hwnd(), nullptr, x, l.top, w_lbl, l.vrow, SWP_NOZORDER);
+    x += w_lbl + l.hgap;
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, txt_sh_count.hwnd(), nullptr, x, l.top, w_txt, l.vrow, SWP_NOZORDER);
+    x += w_txt + l.hgap;
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, txt_fc_count.hwnd(), nullptr, x, l.top, w_txt, l.vrow, SWP_NOZORDER);
     l.top += l.vrow + l.vgap;
 }
 #undef S
@@ -263,6 +302,36 @@ bool FullCargoCtrl::save() {
     return false;
 }
 
+Commodity * FullCargoCtrl::updateCargo() {
+    if (commodity->ship.count) {
+        auto text = std::format(L"{:d}", commodity->ship.count);
+        if (text != sh_text) {
+            sh_text = text;
+            txt_sh_count.set_text(sh_text.c_str());
+        }
+    } else {
+        if (!sh_text.empty()) {
+            sh_text.clear();
+            txt_sh_count.set_text(L"");
+        }
+    }
+
+    if (commodity->fc.count) {
+        auto text = std::format(L"{:d}", commodity->fc.count);
+        if (text != fc_text) {
+            fc_text = text;
+            txt_fc_count.set_text(fc_text.c_str());
+        }
+    } else {
+        if (!fc_text.empty()) {
+            fc_text.clear();
+            txt_fc_count.set_text(L"");
+        }
+    }
+
+    return commodity;
+}
+
 NewCargoCtrl::NewCargoCtrl(UICargoEditor *ui)
     : BaseCargoCtrl(ui)
 {
@@ -276,14 +345,21 @@ NewCargoCtrl::~NewCargoCtrl() {
 void NewCargoCtrl::create() {
     auto& l = ui->layout;
     int drop_down_height = l.vrow * 11;
+    int w_txt = S(LO_TXT_6_W);
+    int w_lbl = l.width - 2*w_txt - 2*l.hgap;
+    if (w_lbl > S(LO_TXT_50_W))
+        w_lbl = S(LO_TXT_50_W);
+    else if (w_lbl < S(LO_TXT_20_W))
+        w_lbl = S(LO_TXT_20_W);
+    int x = l.left;
     dl.assign(CreateWindowExW(0, WC_COMBOBOX, nullptr,
-                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWN | WS_VSCROLL,
-                              l.left, l.top, LO_TXT_20_W, drop_down_height, ui->hwnd(),
+                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWN | CBS_SORT | WS_VSCROLL,
+                              l.left, l.top, w_lbl, drop_down_height, ui->hwnd(),
                               reinterpret_cast<HMENU>(static_cast<UINT_PTR>(ui->nextID())),
                               reinterpret_cast<HINSTANCE>(GetWindowLongPtrW(ui->hwnd(), GWLP_HINSTANCE)),
                               nullptr));
-    int x = l.left+S(LO_TXT_20_W+LO_H_GAP);
-    btn_add.create(ui->hwnd(), ui->nextID(), L"+", {x, l.top}, {S(LO_TXT_6_W),l.vrow});
+    x += w_lbl + l.hgap;
+    btn_add.create(ui->hwnd(), ui->nextID(), L"+", {x, l.top}, {w_txt,l.vrow});
     btn_add.set_enabled(false);
     ui->font.set_on(dl);
     ui->font.set_on(btn_add);
@@ -297,9 +373,16 @@ void NewCargoCtrl::layout() {
         ui->font.set_on(btn_add);
     }
     int drop_down_height = l.vrow * 11;
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, l.left, l.top, S(LO_TXT_20_W), drop_down_height, SWP_NOZORDER);
-    int x = l.left+S(LO_TXT_20_W+LO_H_GAP);
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, btn_add.hwnd(), nullptr, x, l.top, S(LO_TXT_6_W), l.vrow, SWP_NOZORDER);
+    int w_txt = S(LO_TXT_6_W);
+    int w_lbl = l.width - 2*w_txt - 2*l.hgap;
+    if (w_lbl > S(LO_TXT_50_W))
+        w_lbl = S(LO_TXT_50_W);
+    else if (w_lbl < S(LO_TXT_20_W))
+        w_lbl = S(LO_TXT_20_W);
+    int x = l.left;
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, l.left, l.top, w_lbl, drop_down_height, SWP_NOZORDER);
+    x += w_lbl + l.hgap;
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, btn_add.hwnd(), nullptr, x, l.top, w_txt, l.vrow, SWP_NOZORDER);
     l.top += l.vrow + l.vgap;
 }
 #undef S
@@ -316,24 +399,9 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     }
     if (changed != dl.hwnd())
         return;
-    if (msg == CBN_SELCHANGE) {
+    if (msg == CBN_SELENDOK) {
         text = dl.get_selected_text();
-        bool can_add = false;
-        auto* c = Cfg.getCommodityByName(text, false);
-        if (c) {
-            can_add = true;
-            for (auto& ctrl : ui->controls) {
-                if (auto fcc = dynamic_cast<FullCargoCtrl*>(ctrl.get())) {
-                    if (fcc->commodity == c)
-                        can_add = false;
-                }
-            }
-        }
-        btn_add.set_enabled(can_add);
-        return;
-    }
-    btn_add.set_enabled(false);
-    {
+    } else {
         int len = GetWindowTextLengthW(dl.hwnd());
         if (len) {
             text.resize(len + 1, L'\0');
@@ -343,28 +411,51 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
             text.clear();
         }
     }
+    bool can_add = false;
+    auto* c = Cfg.getCommodityByName(text, false);
+    if (c) {
+        can_add = true;
+        for (auto& ctrl : ui->controls) {
+            if (auto fcc = dynamic_cast<FullCargoCtrl*>(ctrl.get())) {
+                if (fcc->commodity == c)
+                    can_add = false;
+            }
+        }
+    }
+    btn_add.set_enabled(can_add);
     if (text.empty()) {
         dl.remove_all();
+        dl_set.clear();
         return;
     }
-    for (int count = dl.count(); count > 0; count--)
-        SendMessage(dl.hwnd(), CB_DELETESTRING, count-1, 0);
+    std::set<std::wstring> new_set;
     std::wstring text_l = toLower(text);
     for (auto* c : Cfg.getAllKnownCommodities()) {
-        if (toUtf16(c->nameId).starts_with(text)) {
-            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
-            continue;
-        }
-        if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text)) {
-            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
-            continue;
-        }
-        if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text)) {
-            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
-            continue;
+        if (toUtf16(c->nameId).starts_with(text_l))
+            new_set.insert(c->wide);
+        else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
+            new_set.insert(c->wide);
+        else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
+            new_set.insert(c->wide);
+    }
+    for (auto it=dl_set.begin(); it != dl_set.end();) {
+        auto& t = *it;
+        if (!new_set.contains(t)) {
+            LRESULT index = SendMessage(dl.hwnd(), CB_FINDSTRINGEXACT, (WPARAM)-1, (LPARAM)t.c_str());
+            if (index != CB_ERR)
+                SendMessage(dl.hwnd(), CB_DELETESTRING, (WPARAM)index, 0);
+            it = dl_set.erase(it);
+        } else {
+            ++it;
         }
     }
-    if (dl.count() <= 10)
+    for (auto& t : new_set) {
+        if (!dl_set.contains(t)) {
+            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(t.c_str()));
+            dl_set.insert(t);
+        }
+    }
+    if (dl.count() <= 20)
         SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
 }
 
@@ -376,4 +467,7 @@ bool NewCargoCtrl::validate(bool *changed) {
 
 bool NewCargoCtrl::save() {
     return true;
+}
+Commodity* NewCargoCtrl::updateCargo() {
+    return nullptr;
 }

@@ -263,12 +263,10 @@ void UIMainDialog::on_command_pause_resume() {
 
 void UIMainDialog::on_command_show_cargo() {
     try {
-        if (dlg_showCargo && !dlg_showCargo->isDestroyed) {
-            SetForegroundWindow(dlg_showCargo->hwnd());
-        } else {
-            dlg_showCargo = std::make_unique<UIShowCargo>();
-            dlg_showCargo->create(this);
-        }
+        if (UIShowCargo* dlg = UIShowCargo::getInstance())
+            SetForegroundWindow(dlg->hwnd());
+        else
+            UIShowCargo::makeInstance();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {

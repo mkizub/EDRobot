@@ -134,7 +134,7 @@ public:
     bool loadMarket(Timestamp timestamp);
     bool loadShipCargo(Timestamp timestamp);
     bool loadCarrierCargo();
-    bool saveCarrierCargo();
+    bool saveCarrierCargo(Timestamp timestamp);
     bool loadNavRoute(Timestamp timestamp);
     const char* makeTesseractWordsFile();
 
