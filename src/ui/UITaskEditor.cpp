@@ -134,7 +134,7 @@ void UITaskEditor::on_ctrl_change(wl::params& p) {
     if (initializing)
         return;
     auto hw = HIWORD(p.wParam);
-    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELCHANGE && hw != CBN_EDITCHANGE)
+    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELENDOK && hw != CBN_EDITCHANGE)
         return;
     int id = LOWORD(p.wParam);
     if (id < ctrlIdBase)
@@ -444,20 +444,12 @@ CargoCtrl::~CargoCtrl() {
 }
 void CargoCtrl::create() {
     auto& l = ui->layout;
-    int drop_down_height = l.vrow * 11;
     const int lw = l.width / 3 - l.vgap;
     const int rw = l.width * 2 / 3;
     const int cx = l.left + l.width / 3;
-    dl.assign(CreateWindowExW(0, WC_COMBOBOX, nullptr,
-                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWN | WS_VSCROLL,
-                              cx, l.top, rw, drop_down_height, ui->hwnd(),
-                              reinterpret_cast<HMENU>(static_cast<UINT_PTR>(ui->nextID())),
-                              reinterpret_cast<HINSTANCE>(GetWindowLongPtrW(ui->hwnd(), GWLP_HINSTANCE)),
-                              nullptr));
-    if (!text.empty()) {
-        SendMessage(dl.hwnd(), CB_ADDSTRING, 0, (LPARAM) text.c_str());
-        SetWindowText(dl.hwnd(), text.c_str());
-    }
+    dl.create(ui->hwnd(), ui->nextID(), {l.left, l.top}, {rw, l.vrow}, l.vrow * 8);
+    if (!text.empty())
+        dl.set_text(text);
     if (meta["placeholder"].is_string()) {
         const char* ph = gettext(meta["placeholder"].as_string().c_str());
         if (ph && *ph)
@@ -479,11 +471,12 @@ void CargoCtrl::layout() {
         ui->font.set_on(label);
         ui->font.set_on(dl);
     }
-    int drop_down_height = l.vrow * 11;
     const int lw = l.width / 3 - l.vgap;
     const int rw = l.width * 2 / 3;
     const int cx = l.left + l.width / 3;
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, cx, l.top, rw, drop_down_height, SWP_NOZORDER);
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, cx, l.top, rw, l.vrow, SWP_NOZORDER);
+    //SetWindowPos(dl.hwnd(), nullptr, cx, l.top, rw, l.vrow, SWP_NOZORDER);
+    //SendMessage(dl.hwnd(), CB_SETITEMHEIGHT, 1, (LPARAM)l.vrow);
     if (!name.empty()) {
         l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, label.hwnd(), nullptr, l.left, l.top, lw, l.vrow, SWP_NOZORDER);
     }
@@ -492,46 +485,25 @@ void CargoCtrl::layout() {
 void CargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed != dl.hwnd())
         return;
-    if (msg == CBN_SELCHANGE) {
+    if (msg == CBN_SELENDOK)
         text = dl.get_selected_text();
-        for (int i=0; i < dl.count(); i++) {
-            if (dl.get_text(i) != text) {
-                SendMessage(dl.hwnd(), CB_DELETESTRING, i, 0);
-                i -= 1;
-            }
-        }
-        return;
-    } else {
-        int len = GetWindowTextLengthW(dl.hwnd());
-        if (len) {
-            text.resize(len + 1, L'\0');
-            GetWindowTextW(dl.hwnd(), &text[0], len + 1);
-            text.resize(len);
-        } else {
-            text.clear();
-        }
-    }
+    else
+        text = dl.get_text();
     if (text.empty()) {
         dl.remove_all();
         return;
     }
-    for (int count = dl.count(); count > 0; count--)
-        SendMessage(dl.hwnd(), CB_DELETESTRING, count-1, 0);
+    std::set<std::wstring> new_set;
     std::wstring text_l = toLower(text);
     for (auto* c : Cfg.getAllKnownCommodities()) {
-        if (toUtf16(c->nameId).starts_with(text)) {
-            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
-            continue;
-        }
-        if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text)) {
-            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
-            continue;
-        }
-        if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text)) {
-            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(c->wide.c_str()));
-            continue;
-        }
+        if (toUtf16(c->nameId).starts_with(text_l))
+            new_set.insert(c->wide);
+        else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
+            new_set.insert(c->wide);
+        else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
+            new_set.insert(c->wide);
     }
+    dl.set_list(new_set);
     if (dl.count() <= 10)
         SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
 }

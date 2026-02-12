@@ -263,7 +263,7 @@ void UIMainDialog::on_command_pause_resume() {
 
 void UIMainDialog::on_command_show_cargo() {
     try {
-        if (UIShowCargo* dlg = UIShowCargo::getInstance())
+        if (auto dlg = UIShowCargo::getInstance())
             SetForegroundWindow(dlg->hwnd());
         else
             UIShowCargo::makeInstance();

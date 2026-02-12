@@ -10,6 +10,7 @@
 #include "AutopilotTasks.h"
 #include "TaskDebug.h"
 #include "ContactsTasks.h"
+#include "CarrierTasks.h"
 
 namespace ai {
 
@@ -20,6 +21,7 @@ const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
 const std::string ED_TASK_MARKET_BUY_ALL = "tsk-market-buy-all";
 const std::string ED_TASK_MARKET_BUY_CONSTR = "tsk-market-buy-constr";
 const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
+const std::string ED_TASK_CARRIER_UNLOAD = "tsk-carrier-unload";
 const std::string ED_TASK_ACQUIRE_PPC = "tsk-contact-acquire-ppc";
 const std::string ED_TASK_DELIVER_PPC = "tsk-contact-deliver-ppc";
 const std::string ED_TASK_TRADE_AT = "tsk-trade-at";
@@ -409,7 +411,7 @@ void initTemplates() {
                     R"({optional:true, elements:{type:'Task', values: [
                         'tsk-market-sell-all', 'tsk-market-sell',
                         'tsk-market-buy-all', 'tsk-market-buy',
-                        'tsk-market-buy-constr', 'tsk-constr-unload',
+                        'tsk-market-buy-constr', 'tsk-constr-unload', "tsk-carrier-unload",
                         'tsk-contact-acquire-ppc', 'tsk-contact-deliver-ppc',
                     ]}})")},
     });
@@ -448,6 +450,7 @@ void initTemplates() {
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
     templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
+    templates.emplace_back(ED_TASK_CARRIER_UNLOAD, _lc("Unload cargo to own carrier"), FACTORY(TaskMyCarrierUnload));
     templates.emplace_back(ED_TASK_ACQUIRE_PPC, _lc("Acquire PowerPlay resource"), FACTORY(TaskAcquirePPC), P{
             { Param::Commodity, "commodity", _lc("Commodity") },
     });

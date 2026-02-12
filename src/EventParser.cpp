@@ -7,6 +7,7 @@
 #include "Galaxy.h"
 #include "ShipStats.h"
 #include "ai/AIManager.h"
+#include "ui/UIManager.h"
 
 namespace st {
 Lang lng {Lang::XX};
@@ -540,7 +541,7 @@ void parseEvent_Resurrect(spGameEvent& ge) {
 }
 
 void parseEvent_Cargo(spGameEvent& ge) {
-    Cfg.loadShipCargo(ge->timestamp);
+    Cfg.loadShipCargo(ge);
 }
 void parseEvent_Market(spGameEvent& ge) {
     Cfg.loadMarket(ge->timestamp);
@@ -986,6 +987,7 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
             }
         }
     }
+    UIManager::updateCargoDialog();
 }
 void parseEvent_MarketSell(spGameEvent& ge) {
     Cfg.marketEvent = ge;
@@ -1020,6 +1022,7 @@ void parseEvent_MarketSell(spGameEvent& ge) {
             }
         }
     }
+    UIManager::updateCargoDialog();
 }
 
 void parseEvent_CargoTransfer(spGameEvent& ge) {
@@ -1073,7 +1076,7 @@ void parseEvent_CargoTransfer(spGameEvent& ge) {
             }
         }
     }
-    if (!fcTransferred.empty()) {
+    if (!fcTransferred.empty())
         Cfg.saveCarrierCargo(ge->timestamp);
-    }
+    UIManager::updateCargoDialog();
 }

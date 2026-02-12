@@ -2224,6 +2224,10 @@ bool DockPlanetPort::run() {
             }
             if (reason == "Distance") {
                 LOG(ERROR) << "DockingDenied reason: Distance, flying towards station...";
+                setSpeed(50, true, "Docking denied - distance, fly towards");
+                sleep(5);
+                setSpeed(0, true, "Docking denied - distance, try again");
+                sleep(10);
                 continue;
             }
         }

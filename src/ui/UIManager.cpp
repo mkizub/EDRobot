@@ -57,6 +57,11 @@ bool UIManager::shutdown() {
     getInstance().uiMain.run_thread_ui([](){
         DestroyWindow(getInstance().uiMain.hwnd());
     });
+    if (auto dlg = UIShowCargo::getInstance()) {
+        dlg->run_thread_ui([dlg](){
+            DestroyWindow(dlg->hwnd());
+        });
+    }
     return true;
 }
 
@@ -83,7 +88,7 @@ bool UIManager::hideMainDialog(bool force) {
 }
 
 bool UIManager::updateCargoDialog() {
-    UIShowCargo* dlg = UIShowCargo::getInstance();
+    auto dlg = UIShowCargo::getInstance();
     if (!dlg)
         return false;
     return dlg->updateCargo();

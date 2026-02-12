@@ -644,8 +644,6 @@ bool Configuration::loadInputBindings() {
             filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
         rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
-            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
-            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Up");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Down");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Left");
@@ -675,6 +673,7 @@ bool Configuration::loadInputBindings() {
         if (rootNode) {
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "FocusLeftPanel");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "FocusRightPanel");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "RollLeftButton");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "RollRightButton");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "PitchUpButton");
@@ -1120,32 +1119,45 @@ bool Configuration::loadMarket(Timestamp event_timestamp) {
     return true;
 }
 
-bool Configuration::loadShipCargo(Timestamp event_timestamp) {
-    json5pp::value j_cargo;
-    try {
-        std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
-        if (cargoFile.fail()) {
-            LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
-            return false;
-        }
-        j_cargo = json5pp::parse5(cargoFile);
-        cargoFile.close();
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse Cargo.json";
-        return false;
-    }
-    if (!j_cargo)
-        return false;
-    Timestamp timestamp;
-    if (!parseTimestamp(j_cargo, timestamp) || event_timestamp < timestamp)
+bool Configuration::loadShipCargo(spGameEvent ge) {
+    if (st::currentCargo && st::currentCargo->timestamp > ge->timestamp)
         return false;
 
-    spShipCargo cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
+    spShipCargo cargo;
+    if ((ge->data["Count"].is_integer() && ge->data["Count"].as_integer() == 0) || !ge->data["Inventory"].empty()) {
+        cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
+            .timestamp = ge->timestamp,
+            .vessel = ge->data["Vessel"].asif_string(),
+            .count = ge->data["Count"].as_integer(),
+            }));
+    } else {
+        json5pp::value jv;
+        try {
+            std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
+            if (cargoFile.fail()) {
+                LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
+                return false;
+            }
+            jv = json5pp::parse5(cargoFile);
+            cargoFile.close();
+        } catch (...) {
+            LOG(ERROR) << "Failed to read/parse Cargo.json";
+            return false;
+        }
+        if (jv.empty())
+            return false;
+        Timestamp timestamp;
+        if (!parseTimestamp(jv, timestamp) || timestamp < ge->timestamp)
+            return false;
+        cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
             .timestamp = timestamp,
-            .vessel = j_cargo.at("Vessel").as_string(),
-            .count = j_cargo.at("Count").as_integer(),
-    }));
-    auto items = j_cargo.at("Inventory").as_array();
+            .vessel = jv["Vessel"].asif_string(),
+            .count = jv["Count"].as_integer(),
+            }));
+        ge->data = jv;
+    }
+
+    auto items = ge->data["Inventory"].asif_array();
     for (auto& j_item : items) {
         auto item = j_item.as_object();
         auto name = item.at("Name").as_string();
@@ -1164,18 +1176,20 @@ bool Configuration::loadShipCargo(Timestamp event_timestamp) {
                 translation = {"",item.at("Name_Localised").as_string()};
             c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
         }
-        c->ship.timestamp = timestamp;
+        c->ship.timestamp = ge->timestamp;
         c->ship.count = item.at("Count").as_integer();
         c->ship.stolen = item.at("Stolen").as_integer();
         cargo->inventory.push_back(c);
     }
     st::currentCargo.swap(cargo);
-    Timestamp zero_time;
     for (auto& c : allKnownCommodities) {
-        if (c.ship.timestamp > zero_time && c.ship.timestamp < timestamp) {
-            c.ship = {};
+        if (c.ship.timestamp != ge->timestamp) {
+            c.ship.timestamp = ge->timestamp;
+            c.ship.count = 0;
+            c.ship.stolen = 0;
         }
     }
+    UIManager::updateCargoDialog();
     return true;
 }
 

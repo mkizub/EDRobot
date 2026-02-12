@@ -8,14 +8,14 @@
 #define EDROBOT_UISHOWCARGO_H
 
 #include <shellapi.h>
-#include <winlamb/dialog_modeless.h>
+#include <winlamb/dialog_main.h>
 #include <winlamb/button.h>
 #include "UICargoEditor.h"
 
-class UIShowCargo : public wl::dialog_modeless {
+class UIShowCargo : public wl::dialog_main {
 public:
-    static UIShowCargo* getInstance();
-    static UIShowCargo* makeInstance();
+    static std::shared_ptr<UIShowCargo> getInstance();
+    static std::shared_ptr<UIShowCargo> makeInstance();
 
     void initialize();
     void relayout();
@@ -24,9 +24,13 @@ public:
     void validate_callback(bool valid, bool changed);
     bool updateCargo();
 
+    bool isInitialized {};
     bool isDestroyed {};
 private:
-    static std::unique_ptr<UIShowCargo> g_showCargo;
+    static std::shared_ptr<UIShowCargo> g_showCargo;
+    static std::jthread uiThread;
+    static void uiThreadLoop();
+
     UIShowCargo();
 
     wl::font font;

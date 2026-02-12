@@ -10,19 +10,31 @@
 
 #include "../../ui/resource.h"
 
-std::unique_ptr<UIShowCargo> UIShowCargo::g_showCargo;
+std::shared_ptr<UIShowCargo> UIShowCargo::g_showCargo;
+std::jthread UIShowCargo::uiThread;
 
-UIShowCargo* UIShowCargo::getInstance() {
+std::shared_ptr<UIShowCargo> UIShowCargo::getInstance() {
     if (g_showCargo && !g_showCargo->isDestroyed)
-        return g_showCargo.get();
-    return nullptr;
+        return g_showCargo;
+    return {};
 }
-UIShowCargo* UIShowCargo::makeInstance() {
+std::shared_ptr<UIShowCargo> UIShowCargo::makeInstance() {
     if (g_showCargo && !g_showCargo->isDestroyed)
-        return g_showCargo.get();
+        return g_showCargo;
+    uiThread = std::jthread(&UIShowCargo::uiThreadLoop);
+    while (!g_showCargo || !g_showCargo->isInitialized) {
+        Sleep(100);
+    }
+    return g_showCargo;
+}
+
+void UIShowCargo::uiThreadLoop() {
+    SetThreadDescription(GetCurrentThread(), L"UIShowCargo thread");
+    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    HINSTANCE hInstance = GetModuleHandle(nullptr);
     g_showCargo.reset(new UIShowCargo());
-    g_showCargo->create(&UIManager::getInstance().uiMain);
-    return g_showCargo.get();
+    g_showCargo->winmain_run(hInstance, SW_SHOW);
+    g_showCargo.reset();
 }
 
 UIShowCargo::UIShowCargo() {
@@ -35,6 +47,10 @@ UIShowCargo::UIShowCargo() {
     on_message(WM_DESTROY, [this](wl::params params) {
         cargoEditor.clear();
         isDestroyed = true;
+        return 0;
+    });
+    on_command(ID_RUN, [this](wl::params params) {
+        updateCargo();
         return 0;
     });
     on_command(ID_SAVE, [this](wl::params params) {
@@ -68,10 +84,10 @@ void UIShowCargo::initialize() {
     btn_run.assign(hwnd(), ID_RUN);
     btn_save.assign(hwnd(), ID_SAVE);
     btn_load.assign(hwnd(), ID_LOAD);
-    btn_run.set_enabled(false);
+    btn_run.set_enabled(true);
     btn_save.set_enabled(st::cmdr.fleetCarrierId != 0);
     btn_load.set_enabled(st::cmdr.fleetCarrierId != 0);
-    btn_run.set_text(toUtf16(_gt("Run")));
+    btn_run.set_text(toUtf16(_gt("Update")));
     btn_save.set_text(toUtf16(_gt("Save")));
     btn_load.set_text(toUtf16(_gt("Load")));
 
@@ -88,6 +104,7 @@ void UIShowCargo::initialize() {
     cargoEditor.initControls();
     validate_callback(cargoEditor.validate(nullptr), false);
     relayout();
+    isInitialized = true;
 }
 
 #define S(N) MulDiv((N), uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI)
@@ -149,9 +166,12 @@ void UIShowCargo::validate_callback(bool valid, bool changed) {
 }
 
 bool UIShowCargo::updateCargo() {
-    if (isDestroyed)
+    if (isDestroyed || !isInitialized)
         return false;
-    return cargoEditor.updateCargo();
+    if (uiThread.get_id() == std::this_thread::get_id())
+        return cargoEditor.updateCargo();
+    PostMessage(hwnd(), WM_COMMAND, ID_RUN, 0);
+    return true;
 }
 
 void UIShowCargo::on_cargo_load() {

@@ -64,6 +64,8 @@ add_executable(EDRobot
         src/ai/AIUtils.h
         src/ai/AutopilotTasks.cpp
         src/ai/AutopilotTasks.h
+        src/ai/CarrierTasks.h
+        src/ai/CarrierTasks.cpp
         src/ai/ContactsTasks.cpp
         src/ai/ContactsTasks.h
         src/ai/NavList.cpp
@@ -118,6 +120,7 @@ add_executable(EDRobot
         src/ui/UIToast.h
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
+        src/ui/wl_cargobox.h
         src/ui/wl_panel.h
 
         src/Capturer.h

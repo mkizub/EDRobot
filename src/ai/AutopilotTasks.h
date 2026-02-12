@@ -2,6 +2,8 @@
 // Created by mkizub on 28.06.2025.
 //
 
+#pragma once
+
 #ifndef EDROBOT_AUTOPILOTTASKS_H
 #define EDROBOT_AUTOPILOTTASKS_H
 

@@ -8,7 +8,7 @@
 #define EDROBOT_UICARGOEDITOR_H
 
 #include "wl_panel.h"
-#include <winlamb/combobox.h>
+#include "wl_cargobox.h"
 #include <winlamb/textbox.h>
 #include <winlamb/label.h>
 #include <winlamb/button.h>
@@ -59,9 +59,8 @@ public:
     bool save() override;
     Commodity* updateCargo() override;
     std::wstring text;
-    std::set<std::wstring> dl_set;
 
-    wl::combobox dl;
+    wl::cargobox dl;
     wl::button btn_add;
 };
 

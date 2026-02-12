@@ -344,7 +344,6 @@ NewCargoCtrl::~NewCargoCtrl() {
 #define S(N) MulDiv((N), l.scaled_to_dpi * Cfg.getUiScalePercents(), 100*USER_DEFAULT_SCREEN_DPI)
 void NewCargoCtrl::create() {
     auto& l = ui->layout;
-    int drop_down_height = l.vrow * 11;
     int w_txt = S(LO_TXT_6_W);
     int w_lbl = l.width - 2*w_txt - 2*l.hgap;
     if (w_lbl > S(LO_TXT_50_W))
@@ -352,12 +351,7 @@ void NewCargoCtrl::create() {
     else if (w_lbl < S(LO_TXT_20_W))
         w_lbl = S(LO_TXT_20_W);
     int x = l.left;
-    dl.assign(CreateWindowExW(0, WC_COMBOBOX, nullptr,
-                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWN | CBS_SORT | WS_VSCROLL,
-                              l.left, l.top, w_lbl, drop_down_height, ui->hwnd(),
-                              reinterpret_cast<HMENU>(static_cast<UINT_PTR>(ui->nextID())),
-                              reinterpret_cast<HINSTANCE>(GetWindowLongPtrW(ui->hwnd(), GWLP_HINSTANCE)),
-                              nullptr));
+    dl.create(ui->hwnd(), ui->nextID(), {x, l.top}, {w_lbl, l.vrow}, l.vrow * 8);
     x += w_lbl + l.hgap;
     btn_add.create(ui->hwnd(), ui->nextID(), L"+", {x, l.top}, {w_txt,l.vrow});
     btn_add.set_enabled(false);
@@ -372,7 +366,6 @@ void NewCargoCtrl::layout() {
         ui->font.set_on(dl);
         ui->font.set_on(btn_add);
     }
-    int drop_down_height = l.vrow * 11;
     int w_txt = S(LO_TXT_6_W);
     int w_lbl = l.width - 2*w_txt - 2*l.hgap;
     if (w_lbl > S(LO_TXT_50_W))
@@ -380,7 +373,9 @@ void NewCargoCtrl::layout() {
     else if (w_lbl < S(LO_TXT_20_W))
         w_lbl = S(LO_TXT_20_W);
     int x = l.left;
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, l.left, l.top, w_lbl, drop_down_height, SWP_NOZORDER);
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, l.left, l.top, w_lbl, l.vrow, SWP_NOZORDER);
+    //SetWindowPos(dl.hwnd(), nullptr, l.left, l.top, w_lbl, l.vrow, SWP_NOZORDER);
+    //SendMessage(dl.hwnd(), CB_SETITEMHEIGHT, 1, (LPARAM)l.vrow);
     x += w_lbl + l.hgap;
     l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, btn_add.hwnd(), nullptr, x, l.top, w_txt, l.vrow, SWP_NOZORDER);
     l.top += l.vrow + l.vgap;
@@ -399,18 +394,10 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     }
     if (changed != dl.hwnd())
         return;
-    if (msg == CBN_SELENDOK) {
+    if (msg == CBN_SELENDOK)
         text = dl.get_selected_text();
-    } else {
-        int len = GetWindowTextLengthW(dl.hwnd());
-        if (len) {
-            text.resize(len + 1, L'\0');
-            GetWindowTextW(dl.hwnd(), &text[0], len + 1);
-            text.resize(len);
-        } else {
-            text.clear();
-        }
-    }
+    else
+        text = dl.get_text();
     bool can_add = false;
     auto* c = Cfg.getCommodityByName(text, false);
     if (c) {
@@ -425,7 +412,6 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     btn_add.set_enabled(can_add);
     if (text.empty()) {
         dl.remove_all();
-        dl_set.clear();
         return;
     }
     std::set<std::wstring> new_set;
@@ -438,24 +424,8 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
         else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
             new_set.insert(c->wide);
     }
-    for (auto it=dl_set.begin(); it != dl_set.end();) {
-        auto& t = *it;
-        if (!new_set.contains(t)) {
-            LRESULT index = SendMessage(dl.hwnd(), CB_FINDSTRINGEXACT, (WPARAM)-1, (LPARAM)t.c_str());
-            if (index != CB_ERR)
-                SendMessage(dl.hwnd(), CB_DELETESTRING, (WPARAM)index, 0);
-            it = dl_set.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    for (auto& t : new_set) {
-        if (!dl_set.contains(t)) {
-            SendMessage(dl.hwnd(), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(t.c_str()));
-            dl_set.insert(t);
-        }
-    }
-    if (dl.count() <= 20)
+    dl.set_list(new_set);
+    if (dl.count() <= 10)
         SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
 }
 

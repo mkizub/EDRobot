@@ -599,16 +599,16 @@
         anchors: [
           {
             name: "top-left", img: "right/anchor-left*.png", anchor: [-6,-8], rect: [6,8,31,23, 56.249], t: [0.3, 0.8],
-            method:'corr', filter: { laplacian: { scale: 3, delta: 63 } }
+            method:'corr', filter: { grad: { scale: 2 } }
           },{
             name: "top-right", img: "right/anchor-right*.png", anchor: [45,-12], rect: [1063,4,31,23, 56.249], t: [0.3, 0.8],
-            method:'corr', filter: { laplacian: { scale: 3, delta: 63 } }
+            method:'corr', filter: { grad: { scale: 2 } }
           },{
             name: "trn-left", img: "right/anchor-transfer-left.png", anchor: [-18,-13], rect: [18,13,27,27, 56.249], t: [0.3, 0.8],
-            method:'corr', filter: { laplacian: { scale: 3, delta: 63 } }
+            method:'corr', filter: { grad: { scale: 2 } }
           },{
             name: "trn-right", img: "right/anchor-transfer-right.png", anchor: [77,-13], rect: [1030,13,42,32, 56.249], t: [0.3, 0.8],
-            method:'corr', filter: { laplacian: { scale: 3, delta: 63 } }
+            method:'corr', filter: { grad: { scale: 2 } }
           }
         ],
         lines: [

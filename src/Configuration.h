@@ -132,7 +132,7 @@ public:
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);
 
     bool loadMarket(Timestamp timestamp);
-    bool loadShipCargo(Timestamp timestamp);
+    bool loadShipCargo(spGameEvent ge);
     bool loadCarrierCargo();
     bool saveCarrierCargo(Timestamp timestamp);
     bool loadNavRoute(Timestamp timestamp);

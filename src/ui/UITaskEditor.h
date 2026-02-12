@@ -19,6 +19,7 @@
 #include <winlamb/window_control.h>
 
 #include "wl_panel.h"
+#include "wl_cargobox.h"
 #include "../ai/AIManager.h"
 
 class UITaskEditor;
@@ -98,7 +99,7 @@ public:
     bool validate() override;
     json5pp::value value() override;
 
-    wl::combobox dl;
+    wl::cargobox dl;
 };
 
 class ArrayCtrl;

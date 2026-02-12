@@ -10,7 +10,7 @@
 const int LO_DLG_BORDER     = 10;
 const int LO_BTN_W          = 90;
 const int LO_BTN_H          = 28;
-const int LO_V_GAP          = 4;
+const int LO_V_GAP          = 6;
 const int LO_H_GAP          = 10;
 const int LO_V_ROW          = 22;
 const int LO_FONT_SIZE      = 12;

@@ -10,6 +10,7 @@
 class UIToast;
 class UISelectRect;
 class UIMainDialog;
+class UIShowCargo;
 
 class UIManager {
     UIManager(UIMainDialog&);

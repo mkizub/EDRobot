@@ -983,7 +983,7 @@ bool TradeLoopTask::run() {
                         }
                         continue;
                     }
-                    if (tt.id == ED_TASK_CONSTR_UNLOAD) {
+                    if (tt.id == ED_TASK_CONSTR_UNLOAD || tt.id == ED_TASK_CARRIER_UNLOAD) {
                         mi.sell_tasks.push_back(jtt);
                         mi.sell_all = true;
                         continue;
