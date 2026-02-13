@@ -159,6 +159,8 @@ add_executable(EDRobot
         src/widget/List.h
         src/widget/List.cpp
         src/widget/LoadScreens.cpp
+        src/net/RavenColonial.cpp
+        src/net/RavenColonial.h
 )
 
 

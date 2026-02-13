@@ -29,6 +29,17 @@ void saveMarket(Market* market) {
         {"StationType", market->stationType},
         {"Items", json5pp::array({})},
         });
+    if (!market->raven.buildId.empty()) {
+        jm.as_object().emplace("RavenColonial", json5pp::object({
+            {"buildId",market->raven.buildId},
+            {"timestamp",formatTimestampString(market->raven.timestamp)},
+        }));
+        if (!market->raven.linkedCmdrs.empty()) {
+            jm.as_object()["RavenColonial"].as_object().emplace("commanders", json5pp::array({})).first.value();
+            for (auto& cmdr : market->raven.linkedCmdrs)
+                jm.as_object()["RavenColonial"].as_object()["commanders"].as_array().push_back(cmdr);
+        }
+    }
     auto& jarr = jm.as_object()["Items"].as_array();
     for (auto it : market->items) {
         MarketLine& ml = it.second;
@@ -75,6 +86,14 @@ spMarket loadMarket(int64_t marketId) {
     market->marketId = jm["MarketID"].as_int64();
     market->stationName = jm["StationName"].as_string();
     market->stationType = jm["StationType"].as_string();
+    if (jm["RavenColonial"].is_object()) {
+        market->raven.buildId = jm["RavenColonial"]["buildId"].asif_string();
+        parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven.timestamp);
+        for (auto& cmdr : jm["RavenColonial"]["commanders"].asif_array()) {
+            if (!cmdr.empty())
+                market->raven.linkedCmdrs.push_back(cmdr.asif_string());
+        }
+    }
     auto& items = jm["Items"].as_array();
     for (auto it : items) {
         Commodity* commodity = Cfg.getCommodityById(it["Name"].as_string());

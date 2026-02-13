@@ -69,6 +69,7 @@ void setCurrentStarSystem(spStarSystem ss);
 void saveStarSystem(StarSystem* ss);
 
 spMarket getMarket(int64_t marketId);
+void saveMarket(Market* market);
 void setMarketData(spMarket market);
 
 struct NavType {

@@ -12,6 +12,7 @@
 #include "ShipStats.h"
 #include "Galaxy.h"
 #include "ui/UIManager.h"
+#include "net/NetUtils.h"
 
 #include <zlib.h>
 #include <dirlistener/ReadDirectoryChanges.h>
@@ -1255,7 +1256,7 @@ bool Configuration::loadCarrierCargo() {
     return true;
 }
 
-bool Configuration::saveCarrierCargo(Timestamp timestamp) {
+bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodity*,int>& patch) {
     if (!st::cmdr.fleetCarrierId)
         return false;
 
@@ -1282,6 +1283,13 @@ bool Configuration::saveCarrierCargo(Timestamp timestamp) {
     ofs.close();
 
     UIManager::updateCargoDialog();
+
+    if (!patch.empty()) {
+        json5pp::value j = json5pp::object({});
+        for (auto& p : patch)
+            j.as_object().emplace(p.first->nameId, p.second);
+        curlRequestRavenFCPatchCargo(st::cmdr.fleetCarrierId, j);
+    }
     return true;
 }
 
@@ -1499,7 +1507,7 @@ void Configuration::changeDirThreadLoop() {
         std::wstring filenameW;
         Sleep(100); // let ED finish writes
         while (changeDirListener->Pop(action, filenameW)) {
-            LOG(DEBUG) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
+            //LOG(DEBUG) << "File changes: " << ExplainAction(action) << " for file " << toUtf8(filenameW);
             if (filenameW.ends_with(L".log") && filenameW.contains(L"\\Journal."))
                 journalFilenameW = filenameW;
             else if (filenameW.ends_with(L"\\Status.json"))

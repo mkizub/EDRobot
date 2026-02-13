@@ -69,6 +69,11 @@ struct Market {
     std::string stationName;
     std::string stationType;
     std::string starSystem;
+    struct {
+        std::string buildId;
+        std::vector<std::string> linkedCmdrs;
+        Timestamp timestamp;
+    } raven;
     std::unordered_map<Commodity*,MarketLine> items;
 };
 
@@ -134,7 +139,7 @@ public:
     bool loadMarket(Timestamp timestamp);
     bool loadShipCargo(spGameEvent ge);
     bool loadCarrierCargo();
-    bool saveCarrierCargo(Timestamp timestamp);
+    bool saveCarrierCargo(Timestamp timestamp, const std::map<Commodity*,int>& patch);
     bool loadNavRoute(Timestamp timestamp);
     const char* makeTesseractWordsFile();
 

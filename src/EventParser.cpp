@@ -8,6 +8,7 @@
 #include "ShipStats.h"
 #include "ai/AIManager.h"
 #include "ui/UIManager.h"
+#include "net/RavenColonial.h"
 
 namespace st {
 Lang lng {Lang::XX};
@@ -264,8 +265,8 @@ void Configuration::readJournalChanges(std::ifstream& journalStream, std::string
 
 bool Configuration::loadGameStatus() {
     static std::ifstream ifs;
-    LOG(DEBUG) << "Loading Status.json";
-     if (!ifs.is_open()) {
+    //LOG(DEBUG) << "Loading Status.json";
+    if (!ifs.is_open()) {
         std::wstring filename = mEDLogsPath + L"\\Status.json";
         ifs.open(filename);
         if (!ifs.is_open())
@@ -913,17 +914,20 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
     if (!starSystem)
         return;
     int64_t marketId = je.at("MarketID").as_int64();
-    spMarket market = gal::getMarket(marketId);
-    if (market && market->timestamp > ge->timestamp)
+    spMarket old_market = gal::getMarket(marketId);
+    if (old_market && old_market->timestamp > ge->timestamp)
         return;
     auto dock = starSystem->getDock(marketId);
-    market = std::make_shared<Market>(Market{
+    spMarket market = std::make_shared<Market>(Market{
             .timestamp = ge->timestamp,
             .marketId = marketId,
             .stationName = dock ? dock->name : "",
             .stationType = "ConstrDepot",
             .starSystem = starSystem->systemName,
     });
+    if (old_market && !old_market->raven.buildId.empty())
+        market->raven = old_market->raven;
+    bool reportToRaven = false;
     bool complete = je["ConstructionComplete"].as_boolean();
     float progress = je["ConstructionProgress"].as_number();
     if (!complete) {
@@ -939,10 +943,21 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             Commodity *commodity = Cfg.getCommodityById(name);
             if (!commodity)
                 continue;
+            int provided = jr.at("ProvidedAmount", 0).as_int32();
+            int required = jr.at("RequiredAmount", 0).as_int32();
+            if (old_market) {
+                if (!old_market->items.contains(commodity))
+                    reportToRaven = true;
+                else {
+                    auto& old_ml = old_market->items.at(commodity);
+                    if (old_ml.stock != provided || old_ml.demand != required)
+                        reportToRaven = true;
+                }
+            }
             MarketLine ml{};
             ml.sellPrice = jr.at("Payment", 0).as_int32();
-            ml.stock = jr.at("ProvidedAmount", 0).as_int32();
-            ml.demand = jr.at("RequiredAmount", 0).as_int32();
+            ml.stock = provided;
+            ml.demand = required;
             ml.isConsumer = true;
             ml.isProducer = false;
             market->items.emplace(commodity, ml);
@@ -951,10 +966,13 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
 
     st::currentMarket.swap(market);
     gal::setMarketData(st::currentMarket);
-}
+    if (reportToRaven)
+        RavenColonial::reportConstructionDepot(ge, st::currentMarket);
+ }
 
 void parseEvent_ColonisationContribution(spGameEvent& ge) {
     Cfg.marketEvent = ge;
+    RavenColonial::reportContribution(ge);
 }
 void parseEvent_MarketBuy(spGameEvent& ge) {
     Cfg.marketEvent = ge;
@@ -977,7 +995,8 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
         if (market->marketId == st::cmdr.fleetCarrierId && commodity->fc.timestamp < ge->timestamp) {
             commodity->fc.count = std::max(0, commodity->fc.count-count);
             commodity->fc.timestamp = ge->timestamp;
-            Cfg.saveCarrierCargo(ge->timestamp);
+            std::map<Commodity*,int> fcPatch {{commodity, -count}};
+            Cfg.saveCarrierCargo(ge->timestamp, fcPatch);
         }
         if (market->timestamp < ge->timestamp) {
             auto it = market->items.find(commodity);
@@ -1010,7 +1029,8 @@ void parseEvent_MarketSell(spGameEvent& ge) {
         if (market->marketId == st::cmdr.fleetCarrierId && commodity->fc.timestamp < ge->timestamp) {
             commodity->fc.count += count;
             commodity->fc.timestamp = ge->timestamp;
-            Cfg.saveCarrierCargo(ge->timestamp);
+            std::map<Commodity*,int> fcPatch {{commodity, count}};
+            Cfg.saveCarrierCargo(ge->timestamp, fcPatch);
         }
         if (market->timestamp < ge->timestamp) {
             auto it = market->items.find(commodity);
@@ -1036,7 +1056,7 @@ void parseEvent_CargoTransfer(spGameEvent& ge) {
     if (st::currentCargo)
         cargo_timestamp = st::currentCargo->timestamp;
     bool atMyCarrier = st::dockedAt.marketId == st::cmdr.fleetCarrierId;
-    std::vector<Commodity*> fcTransferred;
+    std::map<Commodity*,int> fcPatch;
 
     for (auto& jt : je["Transfers"].as_array()) {
         auto *commodity = Cfg.getCommodityById(jt["Type"].asif_string());
@@ -1051,18 +1071,24 @@ void parseEvent_CargoTransfer(spGameEvent& ge) {
                 commodity->ship.count += count;
                 commodity->ship.timestamp = ge->timestamp;
             }
-            if (atMyCarrier && (commodity->fc.timestamp < ge->timestamp || contains(fcTransferred, commodity))) {
+            if (atMyCarrier && (commodity->fc.timestamp < ge->timestamp || fcPatch.contains(commodity))) {
+                if (fcPatch.contains(commodity))
+                    fcPatch[commodity] -= count;
+                else
+                    fcPatch[commodity] = -count;
                 commodity->fc.count = std::max(0, commodity->fc.count - count);
                 commodity->fc.timestamp = ge->timestamp;
-                fcTransferred.push_back(commodity);
             }
         }
         else if (direction == "tocarrier") {
             atMyCarrier = true;
-            if (commodity->fc.timestamp < ge->timestamp || contains(fcTransferred, commodity)) {
+            if (commodity->fc.timestamp < ge->timestamp || fcPatch.contains(commodity)) {
+                if (fcPatch.contains(commodity))
+                    fcPatch[commodity] += count;
+                else
+                    fcPatch[commodity] = count;
                 commodity->fc.count += count;
                 commodity->fc.timestamp = ge->timestamp;
-                fcTransferred.push_back(commodity);
             }
             if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
                 commodity->ship.count = std::max(0, commodity->ship.count - count);
@@ -1076,7 +1102,7 @@ void parseEvent_CargoTransfer(spGameEvent& ge) {
             }
         }
     }
-    if (!fcTransferred.empty())
-        Cfg.saveCarrierCargo(ge->timestamp);
+    if (!fcPatch.empty())
+        Cfg.saveCarrierCargo(ge->timestamp, fcPatch);
     UIManager::updateCargoDialog();
 }
