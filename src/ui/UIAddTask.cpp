@@ -59,7 +59,7 @@ void UIAddTask::initialize() {
     int uiDpi = GetDpiForWindow(hwnd());
     int uiPercent = Cfg.getUiScalePercents();
 
-    font.create(L"Segoe UI", MulDiv(LO_FONT_SIZE, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI));
+    loCreateFont(font, uiDpi, uiPercent);
 
     btn_run.assign(hwnd(), ID_RUN);
     btn_save.assign(hwnd(), ID_SAVE);
@@ -182,8 +182,7 @@ void UIAddTask::relayout() {
     int uiPercent = Cfg.getUiScalePercents();
     if (uiDpi != scaled_to_dpi) {
         scaled_to_dpi = uiDpi;
-        int font_size = MulDiv(LO_FONT_SIZE, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
-        font.create(L"Segoe UI", font_size);
+        loCreateFont(font, uiDpi, uiPercent);
         font.set_on(cb_tasks);
         font.set_on(btn_run);
         font.set_on(btn_save);

@@ -29,15 +29,25 @@ void saveMarket(Market* market) {
         {"StationType", market->stationType},
         {"Items", json5pp::array({})},
         });
-    if (!market->raven.buildId.empty()) {
+    if (!market->raven.buildId.empty() || !market->raven.status.empty()) {
         jm.as_object().emplace("RavenColonial", json5pp::object({
             {"buildId",market->raven.buildId},
+            {"status",market->raven.status},
             {"timestamp",formatTimestampString(market->raven.timestamp)},
+            {"commanders",json5pp::object({})},
         }));
-        if (!market->raven.linkedCmdrs.empty()) {
-            jm.as_object()["RavenColonial"].as_object().emplace("commanders", json5pp::array({})).first.value();
-            for (auto& cmdr : market->raven.linkedCmdrs)
-                jm.as_object()["RavenColonial"].as_object()["commanders"].as_array().push_back(cmdr);
+        auto& jcommanders = const_cast<json5pp::value&>(jm["RavenColonial"]["commanders"]);
+        for (auto cmdr : market->raven.commanders) {
+            auto& name = cmdr.first;
+            auto& ci = cmdr.second;
+            jcommanders.as_object().emplace(name, json5pp::object({}));
+            auto& jcmdr = jcommanders.as_object()[name];
+            if (ci.timestamp.time_since_epoch().count())
+                jcmdr.as_object().emplace("timestamp", formatTimestampString(ci.timestamp));
+            if (ci.deliveries)
+                jcmdr.as_object().emplace("deliveries", ci.deliveries);
+            if (ci.contributed)
+                jcmdr.as_object().emplace("contributed", ci.contributed);
         }
     }
     auto& jarr = jm.as_object()["Items"].as_array();
@@ -88,10 +98,19 @@ spMarket loadMarket(int64_t marketId) {
     market->stationType = jm["StationType"].as_string();
     if (jm["RavenColonial"].is_object()) {
         market->raven.buildId = jm["RavenColonial"]["buildId"].asif_string();
+        market->raven.status = jm["RavenColonial"]["status"].asif_string();
         parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven.timestamp);
-        for (auto& cmdr : jm["RavenColonial"]["commanders"].asif_array()) {
-            if (!cmdr.empty())
-                market->raven.linkedCmdrs.push_back(cmdr.asif_string());
+        for (auto& cmdr : jm["RavenColonial"]["commanders"].asif_object()) {
+            auto& name = cmdr.first;
+            auto& jcmdr = cmdr.second;
+            Market::RavenCmdrInfo ci {};
+            if (!jcmdr["timestamp"].empty())
+                parseTimestamp(jcmdr["timestamp"], ci.timestamp);
+            if (jcmdr["deliveries"].is_integer())
+                ci.deliveries = jcmdr["deliveries"].as_integer();
+            if (jcmdr["contributed"].is_integer())
+                ci.contributed = jcmdr["contributed"].as_integer();
+            market->raven.commanders.emplace(name, ci);
         }
     }
     auto& items = jm["Items"].as_array();

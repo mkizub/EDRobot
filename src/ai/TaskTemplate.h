@@ -14,7 +14,7 @@ namespace ai {
 struct TaskTemplate;
 
 struct Param {
-    enum Type { Void, Bool, Enum, Int, Real, String, System, Dock, Commodity, Task, Array };
+    enum Type { Void, Bool, Enum, Int, Real, String, Site, Commodity, Task, Array };
 
     Type              type;
     std::string       id;
@@ -71,6 +71,7 @@ extern const std::string ED_TASK_MARKET_BUY_ALL;    // buy all from a list of co
 extern const std::string ED_TASK_MARKET_BUY_CONSTR; // buy commodities needed for construction
 extern const std::string ED_TASK_CONSTR_UNLOAD;     // unload all construction materials at construction depot
 extern const std::string ED_TASK_CARRIER_UNLOAD;    // unload all ship cargo to own carrier
+extern const std::string ED_TASK_CARRIER_RESERVE;   // reserve (at carrier) goods for multiple constructions from multiple markets
 extern const std::string ED_TASK_ACQUIRE_PPC;       // acquire PowerPlay Commodity
 extern const std::string ED_TASK_DELIVER_PPC;       // deliver PowerPlay Commodity
 extern const std::string ED_TASK_TRADE_AT;          // sell/buy at specified dock

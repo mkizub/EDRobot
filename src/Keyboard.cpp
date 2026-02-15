@@ -736,7 +736,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         auto* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
         auto vkCode = pKeyBoard->vkCode;
         auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
-        if (!isInjected && (Cfg.isAutoPause() || INTERCEPT_VK_KEY_SET.contains(vkCode))) {
+        if (!isInjected && INTERCEPT_VK_KEY_SET.contains(vkCode)) {
             //LOG(INFO) << "keyboard hook key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
             int flags = 0;
             if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) flags |= LSHIFT;

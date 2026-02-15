@@ -620,10 +620,6 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
             break;
         }
     }
-    else if (Cfg.isAutoPause() && ai::isDebugPause() && self.isGameForeground()) {
-        LOG(INFO) << "Auto-paused because of key pressed";
-        ai::toggleDebugPause();
-    }
 }
 
 void Master::pushCommand(Command cmd) {

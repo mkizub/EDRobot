@@ -9,6 +9,9 @@
 
 namespace RavenColonial {
 
+json5pp::value carrierGetCargo(int64_t marketId);
+void carrierPostCargo(int64_t marketId, json5pp::value& j);
+void carrierPatchCargo(int64_t marketId, json5pp::value& j);
 void reportContribution(spGameEvent& ge);
 void reportConstructionDepot(spGameEvent& ge, spMarket market);
 

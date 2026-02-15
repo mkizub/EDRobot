@@ -201,7 +201,7 @@ json5pp::value curlSimpleGet(std::string url) {
     if (!cw.perform_get())
         return {};
     auto resp = cw.parse_json();
-    LOG(INFO) << "curlSimpleGet resp: " << resp;
+    LOG(INFO) << "curl GET resp: " << resp;
     return resp;
 }
 
@@ -212,7 +212,7 @@ json5pp::value curlSimplePut(std::string url, std::string data) {
     if (!cw.perform_put(data))
         return {};
     auto resp = cw.parse_json();
-    LOG(INFO) << "curlSimplePut resp: " << resp;
+    LOG(INFO) << "curl PUT resp: " << resp;
     return resp;
 }
 
@@ -223,7 +223,7 @@ json5pp::value curlSimplePost(std::string url, json5pp::value& j) {
     if (!cw.perform_post(j))
         return {};
     auto resp = cw.parse_json();
-    LOG(INFO) << "curlSimplePost resp: " << resp;
+    LOG(INFO) << "curl POST resp: " << resp;
     return resp;
 }
 
@@ -234,44 +234,7 @@ json5pp::value curlSimplePatch(std::string url, json5pp::value& j) {
     if (!cw.perform_patch(j))
         return {};
     auto resp = cw.parse_json();
-    LOG(INFO) << "curlSimplePatch resp: " << resp;
+    LOG(INFO) << "curl PATCH resp: " << resp;
     return resp;
 }
 
-// https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/fc/{marketId}
-// {"marketId":3708647424,"name":"VFT-85B","displayName":"Daimonio tou Sokrati","owner":"mkzu","cargo":{"agronomictreatment":32,"bertrandite":234,"cobalt":403,"drones":11,"titanium":587,"tritium":1337}}
-json5pp::value curlRequestRavenFC(int64_t marketId) {
-    CurlWrapper cw("https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/fc/");
-    cw.url_append(std::to_string(marketId));
-    if (!cw.curl)
-        return {};
-    if (!cw.perform_get())
-        return {};
-    auto resp = cw.parse_json();
-    LOG(INFO) << "RavenColonial FC get resp: " << resp;
-    return resp;
-}
-json5pp::value curlRequestRavenFCPostCargo(int64_t marketId, json5pp::value& j) {
-    LOG(INFO) << "RavenColonial FC cargo post: " << j;
-    CurlWrapper cw("https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/fc/");
-    cw.url_append(std::to_string(marketId)+"/cargo");
-    if (!cw.curl)
-        return {};
-    if (!cw.perform_post(j))
-        return {};
-    auto resp = cw.parse_json();
-    LOG(INFO) << "RavenColonial FC cargo post resp: " << resp;
-    return resp;
-}
-json5pp::value curlRequestRavenFCPatchCargo(int64_t marketId, json5pp::value& j) {
-    LOG(INFO) << "RavenColonial FC cargo patch: " << j;
-    CurlWrapper cw("https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/fc/");
-    cw.url_append(std::to_string(marketId)+"/cargo");
-    if (!cw.curl)
-        return {};
-    if (!cw.perform_patch(j))
-        return {};
-    auto resp = cw.parse_json();
-    LOG(INFO) << "RavenColonial FC cargo patch resp: " << resp;
-    return resp;
-}

@@ -206,19 +206,31 @@ void throw_trouble_(const string_view msg) {
             curr->addMessage(MSG_WARN, msg);
         LOG(WARNING) << msg;
     }
-    throw nonlocal_return(false, msg);
+    throw nonlocal_return(TaskExitReason::ONGOING, msg);
 }
 void throw_failed_(const string_view msg) {
     assert (taskThread.get_id() == std::this_thread::get_id());
     if (!msg.empty()) {
         spTask curr = curr_task();
         if (curr) {
-            curr->failed = true;
+            curr->progress = TaskExitReason::FAILED;
             curr->addMessage(MSG_FATAL, msg);
         }
         LOG(ERROR) << msg;
     }
-    throw nonlocal_return(true, msg);
+    throw nonlocal_return(TaskExitReason::FAILED, msg);
+}
+void throw_complete_(const string_view msg) {
+    assert (taskThread.get_id() == std::this_thread::get_id());
+    if (!msg.empty()) {
+        spTask curr = curr_task();
+        if (curr) {
+            curr->progress = TaskExitReason::COMPLETE;
+            curr->addMessage(MSG_FATAL, msg);
+        }
+        LOG(ERROR) << msg;
+    }
+    throw nonlocal_return(TaskExitReason::COMPLETE, msg);
 }
 
 
@@ -308,7 +320,7 @@ void task_step() {
     disableAutoTurn();
     LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getTitle();
     bool ok = false;
-    bool failed = false;
+    TaskExitReason reason = TaskExitReason::ONGOING;
     TRY {
         activeTask->prevSubStep.reset();
         activeTask->currSubStep.reset();
@@ -316,13 +328,13 @@ void task_step() {
     } CATCH (const std::exception& ex) {
         kbd::reset_vJoy();
         if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex))
-            activeTask->failed = failed = nlr->failed;
+            activeTask->progress = reason = nlr->reason;
         else if (dynamic_cast<const interrupted_error*>(&ex))
             ;
         else
             LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
     }
-    if (ok || failed) {
+    if (ok || reason > TaskExitReason::ONGOING) {
         if (ok && activeTask && activeTask->templ.id == ED_TASK_RESURRECT) {
             lastTask.swap(activeTask);
         } else {
@@ -330,7 +342,11 @@ void task_step() {
             lastTask.swap(activeTask);
         }
     }
-    LOG(INFO) << "ai::task_loop(): active task: " << (isInterrupted ? "interrupted" : failed ? "failed" : ok ? "passed" : "not complete");
+    LOG(INFO) << "ai::task_loop(): active task: " << (
+            isInterrupted ? "interrupted" :
+            reason == TaskExitReason::FAILED ? "failed" :
+            ok || reason == TaskExitReason::COMPLETE ? "passed" :
+            "not complete");
     kbd::reset_vJoy();
     disableAutoTurn();
     st::autopilot = {};

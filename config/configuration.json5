@@ -1,26 +1,4 @@
 {
-  "ui-scale-percents": 100,
-  "default-key-hold-time": 35,
-  "default-key-after-time": 65,
-  "search-region-extent": 10,
-  "tesseract-data-path": "tessdata", // defaults to "tessdata"
-  "force-dxgi-device": "Your GPU name here", // defaults to first DXGI adapter, use device name or device id
-  "capturer-DXGI-disabled": false, // preferred if full-screen/borderless mode
-  "capturer-WinRT-disabled": false, // preferred if windowed mode or multiple GPUs
-  "capturer-Win32-disabled": false, // fallback if DXGI/WinRT fail or disabled
-  "opencl-d3d11-interop": true, // used D3D -> OpenCL interop for game frames capture
-  "opencl-disabled": false,
-  "opencl-cache-dir": "cache", // use "disabled" to disable opencl cache
-  "vjoy-device-id": 1,
-  "auto-pause": false, // default is true, pauses EDRobot if any key pressed
-  shortcuts: {
-    start: "PrintScreen", // defaults to "printscreen"
-    stop: ["Esc","Ctrl+Break"], // defaults to "esc" and ctrl-break
-    "pause-resume": "Pause",
-    "debug-templates": "Ctrl+Alt+PrintScreen", // defaults to "ctrl+alt+printscreen"
-  },
-  "curl-insecure": true, // disable SSL verification errors, set to false to enable SSL verificatio
-  //"curl-proxy": "socks5://127.0.0.1:40000" // to use specified proxy
-  //"elite-dangerous-settings-path": ...,
-  //"elite-dangerous-logs-path": ...,
+  "ui-scale-percents": 125,
+  "ravencolonial-enabled": true,
 }

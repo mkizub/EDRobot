@@ -150,7 +150,7 @@ public:
 
     // for (re)layout
     struct {
-        int hgap, vgap, vrow, width;
+        int hgap, vgap, xgap, vrow, width;
         int left, top;
         int scaled_to_dpi;
         bool update_font;

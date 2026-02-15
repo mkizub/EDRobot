@@ -63,16 +63,25 @@ public:
     } fc;
 };
 
+struct RavenCmdrInfo {
+    Timestamp timestamp; // contribution timestamp
+};
 struct Market {
     Timestamp timestamp;
     int64_t marketId;
     std::string stationName;
     std::string stationType;
     std::string starSystem;
-    struct {
+    struct RavenCmdrInfo {
+        Timestamp timestamp; // contribution timestamp
+        int deliveries; // number of deliveries
+        int contributed; // total cargo contributed
+    };
+    struct RavenProjInfo {
         std::string buildId;
-        std::vector<std::string> linkedCmdrs;
-        Timestamp timestamp;
+        std::string status;
+        Timestamp timestamp; // project timestamp
+        std::map<std::string,RavenCmdrInfo> commanders;
     } raven;
     std::unordered_map<Commodity*,MarketLine> items;
 };
@@ -148,13 +157,13 @@ public:
     std::vector<Commodity*> getAllKnownCommodities();
 
     const KeyBindings& getGameKeyBindings(const std::string& name) const;
-    bool isAutoPause() const { return autoPause; }
 
     double getConfigFOV() const { return configFOV; }
     cv::Size getConfigDisplaySize() const { return {configScreenWidth, configScreenHeight}; }
     cv::Size getCaptureDisplaySize() const { return {scaledScreenWidth, scaledScreenHeight}; }
     cv::Rect getCroppedDisplayRect() const { return croppedScreenRect; }
     unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
+    bool isRavenColonialEnabled() const { return mRavenColonialEnabled; }
     bool getCurlInsecure() const { return mCurlInsecure; }
     const std::string& getCurlProxyURL() const { return mCurlProxyUrl; }
 
@@ -192,7 +201,7 @@ private:
     std::thread changeDirThread;
 
     int defaultKeyHoldTime = 35;
-    int defaultKeyAfterTime = 50;
+    int defaultKeyAfterTime = 65;
     int searchRegionExtent = 10;
     std::string forceDXGIDevice;
     int forceDXGIDeviceId = -1;
@@ -202,6 +211,7 @@ private:
     bool openclDisabled = false;
     bool openclD3dInterop = true;
     uint8_t vJoyDeviceID = 1;
+    bool mRavenColonialEnabled = false;
     bool mCurlInsecure = true;
     std::string mCurlProxyUrl;
     std::string mTesseractDataPath;
@@ -213,7 +223,6 @@ private:
     unsigned mSettingsCRC32 {0};
 
     int mUiScalePercents = 100;
-    bool autoPause = true;
     std::map<std::pair<std::string,unsigned>, Command> keyMapping;
 
     double configDashboardGUIBrightness = 0; // Options/Player/Custom.?.misc: <DashboardGUIBrightness Value="0.49999991" />

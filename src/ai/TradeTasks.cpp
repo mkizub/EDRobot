@@ -146,10 +146,15 @@ bool TaskSellAll::run() {
             prevSubStep = currSubStep;
             currSubStep.reset();
             if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
-                if (nlr->failed) {
+                if (nlr->reason == TaskExitReason::FAILED) {
                     st.failed = true;
                     st.complete = true;
-                } else {
+                }
+                else if (nlr->reason == TaskExitReason::COMPLETE) {
+                    st.failed = false;
+                    st.complete = true;
+                }
+                else {
                     st.task->missCount += 1;
                     if (st.task->missCount >= 3) {
                         st.failed = true;
@@ -436,10 +441,15 @@ bool TaskBuyAll::run() {
             prevSubStep = currSubStep;
             currSubStep.reset();
             if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
-                if (nlr->failed) {
+                if (nlr->reason == TaskExitReason::FAILED) {
                     st.failed = true;
                     st.complete = true;
-                } else {
+                }
+                else if (nlr->reason == TaskExitReason::COMPLETE) {
+                    st.failed = false;
+                    st.complete = true;
+                }
+                else {
                     st.task->missCount += 1;
                     if (st.task->missCount >= 3) {
                         st.failed = true;
@@ -669,34 +679,29 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
 {
     assert (templ.id == ED_TASK_MARKET_BUY_CONSTR);
     for (auto& p : templ.params) {
-        if (p.id == "system")
-            destSystemName = p.as_string();
-        else if (p.id == "dock")
-            destConstrName = p.as_string();
+        if (p.id == "depot") {
+            destSystemName = p.value["system"].asif_string();
+            destConstrName = p.value["dock"].asif_string();
+        }
         else if (p.id == "carrier")
             considerCarrier = p.as_boolean();
         else if (p.id == "mode") {
             auto mode = p.as_string();
             if (mode == "ListLittleFirst") {
-                firstListed = true,
-                bulkFirst = false;
-                onlyListed = false;
+                firstListed = true;
             } else if (mode == "ListBulkFirst") {
-                firstListed = true,
+                firstListed = true;
                 bulkFirst = true;
-                onlyListed = false;
             } else if (mode == "ExceptLittleFirst") {
-                bulkFirst = false;
-                onlyListed = false;
+                exceptListed = true;
             } else if (mode == "ExceptBulkFirst") {
+                exceptListed = true;
                 bulkFirst = true;
-                onlyListed = false;
             } else if (mode == "OnlyLittleFirst") {
-                bulkFirst = false;
                 onlyListed = true;
             } else if (mode == "OnlyBulkFirst") {
-                bulkFirst = true;
                 onlyListed = true;
+                bulkFirst = true;
             }
         }
         else if (p.id == "commodity") {
@@ -743,9 +748,15 @@ bool TaskBuyConstr::run() {
                 demand -= commodity->fc.count;
             if (demand <= 0)
                 continue;
-            if (!commodities.empty() && onlyListed) {
-                if (!contains(commodities, commodity))
-                    continue;
+            if (!commodities.empty()) {
+                if (onlyListed) {
+                    if (!contains(commodities, commodity))
+                        continue;
+                }
+                if (exceptListed) {
+                    if (contains(commodities, commodity))
+                        continue;
+                }
             }
             int buy = Mgr.canBuy(commodity);
             buy = std::min(buy, demand);
@@ -809,10 +820,15 @@ bool TaskBuyConstr::run() {
             prevSubStep = currSubStep;
             currSubStep.reset();
             if (auto nlr = dynamic_cast<const nonlocal_return*>(&ex)) {
-                if (nlr->failed) {
+                if (nlr->reason == TaskExitReason::FAILED) {
                     st.failed = true;
                     st.complete = true;
-                } else {
+                }
+                else if (nlr->reason == TaskExitReason::COMPLETE) {
+                    st.failed = false;
+                    st.complete = true;
+                }
+                else {
                     st.task->missCount += 1;
                     if (st.task->missCount >= 4) {
                         st.failed = true;
@@ -855,6 +871,9 @@ TaskConstrUnload::TaskConstrUnload(const TaskTemplate& templ_)
 
 bool TaskConstrUnload::run() {
     Cfg.marketEvent.reset();
+
+    if (spMarket market = gal::getMarket(st::dockedAt.marketId); market && market->raven.status == "complete")
+        throw_complete("Construction complete");
     if (st::shipStats.cargo <= 0 && (!st::currentCargo || st::currentCargo->count <= 0)) {
         status = DONE_NOTHING;
         return true;
@@ -866,18 +885,55 @@ bool TaskConstrUnload::run() {
     if (!ai::uiState.match("scr-constr"))
         throw_trouble("Cannot enter unload screen");
 
+    spMarket marketBefore = gal::getMarket(st::dockedAt.marketId);
+    int demandBefore = 0;
+    if (marketBefore) {
+        for (auto& item : marketBefore->items) {
+            Commodity* c = item.first;
+            auto& ml = item.second;
+            if (ml.demand > ml.stock)
+                demandBefore += ml.demand - ml.stock;
+        }
+    }
+
     status = UNLOAD;
     clickButton("btn-all");
     sleep(1000);
     clickButton("btn-commit");
     sleep(2000);
+
+    int demandAfter = demandBefore;
     waitMarketEvent(4s);
     if (Cfg.marketEvent && Cfg.marketEvent->event == "ColonisationContribution") {
         for (auto& item : Cfg.marketEvent->data["Contributions"].as_array()) {
-            contributed += item.at("Amount",0).as_integer();
+            int amount = item.at("Amount",0).as_integer();
+            contributed += amount;
+            demandAfter -= amount;
+        }
+    }
+    spMarket marketAfter;
+    if (marketBefore && demandAfter <= 0) {
+        for (int i=0; i < 5; i++) {
+            sleep(2000);
+            marketAfter = gal::getMarket(st::dockedAt.marketId);
+            int demandNow = 0;
+            for (auto& item : marketAfter->items) {
+                Commodity* c = item.first;
+                auto& ml = item.second;
+                if (ml.demand > ml.stock)
+                    demandNow += ml.demand - ml.stock;
+            }
+            if (demandNow != demandBefore) {
+                demandAfter = demandNow;
+                break;
+            }
         }
     }
     status = DONE;
+
+    marketAfter = gal::getMarket(st::dockedAt.marketId);
+    if ((marketAfter && marketAfter->raven.status == "complete") || demandAfter <= 0)
+        throw_complete("Construction complete");
     return true;
 }
 
@@ -913,11 +969,10 @@ TaskTradeAt::TaskTradeAt(const TaskTemplate& templ_)
 }
 
 bool TaskTradeAt::run() {
-    auto systemName = templ.get("system").as_string();
-    auto dockName = templ.get("dock").as_string();
+    auto market = templ.get("market").value;
     TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
-    impl.set("system", systemName);
-    impl.set("dock", dockName);
+    impl.set("dock", market);
+    auto& dockName = market["dock"].asif_string();
     if (!run_sub_step(impl.factory(impl)))
         throw_trouble("Trouble traveling to market {}", dockName);
     auto dock = getCurrDock();
@@ -947,7 +1002,10 @@ bool TradeLoopTask::run() {
                 TaskTemplate mt = TaskTemplate::loadTask(mv);
                 if (mt.id != ED_TASK_TRADE_AT)
                     continue;
-                MarketInfo& mi = markets.emplace_back(mt.get("system").as_string(), mt.get("dock").as_string());
+
+                MarketInfo& mi = markets.emplace_back(
+                        mt.get("market").value["system"].asif_string(),
+                        mt.get("market").value["dock"].asif_string());
                 auto& j_tasks = mt.get("tasks").value;
                 if (!j_tasks.is_array()) {
                     mi.sell_all = true;
@@ -1151,8 +1209,7 @@ bool TradeLoopTask::run() {
             gal::spEntity dock = getCurrDock();
             if (!dock || !dock->nameEq(mi.dock)) {
                 TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
-                impl.set("system", mi.system);
-                impl.set("dock", mi.dock);
+                impl.set("dock", json5pp::object({{"system",mi.system},{"dock",mi.dock}}));
                 run_sub_step(impl.factory(impl));
                 dock = getCurrDock();
                 if (!dock || !dock->nameEq(mi.dock))

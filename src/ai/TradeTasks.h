@@ -103,6 +103,7 @@ public:
     bool firstListed {};
     bool bulkFirst {};
     bool onlyListed {};
+    bool exceptListed {};
     std::vector<Commodity*> commodities;
 
     struct SubTask {

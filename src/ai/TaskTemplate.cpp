@@ -22,6 +22,7 @@ const std::string ED_TASK_MARKET_BUY_ALL = "tsk-market-buy-all";
 const std::string ED_TASK_MARKET_BUY_CONSTR = "tsk-market-buy-constr";
 const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
 const std::string ED_TASK_CARRIER_UNLOAD = "tsk-carrier-unload";
+const std::string ED_TASK_CARRIER_RESERVE = "tsk-carrier-reserve";
 const std::string ED_TASK_ACQUIRE_PPC = "tsk-contact-acquire-ppc";
 const std::string ED_TASK_DELIVER_PPC = "tsk-contact-deliver-ppc";
 const std::string ED_TASK_TRADE_AT = "tsk-trade-at";
@@ -166,9 +167,13 @@ bool Param::set(const json5pp::value& val, bool silent) {
         }
         break;
     case String:
-    case System:
-    case Dock:
         if (val.is_string()) {
+            value = val;
+            return true;
+        }
+        break;
+    case Site:
+        if (val.is_object()) {
             value = val;
             return true;
         }
@@ -340,10 +345,14 @@ bool Param::valid() const {
             }
             break;
         case Param::String:
-        case Param::System:
-        case Param::Dock:
             if (value.is_string())
                 valid = !value.as_string().empty();
+            break;
+        case Param::Site:
+            if (value.is_object()) {
+                if (value["system"].is_string() && value["dock"].is_string())
+                    valid = !value["system"].empty() && !value["dock"].empty();
+            }
             break;
         case Param::Commodity:
             if (value.is_string()) {
@@ -405,8 +414,7 @@ void initTemplates() {
     std::list<TaskTemplate> templates;
     templates.emplace_back(ED_TASK_AUTOPILOT, _lc("Autopilot"), FACTORY(Autopilot));
     templates.emplace_back(ED_TASK_TRADE_AT, _lc("Trade at station"), FACTORY(TaskTradeAt), P{
-            { Param::System,   "system", _lc("Star system") },
-            { Param::Dock,     "dock",   _lc("Dock") },
+            { Param::Site,     "market", _lc("Market") },
             { Param::Array,    "tasks",  _lc("Tasks"), META(
                     R"({optional:true, elements:{type:'Task', values: [
                         'tsk-market-sell-all', 'tsk-market-sell',
@@ -436,14 +444,13 @@ void initTemplates() {
             { Param::Int,       "amount",    _lc("Amount"),   META("{optional:true, placeholder:'all'}") },
     });
     templates.emplace_back(ED_TASK_MARKET_BUY_CONSTR, _lc("Buy for construction"), FACTORY(TaskBuyConstr), P{
-            { Param::System,   "system", _lc("Star system") },
-            { Param::Dock,     "dock",   _lc("Construction depot") },
+            { Param::Site,     "depot",  _lc("Construction depot") },
             { Param::Bool,     "carrier",_lc("Consider Fleet Carrier")  },
             { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
                 json5pp::object({{"id", "ListLittleFirst"},   {"name",  _lc("Listed, then Little first")}}),
                 json5pp::object({{"id", "ListBulkFirst"},     {"name",  _lc("Listed, then Bulk first")}}),
-                json5pp::object({{"id", "ExceptLittleFirst"}, {"name",  _lc("Except in list, Little first")}}),
-                json5pp::object({{"id", "ExceptBulkFirst"},   {"name",  _lc("Except in list, Bulk first")}}),
+                json5pp::object({{"id", "ExceptLittleFirst"}, {"name",  _lc("Except listed, Little first")}}),
+                json5pp::object({{"id", "ExceptBulkFirst"},   {"name",  _lc("Except listed, Bulk first")}}),
                 json5pp::object({{"id", "OnlyLittleFirst"},   {"name",  _lc("Only listed, Little first")}}),
                 json5pp::object({{"id", "OnlyBulkFirst"},     {"name",  _lc("Only listed, Bulk first")}})
             })}}), "ListLittleFirst"},
@@ -451,6 +458,18 @@ void initTemplates() {
     });
     templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
     templates.emplace_back(ED_TASK_CARRIER_UNLOAD, _lc("Unload cargo to own carrier"), FACTORY(TaskMyCarrierUnload));
+    templates.emplace_back(ED_TASK_CARRIER_RESERVE, _lc("Fill carrier for constructions"), FACTORY(TaskMyCarrierReserve), P{
+            { Param::Site,     "carrier",_lc("My carrier location") },
+            { Param::Array,    "depots",  _lc("Construction depots"), META(
+                    R"({elements:{type:'Site'}})")},
+            { Param::Array,    "markets",  _lc("Markets"), META(
+                    R"({elements:{type:'Site'}})")},
+            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
+                json5pp::object({{"id", "ExceptListed"}, {"name",  _lc("Except listed")}}),
+                json5pp::object({{"id", "OnlyListed"},   {"name",  _lc("Only listed")}}),
+            })}}), "OnlyListed"},
+            { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
+    });
     templates.emplace_back(ED_TASK_ACQUIRE_PPC, _lc("Acquire PowerPlay resource"), FACTORY(TaskAcquirePPC), P{
             { Param::Commodity, "commodity", _lc("Commodity") },
     });
@@ -458,8 +477,7 @@ void initTemplates() {
             { Param::Commodity, "commodity", _lc("Commodity") },
     });
     templates.emplace_back(ED_TASK_TRAVEL, _lc("Travel to dock"), FACTORY(TaskTravel), P{
-            { Param::System,   "system", _lc("Star system") },
-            { Param::Dock,     "dock",   _lc("Dock") },
+            { Param::Site,     "dock",   _lc("Dock") },
     });
     templates.emplace_back(ED_TASK_REPEAT, _lc("Repeat"), FACTORY(TaskRepeat), P{
             { Param::Int, "count",    _lc("Times"),              META("{optional:true, placeholder:'infinit'}")  },

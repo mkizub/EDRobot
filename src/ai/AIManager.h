@@ -35,6 +35,7 @@ void resetCompassDetects();
 void notify_progress_(MessageSeverity severity, const std::string_view msg);
 [[noreturn]] void throw_trouble_(const std::string_view msg);
 [[noreturn]] void throw_failed_(const std::string_view msg);
+[[noreturn]] void throw_complete_(const std::string_view msg);
 
 inline void notify_info(const std::string_view msg) {
     notify_progress_(MSG_INFO, gettext(msg.data()));
@@ -76,6 +77,14 @@ template <class... _Types>
 [[noreturn]] void throw_failed(const std::format_string<_Types...> _Fmt, _Types&&... _Args) {
     auto lc_fmt = gettext(_Fmt.get().data());
     throw_failed_(std::vformat(lc_fmt, std::make_format_args(_Args...)).c_str());
+}
+[[noreturn]] inline void throw_complete(const std::string_view msg) {
+    throw_complete_(gettext(msg.data()));
+}
+template <class... _Types>
+[[noreturn]] void throw_complete(const std::format_string<_Types...> _Fmt, _Types&&... _Args) {
+    auto lc_fmt = gettext(_Fmt.get().data());
+    throw_complete_(std::vformat(lc_fmt, std::make_format_args(_Args...)).c_str());
 }
 
 const std::list<TaskTemplate>& getUserTasks();

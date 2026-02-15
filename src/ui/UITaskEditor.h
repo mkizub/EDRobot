@@ -89,6 +89,23 @@ public:
     wl::textbox tb;
 };
 
+class SiteCtrl : public ParamCtrl {
+public:
+    SiteCtrl(UITaskEditor* ui, ai::Param& param);
+    ~SiteCtrl() override;
+    void create() override;
+    void layout() override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    json5pp::value value() override;
+
+    std::wstring system_text;
+    std::wstring dock_text;
+
+    wl::textbox tb_system;
+    wl::textbox tb_dock;
+};
+
 class CargoCtrl : public ParamCtrl {
 public:
     CargoCtrl(UITaskEditor* ui, ai::Param& param);

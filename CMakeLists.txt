@@ -220,7 +220,7 @@ install(DIRECTORY config/ControlSchemes DESTINATION ".")
 install(FILES
         config/eddb.json5
         config/commodity-database.json5
-        config/configuration.json5
+        config/default-configuration.json5
         config/screens.json5
         config/logging.conf
         DESTINATION ".")

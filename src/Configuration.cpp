@@ -13,6 +13,7 @@
 #include "Galaxy.h"
 #include "ui/UIManager.h"
 #include "net/NetUtils.h"
+#include "net/RavenColonial.h"
 
 #include <zlib.h>
 #include <dirlistener/ReadDirectoryChanges.h>
@@ -106,10 +107,6 @@ bool Configuration::load() {
             searchRegionExtent = tm.as_integer();
             LOG(INFO) << "search-region-extent: " << searchRegionExtent;
         }
-        if (auto& tm = j_config.at("auto-pause"); tm.is_boolean()) {
-            autoPause = tm.as_boolean();
-            LOG(INFO) << "auto-pause: " << autoPause;
-        }
         if (j_config.at("shortcuts").is_object()) {
             auto &obj = j_config.at("shortcuts");
             parseShortcutConfig(Command::Start, "start", obj);
@@ -153,6 +150,11 @@ bool Configuration::load() {
         }
         if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
             vJoyDeviceID = (uint8_t) tm.as_integer();
+        if (auto& tm = j_config.at("ravencolonial-enabled"); tm.is_boolean()) {
+            mRavenColonialEnabled = tm.as_boolean();
+            LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
+        }
+
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean()) {
             openclDisabled = tm.as_boolean();
@@ -1288,7 +1290,7 @@ bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodi
         json5pp::value j = json5pp::object({});
         for (auto& p : patch)
             j.as_object().emplace(p.first->nameId, p.second);
-        curlRequestRavenFCPatchCargo(st::cmdr.fleetCarrierId, j);
+        RavenColonial::carrierPatchCargo(st::cmdr.fleetCarrierId, j);
     }
     return true;
 }

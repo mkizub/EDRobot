@@ -142,11 +142,11 @@ void UICargoEditor::relayout(bool scroll_to_top) {
         layout.update_font = true;
 
         int uiPercent = Cfg.getUiScalePercents();
-        int font_size = MulDiv(LO_FONT_SIZE, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
-        font.create(L"Segoe UI", font_size);
+        loCreateFont(font, uiDpi, uiPercent);
 
         layout.hgap = MulDiv(LO_H_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
         layout.vgap = MulDiv(LO_V_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
+        layout.xgap = MulDiv(LO_X_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
         layout.vrow = MulDiv(LO_V_ROW, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
     }
 
@@ -357,7 +357,7 @@ void NewCargoCtrl::create() {
     btn_add.set_enabled(false);
     ui->font.set_on(dl);
     ui->font.set_on(btn_add);
-    l.top += l.vrow + l.vgap;
+    l.top += l.vrow + l.xgap;
 }
 
 void NewCargoCtrl::layout() {
@@ -374,11 +374,9 @@ void NewCargoCtrl::layout() {
         w_lbl = S(LO_TXT_20_W);
     int x = l.left;
     l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, l.left, l.top, w_lbl, l.vrow, SWP_NOZORDER);
-    //SetWindowPos(dl.hwnd(), nullptr, l.left, l.top, w_lbl, l.vrow, SWP_NOZORDER);
-    //SendMessage(dl.hwnd(), CB_SETITEMHEIGHT, 1, (LPARAM)l.vrow);
     x += w_lbl + l.hgap;
     l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, btn_add.hwnd(), nullptr, x, l.top, w_txt, l.vrow, SWP_NOZORDER);
-    l.top += l.vrow + l.vgap;
+    l.top += l.vrow + l.xgap;
 }
 #undef S
 

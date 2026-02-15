@@ -6,7 +6,7 @@
 #include "UILayout.h"
 #include "UIManager.h"
 #include "UIMainDialog.h"
-#include "../net/NetUtils.h"
+#include "../net/RavenColonial.h"
 
 #include "../../ui/resource.h"
 
@@ -79,7 +79,7 @@ void UIShowCargo::initialize() {
     int uiDpi = GetDpiForWindow(hwnd());
     int uiPercent = Cfg.getUiScalePercents();
 
-    font.create(L"Segoe UI", MulDiv(LO_FONT_SIZE, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI));
+    loCreateFont(font, uiDpi, uiPercent);
 
     btn_run.assign(hwnd(), ID_RUN);
     btn_save.assign(hwnd(), ID_SAVE);
@@ -122,8 +122,7 @@ void UIShowCargo::relayout() {
     int uiPercent = Cfg.getUiScalePercents();
     if (uiDpi != scaled_to_dpi) {
         scaled_to_dpi = uiDpi;
-        int font_size = MulDiv(LO_FONT_SIZE, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
-        font.create(L"Segoe UI", font_size);
+        loCreateFont(font, uiDpi, uiPercent);
         font.set_on(btn_run);
         font.set_on(btn_save);
         font.set_on(btn_load);
@@ -175,7 +174,7 @@ bool UIShowCargo::updateCargo() {
 }
 
 void UIShowCargo::on_cargo_load() {
-    auto jv = curlRequestRavenFC(st::cmdr.fleetCarrierId);
+    auto jv = RavenColonial::carrierGetCargo(st::cmdr.fleetCarrierId);
     if (!jv.is_object() || jv.empty() || !jv["cargo"].is_object()) {
         LOG(ERROR) << "Bad response from RavenColonial: " << jv;
         return;
@@ -209,7 +208,7 @@ void UIShowCargo::on_cargo_save() {
     btn_save.set_enabled(false);
 
     // post new data to RavenColonial, if different
-    auto jv = curlRequestRavenFC(st::cmdr.fleetCarrierId);
+    auto jv = RavenColonial::carrierGetCargo(st::cmdr.fleetCarrierId);
     if (!jv.is_object() || jv.empty() || !jv["cargo"].is_object()) {
         LOG(ERROR) << "Bad response from RavenColonial: " << jv;
         return;
@@ -232,6 +231,6 @@ void UIShowCargo::on_cargo_save() {
             diff.as_object().emplace(c->nameId, c->fc.count);
     }
     if (!diff.empty())
-        curlRequestRavenFCPostCargo(st::cmdr.fleetCarrierId, diff);
+        RavenColonial::carrierPostCargo(st::cmdr.fleetCarrierId, diff);
 }
 

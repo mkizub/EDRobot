@@ -14,6 +14,13 @@
 const int TRAY_ICONUID = 100;
 const int WM_TRAY_NOTIFY = WM_APP + 100;
 
+void loCreateFont(wl::font& font, int uiDpi, int uiPercent) {
+    NONCLIENTMETRICS ncm{};
+    ncm.cbSize = sizeof(ncm);
+    SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0, MulDiv(uiDpi, uiPercent, 100));
+    font.create(ncm.lfMessageFont); // Tahoma/Segoe
+}
+
 UIMainDialog::UIMainDialog()
     : mNotifyIconData{}
 {
@@ -157,7 +164,7 @@ void UIMainDialog::initialize() {
 
     int uiDpi = GetDpiForWindow(hwnd());
     int uiPercent = Cfg.getUiScalePercents();
-    font.create(L"Segoe UI", MulDiv(LO_FONT_SIZE, uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI));
+    loCreateFont(font, uiDpi, uiPercent);
     {
         auto hMonitor = MonitorFromWindow(hwnd(), MONITOR_DEFAULTTOPRIMARY);
         MONITORINFOEX monitorInfo;
@@ -295,7 +302,7 @@ void UIMainDialog::update_curr_task() {
     if (!task) {
         task = ai::last_task();
         completed = true;
-        failed = task && task->failed;
+        failed = task && task->progress == ai::TaskExitReason::FAILED;
     }
     std::string status;
     int indent = 0;
@@ -341,7 +348,7 @@ void UIMainDialog::update_curr_task() {
         lbl_status.set_text(L"");
     }
     else if (completed) {
-        if (task->failed)
+        if (task->progress == ai::TaskExitReason::FAILED)
             lbl_status.set_text(toUtf16(_gt("Finished (failed)")).c_str());
         else
             lbl_status.set_text(toUtf16(_gt("Finished")).c_str());
@@ -398,8 +405,7 @@ void UIMainDialog::relayout() {
     int uiPercent = Cfg.getUiScalePercents();
     if (uiDpi != scaled_to_dpi) {
         scaled_to_dpi = uiDpi;
-        int font_size = MulDiv(LO_FONT_SIZE, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
-        font.create(L"Segoe UI", font_size);
+        loCreateFont(font, uiDpi, uiPercent);
         font.set_on(lbl_task);
         font.set_on(lbl_curr_task);
         font.set_on(lbl_task_status);

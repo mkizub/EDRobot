@@ -14,18 +14,20 @@ class Task;
 typedef std::shared_ptr<Step> spStep;
 typedef std::shared_ptr<Task> spTask;
 
+enum class TaskExitReason { ONGOING, COMPLETE, FAILED };
+
 class nonlocal_return : public std::exception {
 public:
-    explicit nonlocal_return(bool failed)
-        : failed(failed)
+    explicit nonlocal_return(TaskExitReason reason)
+        : reason(reason)
         , std::exception()
     {}
-    explicit nonlocal_return(bool failed, const std::string_view message)
-        : failed(failed)
+    explicit nonlocal_return(TaskExitReason reason, const std::string_view message)
+        : reason(reason)
         , std::exception(message.data())
     {}
 
-    const bool failed;
+    const TaskExitReason reason;
 };
 
 class interrupted_error : public std::exception {

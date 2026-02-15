@@ -312,11 +312,11 @@ void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* gr
         in >> json5pp::rule::json5() >> parsed;
     } catch (...) {
         LOG(ERROR) << "Failed to parse json " << step;
-        throw nonlocal_return(true, "hardcoded task_step parse failed");
+        throw nonlocal_return(TaskExitReason::FAILED, "hardcoded task_step parse failed");
     }
     if (!executeStep(parsed, args)) {
         LOG(ERROR) << "Failed to execute " << step;
-        throw nonlocal_return(false, "hardcoded task_step failed");
+        throw nonlocal_return(TaskExitReason::ONGOING, "hardcoded task_step failed");
     }
     if (grayImage)
         ai::detectEDStateGrayIm(level, *grayImage);

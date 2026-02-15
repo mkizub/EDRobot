@@ -956,11 +956,21 @@ bool DepartureStep::run() {
         fromDock = st::dockedAt.stationName;
     LOG(DEBUG) << "Departure from " << fromDock;
 
+    bool fromCompletedConstruction = false; // autopilot is off after construction is complete
     bool fromSpaceConstruction = false; // need UpThrustButton
     bool fromStarPort = false; // need special break for panthermkii
     if (!st::dockedAt.stationType.empty()) {
+        if (gal::PLANETARY_CONSTR_DEPOT.match_type(st::dockedAt.stationType)) {
+            auto market = gal::getMarket(st::dockedAt.marketId);
+            if (market && market->raven.status == "complete")
+                fromCompletedConstruction = true;
+            LOG(DEBUG) << "Departure from PlanetaryConstruction";
+        }
         if (gal::SPACE_CONSTR_DEPOT.match_type(st::dockedAt.stationType)) {
             fromSpaceConstruction = true;
+            auto market = gal::getMarket(st::dockedAt.marketId);
+            if (market && market->raven.status == "complete")
+                fromCompletedConstruction = true;
             LOG(DEBUG) << "Departure from SpaceConstruction";
         }
         else if (st::dockedAt.stationType == "SurfaceStation" && !fromDock.empty()) {
@@ -1019,6 +1029,14 @@ bool DepartureStep::run() {
             sleep(250);
             ai::detectEDState(DetectLevel::Screen);
         }
+    }
+    if (fromCompletedConstruction && !ai::uiState.autopilot) {
+        LOG(INFO) << "Departure from completed construction...";
+        if (st::ship.flags.landing_gear_down) {
+            LOG(DEBUG) << "EnterCruise: LandingGearToggle";
+            kbd::send("LandingGearToggle");
+        }
+        kbd::send("UpThrustButton", 20000);
     }
     // 4 minutes for departure
     LOG(INFO) << "Departure: got autopilot";
@@ -1672,7 +1690,7 @@ spGameEvent BaseDockStep::requestDockingPermit() {
     LOG(INFO) << "Docking, request docking permit start";
     lastDockingStatus.clear();
     status = REQUEST;
-    for (int retry=0; retry < 3; retry++) {
+    for (int retry=0; retry < 4; retry++) {
         setSpeed(0, false, "requestDockingPermit");
         gotoNavPage("mod-contacts");
 
@@ -1694,8 +1712,8 @@ spGameEvent BaseDockStep::requestDockingPermit() {
             ai::detectEDState(DetectLevel::Buttons);
             if (ai::uiState.focused_name() != "btn-landing") {
                 LOG(INFO) << "Docking, steel don't see btn-landing";
-                gotoNavPage("mod-nav-list");
-                continue;
+                if (retry == 0)
+                    continue;
             }
         }
 
@@ -1721,6 +1739,7 @@ spGameEvent BaseDockStep::requestDockingPermit() {
         }
         LOG(WARNING) << "Docking timer expired, " << retry;
     }
+    gotoNavPage("mod-nav-list");
     return {};
 }
 
@@ -2224,10 +2243,16 @@ bool DockPlanetPort::run() {
             }
             if (reason == "Distance") {
                 LOG(ERROR) << "DockingDenied reason: Distance, flying towards station...";
-                setSpeed(50, true, "Docking denied - distance, fly towards");
-                sleep(5);
-                setSpeed(0, true, "Docking denied - distance, try again");
-                sleep(10);
+                sendUiBack();
+                ai::detectEDState(DetectLevel::Screen);
+                dist = getDockDistance(true);
+                if (dist < 7500_m) {
+                    setSpeed(50, true, "Docking denied - distance, fly towards");
+                    sleep(5000);
+                    setSpeed(0, true, "Docking denied - distance, try again");
+                    sleep(5000);
+                    throw_trouble("Incorrect docking distance");
+                }
                 continue;
             }
         }
@@ -4103,10 +4128,10 @@ TaskTravel::TaskTravel(const TaskTemplate &templ_)
 {
     assert(templ.id == ED_TASK_TRAVEL);
     for (auto& p : templ.params) {
-        if (p.id == "system")
-            destSystemName = p.as_string();
-        else if (p.id == "dock")
-            destDockName = p.as_string();
+        if (p.id == "dock") {
+            destSystemName = p.value["system"].asif_string();
+            destDockName = p.value["dock"].asif_string();
+        }
     }
 }
 

@@ -925,45 +925,58 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             .stationType = "ConstrDepot",
             .starSystem = starSystem->systemName,
     });
-    if (old_market && !old_market->raven.buildId.empty())
-        market->raven = old_market->raven;
-    bool reportToRaven = false;
     bool complete = je["ConstructionComplete"].as_boolean();
-    float progress = je["ConstructionProgress"].as_number();
-    if (!complete) {
-        auto &resources = je.at("ResourcesRequired").as_array();
-        for (auto &jr: resources) {
-            if (!jr["Name"].is_string())
-                continue;
-            std::string name = jr["Name"].as_string();
-            // "$aluminium_name;"
-            if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
-                continue;
-            name = name.substr(1, name.size() - 7);
-            Commodity *commodity = Cfg.getCommodityById(name);
-            if (!commodity)
-                continue;
-            int provided = jr.at("ProvidedAmount", 0).as_int32();
-            int required = jr.at("RequiredAmount", 0).as_int32();
-            if (old_market) {
-                if (!old_market->items.contains(commodity))
+    bool reportToRaven = false;
+    if (old_market && !old_market->raven.buildId.empty()) {
+        market->raven = old_market->raven;
+        if (!scanningOldEvents && market->raven.timestamp.time_since_epoch().count() == 0)
+            reportToRaven = true;
+        if (complete && market->raven.status != "complete")
+            reportToRaven = true;
+    }
+    for (auto &jr: je.at("ResourcesRequired").as_array()) {
+        if (!jr["Name"].is_string())
+            continue;
+        std::string name = jr["Name"].as_string();
+        // "$aluminium_name;"
+        if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
+            continue;
+        name = name.substr(1, name.size() - 7);
+        Commodity *commodity = Cfg.getCommodityById(name);
+        if (!commodity)
+            continue;
+        int provided = jr.at("ProvidedAmount", 0).as_int32();
+        int required = jr.at("RequiredAmount", 0).as_int32();
+        if (old_market) {
+            if (!old_market->items.contains(commodity))
+                reportToRaven = true;
+            else {
+                auto& old_ml = old_market->items.at(commodity);
+                if (old_ml.stock != provided || old_ml.demand != required)
                     reportToRaven = true;
-                else {
-                    auto& old_ml = old_market->items.at(commodity);
-                    if (old_ml.stock != provided || old_ml.demand != required)
-                        reportToRaven = true;
-                }
             }
-            MarketLine ml{};
-            ml.sellPrice = jr.at("Payment", 0).as_int32();
-            ml.stock = provided;
-            ml.demand = required;
-            ml.isConsumer = true;
-            ml.isProducer = false;
-            market->items.emplace(commodity, ml);
         }
+        MarketLine ml{};
+        ml.sellPrice = jr.at("Payment", 0).as_int32();
+        ml.stock = provided;
+        ml.demand = required;
+        ml.isConsumer = true;
+        ml.isProducer = false;
+        market->items.emplace(commodity, ml);
     }
 
+    if (reportToRaven) {
+        if (market->raven.buildId.empty() || market->raven.timestamp >= ge->timestamp)
+            reportToRaven = false;
+        else if (market->raven.status == "complete")
+            reportToRaven = false;
+        else
+            market->raven.timestamp = ge->timestamp;
+    }
+    else if (complete && (!Cfg.isRavenColonialEnabled() || market->raven.buildId.empty()) && market->raven.status != "complete") {
+        market->raven.timestamp = ge->timestamp;
+        market->raven.status = "complete";
+    }
     st::currentMarket.swap(market);
     gal::setMarketData(st::currentMarket);
     if (reportToRaven)

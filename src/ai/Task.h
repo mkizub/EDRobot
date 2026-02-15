@@ -57,7 +57,7 @@ public:
     void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* grayImage = nullptr);
 
     int missCount {};
-    bool failed {};
+    TaskExitReason progress {};
 };
 
 class TaskRepeat : public Task {

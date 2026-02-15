@@ -104,11 +104,11 @@ void UITaskEditor::relayout(bool scroll_to_top) {
         layout.update_font = true;
 
         int uiPercent = Cfg.getUiScalePercents();
-        int font_size = MulDiv(LO_FONT_SIZE, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
-        font.create(L"Segoe UI", font_size);
+        loCreateFont(font, uiDpi, uiPercent);
 
         layout.hgap = MulDiv(LO_H_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
         layout.vgap = MulDiv(LO_V_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
+        layout.xgap = MulDiv(LO_X_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
         layout.vrow = MulDiv(LO_V_ROW, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
     }
 
@@ -155,9 +155,9 @@ std::unique_ptr<ParamCtrl> UITaskEditor::create_ctrl(ai::Param& param) {
     case ai::Param::Int:
     case ai::Param::Real:
     case ai::Param::String:
-    case ai::Param::System:
-    case ai::Param::Dock:
         return std::make_unique<TextCtrl>(this, param);
+    case ai::Param::Site:
+        return std::make_unique<SiteCtrl>(this, param);
     case ai::Param::Commodity:
         return std::make_unique<CargoCtrl>(this, param);
     case ai::Param::Task:
@@ -294,7 +294,7 @@ void EnumCtrl::create() {
         label.create(ui->hwnd(), ui->nextID(), name.c_str(), {l.left, l.top}, {lw, l.vrow});
         ui->font.set_on(label);
     }
-    l.top += l.vrow + l.vgap;
+    l.top += l.vrow + l.xgap;
 }
 void EnumCtrl::layout() {
     auto& l = ui->layout;
@@ -310,7 +310,7 @@ void EnumCtrl::layout() {
     if (!name.empty()) {
         l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, label.hwnd(), nullptr, l.left, l.top, lw, l.vrow, SWP_NOZORDER);
     }
-    l.top += l.vrow + l.vgap;
+    l.top += l.vrow + l.xgap;
 }
 void EnumCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed == dl.hwnd()) {
@@ -427,6 +427,88 @@ json5pp::value TextCtrl::value() {
     return s;
 }
 
+SiteCtrl::SiteCtrl(UITaskEditor* ui, ai::Param& param)
+    : ParamCtrl(ui, param)
+{
+    if (!param.empty() && param.value.is_object()) {
+        system_text = toUtf16(param.value["system"].asif_string());
+        dock_text = toUtf16(param.value["dock"].asif_string());
+    }
+}
+SiteCtrl::~SiteCtrl() {
+    ui->freeCtrl(tb_system);
+    ui->freeCtrl(tb_dock);
+}
+void SiteCtrl::create() {
+    auto& l = ui->layout;
+    const int lw = l.width / 3 - l.vgap;
+    const int rw = l.width * 2 / 3;
+    const int cx = l.left + l.width / 3;
+
+    if (!name.empty())
+        label.create(ui->hwnd(), ui->nextID(), name.c_str(), {l.left, l.top}, {lw, 2*l.vrow});
+
+    tb_system.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {cx, l.top}, rw, l.vrow);
+    tb_system.style.set_style(TRUE, WS_TABSTOP);
+    Edit_SetCueBannerText(tb_system.hwnd(), toUtf16(_gt("Star system")).c_str());
+    tb_system.set_text(system_text);
+
+    l.top += l.vrow;
+
+    tb_dock.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {cx, l.top}, rw, l.vrow);
+    tb_dock.style.set_style(TRUE, WS_TABSTOP);
+    Edit_SetCueBannerText(tb_dock.hwnd(), toUtf16(_gt("Dock")).c_str());
+    tb_dock.set_text(dock_text);
+
+    l.top += l.vrow + l.vgap;
+
+    ui->font.set_on(label);
+    ui->font.set_on(tb_system);
+    ui->font.set_on(tb_dock);
+}
+void SiteCtrl::layout() {
+    auto& l = ui->layout;
+    if (l.update_font) {
+        ui->font.set_on(label);
+        ui->font.set_on(tb_system);
+        ui->font.set_on(tb_dock);
+    }
+    const int lw = l.width / 3 - l.vgap;
+    const int rw = l.width * 2 / 3;
+    const int cx = l.left + l.width / 3;
+
+    if (!name.empty())
+        l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, label.hwnd(), nullptr, l.left, l.top, lw, 2*l.vrow, SWP_NOZORDER);
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, tb_system.hwnd(), nullptr, cx, l.top, rw, l.vrow, SWP_NOZORDER);
+    l.top += l.vrow;
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, tb_dock.hwnd(), nullptr, cx, l.top, rw, l.vrow, SWP_NOZORDER);
+    l.top += l.vrow + l.vgap;
+}
+void SiteCtrl::on_ctrl_edit(HWND changed, WORD msg) {
+    if (changed == tb_system.hwnd())
+        system_text = tb_system.get_text();
+    if (changed == tb_dock.hwnd())
+        dock_text = tb_dock.get_text();
+}
+bool SiteCtrl::validate() {
+    ai::Param param{ai::Param::Site, "", "", meta};
+    json5pp::value v = json5pp::object({
+        {"system", toUtf8(system_text)},
+        {"dock", toUtf8(dock_text)}
+    });
+    param.set(v, true);
+    return param.valid();
+}
+json5pp::value SiteCtrl::value() {
+    if (system_text.empty() && dock_text.empty())
+        return {};
+    json5pp::value v = json5pp::object({
+        {"system", toUtf8(system_text)},
+        {"dock", toUtf8(dock_text)}
+    });
+    return v;
+}
+
 CargoCtrl::CargoCtrl(UITaskEditor* ui, ai::Param& param)
         : ParamCtrl(ui, param)
 {
@@ -446,7 +528,6 @@ void CargoCtrl::create() {
     auto& l = ui->layout;
     const int lw = l.width / 3 - l.vgap;
     const int rw = l.width * 2 / 3;
-    const int cx = l.left + l.width / 3;
     dl.create(ui->hwnd(), ui->nextID(), {l.left, l.top}, {rw, l.vrow}, l.vrow * 8);
     if (!text.empty())
         dl.set_text(text);
@@ -460,27 +541,24 @@ void CargoCtrl::create() {
         label.create(ui->hwnd(), ui->nextID(), name.c_str(), {l.left, l.top}, {lw, l.vrow});
         ui->font.set_on(label);
     }
-    l.top += l.vrow + l.vgap;
-
+    l.top += l.vrow + l.xgap;
     ui->font.set_on(dl);
-    l.top += l.vrow + l.vgap;
 }
 void CargoCtrl::layout() {
     auto& l = ui->layout;
     if (l.update_font) {
         ui->font.set_on(label);
         ui->font.set_on(dl);
+        SendMessage(dl.hwnd(), CB_SETITEMHEIGHT, 1, (LPARAM)l.vrow);
     }
     const int lw = l.width / 3 - l.vgap;
     const int rw = l.width * 2 / 3;
     const int cx = l.left + l.width / 3;
-    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, cx, l.top, rw, l.vrow, SWP_NOZORDER);
-    //SetWindowPos(dl.hwnd(), nullptr, cx, l.top, rw, l.vrow, SWP_NOZORDER);
-    //SendMessage(dl.hwnd(), CB_SETITEMHEIGHT, 1, (LPARAM)l.vrow);
+    l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, cx, l.top, rw, l.vrow*8, SWP_NOZORDER);
     if (!name.empty()) {
         l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, label.hwnd(), nullptr, l.left, l.top, lw, l.vrow, SWP_NOZORDER);
     }
-    l.top += l.vrow + l.vgap;
+    l.top += l.vrow + l.xgap;
 }
 void CargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed != dl.hwnd())
@@ -722,7 +800,7 @@ void TaskCtrl::create() {
         ui->font.set_on(dl);
     }
 
-    l.top += l.vrow + l.vgap;
+    l.top += l.vrow + l.xgap;
     l.left += l.hgap;
     l.width -= l.hgap;
     for (auto& p : templ.params) {
@@ -749,7 +827,7 @@ void TaskCtrl::layout() {
     } else {
         l.hWinPosInfo = DeferWindowPos(l.hWinPosInfo, dl.hwnd(), nullptr, cx, l.top, rw, l.vrow, SWP_NOZORDER);
     }
-    l.top += l.vrow + l.vgap;
+    l.top += l.vrow + l.xgap;
     l.left += l.hgap;
     l.width -= l.hgap;
     for (auto& c : controls) {
