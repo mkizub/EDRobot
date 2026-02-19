@@ -20,6 +20,8 @@ bool BaseButton::detect(DetectParams &params) {
     if (!icon.empty()) {
         if (!detector) {
             detector = std::make_unique<detect::ImageTemplate>(icon, nullptr);
+            detector->threshold_min = 0.4;
+            detector->threshold_max = 0.8;
             detector->extendLT = extendLT;
             detector->extendRB = extendRB;
             std::swap(detector->filters, this->filters);

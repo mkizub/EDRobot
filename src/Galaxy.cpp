@@ -860,7 +860,7 @@ spMarket getMarket(int64_t marketId) {
     if (!marketId)
         return {};
     auto market = gMarketById[marketId];
-    if (market)
+    if (market && !market->items.empty())
         return market;
     market = loadMarket(marketId);
     if (market)

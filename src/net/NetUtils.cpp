@@ -17,8 +17,8 @@ struct CurlWrapper {
     void url_append_esc(const std::string& param);
     bool perform_get();
     bool perform_put(const std::string& data);
-    bool perform_post(json5pp::value& j);
-    bool perform_patch(json5pp::value& j);
+    bool perform_post(const json5pp::value& j);
+    bool perform_patch(const json5pp::value& j);
     json5pp::value parse_json();
 
 
@@ -124,7 +124,7 @@ bool CurlWrapper::perform_put(const std::string& data) {
     return true;
 }
 
-bool CurlWrapper::perform_post(json5pp::value& j) {
+bool CurlWrapper::perform_post(const json5pp::value& j) {
     if (!curl)
         return false;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -142,7 +142,7 @@ bool CurlWrapper::perform_post(json5pp::value& j) {
     return true;
 }
 
-bool CurlWrapper::perform_patch(json5pp::value& j) {
+bool CurlWrapper::perform_patch(const json5pp::value& j) {
     if (!curl)
         return false;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -216,7 +216,7 @@ json5pp::value curlSimplePut(std::string url, std::string data) {
     return resp;
 }
 
-json5pp::value curlSimplePost(std::string url, json5pp::value& j) {
+json5pp::value curlSimplePost(std::string url, const json5pp::value& j) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
@@ -227,7 +227,7 @@ json5pp::value curlSimplePost(std::string url, json5pp::value& j) {
     return resp;
 }
 
-json5pp::value curlSimplePatch(std::string url, json5pp::value& j) {
+json5pp::value curlSimplePatch(std::string url, const json5pp::value& j) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};

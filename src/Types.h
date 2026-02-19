@@ -93,6 +93,11 @@ inline bool isSpaceStation(TypeNav type) {
 inline bool isPlanetarySite(TypeNav type) {
     return type >= TypeNav::PlanetaryThing && type <= TypeNav::PlanetaryConstrDepot;
 }
+inline bool isConstrDepot(TypeNav type) {
+    return type == TypeNav::SpaceConstrDepot ||
+           type == TypeNav::PlanetaryConstrDepot ||
+           type == TypeNav::ColonisationShip;
+}
 
 namespace gal {
     class Entity;

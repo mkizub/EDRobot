@@ -118,7 +118,7 @@ public:
 
 class EnterCruiseStep : public BaseAutopilotStep {
 public:
-    explicit EnterCruiseStep() = default;
+    explicit EnterCruiseStep(bool enterSimple=false) : enterSimple(enterSimple) {}
     bool run() final;
 
     std::string getTitle() override;
@@ -126,6 +126,8 @@ public:
     enum {
         READY, LOCK_BODY, LOCK_TARGET, ORIENT, MASSLOCKED, PREPARE, FSD_COOLDOWN, ENTER_CRUISE, FLY_AWAY, DONE
     } status {READY};
+
+    bool enterSimple;
 };
 
 class HyperJumpStep : public BaseAutopilotStep {

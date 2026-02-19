@@ -32,8 +32,11 @@ void carrierPostCargo(int64_t marketId, json5pp::value& j) {
 void carrierPatchCargo(int64_t marketId, json5pp::value& j) {
     if (!Cfg.isRavenColonialEnabled())
         return;
-    LOG(INFO) << "RavenColonial FC cargo patch: " << j;
-    curlSimplePatch(RCAPI_FC+std::to_string(marketId)+"/cargo", j);
+    std::jthread jt([=](std::stop_token stop_token){
+        LOG(INFO) << "RavenColonial FC cargo patch: " << j;
+        curlSimplePatch(RCAPI_FC+std::to_string(marketId)+"/cargo", j);
+    });
+    jt.detach(); // After this call, 'jt' no longer owns any thread
 }
 
 //{ "timestamp":"2026-02-11T18:55:36Z", "event":"ColonisationContribution", "MarketID":3955958274, "Contributions":[ { "Name":"$ComputerComponents_name;", "Name_Localised":"Компьютерные компоненты", "Amount":62 }, { "Name":"$FruitAndVegetables_name;", "Name_Localised":"Фрукты и овощи", "Amount":50 }, { "Name":"$InsulatingMembrane_name;", "Name_Localised":"Изолирующая мембрана", "Amount":347 }, { "Name":"$PowerGenerators_name;", "Name_Localised":"Электрогенераторы", "Amount":19 }, { "Name":"$Steel_name;", "Name_Localised":"Сталь", "Amount":13 }, { "Name":"$Water_name;", "Name_Localised":"Вода", "Amount":741 } ] }

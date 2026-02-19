@@ -1175,8 +1175,8 @@ bool EnterCruiseStep::run() {
     }
 
     bool flyAwayFromNearest = false;
-    status = LOCK_BODY;
-    {
+    if (!enterSimple) {
+        status = LOCK_BODY;
         dist_t dist;
         bool wasDestDockFocused = st::autopilot.isDestDockFocused;
         bool wasDestBodyFocused = st::autopilot.isDestBodyFocused;
@@ -1746,8 +1746,10 @@ spGameEvent BaseDockStep::requestDockingPermit() {
 bool BaseDockStep::autopilot() {
     LOG(DEBUG) << "Docking, autopilot";
     ExpectSceeenLocker expectAutopilot("scr-autopilot");
-    // 8 minutes for docking
-    timer = utc_timer(8min);
+    if (st::autopilot.destDock->type == TypeNav::SpaceConstrDepot)
+        timer = utc_timer(4min); // speedup relogin if blocked
+    else
+        timer = utc_timer(8min);
     status = AUTOPILOT;
     setSpeed(0, true, "Docking, autopilot"); // set speed to 0 to start autopilot
     sendUiBack();
@@ -3151,10 +3153,11 @@ bool DiveUnderPlanetStep::run() {
                     }
                     LOG(DEBUG) << "DiveUnderPlanet, disk_part=" << int(disk_part*100) << "%";
                     if (disk_part > 0.85) {
+                        cruisePitch = std::lerp(12.f, 0.f, (1-std::clamp(disk_part,0.f,1.f))/0.15f);
                         task->orientRollByTarget(180, 5);
-                        task->orientPitchStep(-(to_body_center_angle+4), 10000);
-                        if (!std::isnan(alphaO))
-                            cruisePitch = std::max(1.f, alphaO - to_body_center_angle);
+                        task->orientPitchStep(-(to_body_center_angle+cruisePitch), 10000);
+                        //if (!std::isnan(alphaO))
+                        //    cruisePitch = std::max(1.f, alphaO - to_body_center_angle);
                         keepCruisePitch = cruisePitch;
                     //} else if (disk_part < 0.6) {
                     //    if (!std::isnan(alphaO)) {
@@ -3624,6 +3627,7 @@ bool ExitCruiseToPlanet::run() {
         if (keepPitch)
             task->orientPitchStep(keepPitch);
     }
+    task->orientTowardTarget(4);
 
     if (!(st::shipAtBody.approachBody || st::shipAtBody.nearBody))
         throw_trouble("Cannot get to body vicinity");
@@ -3901,8 +3905,10 @@ bool CruiseAndDock::run() {
     if (!st::autopilot.destDock)
         throw_failed("No destination dock");
     bool toPort = isPlanetarySite(st::autopilot.destDock->type);
+    bool fromPort = st::shipAtBody.approachBody || st::shipAtBody.nearBody;
     LOG(DEBUG) << "CruiseAndDock, start, to planetary port=" << toPort;
 
+    bool just_departured = false;
     if (st::ship.flags.docked) {
         if (!st::dockedAt.stationName.empty() && st::autopilot.destDock->nameEq(st::dockedAt.stationName)) {
             LOG(DEBUG) << "CruiseAndDock, done, already at the dock";
@@ -3914,18 +3920,68 @@ bool CruiseAndDock::run() {
         status = DEPARTURE;
         if (!run_sub_step(new DepartureStep))
             throw_trouble("Cannot departure from dock");
+        just_departured = true;
     }
 
     bool at_dest_dock = !st::ship.flags.cruise && (
             st::autopilot.destDock->nameEq(st::space.stationName) ||
             st::autopilot.destDock->nameEq(st::space.bodyName)
             );
-    if (at_dest_dock || !st::ship.flags.cruise) {
+    if (at_dest_dock || (!just_departured && !st::ship.flags.cruise)) {
         run_sub_step(new NavDockSelect);
         at_dest_dock = st::autopilot.distanceToDock < 50_km;
     }
     LOG(DEBUG) << "CruiseAndDock, at dest dock=" << at_dest_dock;
 
+    // check fast travel path (travel at local body)
+    if (!at_dest_dock && !st::ship.flags.cruise && !toPort && !fromPort && st::space.marketId && st::autopilot.destDock && st::autopilot.destBody) {
+        auto at_dock = gal::getCurrentStarSystem()->getDock(st::space.marketId);
+        auto at_body = gal::getCurrentStarSystem()->getBodyById(at_dock ? at_dock->parentBodyId : -1);
+        if (at_body && at_body->radius && at_body == st::autopilot.destBody) {
+            if (!run_sub_step(new NavDockSelect))
+                goto full_path;
+            if (!task->orientTowardTarget(1))
+                goto full_path;
+            if (!ai::compassInfo.has_nav_target)
+                goto full_path;
+            if (!run_sub_step(new NavBodySelect))
+                goto full_path;
+            dist_t dist_body = st::autopilot.distanceToBody;
+            sendUiBack();
+            ai::detectEDState(DetectLevel::Screen);
+            if (!dist_body || !ai::compassInfo.hemisphere) {
+                sleep(1000);
+                ai::detectEDState(DetectLevel::Screen);
+                if (!dist_body || !ai::compassInfo.hemisphere)
+                    goto full_path;
+            }
+            if (ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle < 70) {
+                float visible_body_angle = std::asin(at_body->radius / dist_body.get_km()) * 180 / M_PI;
+                float to_body_center_angle = ai::compassInfo.targetAngle;
+                const double orbitAltitude = 500+at_body->radius*0.415; // orbit enter altitude
+                const double bypassDistance = at_body->radius + orbitAltitude;
+                float bypassAngle = std::asin(bypassDistance / dist_body.get_km()) * 180 / M_PI;
+                if (to_body_center_angle < bypassAngle)
+                    goto full_path;
+            }
+            if (!run_sub_step(new NavDockSelect))
+                goto full_path;
+            if (!task->orientTowardTarget(8))
+                goto full_path;
+            // now showt path: enter cruise and exit to space station
+            status = ENTER_CRUISE;
+            if (!run_sub_step(new EnterCruiseStep(true)))
+                throw_trouble("Cannot enter cruise");
+            if (!run_sub_step(new ExitCruiseToSpace(0)))
+                throw_trouble("Failed to exit cruise");
+            at_dest_dock = !st::ship.flags.cruise && (
+                    st::autopilot.destDock->nameEq(st::space.stationName) ||
+                    st::autopilot.destDock->nameEq(st::space.bodyName)
+            );
+        }
+    }
+
+full_path:
     int noCompassCount = 0;
     while (!at_dest_dock) {
         bool relaxed_min_dist = false;

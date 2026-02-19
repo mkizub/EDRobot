@@ -161,6 +161,8 @@ add_executable(EDRobot
         src/widget/LoadScreens.cpp
         src/net/RavenColonial.cpp
         src/net/RavenColonial.h
+        src/ai/ColonizationTasks.cpp
+        src/ai/ColonizationTasks.h
 )
 
 

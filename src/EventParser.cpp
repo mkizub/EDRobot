@@ -415,6 +415,12 @@ void parseEvent_Commander(spGameEvent& ge) {
 }
 
 void parseEvent_LoadGame(spGameEvent& ge) {
+    {
+        // for relogin
+        Cfg.dockingEvent.reset();
+        Cfg.marketEvent.reset();
+        st::compass = {};
+    }
     auto& je = ge->data;
     if (je["Commander"].is_string())
         setCommander(je["Commander"].as_string(), je["FID"].as_string());
@@ -485,6 +491,8 @@ void parseEvent_Location(spGameEvent& ge) {
         set(st::dockedAt.stationName, je.at("StationName",""));
         set(st::dockedAt.stationType, je.at("StationType",""));
         gal::getCurrentStarSystem()->addStation(ge);
+        auto market = gal::getMarket(je.at("MarketID",0).as_int64());
+        st::currentMarket.swap(market);
         st::space = {};
     } else {
         if (je["Body"].is_string()) {
@@ -994,10 +1002,16 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
     Timestamp cargo_timestamp;
     if (st::currentCargo)
         cargo_timestamp = st::currentCargo->timestamp;
-    auto* market = st::currentMarket.get();
-    if (!market)
-        return;
+    auto market = st::currentMarket;
+    if (!market) {
+        int64_t marketId = je.at("MarketID",0).as_int64();
+        market = gal::getMarket(marketId);
+        if (!market)
+            return;
+        st::currentMarket.swap(market);
+    }
 
+    bool saveCarrier = false;
     auto* commodity = Cfg.getCommodityById(je["Type"].asif_string());
     auto count = je.at("Count",0).as_integer();
     if (commodity) {
@@ -1008,8 +1022,7 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
         if (market->marketId == st::cmdr.fleetCarrierId && commodity->fc.timestamp < ge->timestamp) {
             commodity->fc.count = std::max(0, commodity->fc.count-count);
             commodity->fc.timestamp = ge->timestamp;
-            std::map<Commodity*,int> fcPatch {{commodity, -count}};
-            Cfg.saveCarrierCargo(ge->timestamp, fcPatch);
+            saveCarrier = true;
         }
         if (market->timestamp < ge->timestamp) {
             auto it = market->items.find(commodity);
@@ -1020,6 +1033,10 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
         }
     }
     UIManager::updateCargoDialog();
+    if (saveCarrier) {
+        std::map<Commodity *, int> fcPatch{{commodity, -count}};
+        Cfg.saveCarrierCargo(ge->timestamp, fcPatch);
+    }
 }
 void parseEvent_MarketSell(spGameEvent& ge) {
     Cfg.marketEvent = ge;
@@ -1028,10 +1045,16 @@ void parseEvent_MarketSell(spGameEvent& ge) {
     Timestamp cargo_timestamp;
     if (st::currentCargo)
         cargo_timestamp = st::currentCargo->timestamp;
-    auto* market = st::currentMarket.get();
-    if (!market)
-        return;
+    auto market = st::currentMarket;
+    if (!market) {
+        int64_t marketId = je.at("MarketID",0).as_int64();
+        market = gal::getMarket(marketId);
+        if (!market)
+            return;
+        st::currentMarket.swap(market);
+    }
 
+    bool saveCarrier = false;
     auto* commodity = Cfg.getCommodityById(je["Type"].asif_string());
     auto count = je.at("Count",0).as_integer();
     if (commodity) {
@@ -1042,8 +1065,7 @@ void parseEvent_MarketSell(spGameEvent& ge) {
         if (market->marketId == st::cmdr.fleetCarrierId && commodity->fc.timestamp < ge->timestamp) {
             commodity->fc.count += count;
             commodity->fc.timestamp = ge->timestamp;
-            std::map<Commodity*,int> fcPatch {{commodity, count}};
-            Cfg.saveCarrierCargo(ge->timestamp, fcPatch);
+            saveCarrier = true;
         }
         if (market->timestamp < ge->timestamp) {
             auto it = market->items.find(commodity);
@@ -1056,6 +1078,10 @@ void parseEvent_MarketSell(spGameEvent& ge) {
         }
     }
     UIManager::updateCargoDialog();
+    if (saveCarrier) {
+        std::map<Commodity*,int> fcPatch {{commodity, count}};
+        Cfg.saveCarrierCargo(ge->timestamp, fcPatch);
+    }
 }
 
 void parseEvent_CargoTransfer(spGameEvent& ge) {

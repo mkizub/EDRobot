@@ -25,32 +25,6 @@ public:
     } status {READY};
 };
 
-class TaskMyCarrierReserve final : public Task {
-public:
-    explicit TaskMyCarrierReserve(const TaskTemplate& templ);
-    bool run() final;
-
-private:
-    struct MarketInfo {
-        std::string systemName;
-        std::string dockName;
-        gal::spEntity dock;
-        spMarket dockMarket;
-        int canBuy;
-    };
-    gal::spEntity getCurrDock();
-    std::vector<std::pair<Commodity*, int>> calcDemands();
-    MarketInfo checkMarket(const std::string& systemName, const std::string& dockName,
-                           const std::vector<std::pair<Commodity*, int>>& demands);
-    MarketInfo chooseBestMarket(const std::vector<std::pair<Commodity*, int>>& demands);
-    bool deliverToCarrier();
-
-    std::string destSystemName;
-    std::string destDockName;
-    std::string myCarrierName;
-};
-
-
 }
 
 #endif //EDROBOT_CARRIERTASKS_H

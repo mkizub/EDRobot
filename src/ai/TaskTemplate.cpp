@@ -11,6 +11,7 @@
 #include "TaskDebug.h"
 #include "ContactsTasks.h"
 #include "CarrierTasks.h"
+#include "ColonizationTasks.h"
 
 namespace ai {
 
@@ -20,9 +21,10 @@ const std::string ED_TASK_MARKET_SELL_ALL = "tsk-market-sell-all";
 const std::string ED_TASK_MARKET_BUY = "tsk-market-buy";
 const std::string ED_TASK_MARKET_BUY_ALL = "tsk-market-buy-all";
 const std::string ED_TASK_MARKET_BUY_CONSTR = "tsk-market-buy-constr";
-const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
 const std::string ED_TASK_CARRIER_UNLOAD = "tsk-carrier-unload";
-const std::string ED_TASK_CARRIER_RESERVE = "tsk-carrier-reserve";
+const std::string ED_TASK_CONSTR_UNLOAD = "tsk-constr-unload";
+const std::string ED_TASK_CONSTR_RESERVE = "tsk-constr-reserve";
+const std::string ED_TASK_CONSTR_BUILD = "tsk-constr-build";
 const std::string ED_TASK_ACQUIRE_PPC = "tsk-contact-acquire-ppc";
 const std::string ED_TASK_DELIVER_PPC = "tsk-contact-deliver-ppc";
 const std::string ED_TASK_TRADE_AT = "tsk-trade-at";
@@ -456,15 +458,27 @@ void initTemplates() {
             })}}), "ListLittleFirst"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
-    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
     templates.emplace_back(ED_TASK_CARRIER_UNLOAD, _lc("Unload cargo to own carrier"), FACTORY(TaskMyCarrierUnload));
-    templates.emplace_back(ED_TASK_CARRIER_RESERVE, _lc("Fill carrier for constructions"), FACTORY(TaskMyCarrierReserve), P{
+    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
+    templates.emplace_back(ED_TASK_CONSTR_RESERVE, _lc("Fill carrier for constructions"), FACTORY(TaskMyCarrierReserve), P{
             { Param::Site,     "carrier",_lc("My carrier location") },
             { Param::Array,    "depots",  _lc("Construction depots"), META(
                     R"({elements:{type:'Site'}})")},
             { Param::Array,    "markets",  _lc("Markets"), META(
                     R"({elements:{type:'Site'}})")},
             { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
+                json5pp::object({{"id", "FirstListed"},  {"name",  _lc("First listed")}}),
+                json5pp::object({{"id", "ExceptListed"}, {"name",  _lc("Except listed")}}),
+                json5pp::object({{"id", "OnlyListed"},   {"name",  _lc("Only listed")}}),
+            })}}), "OnlyListed"},
+            { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
+    });
+    templates.emplace_back(ED_TASK_CONSTR_BUILD, _lc("Build constructions"), FACTORY(TaskConstruction), P{
+            { Param::Site,     "depot",   _lc("Construction depot") },
+            { Param::Array,    "markets", _lc("Markets"), META(
+                    R"({elements:{type:'Site'}})")},
+            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
+                json5pp::object({{"id", "FirstListed"},  {"name",  _lc("First listed")}}),
                 json5pp::object({{"id", "ExceptListed"}, {"name",  _lc("Except listed")}}),
                 json5pp::object({{"id", "OnlyListed"},   {"name",  _lc("Only listed")}}),
             })}}), "OnlyListed"},
