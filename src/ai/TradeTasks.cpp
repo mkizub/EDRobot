@@ -11,6 +11,7 @@
 #include "../widget/List.h"
 #include "../FuzzyMatch.h"
 #include "../Keyboard.h"
+#include "../net/RavenColonial.h"
 
 #ifdef CPPTRACE_TRY
 # define TRY CPPTRACE_TRY
@@ -737,6 +738,10 @@ bool TaskBuyConstr::run() {
     if (st::shipStats.cargo >= st::shipStats.cargoCapacity)
         return true;
     gotoMarketScreen(true);
+
+    depotMarket = RavenColonial::updateConstructionDepot(depotMarket);
+    if (depotMarket->raven.status == "complete")
+        throw_complete("Construction complete");
 
     bool triedToBuy = false;
     if (buy_queue.empty()) {

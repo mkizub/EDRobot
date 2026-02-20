@@ -9,8 +9,47 @@
 #include "AIUtils.h"
 
 #include "../Keyboard.h"
+#include "../Galaxy.h"
+#include "../net/RavenColonial.h"
 
 namespace ai {
+
+std::string BaseColonizationTask::constructionPrefixes[] {
+        "Orbital Construction Site:",
+        "Planetary Construction Site:",
+        "System Colonisation Ship",
+        "Колонизационный корабль",
+};
+
+
+void BaseColonizationTask::addDepotInfo(const json5pp::value& dv) {
+    auto& systemName = dv["system"].asif_string();
+    auto& fullName = dv["dock"].asif_string();
+    std::string shortName;
+    for (auto& pr : constructionPrefixes) {
+        if (fullName.starts_with(pr)) {
+            shortName = trim(fullName.substr(pr.size()));
+            break;
+        }
+    }
+    auto starSystem = gal::getStarSystem(systemName);
+    if (!starSystem)
+        throw_failed("Star system '{}' not known", systemName);
+    auto depot = starSystem->getDock(fullName);
+    if (!depot)
+        throw_failed("Construction depot '{}' not known", fullName);
+    spMarket depotMarket = gal::getMarket(depot->marketId);
+    if (!depotMarket|| depotMarket->items.empty())
+        throw_failed("Construction depot '{}' demand is not known", fullName);
+    if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot || depot->type == TypeNav::ColonisationShip || depotMarket->stationType == "ConstrDepot"))
+        throw_failed("Site '{}' is not a construction depot", fullName);
+    auto& depotInfo = depots.emplace_back(systemName, fullName, shortName);
+    depotInfo.marketId = depot->marketId;
+    if (depotMarket) {
+        depotInfo.ravenBuildId = depotMarket->raven.buildId;
+        depotInfo.ravenProjectTimestamp = depotMarket->raven.timestamp;
+    }
+}
 
 gal::spEntity BaseColonizationTask::getCurrDock() {
     gal::spEntity dock;
@@ -52,20 +91,12 @@ void BaseColonizationTask::travelResume() {
 }
 
 
-void BaseColonizationTask::addDemands(const json5pp::value& dv, Demands& demands) {
-    auto& systemName = dv["system"].asif_string();
-    auto& dockName = dv["dock"].asif_string();
-    auto starSystem = gal::getStarSystem(systemName);
-    if (!starSystem)
-        throw_failed("Star system '{}' not known", systemName);
-    auto depot = starSystem->getDock(dockName);
-    if (!depot)
-        throw_failed("Construction depot '{}' not known", dockName);
-    spMarket depotMarket = gal::getMarket(depot->marketId);
-    if (!depotMarket|| depotMarket->items.empty())
-        throw_failed("Construction depot '{}' demand is not known", dockName);
-    if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot || depot->type == TypeNav::ColonisationShip || depotMarket->stationType == "ConstrDepot"))
-        throw_failed("Site '{}' is not a construction depot", dockName);
+void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
+    spMarket depotMarket = gal::getMarket(dv.marketId);
+    if (!dv.ravenBuildId.empty() && (dv.ravenProjectTimestamp+30s) < Timestamp::clock::now()) {
+        depotMarket = RavenColonial::updateConstructionDepot(depotMarket);
+        dv.ravenProjectTimestamp = depotMarket->raven.timestamp;
+    }
     for (auto& item : depotMarket->items) {
         Commodity* c = item.first;
         if (!demands.specialCommodityList.empty()) {
@@ -107,19 +138,8 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
             demands.onlyListed = true;
     }
 
-    {
-        const Param &p_depots = templ.get("depots");
-        if (p_depots.value.is_array()) {
-            for (auto &dv: p_depots.value.as_array()) {
-                addDemands(dv, demands);
-            }
-        }
-    }
-    {
-        const Param &p_depot = templ.get("depot");
-        if (p_depot.value.is_object()) {
-            addDemands(p_depot.value, demands);
-        }
+    for (auto& di : depots) {
+        addDemands(di, demands);
     }
 
     bool considerCarrier = (templ.id == ED_TASK_CONSTR_RESERVE);
@@ -340,6 +360,11 @@ bool TaskMyCarrierReserve::run() {
         throw_failed("Pilot has no fleet carrier");
     if (myCarrierName.empty())
         myCarrierName = templ.get("carrier").value["dock"].asif_string();
+    if (depots.empty()) {
+        const Param &p_depots = templ.get("depots");
+        for (auto &dv: p_depots.value.asif_array())
+            addDepotInfo(dv);
+    }
 
     travelResume();
 
@@ -383,6 +408,11 @@ TaskConstruction::TaskConstruction(const TaskTemplate &templ)
 }
 
 bool TaskConstruction::run() {
+    if (depots.empty()) {
+        const Param &p_depot = templ.get("depot");
+        addDepotInfo(p_depot.value);
+    }
+
     travelResume();
 
     auto demands = calcDemands();

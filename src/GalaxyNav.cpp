@@ -270,6 +270,7 @@ NavType* NavType::findNavType(TypeNav tp) {
 }
 
 bool NavType::expandName(const std::string nm, std::string& name, std::string& nloc) {
+    // $INT_PANEL_module_inactive; -> НЕАКТИВНО
     if (nm.starts_with("$EXT_PANEL_ColonisationShip;")) {
         name = "System Colonisation Ship" + nm.substr(28);
         nloc = nm;

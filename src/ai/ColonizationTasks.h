@@ -14,8 +14,19 @@ namespace ai {
 
 class BaseColonizationTask : public Task {
 protected:
-    explicit BaseColonizationTask(const TaskTemplate& templ_) : Task(templ_) {}
+    static std::string constructionPrefixes[];
 
+    explicit BaseColonizationTask(const TaskTemplate& templ_) : Task(templ_) {}
+    void addDepotInfo(const json5pp::value& dv);
+
+    struct DepotInfo {
+        std::string systemName;
+        std::string fullName;
+        std::string shortName;
+        int64_t marketId {};
+        Timestamp ravenProjectTimestamp {};
+        std::string ravenBuildId;
+    };
     struct Demands {
         std::set<Commodity*> specialCommodityList;
         std::map<Commodity*, int> toDeliver;
@@ -38,7 +49,7 @@ protected:
     gal::spEntity getCurrDock();
     gal::spEntity travelTo(std::string systemName, std::string dockName);
     void travelResume();
-    void addDemands(const json5pp::value& depot, Demands& demands);
+    void addDemands(DepotInfo& depot, Demands& demands);
     Demands calcDemands();
 
     MarketInfo checkMarketCanBuy(const std::string& systemName, const std::string& dockName,
@@ -46,6 +57,7 @@ protected:
     void tradeCommodities(const gal::spEntity& currDock, const Demands& demands,
                           const std::vector<Commodity*>* unnecessaryCargo = nullptr);
 
+    std::vector<DepotInfo> depots;
 private:
     std::string destSystemName;
     std::string destDockName;

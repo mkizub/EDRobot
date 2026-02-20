@@ -952,8 +952,15 @@ bool TaskDebugShipStats::rotateCurveTest(Axis& axis, const std::vector<float>& s
 
 
 bool DepartureStep::run() {
-    if (fromDock.empty())
-        fromDock = st::dockedAt.stationName;
+    if (fromDock.empty()) {
+        auto dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.marketId);
+        if (!dock)
+            dock = gal::getCurrentStarSystem()->getDock(st::dockedAt.stationName);
+        if (dock)
+            fromDock = dock->name;
+        else
+            fromDock = st::dockedAt.stationName;
+    }
     LOG(DEBUG) << "Departure from " << fromDock;
 
     bool fromCompletedConstruction = false; // autopilot is off after construction is complete

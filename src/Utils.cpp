@@ -383,8 +383,12 @@ bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
     if (str.empty())
         return false;
     std::istringstream iss(str);
-    if (str.size() == 20 && str[str.size()-1] == 'Z' && str[10] == 'T')
-        iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ", timestamp);
+    if (str.size() >= 20 && str[10] == 'T') {
+        if (str[str.size()-1] == 'Z')
+            iss >> std::chrono::parse("%FT%TZ", timestamp);
+        else
+            iss >> std::chrono::parse("%FT%T%Ez", timestamp);
+    }
     else if (str.size() == 19 && str[10] == ' ')
         iss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", timestamp);
     else

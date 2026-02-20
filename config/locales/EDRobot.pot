@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-02-14 16:27+0200\n"
+"POT-Creation-Date: 2026-02-19 23:23+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,31 +17,31 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: D:\Work\ED\EDRobot\src\Configuration.cpp:179
+#: D:\Work\ED\EDRobot\src\Configuration.cpp:185
 msgid "Error initializing DirectX"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\Configuration.cpp:184
+#: D:\Work\ED\EDRobot\src\Configuration.cpp:190
 msgid "Failed to load ship database"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\Configuration.cpp:186
+#: D:\Work\ED\EDRobot\src\Configuration.cpp:192
 msgid "Failed to load game journal"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\Configuration.cpp:188
+#: D:\Work\ED\EDRobot\src\Configuration.cpp:194
 msgid "Failed to load game settings"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\Configuration.cpp:190
+#: D:\Work\ED\EDRobot\src\Configuration.cpp:196
 msgid "Failed to load game player options"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\Configuration.cpp:192
+#: D:\Work\ED\EDRobot\src\Configuration.cpp:198
 msgid "Failed to load all required key bindings"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\Configuration.cpp:208
+#: D:\Work\ED\EDRobot\src\Configuration.cpp:214
 msgid "Failed to load commodity database"
 msgstr ""
 
@@ -76,7 +76,7 @@ msgstr ""
 msgid "vJoy driver not found or busy"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AIManager.cpp:283
+#: D:\Work\ED\EDRobot\src\ai\AIManager.cpp:295
 msgid "Resurrect"
 msgstr ""
 
@@ -167,15 +167,15 @@ msgstr ""
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:331
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:397
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:432
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3325
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3359
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3353
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3387
 msgid "Orientation: goto compass"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:341
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:409
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:444
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3335
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3363
 #, c++-format
 msgid "Unexpected ui mode {}"
 msgstr ""
@@ -183,7 +183,7 @@ msgstr ""
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:348
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:416
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:451
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3340
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3368
 msgid "Compass not detected"
 msgstr ""
 
@@ -199,722 +199,724 @@ msgstr ""
 msgid "Unsupported or unknown ship: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1010
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1027
 msgid "Takeoff failed"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1036
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1061
 msgid "Autopilot time expired"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1050
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1075
 msgid "Departure complete (autopilot off)"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1053
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1078
 #, c++-format
 msgid "Auto-pilot off counter: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1087
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1341
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1518
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1112
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1366
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1543
 msgid "Mass-locked, flying away"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1097
-msgid "Ready to jump, flying away"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1112
-#, c++-format
-msgid "Departed from: {}"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1113
-#, c++-format
-msgid "Departing from: {}"
-msgstr ""
-
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1122
-msgid "Going to landing pad"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1124
-msgid "Refuel/repair/rearm"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1126
-#, c++-format
-msgid "Takeoff: {}"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1131
-#, c++-format
-msgid "Autopilot exiting: {}"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1133
-#, c++-format
-msgid "Autopilot: {}"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1135
-msgid "Orient away from planet"
+msgid "Ready to jump, flying away"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1137
 #, c++-format
+msgid "Departed from: {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1138
+#, c++-format
+msgid "Departing from: {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1147
+msgid "Going to landing pad"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1149
+msgid "Refuel/repair/rearm"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1151
+#, c++-format
+msgid "Takeoff: {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1156
+#, c++-format
+msgid "Autopilot exiting: {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1158
+#, c++-format
+msgid "Autopilot: {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1160
+msgid "Orient away from planet"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1162
+#, c++-format
 msgid "Leaving depot: {}s"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1139
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1306
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1476
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1628
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1164
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1331
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1501
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1653
 #, c++-format
 msgid "Mass-locked: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1141
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1314
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1484
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1166
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1339
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1509
 #, c++-format
 msgid "Fly away: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1143
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1168
 msgid "Re-login"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1213
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1238
 msgid "Cannot enter cruise: mass-locked"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1241
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1266
 msgid "Cannot enter cruise: FSD cooldown"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1249
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1264
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1556
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1577
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1274
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1289
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1581
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1602
 msgid "Entering supercruise failed"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1276
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1589
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1600
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2604
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2808
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3046
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3366
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3421
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3458
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3583
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3599
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3648
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3812
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1301
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1614
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1625
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2631
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2835
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3073
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3394
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3449
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3486
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3611
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3627
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3677
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3841
 msgid "Unexpected cruise exit"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1290
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1315
 msgid "Entered cruise"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1291
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3873
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4093
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1316
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3902
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4174
 msgid "Entering cruise"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1300
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1624
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1325
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1649
 msgid "Locking body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1302
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1327
 msgid "Locking target"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1304
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1626
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3871
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1329
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1651
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3900
 msgid "Orienting"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1308
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1630
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1333
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1655
 msgid "Preparing"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1310
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1632
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1335
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1657
 #, c++-format
 msgid "FSD Cooldown: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1312
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1634
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1337
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1659
 #, c++-format
 msgid "Entering cruise: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1361
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1386
 msgid "Entering jump failed"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1376
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1396
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1401
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1421
 msgid "Jump failed"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1466
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1491
 #, c++-format
 msgid "Jumped to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1467
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1492
 #, c++-format
 msgid "Jumping to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1478
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1503
 #, c++-format
 msgid "Charging: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1480
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1505
 #, c++-format
 msgid "Hyperspace: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1482
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1507
 msgid "Avoid star"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1502
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1527
 msgid "Cannot focus nearest body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1504
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1529
 msgid "Cannot select focused nearest body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1523
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1548
 msgid "Cannot leave mass-locked area"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1614
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1639
 #, c++-format
 msgid "Leaved: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1615
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1640
 #, c++-format
 msgid "Leaving: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1636
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1661
 #, c++-format
 msgid "Leaving body: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1638
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3877
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1663
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3906
 #, c++-format
 msgid "Fly away {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1779
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1806
 #, c++-format
 msgid "Docked to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1780
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1807
 #, c++-format
 msgid "Docking to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1788
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1815
 msgid "Prepare docking"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1791
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1818
 #, c++-format
 msgid ""
 "{}\n"
 "Approaching, passed {}, dist {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1792
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3730
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1819
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3759
 #, c++-format
 msgid "Approaching, passed {}, dist {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1795
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1822
 #, c++-format
 msgid ""
 "{}\n"
 "Requesting permit"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1796
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1823
 msgid "Requesting permit"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1799
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1826
 #, c++-format
 msgid ""
 "{}\n"
 "Waiting"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1802
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1829
 #, c++-format
 msgid "Autopilot {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1804
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1831
 msgid "Refuel"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1840
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2150
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1867
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2177
 msgid "Docking not possible in super-cruise mode"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1842
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2152
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1869
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2179
 msgid "Docking - already docked"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1849
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2159
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1876
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2186
 msgid "Destination is not dockable"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1852
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2162
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1879
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2189
 msgid "Docking request while autopilot is active"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1867
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1894
 msgid "Cannot enter cockpit mode"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1871
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1898
 msgid "Cannot target destination dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1873
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1900
 msgid "Cannot orient ship towards dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1943
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1970
 #, c++-format
 msgid "Docking impossible, reason: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1946
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2242
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:1973
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2269
 #, c++-format
 msgid "Unknown docking event: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2236
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2263
 msgid "Incorrect docking distance"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2415
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3884
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2442
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3913
 msgid "No destination dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2425
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2452
 msgid "Failed to find the dock in nav list"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2429
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2456
 msgid "Failed to select the dock in nav list"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2454
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2481
 #, c++-format
 msgid "Selecting dock: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2456
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2483
 #, c++-format
 msgid "Cannot select dock: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2458
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2485
 #, c++-format
 msgid "Selected dock: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2468
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2495
 msgid "No destination body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2481
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2486
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2508
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2513
 msgid "Failed to find the body in nav list"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2491
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2518
 msgid "Failed to select the body in nav list"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2506
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2533
 msgid "Missmatch dock and body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2529
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2556
 #, c++-format
 msgid "Selecting {0}: {1}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2531
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2558
 #, c++-format
 msgid "Cannot select {0}: {1}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2533
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2560
 #, c++-format
 msgid "Selected {0}: {1}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2592
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2796
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2619
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2823
 msgid "Fly towards"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2608
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2812
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3370
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3915
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2635
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2839
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3398
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3996
 #, c++-format
 msgid "Unexpected close to body: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2614
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2823
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2641
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2850
 msgid "Bad dist in nav list"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2634
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2850
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3958
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2661
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2877
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4039
 msgid "Cannot see compass"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2642
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2859
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2669
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2886
 msgid "Bad dist in target mark"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2651
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2870
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2678
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2897
 msgid "Cannot see target mark"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2791
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2818
 msgid "Fly away"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2963
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2990
 #, c++-format
 msgid "Cruised from: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2965
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2992
 #, c++-format
 msgid "Cruised to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2968
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2995
 #, c++-format
 msgid "Cruising from: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2970
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2997
 #, c++-format
 msgid "Cruising to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2988
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3015
 msgid "Dist bad"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2989
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3016
 msgid "Dist huge"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2990
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3017
 msgid "Dist far"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2991
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3018
 msgid "Dist close"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2992
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3019
 msgid "Dist near"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:2993
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3020
 msgid "Reached"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3291
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3319
 msgid "Cannot select body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3394
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3422
 #, c++-format
 msgid "Aligned to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3395
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3423
 #, c++-format
 msgid "Aligning to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3404
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3432
 msgid "Orient to body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3406
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3434
 msgid "Get distance to body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3408
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3436
 msgid "Orient to dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3410
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3438
 msgid "Get distance to dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3412
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3440
 msgid "Orient to dive"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3414
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3442
 msgid "Dive fly"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3476
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3504
 msgid "Lost compass or cruise direction"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3483
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3511
 msgid "Too far from dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3520
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3677
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3548
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3706
 msgid "Arrived, speed zero"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3531
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3690
-#, c++-format
-msgid "Unexpected distance after cruise exit: {}"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3543
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3700
-msgid "Cannot confirm distance after cruise exit"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3559
 #: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3719
 #, c++-format
+msgid "Unexpected distance after cruise exit: {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3571
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3729
+msgid "Cannot confirm distance after cruise exit"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3587
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3748
+#, c++-format
 msgid "Exited cruise at: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3560
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3720
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3588
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3749
 #, c++-format
 msgid "Exiting cruise to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3565
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3725
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3593
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3754
 msgid "Orienting towards target"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3568
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3596
 #, c++-format
 msgid "Approaching, dist {} (fails {})"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3570
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3598
 #, c++-format
 msgid "Approaching, dist {} (confirm {})"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3572
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3600
 #, c++-format
 msgid "Approaching, dist {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3575
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3603
 #, c++-format
 msgid "Exiting cruise {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3577
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3605
 #, c++-format
 msgid ""
 "Checking distance\n"
 "fails {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3611
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3640
 msgid "Cannot get to body vicinity"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3636
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3665
 msgid "Cannot see destination site"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3673
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3702
 msgid "Cannot reach planetary port"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3727
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3756
 #, c++-format
 msgid "Fly to body, passed {}, dist {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3733
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3762
 msgid "Exiting cruise"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3735
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3764
 msgid "Checking distance"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3753
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3898
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3782
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3929
 msgid "Cannot departure from dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3860
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3889
 #, c++-format
 msgid "Routed to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3861
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3890
 #, c++-format
 msgid "Routing {0}/{1} to: {2}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3875
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4095
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3904
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4176
 msgid "Fly away from nearest body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3919
-msgid "Cannot leave body"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3925
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3981
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4006
 msgid "Cannot enter cruise"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4004
-msgid "Cannot cruise to dock/body"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4043
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4046
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:3983
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4124
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4127
 msgid "Failed to exit cruise"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4060
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4000
+msgid "Cannot leave body"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4085
+msgid "Cannot cruise to dock/body"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4141
 msgid "Failed to dock at space station"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4063
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4144
 msgid "Failed to dock at planet port"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4082
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4163
 #, c++-format
 msgid "Cruise and dock: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4091
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4172
 msgid "Departure"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4097
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4178
 msgid "Get close to body"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4099
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4180
 msgid "Dive to space"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4101
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4182
 msgid "Leaving cruise"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4103
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4184
 msgid "Docking"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4123
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4204
 #, c++-format
 msgid "Travel to: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4131
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4212
 msgid "Destination system and dock required"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4147
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4228
 #, c++-format
 msgid "Cannot make route to destination system: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4151
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4153
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4209
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4232
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4234
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4290
 msgid "Cannot reach destination system"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4159
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4240
 #, c++-format
 msgid "Cannot find destination dock: {0} in system {1}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4164
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4245
 msgid "Cannot select destination dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4185
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4269
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4266
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4350
 msgid "Cannot cruise and dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4198
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:415
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4279
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:417
 msgid "Autopilot"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4214
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4263
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4295
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4344
 msgid "No destination dock selected"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4261
+#: D:\Work\ED\EDRobot\src\ai\AutopilotTasks.cpp:4342
 msgid "Cannot cruise to signal"
 msgstr ""
 
@@ -942,71 +944,63 @@ msgid "Going to transfer page"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:152
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:892
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:947
 msgid "Unloading"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:154
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:894
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:949
 #, c++-format
 msgid "Unloaded {} items"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:156
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:896
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:951
 msgid "Nothing to unload"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:184
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:222
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:717
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:41
+#, c++-format
+msgid "Trouble traveling to {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:60
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:162
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:727
 #, c++-format
 msgid "Star system '{}' not known"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:187
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:720
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:63
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:730
 #, c++-format
 msgid "Construction depot '{}' not known"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:190
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:723
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:66
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:733
 #, c++-format
 msgid "Construction depot '{}' demand is not known"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:192
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:725
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:68
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:735
 #, c++-format
 msgid "Site '{}' is not a construction depot"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:225
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:165
 #, c++-format
 msgid "Market '{}' not known"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:243
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:183
 #, c++-format
 msgid "Site '{}' is not a market"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:301
-#, c++-format
-msgid "Trouble traveling to carrier {}"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:311
+#: D:\Work\ED\EDRobot\src\ai\ColonizationTasks.cpp:340
 msgid "Pilot has no fleet carrier"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\CarrierTasks.cpp:334
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:922
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:925
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1161
-#, c++-format
-msgid "Trouble traveling to market {}"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\ContactsTasks.cpp:70
@@ -1031,7 +1025,7 @@ msgid "Cannot recognize nav type from icon"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\Task.cpp:387
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:482
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:496
 #: D:\Work\ED\EDRobot\src\ui\UIMainDialog.cpp:289
 msgid "Repeat"
 msgstr ""
@@ -1040,186 +1034,201 @@ msgstr ""
 msgid "Cannot create task for next step"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:238
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:240
 #: D:\Work\ED\EDRobot\src\ui\UITaskEditor.cpp:366
 #: D:\Work\ED\EDRobot\src\ui\UITaskEditor.cpp:535
 msgid "placeholder"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:416
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:418
 msgid "Trade at station"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:417
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:419
 msgid "Market"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:418
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:485
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:420
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:499
 msgid "Tasks"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:426
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:428
 msgid "Trade loop"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:427
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:465
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:429
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:467
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:478
 msgid "Markets"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:430
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:432
 msgid "Sell everything"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:431
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:437
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:433
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:439
 msgid "By chunk"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:432
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:434
 msgid "Except"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:434
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:436
 msgid "Sell"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:435
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:440
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:443
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:457
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:471
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:437
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:442
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:445
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:459
 #: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:474
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:477
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:485
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:488
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:491
 msgid "Commodity"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:436
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:444
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:438
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:446
 msgid "Amount"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:439
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:441
 msgid "Buy all"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:442
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:444
 msgid "Buy"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:446
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:448
 msgid "Buy for construction"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:447
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:449
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:477
 msgid "Construction depot"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:448
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:450
 msgid "Consider Fleet Carrier"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:449
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:467
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:451
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:469
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:480
 msgid "Mode"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:450
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:452
 msgid "Listed, then Little first"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:451
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:453
 msgid "Listed, then Bulk first"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:452
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:454
 msgid "Except listed, Little first"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:453
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:455
 msgid "Except listed, Bulk first"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:454
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:456
 msgid "Only listed, Little first"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:455
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:457
 msgid "Only listed, Bulk first"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:459
-msgid "Unload cargo at depot"
-msgstr ""
-
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:460
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:461
 msgid "Unload cargo to own carrier"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:461
-msgid "Fill carrier for constructions"
-msgstr ""
-
 #: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:462
-msgid "My carrier location"
+msgid "Unload cargo at depot"
 msgstr ""
 
 #: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:463
+msgid "Fill carrier for constructions"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:464
+msgid "My carrier location"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:465
 msgid "Construction depots"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:468
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:470
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:481
+msgid "First listed"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:471
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:482
 msgid "Except listed"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:469
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:472
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:483
 msgid "Only listed"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:473
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:476
+msgid "Build constructions"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:487
 msgid "Acquire PowerPlay resource"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:476
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:490
 msgid "Deliver PowerPlay resource"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:479
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:493
 msgid "Travel to dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:480
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:494
 #: D:\Work\ED\EDRobot\src\ui\UITaskEditor.cpp:460
 msgid "Dock"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:483
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:497
 msgid "Times"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:484
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:498
 msgid "Duration (minutes)"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:505
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:515
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:519
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:529
 msgid "Test"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:512
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:526
 msgid "Target"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:520
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:534
 msgid "Value"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:521
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:535
 msgid "Duration"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:522
+#: D:\Work\ED\EDRobot\src\ai\TaskTemplate.cpp:536
 msgid "Speed"
 msgstr ""
 
@@ -1228,64 +1237,64 @@ msgstr ""
 msgid "{0}: sold {1}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:179
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:184
 msgid "Nothing was sold"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:182
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:472
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:848
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:187
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:482
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:863
 msgid "Not complete"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:208
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:495
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:213
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:505
 msgid "No commodity to sell"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:223
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:228
 #, c++-format
 msgid "Start selling {0} by {1} item(s)"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:225
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:230
 #, c++-format
 msgid "Start selling {0} item(s)"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:234
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:293
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:316
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:517
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:588
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:611
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:239
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:298
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:321
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:527
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:598
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:621
 msgid "Cannot detect commodities in 'lst-goods', aborting"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:278
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:561
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:283
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:571
 msgid "Too many fails"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:361
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:647
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:366
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:657
 #, c++-format
 msgid "{0} {1}: {2} of {3}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:371
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:657
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:890
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:376
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:667
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:945
 msgid "Going to market"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:373
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:659
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:378
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:669
 #, c++-format
 msgid "Selecting {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:375
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:380
 #, c++-format
 msgid ""
 "Selling {} {}\n"
@@ -1293,26 +1302,26 @@ msgid ""
 "  left: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:390
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:395
 #, c++-format
 msgid "{0}: bought {1}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:469
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:845
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:479
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:860
 msgid "Nothing was bought"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:507
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:517
 #, c++-format
 msgid "Start purchasing {} item(s)"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:570
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:580
 msgid "Cannot put focus to market list"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:661
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:671
 #, c++-format
 msgid ""
 "Buying {} {}\n"
@@ -1320,25 +1329,32 @@ msgid ""
 "  left: {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:868
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:886
 msgid "Cannot enter unload screen"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1029
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:977
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:980
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1216
+#, c++-format
+msgid "Trouble traveling to market {}"
+msgstr ""
+
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1084
 msgid "Need at least 2 markets for trade loop"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1046
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1101
 #, c++-format
 msgid "At {} nothing to sell or buy"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1168
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1223
 #, c++-format
 msgid "Trouble selling at market {}"
 msgstr ""
 
-#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1178
+#: D:\Work\ED\EDRobot\src\ai\TradeTasks.cpp:1233
 #, c++-format
 msgid "Trouble buying at market {}"
 msgstr ""

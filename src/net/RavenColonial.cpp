@@ -146,5 +146,48 @@ void reportConstructionDepot(spGameEvent& ge, spMarket market) {
     }
 }
 
+spMarket updateConstructionDepot(spMarket market) {
+    if (!market || market->raven.buildId.empty() || market->raven.status == "complete")
+        return market;
+    json5pp::value resp = curlSimpleGet(RCAPI_PRJ+market->raven.buildId + "/last");
+    // "2026-02-20T07:52:28.3894916+00:00"
+    Timestamp timestamp;
+    if (!parseTimestamp(resp, timestamp))
+        return market;
+    if ((market->raven.timestamp+5s) >= timestamp)
+        return market;
+    resp = curlSimpleGet(RCAPI_PRJ+market->raven.buildId);
+    if (auto jid = resp["marketId"]; jid.is_integer() && jid.as_int64() == market->marketId) {
+        market = std::make_shared<Market>(*market.get());
+        market->raven.timestamp = timestamp;
+        if (auto jst = resp["complete"]; jst.is_boolean() && jst.as_boolean()) {
+            for (auto& it : market->items) {
+                auto& ml = it.second;
+                ml.stock = ml.demand;
+            }
+            market->raven.status = "complete";
+        } else {
+            for (auto& it : market->items) {
+                Commodity* c = it.first;
+                auto& ml = it.second;
+                int demandOld = ml.demand - ml.stock;
+                int demandNew;
+                if (auto& jleft = resp["commodities"][c->nameId]; jleft.is_integer())
+                    demandNew = jleft.as_integer();
+                else
+                    demandNew = 0;
+                if (demandNew != demandOld) {
+                    LOG(INFO) << std::format("Demand update from RavenColonial: '{}' {} => {}",
+                                             c->name, demandOld, demandNew);
+                    ml.stock = std::clamp(ml.demand-demandNew, 0, ml.demand);
+                }
+            }
+        }
+        gal::setMarketData(market);
+    }
+    return market;
+}
+
+
 }
 

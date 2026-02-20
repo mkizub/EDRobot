@@ -470,7 +470,7 @@ void initTemplates() {
                 json5pp::object({{"id", "FirstListed"},  {"name",  _lc("First listed")}}),
                 json5pp::object({{"id", "ExceptListed"}, {"name",  _lc("Except listed")}}),
                 json5pp::object({{"id", "OnlyListed"},   {"name",  _lc("Only listed")}}),
-            })}}), "OnlyListed"},
+            })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
     templates.emplace_back(ED_TASK_CONSTR_BUILD, _lc("Build constructions"), FACTORY(TaskConstruction), P{
@@ -481,7 +481,7 @@ void initTemplates() {
                 json5pp::object({{"id", "FirstListed"},  {"name",  _lc("First listed")}}),
                 json5pp::object({{"id", "ExceptListed"}, {"name",  _lc("Except listed")}}),
                 json5pp::object({{"id", "OnlyListed"},   {"name",  _lc("Only listed")}}),
-            })}}), "OnlyListed"},
+            })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
     templates.emplace_back(ED_TASK_ACQUIRE_PPC, _lc("Acquire PowerPlay resource"), FACTORY(TaskAcquirePPC), P{
