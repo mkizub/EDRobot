@@ -201,8 +201,8 @@ bool Configuration::load() {
         LOG(INFO) << "Setting screens.json5";
         widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
         std::ifstream ifs_config("screens.json5");
-        auto j_screens = json5pp::parse5(ifs_config).as_array();
-        for (json5pp::value& s: j_screens) {
+        const auto j_screens = json5pp::parse5(ifs_config).as_array();
+        for (auto& s: j_screens) {
             screensRoot->addSubItem(widget_from_json(s, screensRoot, nullptr));
         }
 #ifndef NDEBUG
@@ -1130,7 +1130,7 @@ bool Configuration::loadShipCargo(spGameEvent ge) {
     if ((ge->data["Count"].is_integer() && ge->data["Count"].as_integer() == 0) || !ge->data["Inventory"].empty()) {
         cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
             .timestamp = ge->timestamp,
-            .vessel = ge->data["Vessel"].asif_string(),
+            .vessel = ge->data["Vessel"].as_string_or(),
             .count = ge->data["Count"].as_integer(),
             }));
     } else {
@@ -1154,13 +1154,13 @@ bool Configuration::loadShipCargo(spGameEvent ge) {
             return false;
         cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
             .timestamp = timestamp,
-            .vessel = jv["Vessel"].asif_string(),
+            .vessel = jv["Vessel"].as_string_or(),
             .count = jv["Count"].as_integer(),
             }));
-        ge->data = jv;
+        const_cast<js::value&>(ge->data) = jv;
     }
 
-    auto items = ge->data["Inventory"].asif_array();
+    auto items = ge->data["Inventory"].as_array_or();
     for (auto& j_item : items) {
         auto item = j_item.as_object();
         auto name = item.at("Name").as_string();
@@ -1324,7 +1324,7 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
         cv::Point3d pos;
         std::string starClass = je["StarClass"].as_string();
         if (je["StarPos"].is_array()) {
-            auto& jp = je["StarPos"];
+            auto& jp = je.at("StarPos");
             pos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
         }
         route->route.emplace_back(starSystem, systemAddress, pos, starClass);

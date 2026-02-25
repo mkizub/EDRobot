@@ -109,6 +109,26 @@ std::wstring trimWithPunktuation(const std::wstring & source) {
     return s;
 }
 
+std::string trimTextLine(const std::string & source) {
+    std::string s(source);
+    s.erase(0,s.find_first_not_of(" \n\r\t"));
+    s.erase(s.find_last_not_of(" \n\r\t")+1);
+    std::erase_if(s, [](char c) {
+        return c < ' ' || c >= 127;
+    });
+    return s;
+}
+
+std::wstring trimTextLine(const std::wstring & source) {
+    std::wstring s(source);
+    s.erase(0,s.find_first_not_of(L" \n\r\t"));
+    s.erase(s.find_last_not_of(L" \n\r\t")+1);
+    std::erase_if(s, [](wchar_t c) {
+        return c <= 0x1F || (c >= 0x7F && c <= 0x9F);
+    });
+    return s;
+}
+
 std::string toString(const char* buffer, size_t size) {
     return {buffer, size};
 }
@@ -403,7 +423,7 @@ bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
 bool parseTimestamp(const json5pp::value& value, Timestamp& timestamp) {
     if (value.is_string())
         return parseTimestampString(value.as_string(), timestamp);
-    auto& ts = value["timestamp"];
+    auto ts = value["timestamp"];
     if (!ts.is_string())
         return false;
     return parseTimestampString(ts.as_string(), timestamp);

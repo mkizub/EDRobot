@@ -106,7 +106,7 @@ struct NavRoute {
 
 struct GameEvent {
     GameEvent(json5pp::value&& data);
-    json5pp::value data;
+    const json5pp::value data;
     Timestamp timestamp;
     std::string event;
 };

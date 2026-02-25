@@ -22,53 +22,52 @@ void saveMarket(Market* market) {
     if (!market || !market->marketId)
         return;
 
-    json5pp::value jm = json5pp::object({
+    js::value jm = js::object({
         {"timestamp", formatTimestampString(market->timestamp)},
         {"MarketID", market->marketId},
         {"StationName", market->stationName},
         {"StationType", market->stationType},
-        {"Items", json5pp::array({})},
+        {"Items", js::array({})},
         });
     if (!market->raven.buildId.empty() || !market->raven.status.empty()) {
-        jm.as_object().emplace("RavenColonial", json5pp::object({
+        jm["RavenColonial"] = js::object({
             {"buildId",market->raven.buildId},
             {"status",market->raven.status},
             {"timestamp",formatTimestampString(market->raven.timestamp)},
-            {"commanders",json5pp::object({})},
-        }));
-        auto& jcommanders = const_cast<json5pp::value&>(jm["RavenColonial"]["commanders"]);
-        for (auto cmdr : market->raven.commanders) {
-            auto& name = cmdr.first;
-            auto& ci = cmdr.second;
-            jcommanders.as_object().emplace(name, json5pp::object({}));
-            auto& jcmdr = jcommanders.as_object()[name];
-            if (ci.timestamp.time_since_epoch().count())
-                jcmdr.as_object().emplace("timestamp", formatTimestampString(ci.timestamp));
-            if (ci.deliveries)
-                jcmdr.as_object().emplace("deliveries", ci.deliveries);
-            if (ci.contributed)
-                jcmdr.as_object().emplace("contributed", ci.contributed);
+        });
+        if (!market->raven.commanders.empty()) {
+            auto& jcommanders = jm["RavenColonial"]["commanders"].deref();
+            for (auto cmdr: market->raven.commanders) {
+                auto &name = cmdr.first;
+                auto &ci = cmdr.second;
+                auto jcmdr = jcommanders[name];
+                if (ci.timestamp.time_since_epoch().count())
+                    jcmdr["timestamp"] = formatTimestampString(ci.timestamp);
+                if (ci.deliveries)
+                    jcmdr["deliveries"] = ci.deliveries;
+                if (ci.contributed)
+                    jcmdr["contributed"] = ci.contributed;
+            }
         }
     }
-    auto& jarr = jm.as_object()["Items"].as_array();
+    auto& jarr = jm["Items"].as_array();
     for (auto it : market->items) {
         MarketLine& ml = it.second;
         if (!ml.isConsumer && !ml.isProducer && !ml.stock && !ml.demand)
             continue;
         json5pp::value& jv = jarr.emplace_back(json5pp::object({{"Name", it.first->nameId}}));
-        auto& jo = jv.as_object();
         if (ml.isProducer)
-            jo.emplace("Producer", ml.isProducer);
+            jv["Producer"] = true;
         if (ml.buyPrice)
-            jo.emplace("BuyPrice", ml.buyPrice);
+            jv["BuyPrice"] = true;
         if (ml.stock)
-            jo.emplace("Stock", ml.stock);
+            jv["Stock"] = ml.stock;
         if (ml.isConsumer)
-            jo.emplace("Consumer", ml.isConsumer);
+            jv["Consumer"] = ml.isConsumer;
         if (ml.sellPrice)
-            jo.emplace("SellPrice", ml.sellPrice);
+            jv["SellPrice"] = ml.sellPrice;
         if (ml.demand)
-            jo.emplace("Demand", ml.demand);
+            jv["Demand"] = ml.demand;
     }
 
     std::filesystem::path fp("cache/markets/"+std::to_string(market->marketId)+".json");
@@ -81,11 +80,11 @@ spMarket loadMarket(int64_t marketId) {
     if (!marketId)
         return {};
 
-    json5pp::value jm;
+    const json5pp::value jm;
     try {
         std::filesystem::path fp("cache/markets/"+std::to_string(marketId)+".json");
         std::ifstream ifs(fp);
-        jm = json5pp::parse5(ifs);
+        const_cast<js::value&>(jm) = json5pp::parse5(ifs);
     } catch (...) {
         return {};
     }
@@ -97,10 +96,10 @@ spMarket loadMarket(int64_t marketId) {
     market->stationName = jm["StationName"].as_string();
     market->stationType = jm["StationType"].as_string();
     if (jm["RavenColonial"].is_object()) {
-        market->raven.buildId = jm["RavenColonial"]["buildId"].asif_string();
-        market->raven.status = jm["RavenColonial"]["status"].asif_string();
+        market->raven.buildId = jm["RavenColonial"]["buildId"].as_string_or();
+        market->raven.status = jm["RavenColonial"]["status"].as_string_or();
         parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven.timestamp);
-        for (auto& cmdr : jm["RavenColonial"]["commanders"].asif_object()) {
+        for (auto& cmdr : jm["RavenColonial"]["commanders"].as_object_or()) {
             auto& name = cmdr.first;
             auto& jcmdr = cmdr.second;
             Market::RavenCmdrInfo ci {};
@@ -138,7 +137,7 @@ spMarket loadMarket(int64_t marketId) {
 }
 
 static void parseUpdated(spEntity& entity, const json5pp::value& j) {
-    auto& upd = j["updateTime"];
+    auto upd = j["updateTime"];
     if (upd.is_integer()) {
         std::chrono::seconds sec_duration(upd.as_int64());
         std::chrono::sys_time<std::chrono::seconds> sys_time(sec_duration);
@@ -154,7 +153,7 @@ static void parseBodyId(StarSystem* ss, spEntity& entity, const json5pp::value& 
     if (j["parentBodyId"].is_integer())
         entity->parentBodyId = j["parentBodyId"].as_integer();
     else if (j["parents"].is_array() && !j["parents"].as_array().empty()) {
-        auto& jp = j["parents"][0].as_object();
+        auto& jp = j["parents"].as_array()[0].as_object();
         entity->parentBodyId = jp.begin()->second.as_integer();
     }
     else if (j["body"].is_object() && j["body"]["name"].is_string()) {
@@ -178,7 +177,7 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
     ss->starPos.y = jsystem["coords"]["y"].as_number();
     ss->starPos.z = jsystem["coords"]["z"].as_number();
 
-    for (auto& jb : jsystem["bodies"].as_array()) {
+    for (auto& jb : jsystem["bodies"].as_array_or()) {
         spEntity body(new Entity);
         if (jb["type"].is_string()) {
             std::string type = jb["type"].as_string();
@@ -216,8 +215,8 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
     }
 
     //std::string lng = toLower(std::string(enum_name<Lang>(Cfg.lng)));
-    for (auto& jb : jsystem["stations"].as_array()) {
-        std::string name = jb["name"].asif_string();
+    for (auto& jb : jsystem["stations"].as_array_or()) {
+        std::string name = jb["name"].as_string_or();
         if (ss->getDock(name))
             continue;
         spEntity site(new Entity);
@@ -355,20 +354,20 @@ static spStarSystem loadStarSystemFromNetwork(const std::string name) {
 
     std::string url = "https://www.edsm.net/api-v1/system?showId=1&showCoordinates=1&systemName=";
     json5pp::value jsystem = curlRequestEDSM(url, name);
-    if (!jsystem || !jsystem["name"] || name != jsystem["name"].as_string())
+    if (name != jsystem["name"].as_string_or())
         return {};
 
     url = "https://www.edsm.net/api-system-v1/bodies?systemName=";
     json5pp::value bodies = curlRequestEDSM(url, name);
-    if (!bodies || !bodies["name"] || name != bodies["name"].as_string())
+    if (name != bodies["name"].as_string_or())
         return {};
-    jsystem.as_object()["bodies"] = bodies["bodies"];
+    jsystem["bodies"] = bodies["bodies"].deref();
 
     url = "https://www.edsm.net/api-system-v1/stations?systemName=";
     json5pp::value stations = curlRequestEDSM(url, name);
-    if (!stations || !stations["name"] || name != stations["name"].as_string())
+    if (name != stations["name"].as_string_or())
         return {};
-    jsystem.as_object()["stations"] = stations["stations"];
+    jsystem["stations"] = stations["stations"].deref();
 
     return fromEDDN(jsystem, false);
 }
@@ -801,8 +800,8 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
     for (auto event : events) {
         if (event->event != "FSSSignalDiscovered")
             return;
-        json5pp::value &data = event->data;
-        if (auto &ja = data["SystemAddress"]; !ja.is_integer() || this->systemAddress != ja.as_int64())
+        auto& data = event->data;
+        if (this->systemAddress != data["SystemAddress"].as_int64_or())
             return;
         std::string stype = data["SignalType"].as_string();
         std::string sname = data["SignalName"].as_string();

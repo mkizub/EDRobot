@@ -75,24 +75,24 @@ bool loadEDDB() {
         }
     }
     for (auto& module : gEDDBFull["module"].as_array()) {
-        auto& jn = module["fdname"];
+        auto jn = module["fdname"];
         if (jn.is_string())
             gEDDBModules.emplace(toLower(jn.as_string()), module);
     }
     for (auto& blueprint : gEDDBFull["blueprint"].as_object()) {
         gEDDBFull.as_object()["blueprint"].as_object()[blueprint.first].as_object().emplace("bpid", blueprint.first);
-        auto& jn = blueprint.second["fdname"];
+        auto jn = blueprint.second["fdname"];
         if (jn.is_string()) {
             gEDDBBlueprints.emplace(toLower(jn.as_string()), blueprint.second);
         }
     }
     for (auto& effect : gEDDBFull["expeffect"].as_object()) {
-        auto& jn = effect.second["fdname"];
+        auto jn = effect.second["fdname"];
         if (jn.is_string())
             gEDDBEffects.emplace(toLower(jn.as_string()), effect.second);
     }
     for (auto& attr : gEDDBFull["attributes"].as_array()) {
-        auto& ja = attr["attr"];
+        auto ja = attr.at("attr");
         if (ja.is_string()) {
             auto a = enum_cast<Attr>(ja.as_string());
             if (a.has_value())
@@ -142,7 +142,7 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
 
     default_value = DNaN;
     default_attr = nullptr;
-    auto& dflt = jv["default"];
+    auto dflt = jv["default"];
     if (dflt.is_string()) {
         auto a = enum_cast<Attr>(dflt.as_string());
         if (!a.has_value()) {
@@ -151,7 +151,8 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
             default_attr = getShipAttr(a.value());
             LOG_IF(!default_attr,ERROR) << "Attribute " << dflt << " not found";
         }
-    } else {
+    }
+    else if (dflt.is_number()) {
         default_value = dflt.as_number();
     }
 }
@@ -225,13 +226,13 @@ void ShipSlot::setEngineering(const std::string& bp, int level, float quality, c
     }
 
     if (blueprint) {
-        auto& mtype = gEDDBFull["mtype"][(*module)["mtype"].asif_string()];
+        auto mtype = gEDDBFull["mtype"][(*module)["mtype"].as_string_or()];
         //if (!mtype["modifiable"] || !mtype["blueprints"] || mtype["blueprints"].indexOf(blueprint->at("bpid").as_string()) < 0)
         //    return false;
         if (blueprintQuality > 0) {
             attrModifier.clear();
             attrOverride.clear();
-            for (auto& a : mtype["modifiable"].asif_array()) {
+            for (auto& a : mtype["modifiable"].as_array_or()) {
                 auto& attr_name = a.as_string();
                 if (!(*blueprint)[attr_name])
                     continue;
@@ -481,15 +482,13 @@ void ShipStats::setSlotModule(const json5pp::value &jvalue) {
     const std::string& moduleName = jvalue["Item"].as_string();
     auto& slot = getSlot(slotName);
     slot.setModule(moduleName);
-    auto& eng = jvalue["Engineering"];
+    auto eng = jvalue["Engineering"];
     if (eng.is_object()) {
         if (eng["BlueprintName"].is_string()) {
             std::string blueprint = eng["BlueprintName"].as_string();
             int level = eng["Level"].as_integer();
             float quality = eng["Quality"].as_number();
-            std::string effect;
-            if (eng["ExperimentalEffect"].is_string())
-                effect = eng["ExperimentalEffect"].as_string();
+            std::string effect = eng["ExperimentalEffect"].as_string_or();
             slot.setEngineering(blueprint, level, quality, effect);
         }
     }

@@ -266,7 +266,7 @@ void gotoLandingPad(bool refuel) {
     for (int i = 0; i < 4; i++)
         kbd::send("UI_Up");
 
-    if (refuel || st::shipStats.fuelMain >= st::shipStats.fuelCapacityMain) {
+    if (refuel || st::shipStats.fuelMain < st::shipStats.fuelCapacityMain) {
         LOG(INFO) << "Refuel...";
         kbd::send("UI_Select", 0, 500); // refuel
         kbd::send("UI_Right");

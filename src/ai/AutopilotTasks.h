@@ -19,7 +19,7 @@ namespace ai {
 
 bool setSpeed(int percents, bool force, const char* reason);
 void disableAutoTurn();
-int getNavRoutePosition();
+int getNavRoutePosition(const std::shared_ptr<NavRoute>& navRoute);
 
 struct CourseLocker {
     explicit CourseLocker(double pitch, bool without_roll=false);
@@ -111,9 +111,10 @@ public:
         READY, GOING_TO_DOCK, REFUEL, TAKEOFF, WAIT_AUTOPILOT, AUTOPILOT, ORIENT_AWAY, LEAVE_DEPOT, MASSLOCKED, FLYAWAY, RELOGIN, DONE
     } status {READY};
 
-    std::string fromDock;
+    gal::spEntity fromDock;
+    std::string fromDockName;
     int notAutoPilotCounter {};
-    float pitchBeforeAutopilot {};
+    float pitchAfterAutopilot {};
 };
 
 class EnterCruiseStep : public BaseAutopilotStep {
@@ -327,6 +328,8 @@ public:
     enum {
         READY, ORIENT, ENTER_CRUISE, LEAVE_BODY, FLY_AWAY, JUMP, DONE
     } status {READY};
+
+    std::shared_ptr<NavRoute> lastNavRoute;
 };
 
 class CruiseAndDock : public BaseAutopilotStep {

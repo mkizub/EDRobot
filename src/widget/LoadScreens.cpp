@@ -338,19 +338,18 @@ static detect::ImageFilter* filter_from_json(const json5pp::value& jf) {
         else if (jhsv.is_object())
             jarr.push_back(jhsv);
 
-        for (auto& jv_ : jarr) {
+        for (const auto& jv : jarr) {
             cv::Vec3b min = {0,0,0};
             cv::Vec3b max = {255,255,255};
-            auto& jv = jv_.as_object();
-            if (jv.contains("h")) {
+            if (jv["h"].is_array()) {
                 min[0] = jv["h"][0].as_integer();
                 max[0] = jv["h"][1].as_integer();
             }
-            if (jv.contains("s")) {
+            if (jv["s"].is_array()) {
                 min[1] = jv["s"][0].as_integer();
                 max[1] = jv["s"][1].as_integer();
             }
-            if (jv.contains("v")) {
+            if (jv["v"].is_array()) {
                 min[2] = jv["v"][0].as_integer();
                 max[2] = jv["v"][1].as_integer();
             }
@@ -581,7 +580,7 @@ static Detector* detector_from_json(const json5pp::value& j, Widget& widget, Fov
             return tiles;
         }
         if (j.as_object().contains("texts")) {
-            std::string name = j["name"].asif_string();
+            std::string name = j["name"].as_string_or();
             spEvalRect textsRect = makeEvalRect(widget, name.c_str(), j["rect"], fov_scale, false);
 
             auto* tdet = new TextDetector(name, textsRect);
@@ -676,7 +675,7 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
     auto name = jo.at("name").as_string();
     if (name.starts_with("scr-")) {
         auto scr = new Screen(name, parent, j["status"]);
-        if (auto& jfscl=j["fov_size"]; jfscl.is_array() || jfscl.is_number()) {
+        if (auto jfscl=j["fov_size"]; jfscl.is_array() || jfscl.is_number()) {
             if (jfscl.is_number()) {
                 fov_scale = &scr_fov_scale;
                 fov_scale->scale60 = jfscl.as_number();
@@ -690,10 +689,10 @@ Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_
         } else {
             fov_scale = nullptr;
         }
-        if (auto& jvars = j["vars"]; jvars.is_object()) {
+        if (auto jvars = j["vars"]; jvars.is_object()) {
             from_json(jvars, scr->varSetMap);
         }
-        if (auto& jt = j["transform"]; jt.is_object()) {
+        if (auto jt = j["transform"]; jt.is_object()) {
             // transform: { tl: [212,256], tr: [1276,242], br: [1296,800], bl: [270,912] }
             // transform: { line: "lpline", tl: [0,-50], tr: [0,-50], ratio: 1.77777777 }
             spEvalPoint tl = makeEvalPoint(*scr, "tl", jt["tl"], fov_scale);

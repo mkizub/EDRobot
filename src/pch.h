@@ -44,6 +44,7 @@ using namespace std::chrono_literals;
 #include <tsl/ordered_hash.h>
 #include <tsl/ordered_map.h>
 #include <json5pp/json5pp.hpp>
+namespace js = ::json5pp;
 
 #include "opencv2/opencv.hpp"
 #include "ed_opencv.h"

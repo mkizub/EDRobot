@@ -117,6 +117,9 @@ public:
 
 } /* namespace impl */
 
+template<unsigned N, bool M>
+class ref;
+
 /**
  * @brief A class to hold JSON value
  */
@@ -420,7 +423,13 @@ public:
     return content.boolean;
   }
 
-  /**
+  [[nodiscard]] boolean_type as_boolean_or(bool default_value=false) const noexcept
+  {
+    if (type != TYPE_BOOLEAN) return default_value;
+    return content.boolean;
+  }
+
+    /**
    * @brief Cast to number
    * 
    * @throws std::bad_cast if the value is not a number nor integer
@@ -431,6 +440,16 @@ public:
       return static_cast<number_type>(content.integer);
     } else if (type != TYPE_NUMBER) {
       throw std::bad_cast();
+    }
+    return content.number;
+  }
+
+  [[nodiscard]] number_type as_number_or(number_type default_value=0) const noexcept
+  {
+    if (type == TYPE_INTEGER) {
+      return static_cast<number_type>(content.integer);
+    } else if (type != TYPE_NUMBER) {
+      return default_value;
     }
     return content.number;
   }
@@ -450,6 +469,16 @@ public:
     return static_cast<int32_t>(content.integer);
   }
 
+  [[nodiscard]] int32_t as_integer_or(int32_t default_value=0) const noexcept
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<int32_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      return default_value;
+    }
+    return static_cast<int32_t>(content.integer);
+  }
+
   /**
    * @brief Cast to integer number
    *
@@ -461,6 +490,16 @@ public:
       return static_cast<uint32_t>(content.number);
     } else if (type != TYPE_INTEGER) {
       throw std::bad_cast();
+    }
+    return static_cast<uint32_t>(content.integer);
+  }
+
+  [[nodiscard]] uint32_t as_unsigned_or(uint32_t default_value=0) const noexcept
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint32_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      return default_value;
     }
     return static_cast<uint32_t>(content.integer);
   }
@@ -480,6 +519,16 @@ public:
     return content.integer;
   }
 
+  [[nodiscard]] int64_t as_int64_or(int64_t default_value=0) const noexcept
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<int64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      return default_value;
+    }
+    return content.integer;
+  }
+
   /**
    * @brief Cast to integer number
    *
@@ -491,6 +540,16 @@ public:
       return static_cast<uint64_t>(content.number);
     } else if (type != TYPE_INTEGER) {
       throw std::bad_cast();
+    }
+    return content.integer;
+  }
+
+  [[nodiscard]] uint64_t as_uint64_or(uint64_t default_value=0) const noexcept
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint64_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      return default_value;
     }
     return content.integer;
   }
@@ -510,6 +569,16 @@ public:
     return static_cast<int32_t>(content.integer);
   }
 
+  [[nodiscard]] int32_t as_int32_or(int32_t default_value=0) const noexcept
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<int32_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      return default_value;
+    }
+    return static_cast<int32_t>(content.integer);
+  }
+
   /**
    * @brief Cast to integer number
    *
@@ -525,6 +594,16 @@ public:
     return content.integer;
   }
 
+  [[nodiscard]] uint32_t as_uint32_or(uint32_t default_value=0) const noexcept
+  {
+    if (type == TYPE_NUMBER) {
+      return static_cast<uint32_t>(content.number);
+    } else if (type != TYPE_INTEGER) {
+      return default_value;
+    }
+    return content.integer;
+  }
+
   /**
    * @brief Cast to string
    * 
@@ -533,6 +612,12 @@ public:
   [[nodiscard]] const string_type& as_string() const
   {
     if (type != TYPE_STRING) { throw std::bad_cast(); }
+    return content.string;
+  }
+
+  [[nodiscard]] const string_type& as_string_or(const string_type& default_value={}) const noexcept
+  {
+    if (type != TYPE_STRING) { return default_value; }
     return content.string;
   }
 
@@ -570,6 +655,18 @@ public:
   }
 
   /**
+   * @brief Cast to array, return [] if not array
+   */
+  [[nodiscard]] const array_type& as_array_or() const noexcept
+  {
+    if (type != TYPE_ARRAY) {
+      static array_type dummy;
+      return dummy;
+    }
+    return content.array;
+  }
+
+  /**
    * @brief Cast to object
    * 
    * @throws std::bad_cast if the value is not a object
@@ -592,33 +689,9 @@ public:
   }
 
   /**
-   * @brief Cast to string, return "" if not string
-   */
-  [[nodiscard]] const string_type& asif_string() const noexcept
-  {
-    if (type != TYPE_STRING) {
-      static string_type dummy;
-      return dummy;
-    }
-    return content.string;
-  }
-
-  /**
-   * @brief Cast to array, return [] if not array
-   */
-  [[nodiscard]] const array_type& asif_array() const noexcept
-  {
-    if (type != TYPE_ARRAY) {
-      static array_type dummy;
-      return dummy;
-    }
-    return content.array;
-  }
-
-  /**
    * @brief Cast to object, return {} if not object
    */
-  [[nodiscard]] const object_type& asif_object() const noexcept
+  [[nodiscard]] const object_type& as_object_or() const noexcept
   {
     if (type != TYPE_OBJECT) {
       static object_type dummy;
@@ -653,7 +726,7 @@ public:
   /*================================================================================
    * Array indexer
    */
-  const value& at(const int index, const value& default_value) const
+  [[nodiscard]] const value& at(const int index, const value& default_value) const
   {
     if (type == TYPE_ARRAY) {
       if ((0 <= index) && (index < (int)content.array.size())) {
@@ -663,13 +736,13 @@ public:
     return default_value;
   }
 
-  const value& at(const int index) const
+  [[nodiscard]] const value& at(const int index) const
   {
     static const value null;
     return at(index, null);
   }
 
-  const value& operator[](const int index) const
+  [[nodiscard]] const value& operator[](const int index) const
   {
     return at(index);
   }
@@ -677,7 +750,7 @@ public:
   /*================================================================================
    * Object indexer
    */
-  const value& at(const string_type& key, const value& default_value) const
+  [[nodiscard]] const value& at(const string_type& key, const value& default_value) const
   {
     if (type == TYPE_OBJECT) {
       auto iter = content.object.find(key);
@@ -688,15 +761,10 @@ public:
     return default_value;
   }
 
-  const value& at(const string_type& key) const
+  [[nodiscard]] const value& at(const string_type& key) const
   {
     static const value null;
     return at(key, null);
-  }
-
-  const value& operator[](const string_type& key) const
-  {
-    return at(key);
   }
 
   const value& at(const string_p_type key, const value& default_value) const
@@ -709,10 +777,14 @@ public:
     return at(string_type(key));
   }
 
-  const value& operator[](const string_p_type key) const
-  {
-    return at(string_type(key));
-  }
+  inline ref<1,true> as_ref(std::string_view key);
+  inline ref<1,false> as_cref(std::string_view key) const;
+  inline ref<1,true> operator[](std::string_view key);
+  inline ref<1,true> operator[](string_p_type key);
+  inline ref<1,true> operator[](const string_type& key);
+  inline ref<1,false> operator[](std::string_view key) const;
+  inline ref<1,false> operator[](string_p_type key) const;
+  inline ref<1,false> operator[](const string_type& key) const;
 
   /*================================================================================
    * Assignment (Copying)
@@ -775,7 +847,8 @@ public:
    * @brief Assign number value.
    * @param number A number to be set.
    */
-  value& operator=(number_type number)
+  template <std::floating_point T>
+  value& operator=(T number)
   {
     release(TYPE_NUMBER);
     new (&content.number) number_type(number);
@@ -786,7 +859,8 @@ public:
    * @brief Assign number value by integer type.
    * @param integer A integer number to be set.
    */
-  value& operator=(integer_type integer)
+  template <std::integral T>
+  value& operator=(T integer)
   {
     release(TYPE_INTEGER);
     new (&content.integer) integer_type(integer);
@@ -813,6 +887,15 @@ public:
    * @param string A string to be set.
    */
   value& operator=(string_p_type string)
+  {
+    return (*this = string_type(string));
+  }
+
+  /**
+   * @brief Assign string value from string_view
+   * @param string A string to be set.
+   */
+  value& operator=(std::string_view string)
   {
     return (*this = string_type(string));
   }
@@ -954,6 +1037,332 @@ inline value object(std::initializer_list<value::pair_type> elements)
   new (&v.content.object) value::object_type(elements);
   return v;
 }
+
+template <unsigned N, bool M>
+class ref
+{
+public:
+    using V = std::conditional_t<M, value, const value>;
+
+    V& vref;
+    std::string_view keys[N];
+
+private:
+    friend class value;
+    friend class ref;
+    friend class ref<N-1,M>;
+
+    constexpr ref(V& v, std::string_view* keys_ptr)
+        : vref(v)
+    {
+        for (int i=0; i < N; i++)
+            keys[i] = keys_ptr[i];
+    }
+
+    constexpr ref(V& v, std::string_view keys_ptr[N-1], std::string_view ext_key)
+        : vref(v)
+    {
+        for (int i=0; i < N-1; i++)
+            keys[i] = keys_ptr[i];
+        keys[N-1] = ext_key;
+    }
+
+    ref() = delete;
+    ref(const ref&) = delete;
+    ref(ref&&) = delete;
+    ref& operator=(const ref&) = delete;
+    ref& operator=(ref&) = delete;
+    ref& operator=(ref&&) = delete;
+
+public:
+    ~ref() = default;
+
+    [[nodiscard]] bool exists() const {
+        V* v = try_deref();
+        return v != nullptr;
+    }
+    [[nodiscard]] bool empty() const {
+        V* v = try_deref();
+        return !v || v->empty();
+    }
+    [[nodiscard]] bool is_null() const {
+        V* v = try_deref();
+        return v && v->is_null();
+    }
+    [[nodiscard]] bool is_boolean() const {
+        V* v = try_deref();
+        return v && v->is_boolean();
+    }
+    [[nodiscard]] bool is_number() const {
+        V* v = try_deref();
+        return v && v->is_number();
+    }
+    [[nodiscard]] bool is_integer() const {
+        V* v = try_deref();
+        return v && v->is_integer();
+    }
+    [[nodiscard]] bool is_string() const {
+        V* v = try_deref();
+        return v && v->is_string();
+    }
+    [[nodiscard]] bool is_array() const {
+        V* v = try_deref();
+        return v && v->is_array();
+    }
+    [[nodiscard]] bool is_object() const {
+        V* v = try_deref();
+        return v && v->is_object();
+    }
+    [[nodiscard]] value::null_type as_null() const {
+        V* v = try_deref();
+        if (v && !v->is_null()) { throw std::bad_cast(); }
+        return nullptr;
+    }
+    [[nodiscard]] value::boolean_type as_boolean() const {
+        V* v = try_deref();
+        if (!v || !v->is_boolean()) { throw std::bad_cast(); }
+        return v->as_boolean();
+    }
+    [[nodiscard]] value::boolean_type as_boolean_or(value::boolean_type default_value) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_boolean_or(default_value);
+    }
+    [[nodiscard]] value::number_type as_number() const {
+        V* v = try_deref();
+        if (!v || !v->is_number()) { throw std::bad_cast(); }
+        return v->as_number();
+    }
+    [[nodiscard]] value::number_type as_number_or(value::number_type default_value=0) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_number_or(default_value);
+    }
+    [[nodiscard]] int32_t as_integer() const {
+        V* v = try_deref();
+        if (!v || !v->is_number()) { throw std::bad_cast(); }
+        return v->as_integer();
+    }
+    [[nodiscard]] int32_t as_integer_or(int32_t default_value=0) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_integer_or(default_value);
+    }
+    [[nodiscard]] int32_t as_int32() const {
+        V* v = try_deref();
+        if (!v || !v->is_number()) { throw std::bad_cast(); }
+        return v->as_integer();
+    }
+    [[nodiscard]] int32_t as_int32_or(int32_t default_value=0) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_integer_or(default_value);
+    }
+    [[nodiscard]] uint32_t as_unsigned() const {
+        V* v = try_deref();
+        if (!v || !v->is_number()) { throw std::bad_cast(); }
+        return v->as_unsigned();
+    }
+    [[nodiscard]] uint32_t as_unsigned_or(uint32_t default_value=0) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_unsigned_or(default_value);
+    }
+    [[nodiscard]] int64_t as_int64() const {
+        V* v = try_deref();
+        if (!v || !v->is_number()) { throw std::bad_cast(); }
+        return v->as_int64();
+    }
+    [[nodiscard]] int64_t as_int64_or(int64_t default_value=0) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_int64_or(default_value);
+    }
+    [[nodiscard]] uint64_t as_uint64() const {
+        V* v = try_deref();
+        if (!v || !v->is_number()) { throw std::bad_cast(); }
+        return v->as_uint64();
+    }
+    [[nodiscard]] uint64_t as_uint64_or(uint64_t default_value=0) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_uint64_or(default_value);
+    }
+    [[nodiscard]] const value::string_type& as_string() requires (!M) {
+        const V* v = try_deref();
+        if (!v) { throw std::bad_cast(); }
+        return v->as_string();
+    }
+    [[nodiscard]] value::string_type& as_string() requires M {
+        V& v = deref();
+        if (v.is_null()) { v = ""; }
+        if (!v.is_string()) { throw std::bad_cast(); }
+        return v.as_string();
+    }
+    [[nodiscard]] const value::string_type& as_string_or(const value::string_type& default_value={}) const noexcept {
+        V* v = try_deref();
+        if (!v) { return default_value; }
+        return v->as_string_or(default_value);
+    }
+    [[nodiscard]] const value::array_type& as_array() requires (!M) {
+        V* v = try_deref();
+        if (!v) { throw std::bad_cast(); }
+        return v->as_array();
+    }
+    [[nodiscard]] value::array_type& as_array() requires M {
+        V& v = deref();
+        if (v.is_null()) { v = array({}); }
+        if (!v.is_array()) { throw std::bad_cast(); }
+        return v.as_array();
+    }
+    [[nodiscard]] const value::array_type& as_array_or() const noexcept {
+        V* v = try_deref();
+        if (!v || !v->is_array()) {
+            static value::array_type dummy;
+            return dummy;
+        }
+        return v->as_array_or();
+    }
+    [[nodiscard]] const value::object_type& as_object() requires (!M) {
+        V* v = try_deref();
+        if (!v) { throw std::bad_cast(); }
+        return v->as_object();
+    }
+    [[nodiscard]] value::object_type& as_object() requires M {
+        V& v = deref();
+        if (v.is_null()) { v = object({}); }
+        if (!v.is_object()) { throw std::bad_cast(); }
+        return v.as_object();
+    }
+    [[nodiscard]] const value::object_type& as_object_or() const noexcept {
+        V* v = try_deref();
+        if (!v || !v->is_object()) {
+            static value::object_type dummy;
+            return dummy;
+        }
+        return v->as_object_or();
+    }
+
+    V& operator=(nullptr_t rhs) requires M { return deref() = rhs; }
+    V& operator=(bool rhs) requires M { return deref() = rhs; }
+    V& operator=(int32_t rhs) requires M { return deref() = rhs; }
+    V& operator=(uint32_t rhs) requires M { return deref() = rhs; }
+    V& operator=(int64_t rhs) requires M { return deref() = rhs; }
+    V& operator=(uint64_t rhs) requires M { return deref() = rhs; }
+    V& operator=(int16_t rhs) requires M { return deref() = rhs; }
+    V& operator=(uint16_t rhs) requires M { return deref() = rhs; }
+    V& operator=(double rhs) requires M { return deref() = rhs; }
+    V& operator=(float rhs) requires M { return deref() = rhs; }
+    V& operator=(const value::string_type& rhs) requires M { return deref() = rhs; }
+    V& operator=(value::string_p_type rhs) requires M { return deref() = rhs; }
+    V& operator=(const std::string_view rhs) requires M { return deref() = rhs; }
+    V& operator=(const value& rhs) requires M { return deref() = rhs; }
+
+    explicit operator bool() const {
+        V* v = try_deref();
+        return v && v->operator bool();
+    }
+    constexpr ref<N+1,true> as_ref(std::string_view key) requires M {
+        return {vref, keys, key};
+    }
+    constexpr ref<N+1,false> as_cref(std::string_view key) {
+        return {vref, keys, key};
+    }
+    constexpr ref<N+1,M> operator[](std::string_view key) {
+        if constexpr (M)
+          return as_ref(key);
+        else
+          return as_cref(key);
+    }
+    constexpr ref<N+1,M> operator[](value::string_p_type key) {
+        if constexpr (M)
+          return as_ref(key);
+        else
+          return as_cref(key);
+    }
+    constexpr ref<N+1,M> operator[](const value::string_type& key) {
+        if constexpr (M)
+          return as_ref(key);
+        else
+          return as_cref(key);
+    }
+    [[nodiscard]] V& operator[](const int index) {
+      return operator V&().at(index);
+    }
+    [[nodiscard]] constexpr V* try_deref() const {
+        V* ptr = &vref;
+        for (int idx=0; idx < N; idx++) {
+            if (ptr->is_object()) {
+                auto& o = ptr->as_object();
+                auto it = o.find(std::string(keys[idx]));
+                if (it == o.end())
+                    return nullptr;
+                ptr = &it.value();
+            }
+        }
+        return ptr;
+    }
+    [[nodiscard]] constexpr const V& deref() requires (!M) {
+        V* v = try_deref();
+        if (v == nullptr) {
+            static V dummy;
+            return dummy;
+        }
+        return *v;
+    }
+    [[nodiscard]] constexpr V& deref() requires M {
+        V* ptr = &vref;
+        for (int idx=0; idx < N; idx++) {
+            if (ptr->is_null()) {
+                *ptr = object({{std::string(keys[idx]),value()}});
+            }
+            if (!ptr->is_object())
+                throw std::bad_cast();
+            value::object_type &o = ptr->as_object();
+            auto res = o.try_emplace(std::string(keys[idx]), value());
+            ptr = &res.first.value();
+        }
+        return *ptr;
+    }
+    [[nodiscard]] constexpr /* implicit cast! */ operator const V&() {
+        V* v = try_deref();
+        if (v == nullptr) {
+            static V dummy;
+            return dummy;
+        }
+        return *v;
+    }
+    [[nodiscard]] constexpr /* implicit cast! */ operator V&() requires M {
+        return deref();
+    }
+};
+
+
+inline ref<1,true> value::as_ref(std::string_view key) {
+    return ref<1,true>(*this, &key);
+}
+inline ref<1,false> value::as_cref(std::string_view key) const {
+    return ref<1,false>(*this, &key);
+}
+inline ref<1,true> value::operator[](std::string_view key) {
+    return as_ref(key);
+}
+inline ref<1,true> value::operator[](value::string_p_type key) {
+    return as_ref(key);
+}
+inline ref<1,true> value::operator[](const value::string_type& key) {
+    return as_ref(key);
+}
+inline ref<1,false> value::operator[](std::string_view key) const {
+    return as_cref(key);
+}
+inline ref<1,false> value::operator[](string_p_type key) const {
+    return as_cref(key);
+}
+inline ref<1,false> value::operator[](const string_type& key) const {
+    return as_cref(key);
+}
+
 
 namespace impl {
 
@@ -1716,6 +2125,13 @@ public:
     return *this;
   }
 
+  template <unsigned N, bool M>
+  self_type& operator<<(const ref<N,M>& v)
+  {
+    do_stringify((const value&)v);
+    return *this;
+  }
+
 private:
   /**
    * @brief Check if flag(s) enabled
@@ -2031,6 +2447,12 @@ inline impl::parser<0> operator>>(std::istream& istream, value& v)
 inline impl::stringifier<0,0> operator<<(std::ostream& ostream, const value& v)
 {
   return impl::stringifier<0,0>(ostream) << v;
+}
+
+template<unsigned N, bool M>
+inline impl::stringifier<0,0> operator<<(std::ostream& ostream, const ref<N,M>& v)
+{
+    return impl::stringifier<0,0>(ostream) << (const value&)v;
 }
 
 namespace rule {

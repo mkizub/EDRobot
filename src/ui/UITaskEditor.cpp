@@ -431,8 +431,8 @@ SiteCtrl::SiteCtrl(UITaskEditor* ui, ai::Param& param)
     : ParamCtrl(ui, param)
 {
     if (!param.empty() && param.value.is_object()) {
-        system_text = toUtf16(param.value["system"].asif_string());
-        dock_text = toUtf16(param.value["dock"].asif_string());
+        system_text = toUtf16(param.value["system"].as_string_or());
+        dock_text = toUtf16(param.value["dock"].as_string_or());
     }
 }
 SiteCtrl::~SiteCtrl() {
@@ -493,8 +493,8 @@ void SiteCtrl::on_ctrl_edit(HWND changed, WORD msg) {
 bool SiteCtrl::validate() {
     ai::Param param{ai::Param::Site, "", "", meta};
     json5pp::value v = json5pp::object({
-        {"system", toUtf8(system_text)},
-        {"dock", toUtf8(dock_text)}
+        {"system", toUtf8(trimTextLine(system_text))},
+        {"dock", toUtf8(trimTextLine(dock_text))}
     });
     param.set(v, true);
     return param.valid();
@@ -503,8 +503,8 @@ json5pp::value SiteCtrl::value() {
     if (system_text.empty() && dock_text.empty())
         return {};
     json5pp::value v = json5pp::object({
-        {"system", toUtf8(system_text)},
-        {"dock", toUtf8(dock_text)}
+        {"system", toUtf8(trimTextLine(system_text))},
+        {"dock", toUtf8(trimTextLine(dock_text))}
     });
     return v;
 }

@@ -559,7 +559,7 @@ TaskTemplate TaskTemplate::loadTask(const json5pp::value& j_task) {
         const_cast<std::string&>(task.nm) = j_task["name"].as_string();
     }
     for (auto& p : task.params) {
-        auto& jp = j_task[p.id];
+        auto& jp = j_task.at(p.id);
         if (jp.is_null()) {
             if (p.optional())
                 continue;

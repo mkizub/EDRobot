@@ -232,6 +232,7 @@ bool TaskSell::run() {
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
+        sleep(500);
         cv::Mat grayImage;
         ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
         if (ai::uiState.match("scr-market:mod-sell")) {
@@ -520,6 +521,7 @@ bool TaskBuy::run() {
     int prevFocusedIdx = -1;
     while (mLeft > 0) {
         status = TO_COMMODITY;
+        sleep(500);
         cv::Mat grayImage;
         ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
         if (ai::uiState.match("scr-market:mod-buy")) {
@@ -681,8 +683,8 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
     assert (templ.id == ED_TASK_MARKET_BUY_CONSTR);
     for (auto& p : templ.params) {
         if (p.id == "depot") {
-            destSystemName = p.value["system"].asif_string();
-            destConstrName = p.value["dock"].asif_string();
+            destSystemName = p.value["system"].as_string_or();
+            destConstrName = p.value["dock"].as_string_or();
         }
         else if (p.id == "carrier")
             considerCarrier = p.as_boolean();
@@ -713,7 +715,7 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
             }
             else if (p.value.is_array()) {
                 for (auto& v : p.value.as_array()) {
-                    auto* com = Cfg.getCommodityByName(v.asif_string(), false);
+                    auto* com = Cfg.getCommodityByName(v.as_string_or(), false);
                     if (com)
                         commodities.push_back(com);
                 }
@@ -976,8 +978,9 @@ TaskTradeAt::TaskTradeAt(const TaskTemplate& templ_)
 bool TaskTradeAt::run() {
     auto market = templ.get("market").value;
     TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
+    impl.nm.clear();
     impl.set("dock", market);
-    auto& dockName = market["dock"].asif_string();
+    auto& dockName = market["dock"].as_string_or();
     if (!run_sub_step(impl.factory(impl)))
         throw_trouble("Trouble traveling to market {}", dockName);
     auto dock = getCurrDock();
@@ -1009,8 +1012,8 @@ bool TradeLoopTask::run() {
                     continue;
 
                 MarketInfo& mi = markets.emplace_back(
-                        mt.get("market").value["system"].asif_string(),
-                        mt.get("market").value["dock"].asif_string());
+                        mt.get("market").value["system"].as_string_or(),
+                        mt.get("market").value["dock"].as_string_or());
                 auto& j_tasks = mt.get("tasks").value;
                 if (!j_tasks.is_array()) {
                     mi.sell_all = true;
@@ -1214,6 +1217,7 @@ bool TradeLoopTask::run() {
             gal::spEntity dock = getCurrDock();
             if (!dock || !dock->nameEq(mi.dock)) {
                 TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
+                impl.nm.clear();
                 impl.set("dock", json5pp::object({{"system",mi.system},{"dock",mi.dock}}));
                 run_sub_step(impl.factory(impl));
                 dock = getCurrDock();

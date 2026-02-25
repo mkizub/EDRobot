@@ -56,23 +56,23 @@ void reportContribution(spGameEvent& ge) {
         // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
         json5pp::value resp = curlSimpleGet(RCAPI+"v2/system/"+std::to_string(starSystem->systemAddress));
         std::vector<std::string> active_builds;
-        for (auto& site : resp["sites"].asif_array()) {
+        for (auto& site : resp["sites"].as_array_or()) {
             if (site["marketId"].is_integer() && site["marketId"].as_int64() == marketId) {
-                market->raven.buildId = site["buildId"].asif_string();
-                market->raven.status = site["status"].asif_string();
+                market->raven.buildId = site["buildId"].as_string_or();
+                market->raven.status = site["status"].as_string_or();
                 break;
             }
         }
         if (market->raven.buildId.empty()) {
-            for (auto& site : resp["sites"].asif_array()) {
-                if (site["buildId"].empty() || site["status"].asif_string() != "build")
+            for (auto& site : resp["sites"].as_array_or()) {
+                if (site["buildId"].empty() || site["status"].as_string_or() != "build")
                     continue;
-                if (site["marketId"].empty() && st::dockedAt.stationName.ends_with(site["name"].asif_string())) {
-                    market->raven.buildId = site["buildId"].asif_string();
-                    market->raven.status = site["status"].asif_string();
+                if (site["marketId"].empty() && st::dockedAt.stationName.ends_with(site["name"].as_string_or())) {
+                    market->raven.buildId = site["buildId"].as_string_or();
+                    market->raven.status = site["status"].as_string_or();
                 }
-                if (site["status"].asif_string() == "build") {
-                    active_builds.push_back(site["buildId"].asif_string());
+                if (site["status"].as_string_or() == "build") {
+                    active_builds.push_back(site["buildId"].as_string_or());
                 }
             }
         }
@@ -94,9 +94,9 @@ void reportContribution(spGameEvent& ge) {
         return;
     int contributed = 0;
     json5pp::value post_json = json5pp::object({});
-    for (auto& jc : je["Contributions"].asif_array()) {
-        auto name = jc["Name"].asif_string();
-        auto amount = jc["Amount"].as_int32();
+    for (auto& jc : je["Contributions"].as_array_or()) {
+        auto name = jc["Name"].as_string_or();
+        auto amount = jc["Amount"].as_int32_or();
         if (name.empty() || name[0] != '$' || !name.ends_with("_name;") || amount <= 0)
             continue;
         name = toLower(name.substr(1, name.size() - 7));
@@ -171,11 +171,7 @@ spMarket updateConstructionDepot(spMarket market) {
                 Commodity* c = it.first;
                 auto& ml = it.second;
                 int demandOld = ml.demand - ml.stock;
-                int demandNew;
-                if (auto& jleft = resp["commodities"][c->nameId]; jleft.is_integer())
-                    demandNew = jleft.as_integer();
-                else
-                    demandNew = 0;
+                int demandNew = resp["commodities"][c->nameId].as_integer_or();
                 if (demandNew != demandOld) {
                     LOG(INFO) << std::format("Demand update from RavenColonial: '{}' {} => {}",
                                              c->name, demandOld, demandNew);

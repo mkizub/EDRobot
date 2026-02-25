@@ -129,7 +129,7 @@ static std::pair<std::string,std::string> getLatestVersionAndUrl() {
         auto tag = latest["tag_name"];
         auto url = latest["html_url"];
         if (tag.is_string() && tag.as_string().starts_with("rel-")) {
-            return {tag.as_string().substr(4), url.asif_string()};
+            return {tag.as_string().substr(4), url.as_string_or()};
         }
     }
     return {};

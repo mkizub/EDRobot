@@ -23,8 +23,8 @@ std::string BaseColonizationTask::constructionPrefixes[] {
 
 
 void BaseColonizationTask::addDepotInfo(const json5pp::value& dv) {
-    auto& systemName = dv["system"].asif_string();
-    auto& fullName = dv["dock"].asif_string();
+    auto& systemName = dv["system"].as_string_or();
+    auto& fullName = dv["dock"].as_string_or();
     std::string shortName;
     for (auto& pr : constructionPrefixes) {
         if (fullName.starts_with(pr)) {
@@ -70,6 +70,7 @@ gal::spEntity BaseColonizationTask::travelTo(std::string systemName, std::string
     destSystemName = systemName;
     destDockName = dockName;
     TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
+    impl.nm.clear();
     impl.set("dock", json5pp::object({{"system", destSystemName},
                                       {"dock",   destDockName}}));
     bool ok = run_sub_step(impl.factory(impl));
@@ -122,7 +123,7 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
         Param &p_commodity = templ.get("commodity");
         if (p_commodity.value.is_array()) {
             for (auto &jc: p_commodity.value.as_array()) {
-                Commodity *c = Cfg.getCommodityById(jc.asif_string());
+                Commodity *c = Cfg.getCommodityById(jc.as_string_or());
                 if (c)
                     demands.specialCommodityList.insert(c);
             }
@@ -225,6 +226,9 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
                 canBuyListed += std::min(demand, ml.stock);
         }
     }
+    int freeCargoSpace = st::shipStats.cargoCapacity - st::shipStats.cargo;
+    canBuy = std::clamp(canBuy, 0, freeCargoSpace);
+    canBuyListed = std::clamp(canBuyListed, 0, freeCargoSpace);
     if (canBuy <= 0)
         return {};
     return {systemName, dockName, dock, dockMarket, canBuy, canBuyListed};
@@ -298,8 +302,8 @@ BaseColonizationTask::MarketInfo TaskMyCarrierReserve::chooseBestMarket(const De
     Param &p = templ.get("markets");
     if (p.value.is_array()) {
         for (auto &dv: p.value.as_array()) {
-            auto& systemName = dv["system"].asif_string();
-            auto& dockName = dv["dock"].asif_string();
+            auto& systemName = dv["system"].as_string_or();
+            auto& dockName = dv["dock"].as_string_or();
             MarketInfo mi = checkMarketCanBuy(systemName, dockName, demands);
             if (mi.dock)
                 markets.push_back(mi);
@@ -320,7 +324,9 @@ BaseColonizationTask::MarketInfo TaskMyCarrierReserve::chooseBestMarket(const De
         // then the market that provides more listed goods
         MarketInfo* bestMarket {};
         for (auto& m : markets) {
-            if (!bestMarket || bestMarket->canBuyListed > m.canBuy)
+            if (m.canBuyListed <= 0)
+                continue;
+            if (!bestMarket || bestMarket->canBuyListed < m.canBuyListed)
                 bestMarket = &m;
         }
         if (bestMarket)
@@ -333,7 +339,9 @@ BaseColonizationTask::MarketInfo TaskMyCarrierReserve::chooseBestMarket(const De
     }
     MarketInfo* bestMarket {};
     for (auto& m : markets) {
-        if (!bestMarket || bestMarket->canBuy > m.canBuy)
+        if (m.canBuy <= 0)
+            continue;
+        if (!bestMarket || bestMarket->canBuy < m.canBuy)
             bestMarket = &m;
     }
     if (bestMarket)
@@ -347,7 +355,7 @@ bool TaskMyCarrierReserve::deliverToCarrier() {
         return false;
 
     Param &p = templ.get("carrier");
-    travelTo(p.value["system"].asif_string(), p.value["dock"].asif_string());
+    travelTo(p.value["system"].as_string_or(), p.value["dock"].as_string_or());
 
     TaskTemplate unloadImpl = getTemplate(ED_TASK_CARRIER_UNLOAD);
     run_sub_step(unloadImpl.factory(unloadImpl));
@@ -359,10 +367,10 @@ bool TaskMyCarrierReserve::run() {
     if (!st::cmdr.fleetCarrierId)
         throw_failed("Pilot has no fleet carrier");
     if (myCarrierName.empty())
-        myCarrierName = templ.get("carrier").value["dock"].asif_string();
+        myCarrierName = templ.get("carrier").value["dock"].as_string_or();
     if (depots.empty()) {
         const Param &p_depots = templ.get("depots");
-        for (auto &dv: p_depots.value.asif_array())
+        for (auto &dv: p_depots.value.as_array_or())
             addDepotInfo(dv);
     }
 
@@ -461,8 +469,8 @@ BaseColonizationTask::MarketInfo TaskConstruction::chooseBestMarket(const Demand
     Param &p = templ.get("markets");
     if (p.value.is_array()) {
         for (auto &dv: p.value.as_array()) {
-            auto& systemName = dv["system"].asif_string();
-            auto& dockName = dv["dock"].asif_string();
+            auto& systemName = dv["system"].as_string_or();
+            auto& dockName = dv["dock"].as_string_or();
             MarketInfo mi = checkMarketCanBuy(systemName, dockName, demands);
             if (mi.dock)
                 markets.push_back(mi);
@@ -489,7 +497,9 @@ BaseColonizationTask::MarketInfo TaskConstruction::chooseBestMarket(const Demand
         // then the market that provides more listed goods
         MarketInfo* bestMarket {};
         for (auto& m : markets) {
-            if (!bestMarket || bestMarket->canBuyListed > m.canBuy)
+            if (m.canBuyListed <= 0)
+                continue;
+            if (!bestMarket || bestMarket->canBuyListed < m.canBuyListed)
                 bestMarket = &m;
         }
         if (bestMarket)
@@ -505,7 +515,9 @@ BaseColonizationTask::MarketInfo TaskConstruction::chooseBestMarket(const Demand
     // then the market that provides more goods
     MarketInfo* bestMarket {};
     for (auto& m : markets) {
-        if (!bestMarket || bestMarket->canBuy > m.canBuy)
+        if (m.canBuy <= 0)
+            continue;
+        if (!bestMarket || bestMarket->canBuy < m.canBuy)
             bestMarket = &m;
     }
     if (bestMarket)
@@ -519,7 +531,7 @@ bool TaskConstruction::deliverToDepot() {
         return false;
 
     Param &p = templ.get("depot");
-    travelTo(p.value["system"].asif_string(), p.value["dock"].asif_string());
+    travelTo(p.value["system"].as_string_or(), p.value["dock"].as_string_or());
 
     TaskTemplate unloadImpl = getTemplate(ED_TASK_CONSTR_UNLOAD);
     run_sub_step(unloadImpl.factory(unloadImpl));
