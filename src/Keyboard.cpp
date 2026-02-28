@@ -442,6 +442,18 @@ void stop() {
     }
 }
 
+bool isScrollLocked() {
+    return (GetKeyState(VK_SCROLL) & 0x0001) != 0;
+}
+
+bool isNumLocked() {
+    return (GetKeyState(VK_NUMLOCK) & 0x0001) != 0;
+}
+
+bool isCapsLocked() {
+    return (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
+}
+
 int getScanCode(std::string key_name) {
     std::wstring wkey = toUtf16(key_name);
     if (wkey[0] > 0x7f) {

@@ -299,6 +299,7 @@ bool Configuration::loadGameStatus() {
     }
     if (ge->event != "Status")
         return false;
+    //st::ShipStatus old_status = st::ship;
     auto& j = ge->data;
     st::ship.timestamp = ge->timestamp;
     st::ship.flags.all = j["Flags"].as_unsigned_or();
@@ -331,6 +332,8 @@ bool Configuration::loadGameStatus() {
         st::shipAtBody.heading = j["Heading"].as_number();
         st::shipAtBody.planetRadius = j["PlanetRadius"].as_number();
         //LOG(INFO) << "Body: " << st::shipAtBody.bodyName << "; alt: " << std::round(st::shipAtBody.altitude/1000) << "km; radius: " << std::round(st::shipAtBody.planetRadius/1000) << "km";
+        //if (old_status.flags.cruise && !st::ship.flags.cruise)
+        //    LOG(INFO) << "Exit cruise alt: " << std::round(st::shipAtBody.altitude/1000) << "km";
     } else {
         st::shipAtBody.nearBody = false;
     }

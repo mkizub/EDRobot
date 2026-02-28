@@ -448,6 +448,10 @@ dist_t dist_t::convertTo(dist_t::Unit u) const {
     return dist_t(u, dist*DIST_UNIT_SCALE[unit][u]);
 }
 
+dist_t dist_t::abs() const {
+    return dist_t(std::abs(dist), unit, conf);
+}
+
 double dist_t::get(Unit u) const {
     if (u == Unit::X || unit == Unit::X) return -1;
     return dist*DIST_UNIT_SCALE[unit][u];

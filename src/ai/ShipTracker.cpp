@@ -461,6 +461,11 @@ repeat_step:
         compassLostCounter = 0;
     }
 
+//    if (kbd::isCapsLocked()) {
+//        Axis::resetAll();
+//        return 250ms;
+//    }
+
     int speed_set_to = st::autopilot.speed_set_to.value_or(50);
     double pitchSpeed = shipStats->getPitchSpeed(speed_set_to);
     double yawSpeed = shipStats->getYawSpeed(speed_set_to);

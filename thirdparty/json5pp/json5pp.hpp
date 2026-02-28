@@ -1292,13 +1292,13 @@ public:
     [[nodiscard]] constexpr V* try_deref() const {
         V* ptr = &vref;
         for (int idx=0; idx < N; idx++) {
-            if (ptr->is_object()) {
-                auto& o = ptr->as_object();
-                auto it = o.find(std::string(keys[idx]));
-                if (it == o.end())
-                    return nullptr;
-                ptr = &it.value();
-            }
+            if (!ptr->is_object())
+                return nullptr;
+            auto& o = ptr->as_object();
+            auto it = o.find(std::string(keys[idx]));
+            if (it == o.end())
+                return nullptr;
+            ptr = &it.value();
         }
         return ptr;
     }

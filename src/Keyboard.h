@@ -44,6 +44,10 @@ bool release_vJoy();
 void start(KeyboardCollbackFn callback);
 void stop();
 
+bool isScrollLocked();
+bool isNumLocked();
+bool isCapsLocked();
+
 int getScanCode(std::string key_name);
 bool send(const std::string& name, int delay_ms= 0, int pause_ms= 0, bool precise= false);
 bool sendMouseMove(const cv::Point& point, int pause_ms, bool absolute=true);

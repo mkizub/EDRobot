@@ -127,6 +127,7 @@ struct dist_t {
     explicit operator bool() const { return unit != X && dist > 0; }
     bool valid() const { return unit != X; }
     dist_t convertTo(Unit u) const;
+    dist_t abs() const;
     double get(Unit u) const;
     double get_m() const;
     double get_km() const;
@@ -167,7 +168,7 @@ inline dist_t operator +(const dist_t d1, const dist_t d2) {
 }
 inline dist_t operator -(const dist_t d1, const dist_t d2) {
     dist_t::Unit u = d1.unit < d2.unit ? d1.unit : d2.unit;
-    return {u, d1.get(u) - d2.get(u)};
+    return {u, std::abs(d1.get(u) - d2.get(u))};
 }
 inline dist_t operator *(const dist_t d, double scale) {
     return {d.unit, d.dist * scale};

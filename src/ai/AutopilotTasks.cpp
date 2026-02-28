@@ -21,6 +21,9 @@ namespace ai {
 // TODO: autopilot to planet port - orient roll to planet center before flying to port
 // TODO: restart frame capturing if many fails
 
+const dist_t kPlDockFar = 10_km;
+const dist_t kPlDockTooFar = 50_km;
+
 static enum BlindMode {
     ROLL_BLIND_ROLL,
     ROLL_BLIND_NONE,
@@ -50,6 +53,16 @@ void rollBlindCompass() {
     } else {
         kbd::send("RollRightButton", 1000, 1000);
     }
+}
+
+double orbitShowAltitude(double planet_radius) {
+    return 500 + planet_radius * 0.415; // show orbit altitude and add it to Status.json
+}
+double orbitEnterAltitude(double planet_radius) {
+    return 400 + planet_radius * 0.1; // orbit exit altitude (angle shown)
+}
+double orbitExitAltitude(double planet_radius) {
+    return 25; // orbit exit, start gliding, always at 25 km
 }
 
 inline void sendUiBack(int pause=1000) {
@@ -2186,7 +2199,7 @@ bool DockPlanetPort::run() {
 
 
     BlindLock blindLock(ROLL_BLIND_NONE);
-    if (st::autopilot.distanceToDock && st::autopilot.distanceToDock < 12_km)
+    if (st::autopilot.distanceToDock && st::autopilot.distanceToDock < kPlDockFar)
         normalizeOrientation();
 
     // clear expired docking event
@@ -2310,12 +2323,12 @@ dist_t DockPlanetPort::getDockDistance(bool force) {
 bool DockPlanetPort::flyTowardsTarget(dist_t dist) {
     LOG(DEBUG) << "DockPlanetPort: flyTowardsTarget dist " << dist;
     setSpeed(0, false, "DockPlanetPort::flyTowardsTarget init");
-    while (dist && dist > 12_km) {
+    while (dist && dist > kPlDockFar) {
         setSpeed(0, false, "DockPlanetPort::flyTowardsTarget dist too far");
         while (st::guiFocus != GuiFocus::None)
             sendUiBack();
         surface_aligned = false;
-        safe_dist = 12_km;
+        safe_dist = kPlDockFar;
         CourseLocker course(0);
         flyTowardsStep();
         safe_dist = 7400_m;
@@ -3148,9 +3161,9 @@ bool DiveUnderPlanetStep::run() {
                     float alphaO = std::numeric_limits<float>::quiet_NaN();
                     if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius > 0) {
                         const double angleEntry = 50;
-                        const double oA = 500+st::autopilot.destBody->radius*0.415; // orbit enter altitude
+                        const double oA = orbitShowAltitude(st::autopilot.destBody->radius);
                         double dP = dist_body.get_km();
-                        double dO = st::autopilot.destBody->radius + (500+st::autopilot.destBody->radius*0.415);
+                        double dO = st::autopilot.destBody->radius + oA;
                         double xP = sqrt(dP * dP + dO * dO - 2 * dP * dO * std::cos(angleEntry * M_PI / 180));
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
@@ -3252,8 +3265,9 @@ bool DiveUnderPlanetStep::run() {
                     float alphaO = std::numeric_limits<float>::quiet_NaN();
                     if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius > 0) {
                         const double angleEntry = 50;
+                        const double oA = orbitShowAltitude(st::autopilot.destBody->radius);
                         double dP = dist_body.get_km();
-                        double dO = st::autopilot.destBody->radius + (500+st::autopilot.destBody->radius*0.415);
+                        double dO = st::autopilot.destBody->radius + oA;
                         double xP = sqrt(dP * dP + dO * dO - 2 * dP * dO * std::cos(angleEntry * M_PI / 180));
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
@@ -3636,6 +3650,7 @@ bool ExitCruiseToPlanet::run() {
         throw_trouble("Cannot get to body vicinity");
 
     bool angle_is_close_to_tangent = false;
+    double enteringDockToBodyAngle;
     {
         status = ORIENT;
         setSpeed(0, true, "ExitCruiseToPlanet, aligning to planet start");
@@ -3647,7 +3662,7 @@ bool ExitCruiseToPlanet::run() {
         if (!run_sub_step(new NavDockSelect))
             return false;
         sendUiBack();
-        for (int retry=0; retry < 5; retry++) {
+        for (int retry = 0; retry < 5; retry++) {
             if (st::guiFocus != GuiFocus::None) {
                 sendUiBack();
                 continue;
@@ -3660,6 +3675,7 @@ bool ExitCruiseToPlanet::run() {
         if (!(st::compass.has_nav_target || (st::compass.hemisphere > 0 && st::compass.targetAngle < 15)))
             throw_trouble("Cannot see destination site");
         double pitchToDock = st::compass.targetPitch;
+        enteringDockToBodyAngle = std::abs(pitchToDock - pitchToBody);
         double R = st::autopilot.destBody->radius;
         double altitude = st::shipAtBody.altitude * 0.001;
         double dist_to_body_center = R + altitude;
@@ -3669,9 +3685,9 @@ bool ExitCruiseToPlanet::run() {
 
         setSpeed(angle_is_close_to_tangent ? 50 : 25, true, "ExitCruiseToPlanet, aligning finished");
     }
-    if (!st::ship.flags.cruise)
+    if (!st::ship.flags.cruise) {
         throw_trouble("Unexpected cruise exit");
-    {
+    } else {
         timer = utc_timer(angle_is_close_to_tangent ? 4min : 3min);
         status = APPROACH;
         bool check_dist_pitch = angle_is_close_to_tangent;
@@ -3679,18 +3695,25 @@ bool ExitCruiseToPlanet::run() {
         if (angle_is_close_to_tangent) {
             course_pitch = -7;
             if (st::shipInfo.shipType == "panthermkii")
-                course_pitch = -3;
+                course_pitch = -4;
         }
         CourseLocker course(course_pitch);
         while (st::ship.flags.cruise && !timer.expired()) {
             sleep(250);
             if (check_dist_pitch) {
-                auto &d = st::autopilot.distanceToDock;
-                if (d < 300_km) {
+                if ((st::shipAtBody.nearBody && st::shipAtBody.altitude < 30) || st::autopilot.distanceToDock < 100_km) {
                     check_dist_pitch = false;
                     course.requestPitchRoll(0);
                 }
             }
+//            if (st::compass.has_nav_target && st::autopilot.distanceToTarget) {
+//                double R = st::autopilot.destBody->radius;
+//                double A = st::shipAtBody.altitude * 0.001;
+//                double d = st::autopilot.distanceToTarget.get_km();
+//                double angle = 90 - std::acos( (A*A + d*d + 2*A*R) / (2*d*(A+R)) ) * 180 / M_PI;
+//                LOG(INFO) << std::format("R {:5d}km;       Alt {:5d}km;     dist {:5d}km;     Angle: {:3d}",
+//                                         int(R), int(A), int(d), int(angle));
+//            }
         }
     }
 
@@ -3701,30 +3724,27 @@ bool ExitCruiseToPlanet::run() {
     status = CONFIRM;
     notify_info("Arrived, speed zero");
     setSpeed(0, true, "ExitCruiseToPlanet, cruise exited, gliding");
-    sleep(angle_is_close_to_tangent ? 4000 : 2000);
+    sleep(2000);
 
-    bool distance_verified = false;
-    double prev_dist_km = 0;
-    for (int retry=0; retry < 40; retry++) {
+    dist_t prev_dist;
+    for (int retry=0; retry < 60; retry++) {
         ai::detectEDState(DetectLevel::Screen);
-        auto ai_dist = st::autopilot.distanceToTarget;
+        auto& ai_dist = st::autopilot.distanceToTarget;
         if (ai_dist) {
-            double dist_km = ai_dist.get_km();
-            if (prev_dist_km > 0 && std::abs(prev_dist_km - dist_km) < 1) {
-                if (dist_km > 50)
-                    throw_trouble("Unexpected distance after cruise exit: {}", ai_dist.to_string());
-                distance_verified = true;
+            if (prev_dist && prev_dist != ai_dist && (prev_dist-ai_dist) < 0.5_km)
                 break;
-            }
-            prev_dist_km = dist_km;
+            prev_dist = ai_dist;
         }
         sleep(500);
     }
 
-    if (!distance_verified)
+    if (!prev_dist)
         notify_warn("Cannot confirm distance after cruise exit");
     LOG(DEBUG) << "ExitCruiseToPlanet, align after gliding";
-    task->orientPitchStep(60);
+    if (!prev_dist || prev_dist < kPlDockFar)
+        task->orientPitchStep(angle_is_close_to_tangent ? 40 : 60);
+    if (prev_dist > kPlDockTooFar)
+        throw_trouble("Unexpected distance after cruise exit: {}", prev_dist.to_string());
     LOG(DEBUG) << "ExitCruiseToPlanet, done";
     prevSubStep.reset();
     currSubStep.reset();
@@ -3970,7 +3990,7 @@ bool CruiseAndDock::run() {
             if (ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle < 70) {
                 float visible_body_angle = std::asin(at_body->radius / dist_body.get_km()) * 180 / M_PI;
                 float to_body_center_angle = ai::compassInfo.targetAngle;
-                const double orbitAltitude = 500+at_body->radius*0.415; // orbit enter altitude
+                const double orbitAltitude = orbitShowAltitude(at_body->radius);
                 const double bypassDistance = at_body->radius + orbitAltitude;
                 float bypassAngle = std::asin(bypassDistance / dist_body.get_km()) * 180 / M_PI;
                 if (to_body_center_angle < bypassAngle)
