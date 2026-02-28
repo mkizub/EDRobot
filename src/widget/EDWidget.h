@@ -20,7 +20,7 @@ struct Widget {
     virtual ~Widget();
 
     void addSubItem(Widget* sub);
-    void setRect(const char* name, const json5pp::value& value, FovScale* fov_scale);
+    void setRect(const char* name, const js::value& value, FovScale* fov_scale);
     cv::Rect calcReferenceRect(const ClassifyEnv& env) const;
 
     struct DetectParams {
@@ -68,7 +68,7 @@ struct Dialog : public BaseDialog {
 };
 
 struct Screen : public BaseDialog {
-    Screen(const std::string& name, Widget* parent, json5pp::value status)
+    Screen(const std::string& name, Widget* parent, js::value status)
         : BaseDialog(WidgetType::Screen, name, parent)
         , status(std::move(status))
     {}
@@ -76,7 +76,7 @@ struct Screen : public BaseDialog {
     bool detectWidgets(DetectParams& params);
 
     bool checkStatus() const;
-    const json5pp::value status;
+    const js::value status;
 
     spEvalTransform transform;
 };
@@ -86,7 +86,7 @@ struct Root : public Widget {
     bool detect(DetectParams& params) final;
 };
 
-extern Widget* widget_from_json(const json5pp::value& j, Widget* parent, FovScale* fov_scale);
+extern Widget* widget_from_json(const js::value& j, Widget* parent, FovScale* fov_scale);
 extern void debugNavPanel();
 
 };

@@ -9,6 +9,7 @@
 #include "ai/AIManager.h"
 #include "ui/UIManager.h"
 #include "net/RavenColonial.h"
+#include "js/parser.h"
 
 namespace st {
 Lang lng {Lang::XX};
@@ -108,7 +109,7 @@ static int64_t fssSignalSystemAddress;
 static std::vector<spGameEvent> allFSSSignalEvents;
 static bool scanningOldEvents = true;
 
-inline void set(std::string& field, const json5pp::value& value) {
+inline void set(std::string& field, const js::value& value) {
     if (!value.is_string()) {
         field.clear();
         return;
@@ -118,7 +119,7 @@ inline void set(std::string& field, const json5pp::value& value) {
     field = value.as_string();
 }
 
-GameEvent::GameEvent(json5pp::value&& j) : data(std::move(j)) {
+GameEvent::GameEvent(js::value&& j) : data(std::move(j)) {
     auto jev = data["event"];
     auto jts = data["timestamp"];
     if (!jev.is_string() || !jts.is_string())
@@ -206,11 +207,11 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
         if (trim(line).empty())
             return {};
         try {
-            auto res = json5pp::parse(line);
+            auto res = js::parse(line);
             gameEvent.reset(new GameEvent(std::move(res)));
             if (gameEvent->event.empty())
                 return {};
-        } catch (const json5pp::syntax_error& ex) {
+        } catch (const js::syntax_error& ex) {
             return {};
         }
     }
@@ -273,7 +274,7 @@ bool Configuration::loadGameStatus() {
             return false;
     }
 
-    std::optional<json5pp::value> read_result;
+    std::optional<js::value> read_result;
     spGameEvent ge;
     for (int cnt=0; ; cnt++) {
         if (!ifs) {
@@ -302,10 +303,10 @@ bool Configuration::loadGameStatus() {
     //st::ShipStatus old_status = st::ship;
     auto& j = ge->data;
     st::ship.timestamp = ge->timestamp;
-    st::ship.flags.all = j["Flags"].as_unsigned_or();
-    st::ship.flags2.all = j["Flags2"].as_unsigned_or();
-    st::ship.fireGroup = j["FireGroup"].as_unsigned_or();
-    auto gf = enum_cast<GuiFocus>(j["GuiFocus"].as_integer_or());
+    st::ship.flags.all = j["Flags"].as_int_or();
+    st::ship.flags2.all = j["Flags2"].as_int_or();
+    st::ship.fireGroup = j["FireGroup"].as_int_or();
+    auto gf = enum_cast<GuiFocus>(j["GuiFocus"].as_int_or());
     st::guiFocus = gf.has_value() ? gf.value() : GuiFocus::None;
     if (auto& jp = j["Pips"].as_array_or(); jp.size() == 3) {
         st::ship.pips[0] = jp[0].as_unsigned();
@@ -314,23 +315,23 @@ bool Configuration::loadGameStatus() {
     }
     {
         auto& ss = st::shipStats;
-        ss.fuelMain = j["Fuel"]["FuelMain"].as_number_or();
-        ss.fuelReservoir = j["Fuel"]["FuelReservoir"].as_number_or();
-        ss.cargo = j["Cargo"].as_number_or();
+        ss.fuelMain = j["Fuel"]["FuelMain"].as_real_or();
+        ss.fuelReservoir = j["Fuel"]["FuelReservoir"].as_real_or();
+        ss.cargo = j["Cargo"].as_real_or();
         ss.totalMass = ss.unladenMass + ss.fuelMain + ss.fuelReservoir + ss.cargo;
     }
-    st::ship.balance = j["Balance"].as_int64_or();
+    st::ship.balance = j["Balance"].as_int_or();
     st::ship.legalState = enum_cast<st::ShipStatus::LegalState>(j["LegalState"].as_string_or())
             .value_or(st::ShipStatus::LegalState::Clean);
 
     if (j["BodyName"].is_string()) {
         st::shipAtBody.nearBody = true;
         set(st::shipAtBody.bodyName, j["BodyName"]);
-        st::shipAtBody.latitude = j["Latitude"].as_number();
-        st::shipAtBody.longitude = j["Longitude"].as_number();
-        st::shipAtBody.altitude = j["Altitude"].as_number();
-        st::shipAtBody.heading = j["Heading"].as_number();
-        st::shipAtBody.planetRadius = j["PlanetRadius"].as_number();
+        st::shipAtBody.latitude = j["Latitude"].as_real_or();
+        st::shipAtBody.longitude = j["Longitude"].as_real_or();
+        st::shipAtBody.altitude = j["Altitude"].as_real_or();
+        st::shipAtBody.heading = j["Heading"].as_real_or();
+        st::shipAtBody.planetRadius = j["PlanetRadius"].as_real_or();
         //LOG(INFO) << "Body: " << st::shipAtBody.bodyName << "; alt: " << std::round(st::shipAtBody.altitude/1000) << "km; radius: " << std::round(st::shipAtBody.planetRadius/1000) << "km";
         //if (old_status.flags.cruise && !st::ship.flags.cruise)
         //    LOG(INFO) << "Exit cruise alt: " << std::round(st::shipAtBody.altitude/1000) << "km";
@@ -341,13 +342,13 @@ bool Configuration::loadGameStatus() {
     if (auto jd = j["Destination"]; jd.is_object()) {
         // "Destination":{ "System":2381282543995, "Body":0, "Name":"Col 285 Sector XK-O d6-69" }
         // "Destination":{ "System":2868098639337, "Body":1, "Name":"Orbital Construction Site: Piestrak Town" }
-        int64 systemAddress = jd["System"].as_int64_or();
+        int64 systemAddress = jd["System"].as_int_or();
         std::string name;
         if (jd["Name_Localised"].is_string())
             name = jd["Name_Localised"].as_string();
         else
             name = jd["Name"].as_string_or();
-        int bodyId = jd["Body"].as_integer_or();
+        int bodyId = jd["Body"].as_int_or();
         if (systemAddress != st::destination.systemAddress || name != st::destination.name || bodyId != st::destination.bodyId) {
             st::destination.systemAddress = systemAddress;
             st::destination.name = name;
@@ -381,7 +382,7 @@ bool Configuration::loadGameStatus() {
 void parseEvent_Fileheader(spGameEvent& ge) {
     auto& je = ge->data;
     auto& client = const_cast<st::GameClient&>(st::client);
-    client.isOdyssey = je["Odyssey"].as_boolean();
+    client.isOdyssey = je["Odyssey"].as_bool();
     client.language = je["language"].as_string();
     client.gameversion = je["gameversion"].as_string();
     client.build = je["build"].as_string();
@@ -447,7 +448,7 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     set(shipInfo.shipTypeLocalized, je.at("Ship_Localised",""));
     set(shipInfo.shipUserName, je.at("ShipName",""));
     set(shipInfo.shipIdent, je.at("ShipIdent",""));
-    shipInfo.shipId = je["ShipID"].as_integer_or();
+    shipInfo.shipId = je["ShipID"].as_int_or();
     LOG(INFO) << "Ship: " << shipInfo.shipType;
 }
 
@@ -457,16 +458,16 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
     auto& cmdr = const_cast<st::Commander&>(st::cmdr);
     auto type = je["CarrierType"].as_string_or();
     if (gal::FLEET_CARRIER.match_type(type)) {
-        cmdr.fleetCarrierId = je["CarrierID"].as_int64_or();
+        cmdr.fleetCarrierId = je["CarrierID"].as_int_or();
         cmdr.fleetCarrierInSystem = je["StarSystem"].as_string_or();
-        cmdr.fleetCarrierAtBodyId = je["BodyID"].as_integer_or(-1);
+        cmdr.fleetCarrierAtBodyId = je["BodyID"].as_int_or(-1);
         LOG(INFO) << "Fleet Carrier: " << cmdr.fleetCarrierId << " in system " << cmdr.fleetCarrierInSystem;
         Cfg.loadCarrierCargo();
     }
     if (gal::SQUADRON_CARRIER.match_type(type)) {
-        cmdr.squadronCarrierId = je["CarrierID"].as_int64_or();
+        cmdr.squadronCarrierId = je["CarrierID"].as_int_or();
         cmdr.squadronCarrierInSystem = je["StarSystem"].as_string_or();
-        cmdr.squadronCarrierAtBodyId = je["BodyID"].as_integer_or(-1);
+        cmdr.squadronCarrierAtBodyId = je["BodyID"].as_int_or(-1);
         LOG(INFO) << "Squadron Carrier: " << cmdr.squadronCarrierId << " in system " << cmdr.squadronCarrierInSystem;
     }
 }
@@ -476,16 +477,16 @@ void parseEvent_Location(spGameEvent& ge) {
 
     if (auto starSystem = je["StarSystem"]; starSystem.is_string() && starSystem.as_string() != st::currentStarSystem) {
         st::currentStarSystem = starSystem.as_string();
-        int64_t address = je["SystemAddress"].as_int64_or();
+        int64_t address = je["SystemAddress"].as_int_or();
         gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
         if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
             auto& jp = je["StarPos"].as_array();
-            ss->starPos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+            ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
         }
         gal::setCurrentStarSystem(ss);
     }
     if (ge->event == "Docked" || je["Docked"]) {
-        st::dockedAt.marketId = je["MarketID"].as_int64_or();
+        st::dockedAt.marketId = je["MarketID"].as_int_or();
         set(st::dockedAt.stationName, je["StationName"]);
         set(st::dockedAt.stationType, je["StationType"]);
         gal::getCurrentStarSystem()->addStation(ge);
@@ -494,7 +495,7 @@ void parseEvent_Location(spGameEvent& ge) {
         st::space = {};
     } else {
         if (je["Body"].is_string()) {
-            st::space.bodyId = je["BodyID"].as_integer_or();
+            st::space.bodyId = je["BodyID"].as_int_or();
             set(st::space.bodyName, je["Body"]);
             set(st::space.bodyType, je["BodyType"]);
         } else {
@@ -512,15 +513,15 @@ void parseEvent_Loadout(spGameEvent& ge) {
     set(shipInfo.shipTypeLocalized, je.at("Ship_Localised",shipInfo.shipType));
     set(shipInfo.shipUserName, je["ShipName"]);
     set(shipInfo.shipIdent, je["ShipIdent"]);
-    shipInfo.shipId = je["ShipID"].as_integer_or();
+    shipInfo.shipId = je["ShipID"].as_int_or();
     LOG(INFO) << "Ship: " << shipInfo.shipType;
 
     {
         auto& ss = st::shipStats;
-        ss.unladenMass = je["UnladenMass"].as_number_or();
-        ss.cargoCapacity = je["CargoCapacity"].as_number_or();
-        ss.fuelCapacityMain = je["FuelCapacity"]["Main"].as_number_or();
-        ss.fuelCapacityReservoir = je["FuelCapacity"]["Reserve"].as_number_or();
+        ss.unladenMass = je["UnladenMass"].as_real_or();
+        ss.cargoCapacity = je["CargoCapacity"].as_real_or();
+        ss.fuelCapacityMain = je["FuelCapacity"]["Main"].as_real_or();
+        ss.fuelCapacityReservoir = je["FuelCapacity"]["Reserve"].as_real_or();
         ss.totalMass = ss.unladenMass + ss.fuelMain + ss.fuelReservoir + ss.cargo;
     }
 
@@ -549,7 +550,7 @@ void parseEvent_Cargo(spGameEvent& ge) {
     Cfg.loadShipCargo(ge);
 }
 void parseEvent_Market(spGameEvent& ge) {
-    Cfg.loadMarket(ge->timestamp);
+    Cfg.loadMarket(ge);
 }
 void parseEvent_NavRoute(spGameEvent& ge) {
     Cfg.loadNavRoute(ge->timestamp);
@@ -567,7 +568,7 @@ void parseEvent_ShipyardSwap(spGameEvent& ge) {
     set(shipInfo.shipTypeLocalized, je.at("Ship_Localised",shipInfo.shipType));
     set(shipInfo.shipUserName, je["ShipName"]);
     set(shipInfo.shipIdent, je["ShipIdent"]);
-    shipInfo.shipId = je["ShipID"].as_integer_or();
+    shipInfo.shipId = je["ShipID"].as_int_or();
     LOG(INFO) << "Ship: " << shipInfo.shipType;
 }
 
@@ -580,7 +581,7 @@ void parseEvent_Undocked(spGameEvent& ge) {
     Cfg.dockingEvent.reset();
     st::currentMarket.reset();
     auto& je = ge->data;
-    st::space.marketId = je["MarketID"].as_int64_or(st::dockedAt.marketId);
+    st::space.marketId = je["MarketID"].as_int_or(st::dockedAt.marketId);
     st::space.stationName = je["StationName"].as_string_or(st::dockedAt.stationName);
     st::space.stationType = je["StationType"].as_string_or(st::dockedAt.stationType);
     st::dockedAt = {};
@@ -589,7 +590,7 @@ void parseEvent_Undocked(spGameEvent& ge) {
 void parseEvent_Docking(spGameEvent& ge) {
     Cfg.dockingEvent = ge;
     auto& je = ge->data;
-    st::space.marketId = je["MarketID"].as_int64_or();
+    st::space.marketId = je["MarketID"].as_int_or();
     st::space.stationName = je["StationName"].as_string_or();
     st::space.stationType = je["StationType"].as_string_or(st::dockedAt.stationType);
 //    if (event == "DockingDenied") {
@@ -613,7 +614,7 @@ void parseEvent_StartJump(spGameEvent& ge) {
     // "Hyperspace" or "Supercruise"
     if (je["JumpType"].as_string_or() == "Hyperspace") {
         st::currentStarSystem = je["StarSystem"].as_string();
-        int64_t address = je["SystemAddress"].as_int64();
+        int64_t address = je["SystemAddress"].as_int();
         gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
         gal::setCurrentStarSystem(ss);
     }
@@ -628,14 +629,14 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::dockedAt = {};
     st::space = {};
     st::currentStarSystem = je["StarSystem"].as_string();
-    int64_t address = je["SystemAddress"].as_int64();
+    int64_t address = je["SystemAddress"].as_int();
     gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
     if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
         auto& jp = je["StarPos"].as_array();
-        ss->starPos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+        ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
     }
     gal::setCurrentStarSystem(ss);
-    st::space.bodyId = je["BodyID"].as_integer_or(-1);
+    st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
     ai::resetCompassDetects();
@@ -664,14 +665,14 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     st::shipAtBody.approachBody = false;
     st::shipAtBody.nearBody = false;
     st::currentStarSystem = je["StarSystem"].as_string();
-    int64_t address = je["SystemAddress"].as_int64();
+    int64_t address = je["SystemAddress"].as_int();
     gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
     if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
         auto& jp = je["StarPos"].as_array();
-        ss->starPos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+        ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
     }
     gal::setCurrentStarSystem(ss);
-    st::space.bodyId = je["BodyID"].as_integer_or(-1);
+    st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
     if (carrier) {
@@ -692,7 +693,7 @@ void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::dockedAt = {};
-    st::space.marketId = je["MarketID"].as_int64_or();
+    st::space.marketId = je["MarketID"].as_int_or();
     if (je.at("Type_Localised").is_string())
         st::space.stationName = je["Type_Localised"].as_string();
     else
@@ -712,10 +713,10 @@ void parseEvent_ApproachSettlement(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::dockedAt = {};
-    st::space.marketId = je["MarketID"].as_int64_or();
+    st::space.marketId = je["MarketID"].as_int_or();
     set(st::space.stationName, je["Name"]);
     st::space.stationType.clear();
-    st::space.bodyId = je["BodyID"].as_integer_or();
+    st::space.bodyId = je["BodyID"].as_int_or();
     set(st::space.bodyName, je["BodyName"]);
     set(st::space.bodyType, "Planet");
 
@@ -729,7 +730,7 @@ void parseEvent_SupercruiseExit(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::dockedAt = {};
-    st::space.bodyId = je["BodyID"].as_integer_or();
+    st::space.bodyId = je["BodyID"].as_int_or();
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
     ai::resetCompassDetects();
@@ -747,7 +748,7 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
     } else {
         auto& je = ge->data;
 
-        int64_t address = je["SystemAddress"].as_int64_or();
+        int64_t address = je["SystemAddress"].as_int_or();
         gal::spStarSystem ss = gal::getCurrentStarSystem();
         if (!ss || !address || ss->systemAddress != address) {
             allFSSSignalEvents.clear();
@@ -766,8 +767,8 @@ void parseEvent_Scan(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto starSystem = je["StarSystem"].as_string_or();
-    int64_t address = je["SystemAddress"].as_int64_or();
-    int bodyId = je["BodyID"].as_integer_or(-1);
+    int64_t address = je["SystemAddress"].as_int_or();
+    int bodyId = je["BodyID"].as_int_or(-1);
     gal::spStarSystem ss = gal::getStarSystem(starSystem, address);
     auto body = ss->getBodyById(bodyId);
     if (!body) {
@@ -782,8 +783,8 @@ void parseEvent_Scan(spGameEvent& ge) {
             ss->saved = false;
         }
         std::string code = je["StarType"].as_string();
-        if (je["Subclass"].is_integer())
-            code += std::to_string(je["Subclass"].as_integer());
+        if (je["Subclass"].is_int())
+            code += std::to_string(je["Subclass"].as_int());
         if (body->code != code) {
             body->code = code;
             ss->saved = false;
@@ -812,25 +813,25 @@ void parseEvent_Scan(spGameEvent& ge) {
             for (auto jp : je["Parents"].as_array()) {
                 TypeNav p_type = TypeNav::Error;
                 int p_id = -1;
-                if (jp["Null"].is_integer()) {
+                if (jp["Null"].is_int()) {
                     p_type = TypeNav::Barycenter;
-                    p_id = jp["Null"].as_integer();
+                    p_id = jp["Null"].as_int();
                 }
-                else if (jp["Star"].is_integer()) {
+                else if (jp["Star"].is_int()) {
                     p_type = TypeNav::Star;
-                    p_id = jp["Star"].as_integer();
+                    p_id = jp["Star"].as_int();
                 }
-                else if (jp["Planet"].is_integer()) {
+                else if (jp["Planet"].is_int()) {
                     p_type = TypeNav::Planet;
-                    p_id = jp["Planet"].as_integer();
+                    p_id = jp["Planet"].as_int();
                 }
-                else if (jp["Ring"].is_integer()) {
+                else if (jp["Ring"].is_int()) {
                     p_type = TypeNav::Ring;
-                    p_id = jp["Ring"].as_integer();
+                    p_id = jp["Ring"].as_int();
                 }
-                else if (jp["AsteroidCluster"].is_integer()) {
+                else if (jp["AsteroidCluster"].is_int()) {
                     p_type = TypeNav::AsteroidCluster;
-                    p_id = jp["AsteroidCluster"].as_integer();
+                    p_id = jp["AsteroidCluster"].as_int();
                 }
                 if (p_type == TypeNav::Error || p_id < 0)
                     break;
@@ -855,14 +856,14 @@ void parseEvent_Scan(spGameEvent& ge) {
         ss->saved = false;
     }
     if (auto bd=je["DistanceFromArrivalLS"]; bd.is_number()) {
-        double dist_ls = bd.as_number();
+        double dist_ls = bd.as_real();
         if (std::round(body->main_star_distance.get_ls()) != std::round(dist_ls)) {
             body->main_star_distance = dist_t(dist_t::LS, dist_ls);
             ss->saved = false;
         }
     }
     if (auto br = je["Radius"]; br.is_number()) {
-        double r = std::round(br.as_number()) / 1000.0; // meters->kilometers
+        double r = std::round(br.as_real()) / 1000.0; // meters->kilometers
         if (body->radius != r) {
             body->radius = r;
             ss->saved = false;
@@ -876,8 +877,8 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto starSystem = je["StarSystem"].as_string_or();
-    int64_t address = je["SystemAddress"].as_int64_or();
-    int bodyId = je["BodyID"].as_integer();
+    int64_t address = je["SystemAddress"].as_int_or();
+    int bodyId = je["BodyID"].as_int();
     gal::spStarSystem ss = gal::getStarSystem(starSystem, address);
     auto body = ss->getBodyById(bodyId);
     if (!body) {
@@ -899,7 +900,7 @@ void parseEvent_ApproachBody(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::shipAtBody.approachBody = true;
-    st::shipAtBody.bodyId = je["BodyID"].as_integer_or();
+    st::shipAtBody.bodyId = je["BodyID"].as_int_or();
     set(st::shipAtBody.bodyName, je["Body"]);
 }
 
@@ -907,7 +908,7 @@ void parseEvent_LeaveBody(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::shipAtBody.approachBody = false;
-    st::shipAtBody.bodyId = je["BodyID"].as_integer_or();
+    st::shipAtBody.bodyId = je["BodyID"].as_int_or();
     set(st::shipAtBody.bodyName, je["Body"]);
 }
 
@@ -917,7 +918,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
     auto starSystem = gal::getCurrentStarSystem();
     if (!starSystem)
         return;
-    int64_t marketId = je["MarketID"].as_int64_or();
+    int64_t marketId = je["MarketID"].as_int_or();
     spMarket old_market = gal::getMarket(marketId);
     if (old_market && old_market->timestamp > ge->timestamp)
         return;
@@ -929,7 +930,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             .stationType = "ConstrDepot",
             .starSystem = starSystem->systemName,
     });
-    bool complete = je["ConstructionComplete"].as_boolean();
+    bool complete = je["ConstructionComplete"].as_bool();
     bool reportToRaven = false;
     if (old_market && !old_market->raven.buildId.empty()) {
         market->raven = old_market->raven;
@@ -949,8 +950,8 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
         Commodity *commodity = Cfg.getCommodityById(name);
         if (!commodity)
             continue;
-        int provided = jr["ProvidedAmount"].as_int32_or();
-        int required = jr["RequiredAmount"].as_int32_or();
+        int provided = jr["ProvidedAmount"].as_int_or();
+        int required = jr["RequiredAmount"].as_int_or();
         if (old_market) {
             if (!old_market->items.contains(commodity))
                 reportToRaven = true;
@@ -961,7 +962,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             }
         }
         MarketLine ml{};
-        ml.sellPrice = jr["Payment"].as_int32_or();
+        ml.sellPrice = jr["Payment"].as_int_or();
         ml.stock = provided;
         ml.demand = required;
         ml.isConsumer = true;
@@ -1000,7 +1001,7 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
         cargo_timestamp = st::currentCargo->timestamp;
     auto market = st::currentMarket;
     if (!market) {
-        int64_t marketId = je["MarketID"].as_int64_or();
+        int64_t marketId = je["MarketID"].as_int_or();
         market = gal::getMarket(marketId);
         if (!market)
             return;
@@ -1009,7 +1010,7 @@ void parseEvent_MarketBuy(spGameEvent& ge) {
 
     bool saveCarrier = false;
     auto* commodity = Cfg.getCommodityById(je["Type"].as_string_or());
-    auto count = je["Count"].as_integer_or();
+    int count = je["Count"].as_int_or();
     if (commodity) {
         if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
             commodity->ship.count += count;
@@ -1043,7 +1044,7 @@ void parseEvent_MarketSell(spGameEvent& ge) {
         cargo_timestamp = st::currentCargo->timestamp;
     auto market = st::currentMarket;
     if (!market) {
-        int64_t marketId = je["MarketID"].as_int64_or();
+        int64_t marketId = je["MarketID"].as_int_or();
         market = gal::getMarket(marketId);
         if (!market)
             return;
@@ -1052,7 +1053,7 @@ void parseEvent_MarketSell(spGameEvent& ge) {
 
     bool saveCarrier = false;
     auto* commodity = Cfg.getCommodityById(je["Type"].as_string_or());
-    auto count = je["Count"].as_integer_or();
+    int count = je["Count"].as_int_or();
     if (commodity) {
         if (cargo_timestamp < ge->timestamp && commodity->ship.timestamp < ge->timestamp) {
             commodity->ship.count = std::max(0, commodity->ship.count-count);
@@ -1096,7 +1097,7 @@ void parseEvent_CargoTransfer(spGameEvent& ge) {
     for (auto& jt : je["Transfers"].as_array()) {
         auto *commodity = Cfg.getCommodityById(jt["Type"].as_string_or());
         auto direction = jt["Direction"].as_string_or();
-        auto count = jt["Count"].as_integer_or();
+        int count = jt["Count"].as_int_or();
         if (!commodity || count <= 0 || direction.empty()) {
             LOG(ERROR) << "CargoTransfer, commodity not found: " << jt;
             continue;

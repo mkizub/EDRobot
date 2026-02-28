@@ -5,6 +5,7 @@
 #include "../pch.h"
 
 #include "NetUtils.h"
+#include "../js/parser.h"
 #include <curl/curl.h>
 
 struct CurlWrapper {
@@ -17,9 +18,9 @@ struct CurlWrapper {
     void url_append_esc(const std::string& param);
     bool perform_get();
     bool perform_put(const std::string& data);
-    bool perform_post(const json5pp::value& j);
-    bool perform_patch(const json5pp::value& j);
-    json5pp::value parse_json();
+    bool perform_post(const js::value& j);
+    bool perform_patch(const js::value& j);
+    js::value parse_json();
 
 
     CURL* curl;
@@ -124,11 +125,11 @@ bool CurlWrapper::perform_put(const std::string& data) {
     return true;
 }
 
-bool CurlWrapper::perform_post(const json5pp::value& j) {
+bool CurlWrapper::perform_post(const js::value& j) {
     if (!curl)
         return false;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    std::string json_data = json5pp::stringify(j);
+    std::string json_data = js::stringify(j);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_data.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)json_data.size());
     CURLcode res = curl_easy_perform(curl);
@@ -142,11 +143,11 @@ bool CurlWrapper::perform_post(const json5pp::value& j) {
     return true;
 }
 
-bool CurlWrapper::perform_patch(const json5pp::value& j) {
+bool CurlWrapper::perform_patch(const js::value& j) {
     if (!curl)
         return false;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    std::string json_data = json5pp::stringify(j);
+    std::string json_data = js::stringify(j);
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_data.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)json_data.size());
@@ -161,20 +162,20 @@ bool CurlWrapper::perform_patch(const json5pp::value& j) {
     return true;
 }
 
-json5pp::value CurlWrapper::parse_json() {
+js::value CurlWrapper::parse_json() {
     if (!curl || readBuffer.empty())
         return {};
-    json5pp::value result;
+    js::value result;
     try {
-        result = json5pp::parse5(readBuffer);
-    } catch (const json5pp::syntax_error& ex) {
+        result = js::parse5(readBuffer);
+    } catch (const js::syntax_error& ex) {
         LOG(ERROR) << ex.what();
     }
     return result;
 }
 
 
-json5pp::value curlRequestEDSM(std::string url, std::string systemName) {
+js::value curlRequestEDSM(std::string url, std::string systemName) {
     CurlWrapper cw(url.c_str());
     cw.url_append_esc(systemName);
     if (!cw.curl)
@@ -194,7 +195,7 @@ std::string curlRequestGithubLatest() {
     return cw.readBuffer;
 }
 
-json5pp::value curlSimpleGet(std::string url) {
+js::value curlSimpleGet(std::string url) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
@@ -205,7 +206,7 @@ json5pp::value curlSimpleGet(std::string url) {
     return resp;
 }
 
-json5pp::value curlSimplePut(std::string url, std::string data) {
+js::value curlSimplePut(std::string url, std::string data) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
@@ -216,7 +217,7 @@ json5pp::value curlSimplePut(std::string url, std::string data) {
     return resp;
 }
 
-json5pp::value curlSimplePost(std::string url, const json5pp::value& j) {
+js::value curlSimplePost(std::string url, const js::value& j) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
@@ -227,7 +228,7 @@ json5pp::value curlSimplePost(std::string url, const json5pp::value& j) {
     return resp;
 }
 
-json5pp::value curlSimplePatch(std::string url, const json5pp::value& j) {
+js::value curlSimplePatch(std::string url, const js::value& j) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};

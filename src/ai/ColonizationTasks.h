@@ -17,7 +17,7 @@ protected:
     static std::string constructionPrefixes[];
 
     explicit BaseColonizationTask(const TaskTemplate& templ_) : Task(templ_) {}
-    void addDepotInfo(const json5pp::value& dv);
+    void addDepotInfo(const js::value& dv);
 
     struct DepotInfo {
         std::string systemName;

@@ -163,6 +163,9 @@ add_executable(EDRobot
         src/net/RavenColonial.h
         src/ai/ColonizationTasks.cpp
         src/ai/ColonizationTasks.h
+        src/js/value.h
+        src/js/parser.h
+        src/js/internal/impl.h
 )
 
 

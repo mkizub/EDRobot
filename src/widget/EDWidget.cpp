@@ -10,6 +10,7 @@
 #include "../OCR.h"
 #include "../State.h"
 #include "../detect/Detector.h"
+#include "../js/parser.h"
 
 #ifndef NDEBUG
 #include "cpptrace/from_current.hpp"
@@ -54,7 +55,7 @@ Widget::Widget(WidgetType tp, const std::string &name, Widget *parent)
     //    parent->addSubItem(this);
 }
 
-void Widget::setRect(const char* name, const json5pp::value& value, FovScale* fov_scale) {
+void Widget::setRect(const char* name, const js::value& value, FovScale* fov_scale) {
     rect = makeEvalRect(*this, name, value[name], fov_scale, false);
 }
 
@@ -236,12 +237,12 @@ bool Screen::checkStatus() const {
             continue;
         }
         if (key == "docked") {
-            if (val.as_boolean() != st::ship.flags.docked)
+            if (val.as_bool() != st::ship.flags.docked)
                 return false;
             continue;
         }
         if (key == "expect") {
-            if (val.is_boolean() && val.as_boolean()) {
+            if (val.is_bool() && val.as_bool()) {
                 if (this->name != st::autopilot.expect_screen)
                     return false;
             }
@@ -252,7 +253,7 @@ bool Screen::checkStatus() const {
             continue;
         }
         if (key == "dead") {
-            if (val.as_boolean() != st::isDead)
+            if (val.as_bool() != st::isDead)
                 return false;
             continue;
         }
@@ -264,7 +265,7 @@ bool Screen::checkStatus() const {
 
 class ExprPoint : public EvalPoint {
 public:
-    ExprPoint(const json5pp::value& source);
+    ExprPoint(const js::value& source);
     cv::Point calcReferencePoint(const ResolvedEnv& env) const override;
 
 private:
@@ -272,13 +273,13 @@ private:
 
     static peg::parser& initParser();
 
-    const json5pp::value source;
+    const js::value source;
     std::array<std::variant<int,spAst>,2> astPoint;
 };
 
 class ExprRect : public EvalRect {
 public:
-    ExprRect(const json5pp::value& source);
+    ExprRect(const js::value& source);
     cv::Rect calcReferenceRect(const ResolvedEnv& env) const override;
 
 private:
@@ -286,13 +287,13 @@ private:
 
     static peg::parser& initParser();
 
-    const json5pp::value source;
+    const js::value source;
     std::array<std::variant<int,spAst>,4> astRect;
 };
 
 class ExprLine : public EvalLine {
 public:
-    ExprLine(const json5pp::value& source);
+    ExprLine(const js::value& source);
     cv::Line calcReferenceLine(const ResolvedEnv& env) const override;
 
 private:
@@ -300,12 +301,12 @@ private:
 
     static peg::parser& initParser();
 
-    const json5pp::value source;
+    const js::value source;
     std::array<std::variant<int,spAst>,4> astLine;
 };
 
 
-ExprPoint::ExprPoint(const json5pp::value& src)
+ExprPoint::ExprPoint(const js::value& src)
         : source(src)
 {
     if (!src.is_array() || src.as_array().size() != 4) {
@@ -318,8 +319,8 @@ ExprPoint::ExprPoint(const json5pp::value& src)
 
     for (int i=0; i < 4; i++) {
         auto& v = source.at(i);
-        if (v.is_integer()) {
-            astPoint[i] = v.as_integer();
+        if (v.is_int()) {
+            astPoint[i] = (int)v.as_int();
             continue;
         }
         else if (v.is_string()) {
@@ -334,7 +335,7 @@ ExprPoint::ExprPoint(const json5pp::value& src)
     }
 }
 
-ExprRect::ExprRect(const json5pp::value& src)
+ExprRect::ExprRect(const js::value& src)
     : source(src)
 {
     if (!src.is_array() || src.as_array().size() != 4) {
@@ -347,8 +348,8 @@ ExprRect::ExprRect(const json5pp::value& src)
 
     for (int i=0; i < 4; i++) {
         auto& v = source.at(i);
-        if (v.is_integer()) {
-            astRect[i] = v.as_integer();
+        if (v.is_int()) {
+            astRect[i] = (int)v.as_int();
             continue;
         }
         else if (v.is_string()) {
@@ -363,7 +364,7 @@ ExprRect::ExprRect(const json5pp::value& src)
     }
 }
 
-ExprLine::ExprLine(const json5pp::value& src)
+ExprLine::ExprLine(const js::value& src)
         : source(src)
 {
     if (!src.is_array() || src.as_array().size() != 4) {
@@ -376,8 +377,8 @@ ExprLine::ExprLine(const json5pp::value& src)
 
     for (int i=0; i < 4; i++) {
         auto& v = source.at(i);
-        if (v.is_integer()) {
-            astLine[i] = v.as_integer();
+        if (v.is_int()) {
+            astLine[i] = (int)v.as_int();
             continue;
         }
         else if (v.is_string()) {
@@ -617,7 +618,7 @@ cv::Line FovScale::apply(cv::Line l, double fov) {
 }
 
 
-spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale) {
+spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const js::value& jv, FovScale* fov_scale) {
     if (jv.is_string()) {
         std::vector<std::string> scope_name = split(jv.as_string(), ':');
         if (scope_name.size() != 2) {
@@ -642,7 +643,7 @@ spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const 
     }
     bool simple = true;
     for (int i=0; i < 2; i++) {
-        if (!jv[i].is_integer()) {
+        if (!jv[i].is_int()) {
             simple = false;
             if (!jv[i].is_string())
                 return {};
@@ -650,17 +651,17 @@ spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const 
     }
     if (simple) {
         cv::Point p;
-        p.x = jv[0].as_integer();
-        p.y = jv[1].as_integer();
+        p.x = jv[0].as_int();
+        p.y = jv[1].as_int();
         if (fov_scale && jv[3].is_number()) {
-            p = fov_scale->apply(p, jv[3].as_number());
+            p = fov_scale->apply(p, jv[3].as_real());
         }
         return std::make_shared<ConstPoint>(p);
     }
     return std::make_shared<widget::ExprPoint>(jv);
 }
 
-spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale, bool relative) {
+spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js::value& jv, FovScale* fov_scale, bool relative) {
     if (jv.is_string()) {
         std::vector<std::string> scope_name = split(jv.as_string(), ':');
         if (scope_name.size() != 2) {
@@ -685,7 +686,7 @@ spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js
     }
     bool simple = true;
     for (int i=0; i < 4; i++) {
-        if (!jv[i].is_integer()) {
+        if (!jv[i].is_int()) {
             simple = false;
             if (!jv[i].is_string())
                 return {};
@@ -693,16 +694,16 @@ spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js
     }
     if (simple) {
         cv::Rect r;
-        r.x = jv[0].as_integer();
-        r.y = jv[1].as_integer();
-        r.width = jv[2].as_integer();
-        r.height = jv[3].as_integer();
+        r.x = jv[0].as_int();
+        r.y = jv[1].as_int();
+        r.width = jv[2].as_int();
+        r.height = jv[3].as_int();
         if (fov_scale && jv[4].is_number()) {
             if (!relative) {
-                r = fov_scale->apply(r, jv[4].as_number());
+                r = fov_scale->apply(r, jv[4].as_real());
             } else {
-                cv::Point tl = fov_scale->apply(cv::Size(r.tl()), jv[4].as_number());
-                cv::Size sz = fov_scale->apply(r.size(), jv[4].as_number());
+                cv::Point tl = fov_scale->apply(cv::Size(r.tl()), jv[4].as_real());
+                cv::Size sz = fov_scale->apply(r.size(), jv[4].as_real());
                 r = {tl, sz};
             }
         }
@@ -711,7 +712,7 @@ spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js
     return std::make_shared<widget::ExprRect>(jv);
 }
 
-spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const json5pp::value& jv, FovScale* fov_scale) {
+spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const js::value& jv, FovScale* fov_scale) {
     if (jv.is_string()) {
         std::vector<std::string> scope_name = split(jv.as_string(), ':');
         if (scope_name.size() != 2) {
@@ -736,7 +737,7 @@ spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const js
     }
     bool simple = true;
     for (int i=0; i < 4; i++) {
-        if (!jv[i].is_integer()) {
+        if (!jv[i].is_int()) {
             simple = false;
             if (!jv[i].is_string())
                 return {};
@@ -744,12 +745,12 @@ spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const js
     }
     if (simple) {
         cv::Line ln;
-        ln.x0 = jv[0].as_integer();
-        ln.y0 = jv[1].as_integer();
-        ln.x1 = jv[2].as_integer();
-        ln.y1 = jv[3].as_integer();
+        ln.x0 = jv[0].as_int();
+        ln.y0 = jv[1].as_int();
+        ln.x1 = jv[2].as_int();
+        ln.y1 = jv[3].as_int();
         if (fov_scale && jv[4].is_number()) {
-            ln = fov_scale->apply(ln, jv[4].as_number());
+            ln = fov_scale->apply(ln, jv[4].as_real());
         }
         return std::make_shared<ConstLine>(ln);
     }

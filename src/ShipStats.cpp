@@ -5,15 +5,16 @@
 #include "pch.h"
 
 #include "ShipStats.h"
+#include "js/parser.h"
 
 
 namespace eddb {
 
-json5pp::value gEDDBFull;
-std::unordered_map<std::string,const json5pp::value&> gEDDBShips;
-std::unordered_map<std::string,const json5pp::value&> gEDDBModules;
-std::unordered_map<std::string,const json5pp::value&> gEDDBBlueprints;
-std::unordered_map<std::string,const json5pp::value&> gEDDBEffects;
+js::value gEDDBFull;
+std::unordered_map<std::string,const js::value&> gEDDBShips;
+std::unordered_map<std::string,const js::value&> gEDDBModules;
+std::unordered_map<std::string,const js::value&> gEDDBBlueprints;
+std::unordered_map<std::string,const js::value&> gEDDBEffects;
 std::unordered_map<Attr,ShipAttr> gEDDBAttributes;
 
 spShipStats gShipStats;
@@ -58,8 +59,8 @@ bool loadEDDB() {
     if (!dbf)
         return false;
     try {
-        gEDDBFull = json5pp::parse5(dbf);
-    } catch (const json5pp::syntax_error& ex) {
+        gEDDBFull = js::parse5(dbf);
+    } catch (const js::syntax_error& ex) {
         LOG(ERROR) << ex.what();
     }
     if (!gEDDBFull) {
@@ -109,7 +110,7 @@ ShipAttr* getShipAttr(Attr attr) {
     return nullptr;
 }
 
-ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
+ShipAttr::ShipAttr(Attr attr, const js::value& jv)
     : attr(attr)
     , jvalue(jv)
 {
@@ -130,15 +131,15 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
     if (jv["unit"].is_string())
         unit = jv["unit"].as_string();
     if (jv["modmod"].is_number())
-        modmod = jv["modmod"].as_number();
+        modmod = jv["modmod"].as_real();
     //if (jv["scale"].is_number())
     //    scale = jv["scale"].as_number();
     if (jv["min"].is_number())
-        min = jv["min"].as_number();
+        min = jv["min"].as_real();
     if (jv["max"].is_number())
-        max = jv["max"].as_number();
+        max = jv["max"].as_real();
     if (jv["task_step"].is_number())
-        step = jv["task_step"].as_number();
+        step = jv["task_step"].as_real();
 
     default_value = DNaN;
     default_attr = nullptr;
@@ -153,7 +154,7 @@ ShipAttr::ShipAttr(Attr attr, const json5pp::value& jv)
         }
     }
     else if (dflt.is_number()) {
-        default_value = dflt.as_number();
+        default_value = dflt.as_real();
     }
 }
 
@@ -182,14 +183,14 @@ double ShipSlot::getBlueprintGradeRollAttrModifier(ShipAttr& attribute) {
     if (!bp[attribute.id])
         return DNaN;
     auto& attr = attribute.id;
-    auto bpgrade = std::min(std::max(blueprintLevel, 1), bp["maxgrade"].as_integer());
+    auto bpgrade = std::min(std::max(blueprintLevel, 1), (int)bp["maxgrade"].as_int());
     auto bproll = std::min(std::max(blueprintQuality, 0.f), 1.f);
-    auto himod = bp[attr][bpgrade - 1].as_number();
+    auto himod = bp[attr][bpgrade - 1].as_real();
     double xmod;
     if ((himod < 0) == !attribute.bad) {
         xmod = himod;
     } else {
-        auto lomod = ((bpgrade > 1) ? bp[attr][bpgrade - 2].as_number() : ((himod && bp[attr][1]) ? (himod - (bp[attr][1].as_number() - himod)) : 0));
+        auto lomod = ((bpgrade > 1) ? bp[attr][bpgrade - 2].as_real() : ((himod && bp[attr][1]) ? (himod - (bp[attr][1].as_real() - himod)) : 0));
         xmod = lomod + bproll * (himod - lomod);
     }
     if (attribute.modmod.has_value())
@@ -208,7 +209,7 @@ void ShipSlot::setEngineering(const std::string& bp, int level, float quality, c
         auto it = gEDDBBlueprints.find(toLower(bp));
         if (it != gEDDBBlueprints.end()) {
             blueprint = &it->second;
-            blueprintLevel = std::min(std::max(level, 1), (*blueprint)["maxgrade"].as_integer());
+            blueprintLevel = std::min(std::max(level, 1), (int)(*blueprint)["maxgrade"].as_int());
             const float MIN_QUALITY = 0.00025f;
             blueprintQuality = std::min(std::max(quality, MIN_QUALITY), 1.0f);
         } else {
@@ -403,9 +404,9 @@ double ShipSlot::getAttrValue(Attr attr, bool modified) {
     return getModuleAttrValue(*this->module, attr, DNaN);
 }
 
-double ShipSlot::getModuleAttrValue(const json5pp::value& module, Attr attr, double modifier) {
+double ShipSlot::getModuleAttrValue(const js::value& module, Attr attr, double modifier) {
     std::string attr_name(enum_name<Attr>(attr));
-    json5pp::value value = module.at(attr_name);
+    js::value value = module.at(attr_name);
     switch (attr) {
     case Attr::engminmul:
         if (module["minmulspd"] || module["minmulacc"] || module["minmulrot"]) {
@@ -433,21 +434,21 @@ double ShipSlot::getModuleAttrValue(const json5pp::value& module, Attr attr, dou
             }
         }
     }
-    return getAttrValue(attr, value.as_number(), modifier);
+    return getAttrValue(attr, value.as_real(), modifier);
 }
 
 
-void parse_speed_scale(json5pp::value jarr, float arr[3], float dflt) {
+void parse_speed_scale(js::value jarr, float arr[3], float dflt) {
     if (!jarr.is_array()) {
         for (int i=0; i < 3; i++)
             arr[i] = dflt;
     } else {
         for (int i = 0; i < 3; i++)
-            arr[i] = jarr[i].as_number();
+            arr[i] = jarr[i].as_real();
     }
 }
 
-ShipStats::ShipStats(const string &type, const json5pp::value &jship)
+ShipStats::ShipStats(const string &type, const js::value &jship)
         : type(type)
         , jship(jship)
 {
@@ -468,16 +469,16 @@ ShipStats::ShipStats(const string &type, const json5pp::value &jship)
     getSlot("DiscoveryScanner");
     getSlot("ColonisationSuite");
 
-    parse_speed_scale(jship["pitch_cruise"], cruise_rot[Axis::Pitch], jship["pitch"].as_number());
-    parse_speed_scale(jship["yaw_cruise"], cruise_rot[Axis::Yaw], jship["yaw"].as_number());
-    parse_speed_scale(jship["roll_cruise"], cruise_rot[Axis::Roll], jship["roll"].as_number());
+    parse_speed_scale(jship["pitch_cruise"], cruise_rot[Axis::Pitch], jship["pitch"].as_real());
+    parse_speed_scale(jship["yaw_cruise"], cruise_rot[Axis::Yaw], jship["yaw"].as_real());
+    parse_speed_scale(jship["roll_cruise"], cruise_rot[Axis::Roll], jship["roll"].as_real());
     parse_speed_scale(jship["pitch_space"], space_rot[Axis::Pitch], 1);
     parse_speed_scale(jship["yaw_space"], space_rot[Axis::Yaw], 1);
     parse_speed_scale(jship["roll_space"], space_rot[Axis::Roll], 1);
 }
 
 
-void ShipStats::setSlotModule(const json5pp::value &jvalue) {
+void ShipStats::setSlotModule(const js::value &jvalue) {
     const std::string& slotName = jvalue["Slot"].as_string();
     const std::string& moduleName = jvalue["Item"].as_string();
     auto& slot = getSlot(slotName);
@@ -486,8 +487,8 @@ void ShipStats::setSlotModule(const json5pp::value &jvalue) {
     if (eng.is_object()) {
         if (eng["BlueprintName"].is_string()) {
             std::string blueprint = eng["BlueprintName"].as_string();
-            int level = eng["Level"].as_integer();
-            float quality = eng["Quality"].as_number();
+            int level = eng["Level"].as_int();
+            float quality = eng["Quality"].as_real();
             std::string effect = eng["ExperimentalEffect"].as_string_or();
             slot.setEngineering(blueprint, level, quality, effect);
         }

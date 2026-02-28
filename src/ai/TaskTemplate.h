@@ -19,8 +19,8 @@ struct Param {
     Type              type;
     std::string       id;
     std::string       nm;
-    json5pp::value    meta;
-    json5pp::value    value;
+    js::value    meta;
+    js::value    value;
 
     std::string name() const;
     std::string placeholder() const;
@@ -36,7 +36,7 @@ struct Param {
     std::string as_string() const;
     ::Commodity* as_commodity() const;
 
-    bool set(const json5pp::value& value, bool silent=false);
+    bool set(const js::value& value, bool silent=false);
     bool operator==(const Param& other) const;
     bool operator!=(const Param& other) const { return !operator==(other); }
 };
@@ -50,14 +50,14 @@ struct TaskTemplate {
 
     Param& get(const string& pid);
     const Param& get(const string& pid) const;
-    bool set(const string& pid, const json5pp::value& value);
+    bool set(const string& pid, const js::value& value);
 
     std::string name() const;
     bool validate() const;
     bool operator==(const TaskTemplate& other) const;
     bool operator!=(const TaskTemplate& other) const { return !operator==(other); }
 
-    static TaskTemplate loadTask(const json5pp::value& task);
+    static TaskTemplate loadTask(const js::value& task);
     static void loadUserTasks();
     static void saveUserTasks();
 };

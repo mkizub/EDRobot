@@ -105,8 +105,8 @@ struct NavRoute {
 };
 
 struct GameEvent {
-    GameEvent(json5pp::value&& data);
-    const json5pp::value data;
+    GameEvent(js::value&& data);
+    const js::value data;
     Timestamp timestamp;
     std::string event;
 };
@@ -145,7 +145,7 @@ public:
     Commodity* getCommodityByName(const std::string& name, bool fuzzy_ocr);
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);
 
-    bool loadMarket(Timestamp timestamp);
+    bool loadMarket(spGameEvent ge);
     bool loadShipCargo(spGameEvent ge);
     bool loadCarrierCargo();
     bool saveCarrierCargo(Timestamp timestamp, const std::map<Commodity*,int>& patch);
@@ -175,7 +175,7 @@ public:
 private:
     friend class Master;
 
-    void parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg);
+    void parseShortcutConfig(Command command, const std::string& name, js::value cfg);
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
     bool parseKeyBindings(XMLNode *rootNode, std::unordered_map<std::string,KeyBindings>& map, const char* tag);
     bool loadGameSettings(bool initial);

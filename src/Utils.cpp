@@ -420,7 +420,7 @@ bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
     return true;
 }
 
-bool parseTimestamp(const json5pp::value& value, Timestamp& timestamp) {
+bool parseTimestamp(const js::value& value, Timestamp& timestamp) {
     if (value.is_string())
         return parseTimestampString(value.as_string(), timestamp);
     auto ts = value["timestamp"];

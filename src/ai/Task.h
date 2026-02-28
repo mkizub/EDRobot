@@ -51,9 +51,9 @@ public:
 
     TaskTemplate templ;
 
-    bool decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const;
-    bool executeStep(const json5pp::value& step, const json5pp::value& args);
-    bool executeWait(const json5pp::value& step, const json5pp::value& args);
+    bool decodePosition(const js::value& pos, cv::Point& point, const js::value& args) const;
+    bool executeStep(const js::value& step, const js::value& args);
+    bool executeWait(const js::value& step, const js::value& args);
     void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* grayImage = nullptr);
 
     int missCount {};

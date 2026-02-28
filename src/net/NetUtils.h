@@ -8,11 +8,11 @@
 #define EDROBOT_NETUTILS_H
 
 std::string curlRequestGithubLatest();
-json5pp::value curlRequestEDSM(std::string url, std::string systemName);
-json5pp::value curlSimpleGet(std::string url);
-json5pp::value curlSimplePut(std::string url, std::string data);
-json5pp::value curlSimplePost(std::string url, const json5pp::value& j);
-json5pp::value curlSimplePatch(std::string url, const json5pp::value& j);
+js::value curlRequestEDSM(std::string url, std::string systemName);
+js::value curlSimpleGet(std::string url);
+js::value curlSimplePut(std::string url, std::string data);
+js::value curlSimplePost(std::string url, const js::value& j);
+js::value curlSimplePatch(std::string url, const js::value& j);
 
 
 

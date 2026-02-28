@@ -33,10 +33,10 @@ public:
     virtual void layout();
     virtual void on_ctrl_edit(HWND changed, WORD msg);
     virtual bool validate();
-    virtual json5pp::value value();
+    virtual js::value value();
     UITaskEditor* ui;
     std::wstring name;
-    const json5pp::value meta;
+    const js::value meta;
     bool optional;
     std::wstring text;
     wl::label label;
@@ -50,7 +50,7 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
     bool checked;
     wl::checkbox cb;
 };
@@ -63,7 +63,7 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
 
     int selected_index {-1};
     wl::combobox dl;
@@ -83,7 +83,7 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
 
     ai::Param::Type type;
     wl::textbox tb;
@@ -97,7 +97,7 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
 
     std::wstring system_text;
     std::wstring dock_text;
@@ -114,7 +114,7 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
 
     wl::cargobox dl;
 };
@@ -128,7 +128,7 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
 
     const ArrayCtrl* arr_ctrl;
     int index;
@@ -143,12 +143,12 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
 
-    const json5pp::value& el_meta;
+    const js::value& el_meta;
     const ai::Param::Type el_type;
     bool simple;
-    std::vector<json5pp::value> arr_value;
+    std::vector<js::value> arr_value;
     std::deque<std::unique_ptr<ElemCtrl>> controls;
 };
 
@@ -161,7 +161,7 @@ public:
     void layout() override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
-    json5pp::value value() override;
+    js::value value() override;
 
     bool toplevel;
     std::vector<const ai::TaskTemplate*> templates;

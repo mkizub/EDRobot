@@ -132,7 +132,7 @@ bool TaskMyCarrierUnload::run() {
     waitMarketEvent(4s);
     if (Cfg.marketEvent && Cfg.marketEvent->event == "CargoTransfer") {
         for (auto& item : Cfg.marketEvent->data["Transfers"].as_array()) {
-            contributed += item.at("Count",0).as_integer();
+            contributed += item["Count"].as_int_or();
         }
     }
     sendUiBack();

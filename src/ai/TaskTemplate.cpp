@@ -12,6 +12,7 @@
 #include "ContactsTasks.h"
 #include "CarrierTasks.h"
 #include "ColonizationTasks.h"
+#include "../js/parser.h"
 
 namespace ai {
 
@@ -54,7 +55,7 @@ const Param& TaskTemplate::get(const string& pid) const {
     }
     return dummy_param;
 }
-bool TaskTemplate::set(const string& pid, const json5pp::value& value) {
+bool TaskTemplate::set(const string& pid, const js::value& value) {
     auto& p = get(pid);
     if (p.type == Param::Void) {
         LOG(ERROR) << "No parameter '" << pid << "' in template " << this->id;
@@ -85,7 +86,7 @@ bool Param::operator==(const Param& other) const {
     return (value == other.value);
 }
 
-bool Param::set(const json5pp::value& val, bool silent) {
+bool Param::set(const js::value& val, bool silent) {
     if (val.is_null() || (val.is_string() && val.as_string().empty())) {
         value = nullptr;
         return true;
@@ -94,7 +95,7 @@ bool Param::set(const json5pp::value& val, bool silent) {
     case Void:
         return false;
     case Bool:
-        if (val.is_boolean()) {
+        if (val.is_bool()) {
             value = val;
             return true;
         }
@@ -124,8 +125,8 @@ bool Param::set(const json5pp::value& val, bool silent) {
             }
             return false;
         }
-        if (val.is_integer()) {
-            int idx = val.as_integer();
+        if (val.is_int()) {
+            int idx = val.as_int();
             auto arr = meta["values"].as_array();
             if (idx < 0 || idx >= arr.size())
                 return false;
@@ -141,7 +142,7 @@ bool Param::set(const json5pp::value& val, bool silent) {
         }
         break;
     case Int:
-        if (val.is_integer()) {
+        if (val.is_int()) {
             value = val;
             return true;
         }
@@ -255,34 +256,34 @@ bool Param::as_boolean() const {
 int Param::as_integer() const {
     if (!value.is_number())
         return 0;
-    return value.as_integer();
+    return value.as_int();
 }
 int32_t Param::as_int32() const {
     if (!value.is_number())
         return 0;
-    return value.as_int32();
+    return value.as_int();
 }
 int64_t Param::as_int64() const {
     if (!value.is_number())
         return 0;
-    return value.as_int64();
+    return value.as_int();
 }
 double Param::as_number() const {
     if (!value.is_number())
         return 0;
-    return value.as_number();
+    return value.as_real();
 }
 std::string Param::as_string() const {
     if (value.is_string())
         return value.as_string();
     if (value.is_null())
         return {};
-    if (value.is_integer())
-        return std::to_string(value.as_int64());
+    if (value.is_int())
+        return std::to_string(value.as_int());
     if (value.is_number())
-        return std::to_string(value.as_number());
-    if (value.is_boolean())
-        return value.as_boolean() ? "true" : "false";
+        return std::to_string(value.as_real());
+    if (value.is_bool())
+        return value.as_bool() ? "true" : "false";
     return {};
 }
 ::Commodity* Param::as_commodity() const {
@@ -327,22 +328,22 @@ bool Param::valid() const {
             }
             break;
         case Param::Int:
-            if (value.is_integer()) {
-                int64_t v = value.as_uint64();
+            if (value.is_int()) {
+                int64_t v = value.as_int();
                 valid = true;
-                if (meta["min"].is_integer() && v < meta["min"].as_integer())
+                if (meta["min"].is_int() && v < meta["min"].as_int())
                     valid = false;
-                if (meta["max"].is_integer() && v > meta["max"].as_integer())
+                if (meta["max"].is_int() && v > meta["max"].as_int())
                     valid = false;
             }
             break;
         case Param::Real:
             if (value.is_number()) {
-                double v = value.as_number();
+                double v = value.as_real();
                 valid = std::isfinite(v) && !std::isnan(v);
-                if (meta["min"].is_number() && v < meta["min"].as_number())
+                if (meta["min"].is_number() && v < meta["min"].as_real())
                     valid = false;
-                if (meta["max"].is_number() && v > meta["max"].as_number())
+                if (meta["max"].is_number() && v > meta["max"].as_real())
                     valid = false;
             }
             break;
@@ -401,18 +402,18 @@ bool Param::valid() const {
 }
 
 
-json5pp::value META(std::initializer_list<json5pp::value::pair_type> elements) {
-    return json5pp::object(elements);
+js::value META(std::initializer_list<js::value::pair_type> elements) {
+    return js::object(elements);
 }
-json5pp::value META(const char* meta) {
-    return json5pp::parse5(meta);
+js::value META(const char* meta) {
+    return js::parse5(meta);
 }
 
 #define FACTORY(TYPE) [](const TaskTemplate &templ) { return new TYPE(templ); }
 
 void initTemplates() {
     typedef std::vector<Param> P;
-    const json5pp::value OPT {{"optional", true}};
+    const js::value OPT {{"optional", true}};
     std::list<TaskTemplate> templates;
     templates.emplace_back(ED_TASK_AUTOPILOT, _lc("Autopilot"), FACTORY(Autopilot));
     templates.emplace_back(ED_TASK_TRADE_AT, _lc("Trade at station"), FACTORY(TaskTradeAt), P{
@@ -448,13 +449,13 @@ void initTemplates() {
     templates.emplace_back(ED_TASK_MARKET_BUY_CONSTR, _lc("Buy for construction"), FACTORY(TaskBuyConstr), P{
             { Param::Site,     "depot",  _lc("Construction depot") },
             { Param::Bool,     "carrier",_lc("Consider Fleet Carrier")  },
-            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
-                json5pp::object({{"id", "ListLittleFirst"},   {"name",  _lc("Listed, then Little first")}}),
-                json5pp::object({{"id", "ListBulkFirst"},     {"name",  _lc("Listed, then Bulk first")}}),
-                json5pp::object({{"id", "ExceptLittleFirst"}, {"name",  _lc("Except listed, Little first")}}),
-                json5pp::object({{"id", "ExceptBulkFirst"},   {"name",  _lc("Except listed, Bulk first")}}),
-                json5pp::object({{"id", "OnlyLittleFirst"},   {"name",  _lc("Only listed, Little first")}}),
-                json5pp::object({{"id", "OnlyBulkFirst"},     {"name",  _lc("Only listed, Bulk first")}})
+            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
+                                                                                         js::object({{"id", "ListLittleFirst"}, {"name", _lc("Listed, then Little first")}}),
+                                                                                         js::object({{"id", "ListBulkFirst"}, {"name", _lc("Listed, then Bulk first")}}),
+                                                                                         js::object({{"id", "ExceptLittleFirst"}, {"name", _lc("Except listed, Little first")}}),
+                                                                                         js::object({{"id", "ExceptBulkFirst"}, {"name", _lc("Except listed, Bulk first")}}),
+                                                                                         js::object({{"id", "OnlyLittleFirst"}, {"name", _lc("Only listed, Little first")}}),
+                                                                                         js::object({{"id", "OnlyBulkFirst"}, {"name", _lc("Only listed, Bulk first")}})
             })}}), "ListLittleFirst"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
@@ -466,10 +467,10 @@ void initTemplates() {
                     R"({elements:{type:'Site'}})")},
             { Param::Array,    "markets",  _lc("Markets"), META(
                     R"({elements:{type:'Site'}})")},
-            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
-                json5pp::object({{"id", "FirstListed"},  {"name",  _lc("First listed")}}),
-                json5pp::object({{"id", "ExceptListed"}, {"name",  _lc("Except listed")}}),
-                json5pp::object({{"id", "OnlyListed"},   {"name",  _lc("Only listed")}}),
+            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
+                                                                                         js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
+                                                                                         js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
+                                                                                         js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
             })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
@@ -477,10 +478,10 @@ void initTemplates() {
             { Param::Site,     "depot",   _lc("Construction depot") },
             { Param::Array,    "markets", _lc("Markets"), META(
                     R"({elements:{type:'Site'}})")},
-            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", json5pp::array({
-                json5pp::object({{"id", "FirstListed"},  {"name",  _lc("First listed")}}),
-                json5pp::object({{"id", "ExceptListed"}, {"name",  _lc("Except listed")}}),
-                json5pp::object({{"id", "OnlyListed"},   {"name",  _lc("Only listed")}}),
+            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
+                                                                                         js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
+                                                                                         js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
+                                                                                         js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
             })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
@@ -541,7 +542,7 @@ void initTemplates() {
     TaskTemplate::loadUserTasks();
 }
 
-TaskTemplate TaskTemplate::loadTask(const json5pp::value& j_task) {
+TaskTemplate TaskTemplate::loadTask(const js::value& j_task) {
     auto &templ_id = j_task.at("templ", "").as_string();
     const TaskTemplate *templ_ptr = nullptr;
     for (auto &tt: AllTaskTemplates) {
@@ -578,13 +579,13 @@ TaskTemplate TaskTemplate::loadTask(const json5pp::value& j_task) {
 
 void TaskTemplate::loadUserTasks() {
     LOG(INFO) << "Loading tasks.json5";
-    json5pp::value j_tasks;
+    js::value j_tasks;
     try {
         std::ifstream tasksFile("tasks.json5", std::ifstream::in);
         if (tasksFile.fail()) {
             LOG(ERROR) << "Cannot read file: tasks.json5";
         } else {
-            j_tasks = json5pp::parse5(tasksFile);
+            j_tasks = js::parse5(tasksFile);
         }
         tasksFile.close();
     } catch (...) {
@@ -601,9 +602,9 @@ void TaskTemplate::loadUserTasks() {
 
 void TaskTemplate::saveUserTasks() {
     LOG(INFO) << "Saving tasks.json5";
-    json5pp::value j_tasks = json5pp::array({});
+    js::value j_tasks = js::array({});
     for (auto& tt : AllUserTasks) {
-        json5pp::value jt = json5pp::object({
+        js::value jt = js::object({
             {"templ", tt.id},
             {"name", tt.nm},
         });
@@ -626,7 +627,7 @@ void TaskTemplate::saveUserTasks() {
         if (tasksFile.fail()) {
             LOG(ERROR) << "Cannot write file: tasks.json5";
         } else {
-            tasksFile << json5pp::rule::json5() << json5pp::rule::space_indent<2>() << j_tasks;
+            tasksFile << js::rule::json5() << js::rule::space_indent<2>() << j_tasks;
         }
         tasksFile.close();
     } catch (...) {

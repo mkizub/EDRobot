@@ -7,6 +7,7 @@
 #include "UIManager.h"
 #include "UIMainDialog.h"
 #include "../net/RavenColonial.h"
+#include "../js/parser.h"
 
 #include "../../ui/resource.h"
 
@@ -180,9 +181,9 @@ void UIShowCargo::on_cargo_load() {
         return;
     }
     // {"marketId":3708647424,"name":"VFT-85B","displayName":"Daimonio tou Sokrati","owner":"mkzu","cargo":{"agronomictreatment":32,"bertrandite":234,"cobalt":403,"drones":11,"titanium":587,"tritium":1337}}
-    if (jv["marketId"].as_int64_or() != st::cmdr.fleetCarrierId || jv["owner"].as_string_or() != st::cmdr.name) {
+    if (jv["marketId"].as_int_or() != st::cmdr.fleetCarrierId || jv["owner"].as_string_or() != st::cmdr.name) {
         LOG(ERROR) << std::format("Bad carrier id from RavenColonial: {}:{}, expected {}:{}",
-                                  jv["owner"].as_string_or(), jv["marketId"].as_int64(),
+                                  jv["owner"].as_string_or(), jv["marketId"].as_int(),
                                   st::cmdr.name, st::cmdr.fleetCarrierId);
         return;
     }
@@ -192,7 +193,7 @@ void UIShowCargo::on_cargo_load() {
             LOG(ERROR) << "Cargo not found: " << jc.first;
             continue;
         }
-        c->fc.count = jc.second.as_int32();
+        c->fc.count = jc.second.as_int();
     }
     cargoEditor.initControls();
     validate_callback(cargoEditor.validate(nullptr), false);
@@ -213,18 +214,18 @@ void UIShowCargo::on_cargo_save() {
         LOG(ERROR) << "Bad response from RavenColonial: " << jv;
         return;
     }
-    if (jv["marketId"].as_int64_or() != st::cmdr.fleetCarrierId || jv["owner"].as_string_or() != st::cmdr.name) {
+    if (jv["marketId"].as_int_or() != st::cmdr.fleetCarrierId || jv["owner"].as_string_or() != st::cmdr.name) {
         LOG(ERROR) << std::format("Bad carrier id from RavenColonial: {}:{}, expected {}:{}",
-                                  jv["owner"].as_string_or(), jv["marketId"].as_int64(),
+                                  jv["owner"].as_string_or(), jv["marketId"].as_int(),
                                   st::cmdr.name, st::cmdr.fleetCarrierId);
         return;
     }
 
     auto cargo = jv["cargo"];
-    json5pp::value diff = json5pp::object({});
+    js::value diff = js::object({});
     for (auto c : Cfg.getAllKnownCommodities()) {
         if (!cargo[c->nameId].empty()) {
-            if (c->fc.count != cargo[c->nameId].as_int32())
+            if (c->fc.count != cargo[c->nameId].as_int())
                 diff.as_object().emplace(c->nameId, c->fc.count);
         }
         else if (c->fc.count != 0)

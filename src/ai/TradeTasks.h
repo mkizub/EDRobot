@@ -48,7 +48,7 @@ public:
     std::string getTitle() override;
 private:
     int mChunk;
-    json5pp::value mExcept;
+    js::value mExcept;
     struct SubTask {
         Commodity* commodity {};
         std::shared_ptr<TaskSell> task;
@@ -82,7 +82,7 @@ public:
     bool run() final;
     std::string getTitle() override;
 private:
-    bool addSubTask(const json5pp::value& commodity);
+    bool addSubTask(const js::value& commodity);
     struct SubTask {
         Commodity* commodity {};
         std::shared_ptr<TaskBuy> task;
@@ -150,8 +150,8 @@ public:
         std::vector<Commodity*> sell_list;
         std::vector<Commodity*> sell_except;
         std::vector<Commodity*> buy_list;
-        std::vector<json5pp::value> sell_tasks;
-        std::vector<json5pp::value> buy_tasks;
+        std::vector<js::value> sell_tasks;
+        std::vector<js::value> buy_tasks;
     };
     std::vector<MarketInfo> markets;
 };

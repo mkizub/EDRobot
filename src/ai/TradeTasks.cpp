@@ -68,7 +68,7 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
         return false;
     kbd::send("UI_Select");
     if (waitMarketEvent(4s)) {
-        lastCommitCount = Cfg.marketEvent->data.at("Count",0).as_integer();
+        lastCommitCount = Cfg.marketEvent->data["Count"].as_int_or();
     }
     // wait for market screem
     if (!waitUiState(state, 4s)) {
@@ -397,7 +397,7 @@ std::string TaskBuyAll::getTitle() {
     return lc_format("{0}: bought {1}", templ.name(), boughtTotal);
 }
 
-bool TaskBuyAll::addSubTask(const json5pp::value& jv) {
+bool TaskBuyAll::addSubTask(const js::value& jv) {
     if (!jv.is_string())
         return false;
     auto* commodity = Cfg.getCommodityById(jv.as_string());
@@ -913,7 +913,7 @@ bool TaskConstrUnload::run() {
     waitMarketEvent(4s);
     if (Cfg.marketEvent && Cfg.marketEvent->event == "ColonisationContribution") {
         for (auto& item : Cfg.marketEvent->data["Contributions"].as_array()) {
-            int amount = item.at("Amount",0).as_integer();
+            int amount = item["Amount"].as_int_or();
             contributed += amount;
             demandAfter -= amount;
         }
@@ -980,7 +980,7 @@ bool TaskTradeAt::run() {
     TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
     impl.nm.clear();
     impl.set("dock", market);
-    auto& dockName = market["dock"].as_string_or();
+    auto dockName = market["dock"].as_string_or();
     if (!run_sub_step(impl.factory(impl)))
         throw_trouble("Trouble traveling to market {}", dockName);
     auto dock = getCurrDock();
@@ -1017,7 +1017,7 @@ bool TradeLoopTask::run() {
                 auto& j_tasks = mt.get("tasks").value;
                 if (!j_tasks.is_array()) {
                     mi.sell_all = true;
-                    json5pp::value jt = json5pp::object({{"templ",ED_TASK_MARKET_SELL_ALL}});
+                    js::value jt = js::object({{"templ", ED_TASK_MARKET_SELL_ALL}});
                     mi.sell_tasks.push_back(jt);
                     continue;
                 }
@@ -1218,7 +1218,7 @@ bool TradeLoopTask::run() {
             if (!dock || !dock->nameEq(mi.dock)) {
                 TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
                 impl.nm.clear();
-                impl.set("dock", json5pp::object({{"system",mi.system},{"dock",mi.dock}}));
+                impl.set("dock", js::object({{"system", mi.system}, {"dock", mi.dock}}));
                 run_sub_step(impl.factory(impl));
                 dock = getCurrDock();
                 if (!dock || !dock->nameEq(mi.dock))

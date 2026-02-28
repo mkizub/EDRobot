@@ -203,7 +203,7 @@ void ParamCtrl::on_ctrl_edit(HWND changed, WORD msg) {
 bool ParamCtrl::validate() {
     return false;
 }
-json5pp::value ParamCtrl::value() {
+js::value ParamCtrl::value() {
     return {};
 }
 
@@ -237,7 +237,7 @@ void BoolCtrl::on_ctrl_edit(HWND changed, WORD msg) {
 bool BoolCtrl::validate() {
     return true;
 }
-json5pp::value BoolCtrl::value() {
+js::value BoolCtrl::value() {
     return checked;
 }
 
@@ -246,8 +246,8 @@ EnumCtrl::EnumCtrl(UITaskEditor* ui, ai::Param& param)
     : ParamCtrl(ui, param)
 {
     selected_index= -1;
-    if (param.value.is_integer())
-        selected_index = param.value.as_integer();
+    if (param.value.is_int())
+        selected_index = param.value.as_int();
     auto values = meta["values"].as_array();
     for (int idx=0; idx < values.size(); idx++) {
         auto& val  = values[idx];
@@ -326,7 +326,7 @@ bool EnumCtrl::validate() {
         return optional;
     return true;
 }
-json5pp::value EnumCtrl::value() {
+js::value EnumCtrl::value() {
     if (selected_index < 0 || selected_index >= entries.size())
         return {};
     return entries[selected_index].enum_id;
@@ -405,7 +405,7 @@ bool TextCtrl::validate() {
     param.set(trim(toUtf8(text)), true);
     return param.valid();
 }
-json5pp::value TextCtrl::value() {
+js::value TextCtrl::value() {
     if (text.empty())
         return {};
     std::string s = trim(toUtf8(text));
@@ -492,17 +492,17 @@ void SiteCtrl::on_ctrl_edit(HWND changed, WORD msg) {
 }
 bool SiteCtrl::validate() {
     ai::Param param{ai::Param::Site, "", "", meta};
-    json5pp::value v = json5pp::object({
+    js::value v = js::object({
         {"system", toUtf8(trimTextLine(system_text))},
         {"dock", toUtf8(trimTextLine(dock_text))}
     });
     param.set(v, true);
     return param.valid();
 }
-json5pp::value SiteCtrl::value() {
+js::value SiteCtrl::value() {
     if (system_text.empty() && dock_text.empty())
         return {};
-    json5pp::value v = json5pp::object({
+    js::value v = js::object({
         {"system", toUtf8(trimTextLine(system_text))},
         {"dock", toUtf8(trimTextLine(dock_text))}
     });
@@ -590,7 +590,7 @@ bool CargoCtrl::validate() {
     param.set(toUtf8(text), true);
     return param.valid();
 }
-json5pp::value CargoCtrl::value() {
+js::value CargoCtrl::value() {
     if (text.empty())
         return {};
     std::string s = toUtf8(text);
@@ -626,7 +626,7 @@ bool ElemCtrl::validate() {
         return false;
     return el_ctrl->validate() || el_ctrl->value().empty();
 }
-json5pp::value ElemCtrl::value() {
+js::value ElemCtrl::value() {
     if (!el_ctrl)
         return {};
     return el_ctrl->value();
@@ -693,7 +693,7 @@ void ArrayCtrl::on_ctrl_edit(HWND changed, WORD msg) {
 bool ArrayCtrl::validate() {
     assert (controls.size() == arr_value.size());
     bool ok = true;
-    std::vector<json5pp::value> new_values;
+    std::vector<js::value> new_values;
     new_values.reserve(controls.size());
     for (int i=0; i < controls.size(); i++) {
         new_values.push_back(controls[i]->value());
@@ -716,9 +716,9 @@ bool ArrayCtrl::validate() {
     }
     return ok;
 }
-json5pp::value ArrayCtrl::value() {
+js::value ArrayCtrl::value() {
     assert (controls.size() == arr_value.size());
-    json5pp::value arr = json5pp::array({});
+    js::value arr = js::array({});
     for (auto& c : controls) {
         auto v = c->value();
         if (!v.empty())
@@ -883,11 +883,11 @@ bool TaskCtrl::validate() {
     }
     return ok;
 }
-json5pp::value TaskCtrl::value() {
+js::value TaskCtrl::value() {
     assert(controls.size() == templ.params.size());
     if (templ.id.empty())
         return {};
-    json5pp::value obj = json5pp::object({{"templ", templ.id}});
+    js::value obj = js::object({{"templ", templ.id}});
     if (!templ.nm.empty()) {
         auto& base_templ = ai::getTemplate(templ.id);
         if (!(templ.nm == templ.id || templ.nm == base_templ.nm || templ.name() == base_templ.name()))

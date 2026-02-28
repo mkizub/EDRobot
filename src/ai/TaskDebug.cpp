@@ -12,6 +12,7 @@
 #include "../FuzzyMatch.h"
 #include "../OCR.h"
 #include "../Galaxy.h"
+#include "../js/parser.h"
 
 #include <tesseract/baseapi.h>
 #include <curl/curl.h>
@@ -574,7 +575,7 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
     return size * nmemb;
 }
 
-json5pp::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
+js::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     if (!ss || ss->systemName.empty() || !ss->systemAddress)
         return nullptr;
@@ -633,19 +634,19 @@ json5pp::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
 
     //LOG(INFO) << "EDSM responce: " << resp.str();
     try {
-        auto jresp = json5pp::parse5(readBuffer);
+        auto jresp = js::parse5(readBuffer);
         if (!jresp["record"]) {
             LOG(ERROR) << "Bad response, expecting 'record': " << jresp;
             return {};
         }
         return std::move(jresp["record"]);
-    } catch (const json5pp::syntax_error& ex) {
+    } catch (const js::syntax_error& ex) {
         LOG(ERROR) << "Error parsing EDSM response: " << ex.what();
         return {};
     }
 }
 
-json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, json5pp::value& data) {
+js::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, js::value& data) {
     std::string readBuffer;
 
     CURL* curl = curl_easy_init();
@@ -696,7 +697,7 @@ json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, 
         return {};
 
     try {
-        auto jresp = json5pp::parse5(readBuffer);
+        auto jresp = js::parse5(readBuffer);
         if (!jresp["results"].is_array()) {
             LOG(ERROR) << "Bad response, expecting 'results': " << jresp;
             return nullptr;
@@ -709,7 +710,7 @@ json5pp::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, 
             r.as_object().erase("power");
         }
         return results;
-    } catch (const json5pp::syntax_error& ex) {
+    } catch (const js::syntax_error& ex) {
         LOG(ERROR) << "Error parsing response: " << ex.what();
         return nullptr;
     }
@@ -747,11 +748,11 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     std::string systemName = ss->systemName;
 
-    json5pp::value payload = json5pp::object({
+    js::value payload = js::object({
             { "reference_system", systemName},
-            { "filters", json5pp::object({ {"distance", json5pp::object({{"min", 0}, {"max", 20}})} })},
-            { "size", 100},
-            { "page", 0}
+            { "filters",          js::object({{"distance", js::object({{"min", 0}, {"max", 20}})} })},
+            { "size",             100},
+            { "page",             0}
     });
 
     auto jn = curlPostRequest("https://www.spansh.co.uk/api/systems/search", payload);

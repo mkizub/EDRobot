@@ -14,6 +14,7 @@
 #include "ui/UIManager.h"
 #include "net/NetUtils.h"
 #include "net/RavenColonial.h"
+#include "js/parser.h"
 
 #include <zlib.h>
 #include <dirlistener/ReadDirectoryChanges.h>
@@ -90,21 +91,21 @@ bool Configuration::load() {
             mEDSettingsPath = dirUserProfile + LR"(\AppData\Local\Frontier Developments\Elite Dangerous)";
         }
         std::ifstream ifs_config("configuration.json5");
-        json5pp::value j_config = json5pp::parse5(ifs_config);
-        if (auto& tm = j_config.at("ui-scale-percents"); tm.is_integer()) {
-            if (tm.as_integer() >= 25 && tm.as_integer() <= 400)
-                mUiScalePercents = tm.as_integer();
+        js::value j_config = js::parse5(ifs_config);
+        if (auto& tm = j_config.at("ui-scale-percents"); tm.is_int()) {
+            if (tm.as_int() >= 25 && tm.as_int() <= 400)
+                mUiScalePercents = tm.as_int();
         }
-        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_integer()) {
-            defaultKeyHoldTime = tm.as_integer();
+        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_int()) {
+            defaultKeyHoldTime = tm.as_int();
             LOG(INFO) << "default-key-hold-time: " << defaultKeyHoldTime;
         }
-        if (auto& tm = j_config.at("default-key-after-time"); tm.is_integer()) {
-            defaultKeyAfterTime = tm.as_integer();
+        if (auto& tm = j_config.at("default-key-after-time"); tm.is_int()) {
+            defaultKeyAfterTime = tm.as_int();
             LOG(INFO) << "default-key-after-time: " << defaultKeyAfterTime;
         }
-        if (auto& tm = j_config.at("search-region-extent"); tm.is_integer()) {
-            searchRegionExtent = tm.as_integer();
+        if (auto& tm = j_config.at("search-region-extent"); tm.is_int()) {
+            searchRegionExtent = tm.as_int();
             LOG(INFO) << "search-region-extent: " << searchRegionExtent;
         }
         if (j_config.at("shortcuts").is_object()) {
@@ -127,41 +128,41 @@ bool Configuration::load() {
         if (auto& tm = j_config.at("force-dxgi-device")) {
             if (tm.is_string())
                 forceDXGIDevice = tm.as_string();
-            if (tm.is_integer())
-                forceDXGIDeviceId = tm.as_integer();
+            if (tm.is_int())
+                forceDXGIDeviceId = tm.as_int();
         }
-        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_boolean()) {
-            capturerWin32Disabled = tm.as_boolean();
+        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_bool()) {
+            capturerWin32Disabled = tm.as_bool();
             LOG(INFO) << "capturer-Win32-disabled: " << capturerWin32Disabled;
         }
-        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_boolean()) {
-            capturerWinRTDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_bool()) {
+            capturerWinRTDisabled = tm.as_bool();
             LOG(INFO) << "capturer-WinRT-disabled: " << capturerWinRTDisabled;
         }
-        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_boolean()) {
-            capturerDXGIDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_bool()) {
+            capturerDXGIDisabled = tm.as_bool();
             LOG(INFO) << "capturer-DXGI-disabled: " << capturerDXGIDisabled;
         }
-        if (auto& tm = j_config.at("curl-insecure"); tm.is_boolean())
-            mCurlInsecure = tm.as_boolean();
+        if (auto& tm = j_config.at("curl-insecure"); tm.is_bool())
+            mCurlInsecure = tm.as_bool();
         if (auto& tm = j_config.at("curl-proxy"); tm.is_string()){
             mCurlProxyUrl = tm.as_string();
             LOG(INFO) << "CURL proxy: " << mCurlProxyUrl;
         }
-        if (auto& tm = j_config.at("vjoy-device-id"); tm.is_integer())
-            vJoyDeviceID = (uint8_t) tm.as_integer();
-        if (auto& tm = j_config.at("ravencolonial-enabled"); tm.is_boolean()) {
-            mRavenColonialEnabled = tm.as_boolean();
+        if (auto& tm = j_config.at("vjoy-device-id"); tm.is_int())
+            vJoyDeviceID = (uint8_t) tm.as_int();
+        if (auto& tm = j_config.at("ravencolonial-enabled"); tm.is_bool()) {
+            mRavenColonialEnabled = tm.as_bool();
             LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
         }
 
 #ifdef EDROBOT_USE_OPENCL
-        if (auto& tm = j_config.at("opencl-disabled"); tm.is_boolean()) {
-            openclDisabled = tm.as_boolean();
+        if (auto& tm = j_config.at("opencl-disabled"); tm.is_bool()) {
+            openclDisabled = tm.as_bool();
             LOG(INFO) << "opencl-disabled: " << openclDisabled;
         }
-        if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_boolean()) {
-            openclD3dInterop = tm.as_boolean();
+        if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_bool()) {
+            openclD3dInterop = tm.as_bool();
             LOG(INFO) << "opencl-d3d11-interop: " << openclD3dInterop;
         }
         g_DisableOpenCL = openclDisabled;
@@ -201,7 +202,7 @@ bool Configuration::load() {
         LOG(INFO) << "Setting screens.json5";
         widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
         std::ifstream ifs_config("screens.json5");
-        const auto j_screens = json5pp::parse5(ifs_config).as_array();
+        const auto j_screens = js::parse5(ifs_config).as_array();
         for (auto& s: j_screens) {
             screensRoot->addSubItem(widget_from_json(s, screensRoot, nullptr));
         }
@@ -234,7 +235,7 @@ bool Configuration::load() {
     return true;
 }
 
-void Configuration::parseShortcutConfig(Command command, const std::string& name, json5pp::value cfg) {
+void Configuration::parseShortcutConfig(Command command, const std::string& name, js::value cfg) {
     if (cfg.as_object().contains((name))) {
         for (auto it = keyMapping.begin(); it != keyMapping.end();)  {
             if (it->second == command)
@@ -242,7 +243,7 @@ void Configuration::parseShortcutConfig(Command command, const std::string& name
             else
                 ++it;
         }
-        json5pp::value jcmd = cfg.at(name);
+        js::value jcmd = cfg.at(name);
         if (jcmd.is_string())
             keyMapping[decodeShortcut(jcmd.as_string())] = command;
         if (jcmd.is_array()) {
@@ -1051,16 +1052,23 @@ std::vector<Commodity*> Configuration::getAllKnownCommodities() {
     return out;
 }
 
-bool Configuration::loadMarket(Timestamp event_timestamp) {
+bool Configuration::loadMarket(spGameEvent ge) {
+    auto& je = ge->data;
+
+    int64_t marketId = je["MarketID"].as_int_or(0);
+    spMarket oldMarket = gal::getMarket(marketId);
+    if (oldMarket && oldMarket->timestamp >= ge->timestamp)
+        return false;
+
     LOG(INFO) << "Loading Market.json";
-    json5pp::value j_market;
+    js::value j_market;
     try {
         std::ifstream marketFile(mEDLogsPath + L"/Market.json", std::ifstream::in);
         if (marketFile.fail()) {
             LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Market.json");
             return false;
         }
-        j_market = json5pp::parse5(marketFile);
+        j_market = js::parse5(marketFile);
         marketFile.close();
     } catch (...) {
         LOG(ERROR) << "Failed to read/parse Market.json";
@@ -1069,12 +1077,12 @@ bool Configuration::loadMarket(Timestamp event_timestamp) {
     if (!j_market)
         return false;
     Timestamp timestamp;
-    if (!parseTimestamp(j_market, timestamp) || event_timestamp < timestamp)
+    if (!parseTimestamp(j_market, timestamp))
         return false;
 
     spMarket market = std::shared_ptr<Market>(new Market{
             .timestamp = timestamp,
-            .marketId = j_market.at("MarketID").as_int64(),
+            .marketId = j_market.at("MarketID").as_int(),
             .stationName = j_market.at("StationName").as_string(),
             .stationType = j_market.at("StationType").as_string(),
             .starSystem = j_market.at("StarSystem").as_string(),
@@ -1096,22 +1104,22 @@ bool Configuration::loadMarket(Timestamp event_timestamp) {
         if (st::lng == Lang::RU)
             translation = {"",item.at("Name_Localised").as_string()};
         Commodity& commodity = getOrAddCommodity({
-                .intId = item.at("id").as_integer(),
-                .nameId = item.at("Name").as_string(),
+                .intId = (int)item["id"].as_int(),
+                .nameId = item["Name"].as_string(),
                 .category = &cc,
                 .translation = translation,
-                .rare = j_item.at("Rare",false).as_boolean()
+                .rare = j_item["Rare"].as_bool_or()
         });
         MarketLine ml {};
-        ml.buyPrice = item.at("BuyPrice").as_int32();
-        ml.sellPrice = item.at("SellPrice").as_int32();
-        ml.meanPrice = item.at("MeanPrice").as_int32();
-        ml.stock = item.at("Stock").as_int32();
-        ml.demand = item.at("Demand").as_int32();
-        ml.stockBracket = (uint8_t)item.at("StockBracket").as_integer();
-        ml.demandBracket = (uint8_t)item.at("DemandBracket").as_integer();
-        ml.isConsumer = item.at("Consumer").as_boolean();
-        ml.isProducer = item.at("Producer").as_boolean();
+        ml.buyPrice = item.at("BuyPrice").as_int_or();
+        ml.sellPrice = item.at("SellPrice").as_int_or();
+        ml.meanPrice = item.at("MeanPrice").as_int_or();
+        ml.stock = item.at("Stock").as_int_or();
+        ml.demand = item.at("Demand").as_int_or();
+        ml.stockBracket = (uint8_t)item["StockBracket"].as_int_or();
+        ml.demandBracket = (uint8_t)item.at("DemandBracket").as_int_or();
+        ml.isConsumer = item["Consumer"].as_bool_or();
+        ml.isProducer = item["Producer"].as_bool_or();
         market->items.emplace(&commodity, ml);
     }
     if (mCommodityDatabaseUpdated)
@@ -1127,21 +1135,21 @@ bool Configuration::loadShipCargo(spGameEvent ge) {
         return false;
 
     spShipCargo cargo;
-    if ((ge->data["Count"].is_integer() && ge->data["Count"].as_integer() == 0) || !ge->data["Inventory"].empty()) {
+    if ((ge->data["Count"].is_int() && ge->data["Count"].as_int() == 0) || !ge->data["Inventory"].empty()) {
         cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
             .timestamp = ge->timestamp,
             .vessel = ge->data["Vessel"].as_string_or(),
-            .count = ge->data["Count"].as_integer(),
+            .count = (int)ge->data["Count"].as_int_or(),
             }));
     } else {
-        json5pp::value jv;
+        js::value jv;
         try {
             std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
             if (cargoFile.fail()) {
                 LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
                 return false;
             }
-            jv = json5pp::parse5(cargoFile);
+            jv = js::parse5(cargoFile);
             cargoFile.close();
         } catch (...) {
             LOG(ERROR) << "Failed to read/parse Cargo.json";
@@ -1155,7 +1163,7 @@ bool Configuration::loadShipCargo(spGameEvent ge) {
         cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
             .timestamp = timestamp,
             .vessel = jv["Vessel"].as_string_or(),
-            .count = jv["Count"].as_integer(),
+            .count = (int)jv["Count"].as_int_or(),
             }));
         const_cast<js::value&>(ge->data) = jv;
     }
@@ -1180,8 +1188,8 @@ bool Configuration::loadShipCargo(spGameEvent ge) {
             c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
         }
         c->ship.timestamp = ge->timestamp;
-        c->ship.count = item.at("Count").as_integer();
-        c->ship.stolen = item.at("Stolen").as_integer();
+        c->ship.count = item.at("Count").as_int_or();
+        c->ship.stolen = item.at("Stolen").as_int_or();
         cargo->inventory.push_back(c);
     }
     st::currentCargo.swap(cargo);
@@ -1200,14 +1208,14 @@ bool Configuration::loadCarrierCargo() {
     if (!st::cmdr.fleetCarrierId || allKnownCommodities.empty())
         return false;
     std::string fname = std::format("cache/carriers/{}.json", st::cmdr.fleetCarrierId);
-    json5pp::value j_cargo;
+    js::value j_cargo;
     try {
         std::ifstream cargoFile(fname, std::ifstream::in);
         if (cargoFile.fail()) {
             LOG(ERROR) << "Cannot read file: " << fname;
             return false;
         }
-        j_cargo = json5pp::parse5(cargoFile);
+        j_cargo = js::parse5(cargoFile);
         cargoFile.close();
     } catch (...) {
         LOG(ERROR) << "Failed to read/parse file: " << fname;
@@ -1250,7 +1258,7 @@ bool Configuration::loadCarrierCargo() {
             c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
         }
         c->fc.timestamp = timestamp;
-        c->fc.count = item.at("Count").as_integer();
+        c->fc.count = item.at("Count").as_int_or();
         if (!contains(cargo->inventory, c))
             cargo->inventory.push_back(c);
     }
@@ -1263,16 +1271,16 @@ bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodi
         return false;
 
     //Timestamp timestamp = Timestamp::clock::now();
-    json5pp::value jm = json5pp::object({
+    js::value jm = js::object({
         {"timestamp", formatTimestampString(timestamp)},
-        {"Vessel", "FleetCarrier"},
-        {"Cargo", json5pp::array({})},
+        {"Vessel",    "FleetCarrier"},
+        {"Cargo",     js::array({})},
         });
     auto& jarr = jm.as_object()["Cargo"].as_array();
     for (auto& c : allKnownCommodities) {
         if (c.fc.count <= 0)
             continue;
-        json5pp::value& jv = jarr.emplace_back(json5pp::object({{"Id", c.intId},{"Name", c.nameId}}));
+        js::value& jv = jarr.emplace_back(js::object({{"Id", c.intId}, {"Name", c.nameId}}));
         auto& jo = jv.as_object();
         if (!c.translation[int(st::lng)].empty())
             jo.emplace("Name_Localised", c.name);
@@ -1281,13 +1289,13 @@ bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodi
 
     std::filesystem::path fp("cache/carriers/"+std::to_string(st::cmdr.fleetCarrierId)+".json");
     std::ofstream ofs(fp);
-    ofs << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jm;
+    ofs << js::rule::ecma404() << js::rule::space_indent<1>() << jm;
     ofs.close();
 
     UIManager::updateCargoDialog();
 
     if (!patch.empty()) {
-        json5pp::value j = json5pp::object({});
+        js::value j = js::object({});
         for (auto& p : patch)
             j.as_object().emplace(p.first->nameId, p.second);
         RavenColonial::carrierPatchCargo(st::cmdr.fleetCarrierId, j);
@@ -1296,14 +1304,14 @@ bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodi
 }
 
 bool Configuration::loadNavRoute(Timestamp event_timestamp) {
-    json5pp::value j_route;
+    js::value j_route;
     try {
         std::ifstream routeFile(mEDLogsPath + L"/NavRoute.json", std::ifstream::in);
         if (routeFile.fail()) {
             LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/NavRoute.json");
             return false;
         }
-        j_route = json5pp::parse5(routeFile);
+        j_route = js::parse5(routeFile);
         routeFile.close();
     } catch (...) {
         LOG(ERROR) << "Failed to read/parse NavRoute.json";
@@ -1320,12 +1328,12 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
     auto entries = j_route.at("Route").as_array();
     for (auto& je : entries) {
         std::string starSystem = je["StarSystem"].as_string();
-        int64_t systemAddress = je["SystemAddress"].as_int64();
+        int64_t systemAddress = je["SystemAddress"].as_int();
         cv::Point3d pos;
         std::string starClass = je["StarClass"].as_string();
         if (je["StarPos"].is_array()) {
             auto& jp = je.at("StarPos");
-            pos = {jp[0].as_number(), jp[1].as_number(), jp[2].as_number()};
+            pos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
         }
         route->route.emplace_back(starSystem, systemAddress, pos, starClass);
     }
@@ -1335,15 +1343,15 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
 
 bool Configuration::loadCommodityDatabase() {
     LOG(INFO) << "Loading commodity database";
-    json5pp::value j;
+    js::value j;
     try {
         std::ifstream dbf("commodity-database.json5");
         if (!dbf)
             return false;
         std::stringstream buffer;
         buffer << dbf.rdbuf();
-        j = json5pp::parse5(buffer.str());
-    } catch (const json5pp::syntax_error& ex) {
+        j = js::parse5(buffer.str());
+    } catch (const js::syntax_error& ex) {
         LOG(ERROR) << "Error loading commodity-database.json5: " << ex.what();
         return false;
     }
@@ -1353,18 +1361,18 @@ bool Configuration::loadCommodityDatabase() {
         CommodityCategory cc_add;
         cc_add.nameId = jcc_it.first;
         auto& jcc = jcc_it.second;
-        cc_add.intId = jcc["id"].as_integer();
+        cc_add.intId = jcc["id"].as_int();
         cc_add.translation[int(Lang::EN)] = jcc["en"].as_string();
         cc_add.translation[int(Lang::RU)] = jcc["ru"].as_string();
         CommodityCategory& cc = getOrAddCommodityCategory(std::move(cc_add));
         for (auto& jc_it : jcc["items"].as_object()) {
             auto& jc = jc_it.second;
             Commodity c_add{
-                    .intId = jc["id"].as_integer(),
+                    .intId = (int)jc["id"].as_int(),
                     .nameId = jc_it.first,
                     .category = &cc,
                     .translation = {jc["en"].as_string(), jc["ru"].as_string()},
-                    .rare = jc.at("rare",false).as_boolean(),
+                    .rare = jc.at("rare",false).as_bool(),
             };
             getOrAddCommodity(std::move(c_add));
         }
@@ -1394,8 +1402,8 @@ bool Configuration::dumpCommodityDatabase() {
         auto& cc = *ccit.second;
         wf << "  '" << cc.nameId << "': {" << std::endl;
         wf << "    id: " << cc.intId << "," << std::endl;
-        wf << "    en: " << json5pp::value(cc.translation[int(Lang::EN)]) << "," << std::endl;
-        wf << "    ru: " << json5pp::value(cc.translation[int(Lang::RU)]) << "," << std::endl;
+        wf << "    en: " << js::value(cc.translation[int(Lang::EN)]) << "," << std::endl;
+        wf << "    ru: " << js::value(cc.translation[int(Lang::RU)]) << "," << std::endl;
         wf << "    items: {" << std::endl;
         for (auto& cit : commodityMap) {
             auto& c = *cit.second;
@@ -1404,8 +1412,8 @@ bool Configuration::dumpCommodityDatabase() {
             wf << "        id: " << c.intId << "," << std::endl;
             if (c.rare)
                 wf << "        rare: true," << std::endl;
-            wf << "        en: " << json5pp::value(c.translation[int(Lang::EN)]) << "," << std::endl;
-            wf << "        ru: " << json5pp::value(c.translation[int(Lang::RU)]) << "," << std::endl;
+            wf << "        en: " << js::value(c.translation[int(Lang::EN)]) << "," << std::endl;
+            wf << "        ru: " << js::value(c.translation[int(Lang::RU)]) << "," << std::endl;
             wf << "      }," << std::endl;
         }
         wf << "    }," << std::endl;
@@ -1425,7 +1433,7 @@ bool Configuration::dumpCommodityDatabase() {
         });
         wf << "  'carrier-order" << suffix << "': [" << std::endl;
         for (auto &c: cv) {
-            wf << "    " << json5pp::value(c->nameId) << ", // " << c->translation[0] << " | " << c->translation[1] << std::endl;
+            wf << "    " << js::value(c->nameId) << ", // " << c->translation[0] << " | " << c->translation[1] << std::endl;
         }
         wf << "  ]," << std::endl;
     }

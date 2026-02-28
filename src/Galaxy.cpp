@@ -6,6 +6,7 @@
 
 #include "Galaxy.h"
 #include "net/NetUtils.h"
+#include "js/parser.h"
 
 namespace gal {
 
@@ -55,7 +56,7 @@ void saveMarket(Market* market) {
         MarketLine& ml = it.second;
         if (!ml.isConsumer && !ml.isProducer && !ml.stock && !ml.demand)
             continue;
-        json5pp::value& jv = jarr.emplace_back(json5pp::object({{"Name", it.first->nameId}}));
+        js::value& jv = jarr.emplace_back(js::object({{"Name", it.first->nameId}}));
         if (ml.isProducer)
             jv["Producer"] = true;
         if (ml.buyPrice)
@@ -72,7 +73,7 @@ void saveMarket(Market* market) {
 
     std::filesystem::path fp("cache/markets/"+std::to_string(market->marketId)+".json");
     std::ofstream ofs(fp);
-    ofs << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jm;
+    ofs << js::rule::ecma404() << js::rule::space_indent<1>() << jm;
     ofs.close();
 }
 
@@ -80,11 +81,11 @@ spMarket loadMarket(int64_t marketId) {
     if (!marketId)
         return {};
 
-    const json5pp::value jm;
+    const js::value jm;
     try {
         std::filesystem::path fp("cache/markets/"+std::to_string(marketId)+".json");
         std::ifstream ifs(fp);
-        const_cast<js::value&>(jm) = json5pp::parse5(ifs);
+        const_cast<js::value&>(jm) = js::parse5(ifs);
     } catch (...) {
         return {};
     }
@@ -92,7 +93,7 @@ spMarket loadMarket(int64_t marketId) {
     spMarket market = std::make_shared<Market>();
     if (!parseTimestamp(jm["timestamp"], market->timestamp))
         return {};
-    market->marketId = jm["MarketID"].as_int64();
+    market->marketId = jm["MarketID"].as_int();
     market->stationName = jm["StationName"].as_string();
     market->stationType = jm["StationType"].as_string();
     if (jm["RavenColonial"].is_object()) {
@@ -105,10 +106,8 @@ spMarket loadMarket(int64_t marketId) {
             Market::RavenCmdrInfo ci {};
             if (!jcmdr["timestamp"].empty())
                 parseTimestamp(jcmdr["timestamp"], ci.timestamp);
-            if (jcmdr["deliveries"].is_integer())
-                ci.deliveries = jcmdr["deliveries"].as_integer();
-            if (jcmdr["contributed"].is_integer())
-                ci.contributed = jcmdr["contributed"].as_integer();
+            ci.deliveries = jcmdr["deliveries"].as_int_or();
+            ci.contributed = jcmdr["contributed"].as_int_or();
             market->raven.commanders.emplace(name, ci);
         }
     }
@@ -118,28 +117,22 @@ spMarket loadMarket(int64_t marketId) {
         if (!commodity)
             continue;
         MarketLine ml {};
-        if (it["BuyPrice"].is_integer())
-            ml.buyPrice = it["BuyPrice"].as_integer();
-        if (it["SellPrice"].is_integer())
-            ml.sellPrice = it["SellPrice"].as_integer();
-        if (it["Stock"].is_integer())
-            ml.stock = it["Stock"].as_integer();
-        if (it["Demand"].is_integer())
-            ml.demand = it["Demand"].as_integer();
-        if (it["Consumer"].is_boolean())
-            ml.isConsumer = it["Consumer"].as_boolean();
-        if (it["Producer"].is_boolean())
-            ml.isProducer = it["Producer"].as_boolean();
+        ml.buyPrice = it["BuyPrice"].as_int_or();
+        ml.sellPrice = it["SellPrice"].as_int_or();
+        ml.stock = it["Stock"].as_int_or();
+        ml.demand = it["Demand"].as_int_or();
+        ml.isConsumer = it["Consumer"].as_bool_or();
+        ml.isProducer = it["Producer"].as_bool_or();
         market->items.emplace(commodity, ml);
     }
 
     return market;
 }
 
-static void parseUpdated(spEntity& entity, const json5pp::value& j) {
+static void parseUpdated(spEntity& entity, const js::value& j) {
     auto upd = j["updateTime"];
-    if (upd.is_integer()) {
-        std::chrono::seconds sec_duration(upd.as_int64());
+    if (upd.is_int()) {
+        std::chrono::seconds sec_duration(upd.as_int());
         std::chrono::sys_time<std::chrono::seconds> sys_time(sec_duration);
         entity->updated = std::chrono::utc_clock::from_sys(sys_time);
     }
@@ -147,14 +140,14 @@ static void parseUpdated(spEntity& entity, const json5pp::value& j) {
         parseTimestampString(upd.as_string(), entity->updated);
     }
 }
-static void parseBodyId(StarSystem* ss, spEntity& entity, const json5pp::value& j) {
-    if (j.at("bodyId").is_integer())
-        entity->bodyId = j.at("bodyId").as_integer();
-    if (j["parentBodyId"].is_integer())
-        entity->parentBodyId = j["parentBodyId"].as_integer();
+static void parseBodyId(StarSystem* ss, spEntity& entity, const js::value& j) {
+    if (j.at("bodyId").is_int())
+        entity->bodyId = j.at("bodyId").as_int();
+    if (j["parentBodyId"].is_int())
+        entity->parentBodyId = j["parentBodyId"].as_int();
     else if (j["parents"].is_array() && !j["parents"].as_array().empty()) {
         auto& jp = j["parents"].as_array()[0].as_object();
-        entity->parentBodyId = jp.begin()->second.as_integer();
+        entity->parentBodyId = jp.begin()->second.as_int();
     }
     else if (j["body"].is_object() && j["body"]["name"].is_string()) {
         std::string body = j["body"]["name"].as_string();
@@ -166,16 +159,16 @@ static void parseBodyId(StarSystem* ss, spEntity& entity, const json5pp::value& 
         }
     }
 }
-static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
+static spStarSystem fromEDDN(js::value jsystem, bool saved) {
     StarSystem* ss = new StarSystem();
     ss->systemName = jsystem["name"].as_string();
-    if (jsystem["address"].is_integer())
-        ss->systemAddress = jsystem["address"].as_int64();
-    else if (jsystem["id64"].is_integer())
-        ss->systemAddress = jsystem["id64"].as_int64();
-    ss->starPos.x = jsystem["coords"]["x"].as_number();
-    ss->starPos.y = jsystem["coords"]["y"].as_number();
-    ss->starPos.z = jsystem["coords"]["z"].as_number();
+    if (jsystem["address"].is_int())
+        ss->systemAddress = jsystem["address"].as_int();
+    else if (jsystem["id64"].is_int())
+        ss->systemAddress = jsystem["id64"].as_int();
+    ss->starPos.x = jsystem["coords"]["x"].as_real_or();
+    ss->starPos.y = jsystem["coords"]["y"].as_real_or();
+    ss->starPos.z = jsystem["coords"]["z"].as_real_or();
 
     for (auto& jb : jsystem["bodies"].as_array_or()) {
         spEntity body(new Entity);
@@ -194,22 +187,19 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
             body->setName(name);
         }
         if (jb["distanceToArrival"].is_number())
-            body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_number());
+            body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_real());
         if (body->type == TypeNav::Star) {
             if (jb["radius"].is_number())
-                body->radius = jb["radius"].as_number(); // KM
+                body->radius = jb["radius"].as_real(); // KM
             else if (jb["solarRadius"].is_number())
-                body->radius = jb["solarRadius"].as_number() * 6.957e5; // KM
+                body->radius = jb["solarRadius"].as_real() * 6.957e5; // KM
             if (jb["spectralClass"].is_string())
                 body->code = jb["spectralClass"].as_string();
-            if (jb["isMainStar"].is_boolean())
-                body->special = jb["isMainStar"].as_boolean();
+            body->special = jb["isMainStar"].as_bool_or();
         }
         else if (body->type == TypeNav::Planet) {
-            if (jb["radius"].is_number())
-                body->radius = jb["radius"].as_number(); // KM
-            if (jb["isLandable"].is_boolean())
-                body->special = jb["isLandable"].as_boolean();
+            body->radius = jb["radius"].as_real_or(); // KM
+            body->special = jb["isLandable"].as_bool_or();
         }
         ss->bodies.push_back(body);
     }
@@ -252,10 +242,10 @@ static spStarSystem fromEDDN(json5pp::value jsystem, bool saved) {
         if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_pattern && !nt->name_loc.empty())
             site->nloc = nt->get_nloc();
 
-        if (jb["marketId"].is_integer())
-            site->marketId = jb.at("marketId",0).as_int64();
-        else if (jb["id64"].is_integer())
-            site->marketId = jb.at("id64",0).as_int64();
+        if (jb["marketId"].is_int())
+            site->marketId = jb["marketId"].as_int();
+        else if (jb["id64"].is_int())
+            site->marketId = jb["id64"].as_int();
         ss->stations.push_back(site);
     }
 
@@ -269,10 +259,10 @@ void saveStarSystem(StarSystem* ss) {
     std::sort(ss->bodies.begin(), ss->bodies.end(), [](const spEntity& a, const spEntity& b) {
         return a->bodyId < b->bodyId;
     });
-    json5pp::value jbodies = json5pp::array({});
-    json5pp::value jstations = json5pp::array({});
+    js::value jbodies = js::array({});
+    js::value jstations = js::array({});
     for (auto& body : ss->bodies) {
-        json5pp::value jb {
+        js::value jb {
                 {"type", std::string(enum_name<TypeNav>(body->type))},
         };
         auto& jbo = jb.as_object();
@@ -308,7 +298,7 @@ void saveStarSystem(StarSystem* ss) {
         jbodies.as_array().push_back(jb);
     }
     for (auto& st : ss->stations) {
-        json5pp::value jst {
+        js::value jst {
                 {"type", std::string(enum_name<TypeNav>(st->type))},
                 {"name", st->name},
         };
@@ -330,21 +320,21 @@ void saveStarSystem(StarSystem* ss) {
         jstations.as_array().push_back(jst);
     }
 
-    json5pp::value jout {
-            {"name", ss->systemName},
-            {"address", ss->systemAddress},
-            {"coords", json5pp::object({
+    js::value jout {
+            {"name",     ss->systemName},
+            {"address",  ss->systemAddress},
+            {"coords",   js::object({
                 {"x", ss->starPos.x},
                 {"y", ss->starPos.y},
                 {"z", ss->starPos.z},
                 })},
-            {"bodies", jbodies},
+            {"bodies",   jbodies},
             {"stations", jstations},
     };
 
     std::filesystem::path fp("cache/systems/"+ss->systemName+".json");
     std::ofstream ofs(fp);
-    ofs << std::setprecision(15) << std::defaultfloat << json5pp::rule::ecma404() << json5pp::rule::space_indent<1>() << jout;
+    ofs << std::setprecision(15) << std::defaultfloat << js::rule::ecma404() << js::rule::space_indent<1>() << jout;
     ofs.close();
 
     ss->saved = true;
@@ -353,18 +343,18 @@ void saveStarSystem(StarSystem* ss) {
 static spStarSystem loadStarSystemFromNetwork(const std::string name) {
 
     std::string url = "https://www.edsm.net/api-v1/system?showId=1&showCoordinates=1&systemName=";
-    json5pp::value jsystem = curlRequestEDSM(url, name);
+    js::value jsystem = curlRequestEDSM(url, name);
     if (name != jsystem["name"].as_string_or())
         return {};
 
     url = "https://www.edsm.net/api-system-v1/bodies?systemName=";
-    json5pp::value bodies = curlRequestEDSM(url, name);
+    js::value bodies = curlRequestEDSM(url, name);
     if (name != bodies["name"].as_string_or())
         return {};
     jsystem["bodies"] = bodies["bodies"].deref();
 
     url = "https://www.edsm.net/api-system-v1/stations?systemName=";
-    json5pp::value stations = curlRequestEDSM(url, name);
+    js::value stations = curlRequestEDSM(url, name);
     if (name != stations["name"].as_string_or())
         return {};
     jsystem["stations"] = stations["stations"].deref();
@@ -381,7 +371,7 @@ static spStarSystem loadStarSystem(const std::string& name) {
 
     try {
         std::ifstream ifs(fp);
-        auto jsystem = json5pp::parse5(ifs);
+        auto jsystem = js::parse5(ifs);
         return fromEDDN(jsystem, true);
     } catch (...) {
         LOG(ERROR) << "Error while loading cached star system: " << name;
@@ -676,7 +666,7 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
 
     std::string sname;
     std::string stype;
-    int64_t marketId = je.at("MarketID",0).as_int64();
+    int64_t marketId = je["MarketID"].as_int_or();
     if (ge->event=="ApproachSettlement") {
         sname = st::space.stationName;
         stype = st::space.stationType;
@@ -744,7 +734,7 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
         }
     }
     if (je["DistFromStarLS"].is_number()) {
-        double dist = je["DistFromStarLS"].as_number();
+        double dist = je["DistFromStarLS"].as_real_or();
         if (!dock->main_star_distance || std::round(dock->main_star_distance.get_ls()) != std::round(dist)) {
             dock->main_star_distance = dist_t(dist_t::LS, dist);
             saved = false;
@@ -801,7 +791,7 @@ void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>&
         if (event->event != "FSSSignalDiscovered")
             return;
         auto& data = event->data;
-        if (this->systemAddress != data["SystemAddress"].as_int64_or())
+        if (this->systemAddress != data["SystemAddress"].as_int_or())
             return;
         std::string stype = data["SignalType"].as_string();
         std::string sname = data["SignalName"].as_string();

@@ -56,8 +56,8 @@ private:
                               const NavListEntry& nle);
     void saveOcrNavigationLbl(const cv::Mat& grayImage, const ClassifiedRect& cr, int offset,
                                 std::string& lbl_text, const gal::NavType* nt);
-    json5pp::value curlGetRequest(const char* url);
-    json5pp::value curlPostRequest(const char* url, json5pp::value& data);
+    js::value curlGetRequest(const char* url);
+    js::value curlPostRequest(const char* url, js::value& data);
     bool getSpanishInfo();
     //bool getSystemStations();
     //bool getSystemBodies();
@@ -72,8 +72,8 @@ private:
     int txt_confidence;
     int offset_append;
 
-    json5pp::value spanshSystemInfo;
-    json5pp::value spanshNearSystems;
+    js::value spanshSystemInfo;
+    js::value spanshNearSystems;
 
     NavList nl;
 };

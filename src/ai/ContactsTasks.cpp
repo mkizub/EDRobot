@@ -112,7 +112,7 @@ bool ai::TaskAcquirePPC::run() {
                 ai::detectEDState(DetectLevel::Buttons);
                 clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:btn-commit", 100, 500, 0.2);
                 if (waitMarketEvent(4s))
-                    acquiredCount += Cfg.marketEvent->data.at("Count",0).as_integer();
+                    acquiredCount += Cfg.marketEvent->data["Count"].as_int_or();
             }
         }
     }
@@ -165,7 +165,7 @@ bool ai::TaskDeliverPPC::run() {
                 ai::detectEDState(DetectLevel::Buttons);
                 clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-deliver-res:btn-commit", 100, 500, 0.2);
                 if (waitMarketEvent(4s))
-                    deliveredCount += Cfg.marketEvent->data.at("Count",0).as_integer();
+                    deliveredCount += Cfg.marketEvent->data["Count"].as_int_or();
             }
         }
     }

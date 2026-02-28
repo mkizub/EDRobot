@@ -8,6 +8,7 @@
 #include "AIManager.h"
 #include "../Keyboard.h"
 #include "../widget/EDWidget.h"
+#include "../js/parser.h"
 #include <synchapi.h>
 
 #ifndef NDEBUG
@@ -98,21 +99,21 @@ void sleep(int milliseconds, bool precise) {
     }
 }
 
-static int get_int(const json5pp::value& val, const json5pp::value& args, int dflt = -1) {
+static int get_int(const js::value& val, const js::value& args, int dflt = -1) {
     if (val.is_null() && dflt >= 0)
         return dflt;
-    if (val.is_integer())
-        return val.as_integer();
+    if (val.is_int())
+        return val.as_int();
     if (val.is_string()) {
-        const json5pp::value& resolved = args.at(val.as_string());
-        if (resolved.is_integer())
-            return resolved.as_integer();
+        const js::value& resolved = args.at(val.as_string());
+        if (resolved.is_int())
+            return resolved.as_int();
     }
     LOG(ERROR) << "integer value expected, but got: " << val << " with args: " << args;
     return 0;
 }
 
-bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const json5pp::value& args) const {
+bool Task::decodePosition(const js::value& pos, cv::Point& point, const js::value& args) const {
     if (pos.is_string()) {
         cv::Rect rect = Mgr.resolveWidgetReferenceRect(pos.as_string(), ai::rEnv);
         if (rect.empty()) {
@@ -136,20 +137,20 @@ bool Task::decodePosition(const json5pp::value& pos, cv::Point& point, const jso
     return false;
 }
 
-bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
+bool Task::executeWait(const js::value& step, const js::value& args) {
     LOG(DEBUG) << "action task_step wait: " << step;
-    const json5pp::value& state = step.at("wait");
-    const json5pp::value& focus = step.at("focus");
-    const json5pp::value& disabled = step.at("disabled");
+    const js::value& state = step.at("wait");
+    const js::value& focus = step.at("focus");
+    const js::value& disabled = step.at("disabled");
     auto start = std::chrono::system_clock::now();
     auto now = start;
     int during = 3000;
     int period = 250;
-    if (step.at("during").is_integer())
-        during = std::max(100, step.at("during").as_integer());
-    if (step.at("period").is_integer())
-        period = std::max(100, step.at("period").as_integer());
-    auto until = now + std::chrono::duration<int, std::milli>(during);
+    if (step.at("during").is_int())
+        during = std::max(100, (int)step.at("during").as_int());
+    if (step.at("period").is_int())
+        period = std::max(100, (int)step.at("period").as_int());
+    auto until = now + std::chrono::milliseconds(during);
     LOG(INFO) << "Step 'wait' #0 duration " << during << " left " << std::chrono::duration_cast<std::chrono::milliseconds>(until - now).count();
     bool ok;
     for (int counter=1; now < until; counter++) {
@@ -179,7 +180,7 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
             if (ok)
                 break;
         }
-        std::this_thread::sleep_for(std::chrono::duration<int, std::milli>(period));
+        std::this_thread::sleep_for(std::chrono::milliseconds(period));
         now = std::chrono::system_clock::now();
         LOG_IF(!ok,INFO) << "Step 'wait' #"<<counter<<" duration " << during << " left " << std::chrono::duration_cast<std::chrono::milliseconds>(until - now).count();
     }
@@ -188,7 +189,7 @@ bool Task::executeWait(const json5pp::value& step, const json5pp::value& args) {
     return ok;
 }
 
-bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
+bool Task::executeStep(const js::value& step, const js::value& args) {
     if (step.is_array()) {
         for (auto& s : step.as_array()) {
             bool ok = executeStep(s, args);
@@ -200,8 +201,8 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
     if (step.is_object()) {
         if (step.as_object().contains("task_loop")) {
             LOG(DEBUG) << "action task_step task_loop: " << step;
-            const json5pp::value& loop = step.at("task_loop");
-            const json5pp::value& action = step.at("action");
+            const js::value& loop = step.at("task_loop");
+            const js::value& action = step.at("action");
             int count = get_int(loop, args);
             if (count < 0) {
                 LOG(ERROR) << "bad task_loop counter value: " << step << " with args: " << args;
@@ -221,11 +222,11 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         }
         if (step.as_object().contains("check")) {
             LOG(DEBUG) << "action task_step check: " << step;
-            const json5pp::value& state = step.at("check");
+            const js::value& state = step.at("check");
             ai::detectEDState(DetectLevel::Buttons);
             bool ok = ai::uiState.match(state.as_string());
             if (ok) {
-                const json5pp::value &focus = step.at("focus");
+                const js::value &focus = step.at("focus");
                 if (focus) {
                     const widget::Widget* fw = ai::uiState.focused;
                     std::string fn = fw ? fw->name : "";
@@ -238,7 +239,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         }
         if (step.as_object().contains("key")) {
             LOG(DEBUG) << "action task_step key: " << step;
-            const json5pp::value& key = step.at("key");
+            const js::value& key = step.at("key");
             bool ok;
             if (step.at("hold").is_object() || step.at("hold").is_array()) {
                 const KeyBindings& keyBindings = Cfg.getGameKeyBindings(key.as_string());
@@ -268,7 +269,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         }
         if (step.as_object().contains("goto")) {
             LOG(DEBUG) << "action goto: " << step;
-            const json5pp::value& widget = step.at("goto");
+            const js::value& widget = step.at("goto");
             cv::Point pos;
             if (!decodePosition(widget, pos, args)) {
                 LOG(ERROR) << "Step " << step << " failed";
@@ -281,7 +282,7 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
         }
         if (step.as_object().contains("click")) {
             LOG(DEBUG) << "action click: " << step;
-            const json5pp::value& widget = step.at("click");
+            const js::value& widget = step.at("click");
             cv::Point pos;
             if (!decodePosition(widget, pos, args)) {
                 LOG(ERROR) << "Step " << step << " failed";
@@ -306,10 +307,10 @@ bool Task::executeStep(const json5pp::value& step, const json5pp::value& args) {
 }
 
 void Task::hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* grayImage) {
-    json5pp::value parsed, args;
+    js::value parsed, args;
     try {
         std::stringstream in(step);
-        in >> json5pp::rule::json5() >> parsed;
+        in >> js::rule::json5() >> parsed;
     } catch (...) {
         LOG(ERROR) << "Failed to parse json " << step;
         throw nonlocal_return(TaskExitReason::FAILED, "hardcoded task_step parse failed");

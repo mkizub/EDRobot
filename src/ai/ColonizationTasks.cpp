@@ -22,9 +22,9 @@ std::string BaseColonizationTask::constructionPrefixes[] {
 };
 
 
-void BaseColonizationTask::addDepotInfo(const json5pp::value& dv) {
-    auto& systemName = dv["system"].as_string_or();
-    auto& fullName = dv["dock"].as_string_or();
+void BaseColonizationTask::addDepotInfo(const js::value& dv) {
+    auto systemName = dv["system"].as_string_or();
+    auto fullName = dv["dock"].as_string_or();
     std::string shortName;
     for (auto& pr : constructionPrefixes) {
         if (fullName.starts_with(pr)) {
@@ -71,8 +71,8 @@ gal::spEntity BaseColonizationTask::travelTo(std::string systemName, std::string
     destDockName = dockName;
     TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
     impl.nm.clear();
-    impl.set("dock", json5pp::object({{"system", destSystemName},
-                                      {"dock",   destDockName}}));
+    impl.set("dock", js::object({{"system", destSystemName},
+                                 {"dock",   destDockName}}));
     bool ok = run_sub_step(impl.factory(impl));
     destSystemName.clear();
     destDockName.clear();
@@ -302,8 +302,8 @@ BaseColonizationTask::MarketInfo TaskMyCarrierReserve::chooseBestMarket(const De
     Param &p = templ.get("markets");
     if (p.value.is_array()) {
         for (auto &dv: p.value.as_array()) {
-            auto& systemName = dv["system"].as_string_or();
-            auto& dockName = dv["dock"].as_string_or();
+            auto systemName = dv["system"].as_string_or();
+            auto dockName = dv["dock"].as_string_or();
             MarketInfo mi = checkMarketCanBuy(systemName, dockName, demands);
             if (mi.dock)
                 markets.push_back(mi);
@@ -469,8 +469,8 @@ BaseColonizationTask::MarketInfo TaskConstruction::chooseBestMarket(const Demand
     Param &p = templ.get("markets");
     if (p.value.is_array()) {
         for (auto &dv: p.value.as_array()) {
-            auto& systemName = dv["system"].as_string_or();
-            auto& dockName = dv["dock"].as_string_or();
+            auto systemName = dv["system"].as_string_or();
+            auto dockName = dv["dock"].as_string_or();
             MarketInfo mi = checkMarketCanBuy(systemName, dockName, demands);
             if (mi.dock)
                 markets.push_back(mi);

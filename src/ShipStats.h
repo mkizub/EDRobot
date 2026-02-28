@@ -232,10 +232,10 @@ enum class Attr {
 
 class ShipAttr {
 public:
-    ShipAttr(Attr attr, const json5pp::value& jv);
+    ShipAttr(Attr attr, const js::value& jv);
     //attr:'faction',    hidden:1,                        abbr:'Fac',  name:'Faction',        values:['','Alliance','Empire','Federation'],     default:'',                     desc:'Faction membership required to purchase'
     const Attr attr;
-    const json5pp::value& jvalue;
+    const js::value& jvalue;
     std::string id;
     bool hidden;
     bool bad;
@@ -278,7 +278,7 @@ public:
     double getEffectiveAttrModifier(Attr attr);
     double getAttrValue(Attr attr, double value, double modifier);
     double getAttrValue(Attr attr, bool modified);
-    double getModuleAttrValue(const json5pp::value& module, Attr attr, double modifier=DNaN);
+    double getModuleAttrValue(const js::value& module, Attr attr, double modifier=DNaN);
 
     std::string moduleName;
     std::string blueprintName;
@@ -288,15 +288,15 @@ public:
     std::map<Attr,double> attrModifier;
     std::map<Attr,bool> attrOverride;
 
-    const json5pp::value* module {};
-    const json5pp::value* blueprint {};
-    const json5pp::value* effect {};
+    const js::value* module {};
+    const js::value* blueprint {};
+    const js::value* effect {};
 };
 
 class ShipStats {
 public:
-    ShipStats(const std::string &type, const json5pp::value &jship);
-    void setSlotModule(const json5pp::value &jvalue);
+    ShipStats(const std::string &type, const js::value &jship);
+    void setSlotModule(const js::value &jvalue);
     void updateStats();
 
     double getRotationScale(Axis::Type at, int speed_percent);
@@ -309,7 +309,7 @@ public:
     double getReverseAccel();
 
     const std::string type;
-    const json5pp::value &jship;
+    const js::value &jship;
 
 private:
     std::array<double, enum_count<Attr>()> stats;

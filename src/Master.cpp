@@ -16,6 +16,7 @@
 #include "widget/EDWidget.h"
 #include "widget/List.h"
 #include "net/NetUtils.h"
+#include "js/parser.h"
 #include "OCR.h"
 #include <fstream>
 #include <memory>
@@ -99,7 +100,7 @@ void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const cha
 
 static std::pair<std::string,std::string> getLatestVersionAndUrl() {
     auto path = std::filesystem::path("cache/rel-latest.json");
-    json5pp::value latest;
+    js::value latest;
     if (std::filesystem::exists(path)) {
         auto file_file_tp = std::filesystem::last_write_time(path);
         auto file_sys_tp = std::chrono::clock_cast<std::chrono::system_clock>(file_file_tp);
@@ -107,7 +108,7 @@ static std::pair<std::string,std::string> getLatestVersionAndUrl() {
         std::chrono::sys_days now_days{std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())};
         if (file_days >= now_days) {
             std::ifstream ifs_latest(path.string());
-            latest = json5pp::parse(ifs_latest);
+            latest = js::parse(ifs_latest);
         }
     }
 
@@ -118,8 +119,8 @@ static std::pair<std::string,std::string> getLatestVersionAndUrl() {
             ofs_latest << resp;
             ofs_latest.close();
             try {
-                latest = json5pp::parse5(resp);
-            } catch (const json5pp::syntax_error& ex) {
+                latest = js::parse5(resp);
+            } catch (const js::syntax_error& ex) {
                 LOG(ERROR) << ex.what();
             }
         }
