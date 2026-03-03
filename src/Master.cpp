@@ -16,7 +16,6 @@
 #include "widget/EDWidget.h"
 #include "widget/List.h"
 #include "net/NetUtils.h"
-#include "js/parser.h"
 #include "OCR.h"
 #include <fstream>
 #include <memory>

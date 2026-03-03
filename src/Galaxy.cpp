@@ -6,7 +6,6 @@
 
 #include "Galaxy.h"
 #include "net/NetUtils.h"
-#include "js/parser.h"
 
 namespace gal {
 
@@ -41,13 +40,14 @@ void saveMarket(Market* market) {
             for (auto cmdr: market->raven.commanders) {
                 auto &name = cmdr.first;
                 auto &ci = cmdr.second;
-                auto jcmdr = jcommanders[name];
+                auto& jcmdr = jcommanders[name].deref();
                 if (ci.timestamp.time_since_epoch().count())
                     jcmdr["timestamp"] = formatTimestampString(ci.timestamp);
                 if (ci.deliveries)
                     jcmdr["deliveries"] = ci.deliveries;
                 if (ci.contributed)
                     jcmdr["contributed"] = ci.contributed;
+                jcmdr.add_flags(js::force::no_indent);
             }
         }
     }
@@ -57,18 +57,19 @@ void saveMarket(Market* market) {
         if (!ml.isConsumer && !ml.isProducer && !ml.stock && !ml.demand)
             continue;
         js::value& jv = jarr.emplace_back(js::object({{"Name", it.first->nameId}}));
-        if (ml.isProducer)
-            jv["Producer"] = true;
-        if (ml.buyPrice)
-            jv["BuyPrice"] = true;
         if (ml.stock)
             jv["Stock"] = ml.stock;
-        if (ml.isConsumer)
-            jv["Consumer"] = ml.isConsumer;
-        if (ml.sellPrice)
-            jv["SellPrice"] = ml.sellPrice;
         if (ml.demand)
             jv["Demand"] = ml.demand;
+        if (ml.buyPrice)
+            jv["BuyPrice"] = true;
+        if (ml.sellPrice)
+            jv["SellPrice"] = ml.sellPrice;
+        if (ml.isConsumer)
+            jv["Consumer"] = ml.isConsumer;
+        if (ml.isProducer)
+            jv["Producer"] = true;
+        jv.add_flags(js::force::no_indent);
     }
 
     std::filesystem::path fp("cache/markets/"+std::to_string(market->marketId)+".json");
@@ -100,9 +101,8 @@ spMarket loadMarket(int64_t marketId) {
         market->raven.buildId = jm["RavenColonial"]["buildId"].as_string_or();
         market->raven.status = jm["RavenColonial"]["status"].as_string_or();
         parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven.timestamp);
-        for (auto& cmdr : jm["RavenColonial"]["commanders"].as_object_or()) {
-            auto& name = cmdr.first;
-            auto& jcmdr = cmdr.second;
+        if (auto commanders=jm["RavenColonial"]["commanders"]; commanders.is_object())
+        for (auto [name,jcmdr] : commanders.key_value()) {
             Market::RavenCmdrInfo ci {};
             if (!jcmdr["timestamp"].empty())
                 parseTimestamp(jcmdr["timestamp"], ci.timestamp);
@@ -146,8 +146,9 @@ static void parseBodyId(StarSystem* ss, spEntity& entity, const js::value& j) {
     if (j["parentBodyId"].is_int())
         entity->parentBodyId = j["parentBodyId"].as_int();
     else if (j["parents"].is_array() && !j["parents"].as_array().empty()) {
-        auto& jp = j["parents"].as_array()[0].as_object();
-        entity->parentBodyId = jp.begin()->second.as_int();
+        auto& jp = j["parents"].as_array()[0];
+        if (jp.is_object())
+            entity->parentBodyId = jp.key_value().begin().value().as_int();
     }
     else if (j["body"].is_object() && j["body"]["name"].is_string()) {
         std::string body = j["body"]["name"].as_string();
@@ -265,36 +266,36 @@ void saveStarSystem(StarSystem* ss) {
         js::value jb {
                 {"type", std::string(enum_name<TypeNav>(body->type))},
         };
-        auto& jbo = jb.as_object();
         if (body->type != TypeNav::Barycenter && !body->name.empty())
-            jbo.emplace("name", body->name);
+            jb["name"] = body->name;
         if (body->bodyId >= 0)
-            jbo.emplace("bodyId", body->bodyId);
+            jb["bodyId"] = body->bodyId;
         if (body->parentBodyId >= 0)
-            jbo.emplace("parentBodyId", body->parentBodyId);
+            jb["parentBodyId"] = body->parentBodyId;
         if (body->main_star_distance.valid())
-            jbo.emplace("distanceToArrival", std::round(body->main_star_distance.get_ls()*10.0)/10.0);
+            jb["distanceToArrival"] = std::round(body->main_star_distance.get_ls()*10.0)/10.0;
         if (body->radius)
-            jbo.emplace("radius", std::round(body->radius*1000.0)/1000.0);
+            jb["radius"] = std::round(body->radius*1000.0)/1000.0;
         if (body->type == TypeNav::Star) {
             if (body->special)
-                jbo.emplace("isMainStar", true);
+                jb["isMainStar"] = true;
             if (!body->code.empty())
-                jbo.emplace("spectralClass", body->code);
+                jb["spectralClass"] = body->code;
         }
         else if (body->type == TypeNav::Planet) {
             if (body->special)
-                jbo.emplace("isLandable", true);
+                jb["isLandable"] = true;
             if (!body->code.empty())
-                jbo.emplace("spectralClass", body->code);
+                jb["spectralClass"] = body->code;
         }
 
         {
             auto ts = std::chrono::floor<std::chrono::seconds>(body->updated);
             auto seconds = ts.time_since_epoch().count();
             if (seconds)
-                jbo.emplace("updateTime", seconds);
+                jb["updateTime"] = seconds;
         }
+        jb.add_flags(js::force::no_indent);
         jbodies.as_array().push_back(jb);
     }
     for (auto& st : ss->stations) {
@@ -302,21 +303,21 @@ void saveStarSystem(StarSystem* ss) {
                 {"type", std::string(enum_name<TypeNav>(st->type))},
                 {"name", st->name},
         };
-        auto& jsto = jst.as_object();
         if (st->bodyId >= 0)
-            jsto.emplace("bodyId", st->bodyId);
+            jst["bodyId"] = st->bodyId;
         if (st->parentBodyId >= 0)
-            jsto.emplace("parentBodyId", st->parentBodyId);
+            jst["parentBodyId"] = st->parentBodyId;
         if (st->main_star_distance.valid())
-            jsto.emplace("distanceToArrival", std::round(st->main_star_distance.get_ls()*10.0)/10.0);
+            jst["distanceToArrival"] = std::round(st->main_star_distance.get_ls()*10.0)/10.0;
         if (st->marketId)
-            jsto.emplace("marketId", st->marketId);
+            jst["marketId"] = st->marketId;
         {
             auto ts = std::chrono::floor<std::chrono::seconds>(st->updated);
             auto seconds = ts.time_since_epoch().count();
             if (seconds)
-                jsto.emplace("updateTime", seconds);
+                jst["updateTime"] = seconds;
         }
+        jst.add_flags(js::force::no_indent);
         jstations.as_array().push_back(jst);
     }
 
@@ -331,6 +332,7 @@ void saveStarSystem(StarSystem* ss) {
             {"bodies",   jbodies},
             {"stations", jstations},
     };
+    jout["coords"].add_flags(js::force::no_indent);
 
     std::filesystem::path fp("cache/systems/"+ss->systemName+".json");
     std::ofstream ofs(fp);

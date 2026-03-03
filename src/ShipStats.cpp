@@ -5,7 +5,6 @@
 #include "pch.h"
 
 #include "ShipStats.h"
-#include "js/parser.h"
 
 
 namespace eddb {
@@ -80,17 +79,17 @@ bool loadEDDB() {
         if (jn.is_string())
             gEDDBModules.emplace(toLower(jn.as_string()), module);
     }
-    for (auto& blueprint : gEDDBFull["blueprint"].as_object()) {
-        gEDDBFull.as_object()["blueprint"].as_object()[blueprint.first].as_object().emplace("bpid", blueprint.first);
-        auto jn = blueprint.second["fdname"];
+    for (auto [bp_name, bp_val] : gEDDBFull["blueprint"].key_value()) {
+        gEDDBFull["blueprint"][bp_name]["bpid"] = bp_name;
+        auto jn = bp_val["fdname"];
         if (jn.is_string()) {
-            gEDDBBlueprints.emplace(toLower(jn.as_string()), blueprint.second);
+            gEDDBBlueprints.emplace(toLower(jn.as_string()), bp_val);
         }
     }
-    for (auto& effect : gEDDBFull["expeffect"].as_object()) {
-        auto jn = effect.second["fdname"];
+    for (auto [_,effect] : gEDDBFull["expeffect"].key_value()) {
+        auto jn = effect["fdname"];
         if (jn.is_string())
-            gEDDBEffects.emplace(toLower(jn.as_string()), effect.second);
+            gEDDBEffects.emplace(toLower(jn.as_string()), effect);
     }
     for (auto& attr : gEDDBFull["attributes"].as_array()) {
         auto ja = attr.at("attr");

@@ -10,7 +10,6 @@
 #include "../OCR.h"
 #include "../State.h"
 #include "../detect/Detector.h"
-#include "../js/parser.h"
 
 #ifndef NDEBUG
 #include "cpptrace/from_current.hpp"
@@ -208,9 +207,7 @@ bool Screen::checkStatus() const {
         return false;
     if (st::isDead && !status["dead"])
         return false;
-    for (auto& kv : status.as_object()) {
-        auto& key = kv.first;
-        auto& val = kv.second;
+    for (auto [key,val] : status.key_value()) {
         if (key == "gui" || key == "focus") {
             auto gf = enum_cast<GuiFocus>(val.as_string());
             LOG_IF(!gf.has_value(),ERROR) << "Bad gui focus name: " << val;

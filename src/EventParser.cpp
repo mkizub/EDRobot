@@ -9,7 +9,6 @@
 #include "ai/AIManager.h"
 #include "ui/UIManager.h"
 #include "net/RavenColonial.h"
-#include "js/parser.h"
 
 namespace st {
 Lang lng {Lang::XX};
@@ -920,7 +919,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
         return;
     int64_t marketId = je["MarketID"].as_int_or();
     spMarket old_market = gal::getMarket(marketId);
-    if (old_market && old_market->timestamp > ge->timestamp)
+    if (old_market && old_market->timestamp >= ge->timestamp)
         return;
     auto dock = starSystem->getDock(marketId);
     spMarket market = std::make_shared<Market>(Market{

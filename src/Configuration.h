@@ -141,6 +141,7 @@ public:
     std::string getShortcutFor(Command cmd) const;
     CommodityCategory* getCommodityCategoryById(int id);
     CommodityCategory* getCommodityCategoryByName(const std::string& name);
+    Commodity* getCommodityById(std::string_view name);
     Commodity* getCommodityById(const std::string& name);
     Commodity* getCommodityByName(const std::string& name, bool fuzzy_ocr);
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);

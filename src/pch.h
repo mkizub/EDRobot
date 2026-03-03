@@ -41,7 +41,11 @@ using namespace std::chrono_literals;
 #define ELPP_LOG_UNORDERED_MAP
 #include <easylogging/easylogging++.h>
 
+#include <magic_enum/magic_enum.hpp>
+using namespace magic_enum;
+
 #include "js/value.h"
+#include "js/parser.h"
 
 #include "opencv2/opencv.hpp"
 #include "ed_opencv.h"
@@ -72,9 +76,6 @@ template <class... _Types>
     auto lc_fmt = gettext(_Fmt.get().data());
     return std::vformat(lc_fmt, std::make_format_args(_Args...));
 }
-
-#include <magic_enum/magic_enum.hpp>
-using namespace magic_enum;
 
 // forward declarations
 class Capturer;

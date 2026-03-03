@@ -11,7 +11,26 @@
 #include <type_traits>
 #include <iosfwd>
 
-namespace js::impl {
+namespace js {
+
+enum class force : std::uint8_t
+{
+    none              = 0,
+    no_indent         = (1u<<0),
+    no_object_nulls   = (1u<<1),
+    no_array_nulls    = (1u<<2),
+    hexadecimal       = (1u<<3),
+    single_quote      = (1u<<4),
+    unquoted_key      = (1u<<5),
+};
+inline force operator|(force f1, force f2) {
+    return (force)(unsigned(f1) | unsigned(f2));
+}
+inline force operator&(force f1, force f2) {
+    return (force)(unsigned(f1) & unsigned(f2));
+}
+
+namespace impl {
 
 /**
  * @brief Parser/stringifier flags
@@ -36,7 +55,9 @@ enum flags : std::uint32_t
 
     // Syntax flag sets
     json5_rules             = ((unquoted_key<<1)-1),
-    all_rules               = json5_rules,
+    no_object_nulls         = (1u<<12),
+    no_array_nulls          = (1u<<13),
+    all_rules               = json5_rules | no_object_nulls | no_array_nulls,
 
     // Parse options
     finished                = (1u<<29),
@@ -51,7 +72,7 @@ using flags_type = std::underlying_type<flags>::type;
 using indent_type = std::int8_t;
 
 template <flags_type F> class parser;
-template <flags_type F, indent_type I> class stringifier;
+class stringifier;
 
 template <flags_type S, flags_type C>
 class manipulator_flags
@@ -68,7 +89,7 @@ public:
     friend parser<S_&flags::parse_mask> operator>>(std::istream& istream, const manipulator_flags<S_,C_>& manip);
 
     template <flags_type S_, flags_type C_>
-    friend stringifier<S_&flags::stringify_mask,0> operator<<(std::ostream& ostream, const manipulator_flags<S_,C_>& manip);
+    friend stringifier operator<<(std::ostream& ostream, const manipulator_flags<S_,C_>& manip);
 };
 
 template <indent_type I>
@@ -79,10 +100,11 @@ public:
     friend parser<0> operator>>(std::istream& istream, const manipulator_indent<I_>& manip);
 
     template <indent_type I_>
-    friend stringifier<0,I_> operator<<(std::ostream& ostream, const manipulator_indent<I_>& manip);
+    friend stringifier operator<<(std::ostream& ostream, const manipulator_indent<I_>& manip);
 };
 
-} // namespace js::impl
+} // impl
+} // namespace js
 
 
 #endif //EDROBOT_IMPL_H

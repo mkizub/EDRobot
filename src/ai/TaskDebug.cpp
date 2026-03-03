@@ -12,7 +12,6 @@
 #include "../FuzzyMatch.h"
 #include "../OCR.h"
 #include "../Galaxy.h"
-#include "../js/parser.h"
 
 #include <tesseract/baseapi.h>
 #include <curl/curl.h>
@@ -702,12 +701,12 @@ js::value TaskDebugFindAllNavPoints::curlPostRequest(const char* base_url, js::v
             LOG(ERROR) << "Bad response, expecting 'results': " << jresp;
             return nullptr;
         }
-        auto& results = jresp.as_object()["results"];
+        auto& results = jresp["results"].deref();
         for (auto& r : results.as_array()) {
-            r.as_object().erase("bodies");
-            r.as_object().erase("stations");
-            r.as_object().erase("minor_faction_presences");
-            r.as_object().erase("power");
+            r["bodies"] = nullptr;
+            r["stations"] = nullptr;
+            r["minor_faction_presences"] = nullptr;
+            r["power"] = nullptr;
         }
         return results;
     } catch (const js::syntax_error& ex) {

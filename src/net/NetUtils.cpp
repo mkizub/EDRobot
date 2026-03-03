@@ -5,7 +5,6 @@
 #include "../pch.h"
 
 #include "NetUtils.h"
-#include "../js/parser.h"
 #include <curl/curl.h>
 
 struct CurlWrapper {

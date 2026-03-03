@@ -7,7 +7,6 @@
 #include "UIManager.h"
 #include "UIMainDialog.h"
 #include "../net/RavenColonial.h"
-#include "../js/parser.h"
 
 #include "../../ui/resource.h"
 
@@ -187,13 +186,13 @@ void UIShowCargo::on_cargo_load() {
                                   st::cmdr.name, st::cmdr.fleetCarrierId);
         return;
     }
-    for (auto jc : jv["cargo"].as_object()) {
-        Commodity* c = Cfg.getCommodityById(jc.first);
+    for (auto [nameId,count] : jv["cargo"].key_value()) {
+        Commodity* c = Cfg.getCommodityById(nameId);
         if (!c) {
-            LOG(ERROR) << "Cargo not found: " << jc.first;
+            LOG(ERROR) << "Cargo not found: " << nameId;
             continue;
         }
-        c->fc.count = jc.second.as_int();
+        c->fc.count = count.as_int();
     }
     cargoEditor.initControls();
     validate_callback(cargoEditor.validate(nullptr), false);
@@ -226,10 +225,10 @@ void UIShowCargo::on_cargo_save() {
     for (auto c : Cfg.getAllKnownCommodities()) {
         if (!cargo[c->nameId].empty()) {
             if (c->fc.count != cargo[c->nameId].as_int())
-                diff.as_object().emplace(c->nameId, c->fc.count);
+                diff[c->nameId] = c->fc.count;
         }
         else if (c->fc.count != 0)
-            diff.as_object().emplace(c->nameId, c->fc.count);
+            diff[c->nameId] = c->fc.count;
     }
     if (!diff.empty())
         RavenColonial::carrierPostCargo(st::cmdr.fleetCarrierId, diff);

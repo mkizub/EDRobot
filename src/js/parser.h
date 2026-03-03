@@ -41,10 +41,6 @@ public:
 
 namespace impl {
 
-} /* namespace impl */
-
-namespace impl {
-
 /**
  * @brief Parser implementation
  *
@@ -686,13 +682,12 @@ private:
     {
         static const char context[] = "object";
         v = object({});
-        auto& elements = v.as_object();
         for (;;) {
             int ch = skip_spaces();
             if (ch == '}') {
                 break;
             }
-            if (elements.empty()) {
+            if (v.empty()) {
                 istream.unget();
             } else if (ch != ',') {
                 throw syntax_error(ch, context);
@@ -711,8 +706,8 @@ private:
                 throw syntax_error(ch, context);
             }
             // [value]
-            auto result = elements.emplace(key, nullptr);
-            parse_value(const_cast<value &>(result.first->second), context);
+            auto& result = (v[key] = nullptr);
+            parse_value(result, context);
         }
     }
 
@@ -725,12 +720,15 @@ private:
  * @tparam F A combination of flags
  * @tparam I An indent specification
  */
-template <flags_type F, indent_type I>
 class stringifier
 {
 private:
-    using self_type = stringifier<F,I>;
+    using self_type = stringifier;
     static constexpr auto M = flags::stringify_mask;
+
+    const flags_type flags_;
+    const indent_type indent_;
+    std::ostream& ostream;  ///< An output stream
 
 public:
     /**
@@ -738,7 +736,33 @@ public:
      *
      * @param ostream An output stream
      */
-    stringifier(std::ostream& ostream) : ostream(ostream) {}
+    stringifier(std::ostream& ostream) : flags_{}, indent_{}, ostream(ostream) {}
+
+    stringifier(flags_type flags, indent_type indent, std::ostream& ostream)
+            : flags_(flags)
+            , indent_(indent)
+            , ostream(ostream)
+    {}
+
+    stringifier(force ff, stringifier s)
+            : flags_(s.flags_)
+            , indent_(s.indent_)
+            , ostream(s.ostream)
+    {
+        if ((ff & force::no_indent) != force::none)
+            const_cast<indent_type&>(indent_) = 0;
+        if ((ff & force::no_object_nulls) != force::none)
+            const_cast<flags_type&>(flags_) = flags::no_object_nulls;
+        if ((ff & force::no_array_nulls) != force::none)
+            const_cast<flags_type&>(flags_) = flags::no_array_nulls;
+        if ((ff & force::hexadecimal) != force::none)
+            const_cast<flags_type&>(flags_) |= flags::hexadecimal;
+        if ((ff & force::single_quote) != force::none)
+            const_cast<flags_type&>(flags_) |= flags::single_quote;
+        if ((ff & force::unquoted_key) != force::none)
+            const_cast<flags_type&>(flags_) |= flags::unquoted_key;
+    }
+
 
     /**
      * @brief Apply flag manipulator
@@ -749,9 +773,9 @@ public:
      * @return An updated stringifier object
      */
     template <flags_type S, flags_type C>
-    stringifier<((F&~C)|S)&M,I> operator<<(const manipulator_flags<S,C>& manip)
+    stringifier operator<<(const manipulator_flags<S,C>& manip)
     {
-        return stringifier<((F&~C)|S)&M,I>(ostream);
+        return stringifier(((flags_ & ~C) | S) & M, indent_, ostream);
     }
 
     /**
@@ -763,9 +787,9 @@ public:
      * @return An updated stringifier object
      */
     template <indent_type NI>
-    stringifier<F,NI> operator<<(const manipulator_indent<NI>& manip)
+    stringifier operator<<(const manipulator_indent<NI>& manip)
     {
-        return stringifier<F,NI>(ostream);
+        return stringifier(flags_, NI, ostream);
     }
 
     /**
@@ -819,9 +843,9 @@ private:
      * @retval true Any flag is enabled
      * @retval False No flag is enabled
      */
-    static constexpr bool has_flag(flags_type flags)
+    constexpr bool has_flag(flags_type flags)
     {
-        return (F & flags) != 0;
+        return (flags_ & flags) != 0;
     }
 
     /**
@@ -829,9 +853,9 @@ private:
      *
      * @return A newline string literal
      */
-    static const char *get_newline()
+    const char *get_newline()
     {
-        return (F & flags::crlf_newline) ? "\r\n" : "\n";
+        return (flags_ & flags::crlf_newline) ? "\r\n" : "\n";
     }
 
     /**
@@ -839,12 +863,12 @@ private:
      *
      * @return An indent text for one level
      */
-    static value::json_type get_indent()
+    value::json_type get_indent()
     {
-        if (I > 0) {
-            return value::json_type(I, ' ');
-        } else if (I < 0) {
-            return value::json_type(-I, '\t');
+        if (indent_ > 0) {
+            return value::json_type(indent_, ' ');
+        } else if (indent_ < 0) {
+            return value::json_type(-indent_, '\t');
         }
         return value::json_type();
     }
@@ -875,7 +899,7 @@ private:
             const std::streamsize width;
         };
         fmtsaver saver(ostream);
-        stringify_value(v, "");
+        stringify_value(v, "", false);
     }
 
     /**
@@ -884,14 +908,15 @@ private:
      * @param v A value object to stringify
      * @param indent An indent string
      */
-    void stringify_value(const value& v, const value::json_type& indent)
+    void stringify_value(const value& v, const value::json_type& indent, bool ignore_container_flags)
     {
         switch (v.content.index()) {
         case value::TYPE_BOOLEAN:
             ostream << (v.as_bool() ? "true" : "false");
             break;
         case value::TYPE_FLOATING:
-            if (auto num = v.as_real()) {
+            {
+                auto num = v.as_real();
                 if (std::isnan(num)) {
                     if (!has_flag(flags::not_a_number)) {
                         goto null;
@@ -916,51 +941,75 @@ private:
         case value::TYPE_ARRAY:
             if (v.empty()) {
                 ostream << "[]";
-            } else if (I == 0) {
-                const char *delim = "[";
-                for (const auto& item : v.as_array()) {
-                    ostream << delim;
-                    stringify_value(item, indent);
-                    delim = ",";
-                }
-                ostream << "]";
             } else {
-                const char *const newline = get_newline();
-                const char *delim = "[";
-                const value::json_type inner_indent = indent + get_indent();
-                for (const auto& item : v.as_array()) {
-                    ostream << delim << newline << inner_indent;
-                    stringify_value(item, inner_indent);
-                    delim = ",";
+                auto av_flags = v.get_flags();
+                if (!ignore_container_flags && av_flags != force::none) {
+                    stringifier s(av_flags, *this);
+                    s.stringify_value(v, indent, true);
+                } else {
+                    if (indent_ == 0) {
+                        const char *delim = "[";
+                        for (const auto &item : v.as_array()) {
+                            if (has_flag(flags::no_array_nulls) && item.is_null())
+                                continue;
+                            ostream << delim;
+                            stringify_value(item, indent, false);
+                            delim = ",";
+                        }
+                        ostream << "]";
+                    } else {
+                        const char *const newline = get_newline();
+                        const char *delim = "[";
+                        const value::json_type inner_indent = indent + get_indent();
+                        for (const auto &item: v.as_array()) {
+                            if (has_flag(flags::no_array_nulls) && item.is_null())
+                                continue;
+                            ostream << delim << newline << inner_indent;
+                            stringify_value(item, inner_indent, false);
+                            delim = ",";
+                        }
+                        ostream << newline << indent << "]";
+                    }
                 }
-                ostream << newline << indent << "]";
             }
             break;
         case value::TYPE_OBJECT:
             if (v.empty()) {
                 ostream << "{}";
-            } else if (I == 0) {
-                const char *delim = "{";
-                for (const auto& pair : v.as_object()) {
-                    ostream << delim;
-                    stringify_string(pair.first);
-                    ostream << ":";
-                    stringify_value(pair.second, indent);
-                    delim = ",";
-                }
-                ostream << "}";
             } else {
-                const char *const newline = get_newline();
-                const char *delim = "{";
-                const value::json_type inner_indent = indent + get_indent();
-                for (const auto& pair : v.as_object()) {
-                    ostream << delim << newline << inner_indent;
-                    stringify_string(pair.first);
-                    ostream << ": ";
-                    stringify_value(pair.second, inner_indent);
-                    delim = ",";
+                auto ov_flags = v.get_flags();
+                if (!ignore_container_flags && ov_flags != force::none) {
+                    stringifier s(ov_flags, *this);
+                    s.stringify_value(v, indent, true);
+                } else {
+                    if (indent_ == 0) {
+                        const char *delim = "{";
+                        for (const auto [key,val] : v.key_value_ordered()) {
+                            if (has_flag(flags::no_object_nulls) && val.is_null())
+                                continue;
+                            ostream << delim;
+                            stringify_string(key);
+                            ostream << ":";
+                            stringify_value(val, indent, false);
+                            delim = ",";
+                        }
+                        ostream << "}";
+                    } else {
+                        const char *const newline = get_newline();
+                        const char *delim = "{";
+                        const value::json_type inner_indent = indent + get_indent();
+                        for (const auto [key,val] : v.key_value_ordered()) {
+                            if (has_flag(flags::no_object_nulls) && val.is_null())
+                                continue;
+                            ostream << delim << newline << inner_indent;
+                            stringify_string(key);
+                            ostream << ": ";
+                            stringify_value(val, inner_indent, false);
+                            delim = ",";
+                        }
+                        ostream << newline << indent << "}";
+                    }
                 }
-                ostream << newline << indent << "}";
             }
             break;
         default:
@@ -975,10 +1024,10 @@ private:
      *
      * @param string A string to be stringified
      */
-    void stringify_string(const value::string_type& string)
+    void stringify_string(std::string_view sv)
     {
         ostream << "\"";
-        for (const auto& i : string) {
+        for (const auto& i : sv) {
             const auto ch = (unsigned char)i;
             static const char hex[] = "0123456789abcdef";
             switch (ch) {
@@ -1002,8 +1051,6 @@ private:
         }
         ostream << "\"";
     }
-
-    std::ostream& ostream;  ///< An output stream
 };
 
 /**
@@ -1027,9 +1074,9 @@ parser<S&flags::parse_mask> operator>>(std::istream& istream, const manipulator_
  * @return A new stringifier
  */
 template <flags_type S, flags_type C>
-stringifier<S&flags::stringify_mask,0> operator<<(std::ostream& ostream, const manipulator_flags<S,C>& manip)
+stringifier operator<<(std::ostream& ostream, const manipulator_flags<S,C>& manip)
 {
-    return stringifier<S&flags::stringify_mask,0>(ostream) << manip;
+    return stringifier(S & flags::stringify_mask, 0, ostream) << manip;
 }
 
 /**
@@ -1053,9 +1100,9 @@ parser<0> operator>>(std::istream& istream, const manipulator_indent<I>& manip)
  * @return A new stringifier
  */
 template <indent_type I>
-stringifier<0,I> operator<<(std::ostream& ostream, const manipulator_indent<I>& manip)
+stringifier operator<<(std::ostream& ostream, const manipulator_indent<I>& manip)
 {
-    return stringifier<0,0>(ostream) << manip;
+    return stringifier(ostream) << manip;
 }
 
 /**
@@ -1125,15 +1172,15 @@ inline impl::parser<0> operator>>(std::istream& istream, value& v)
  * @param v A value to stringify
  * @return A new stringifier
  */
-inline impl::stringifier<0,0> operator<<(std::ostream& ostream, const value& v)
+inline impl::stringifier operator<<(std::ostream& ostream, const value& v)
 {
-    return impl::stringifier<0,0>(ostream) << v;
+    return impl::stringifier(ostream) << v;
 }
 
 template<unsigned N, bool M>
-inline impl::stringifier<0,0> operator<<(std::ostream& ostream, const ref<N,M>& v)
+inline impl::stringifier operator<<(std::ostream& ostream, const ref<N,M>& v)
 {
-    return impl::stringifier<0,0>(ostream) << (const value&)v;
+    return impl::stringifier(ostream) << (const value&)v;
 }
 
 namespace rule {
@@ -1289,6 +1336,16 @@ using ecma404                   = impl::manipulator_flags<0, impl::flags::all_ru
  * @see https://json5.org/
  */
 using json5                     = impl::manipulator_flags<impl::flags::json5_rules, 0>;
+
+/**
+ * @brief Don't stringify null values of objects
+ */
+using no_object_nulls           = impl::manipulator_flags<0, impl::flags::no_object_nulls>;
+
+/**
+ * @brief Don't stringify null values of arrays
+ */
+using no_array_nulls            = impl::manipulator_flags<0, impl::flags::no_array_nulls>;
 
 /**
  * @brief Parse as finished(closed) JSON

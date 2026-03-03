@@ -7,7 +7,6 @@
 #include "NetUtils.h"
 #include "RavenColonial.h"
 #include "../Galaxy.h"
-#include "../js/parser.h"
 
 #include <curl/curl.h>
 
@@ -101,7 +100,7 @@ void reportContribution(spGameEvent& ge) {
         if (name.empty() || name[0] != '$' || !name.ends_with("_name;") || amount <= 0)
             continue;
         name = toLower(name.substr(1, name.size() - 7));
-        post_json.as_object().emplace(name, amount);
+        post_json[name] = amount;
         contributed += amount;
     }
     js::value resp = curlSimplePost(RCAPI_PRJ + market->raven.buildId + "/contribute/" + cmdr_esc_name, post_json);
@@ -131,11 +130,11 @@ void reportConstructionDepot(spGameEvent& ge, spMarket market) {
         {"maxNeed",     maxNeed},
         {"commodities", js::object({})}
     });
-    js::value& comms = post_json.as_object()["commodities"];
+    js::value& comms = post_json["commodities"];
     for (auto &mlp: market->items) {
         Commodity* c = mlp.first;
         int delta = std::max(0, mlp.second.demand - mlp.second.stock);
-        comms.as_object().emplace(c->nameId, delta);
+        comms[c->nameId] = delta;
     }
     js::value resp = curlSimplePatch(RCAPI_PRJ + market->raven.buildId, post_json);
 

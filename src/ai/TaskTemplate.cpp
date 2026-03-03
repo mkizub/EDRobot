@@ -12,7 +12,6 @@
 #include "ContactsTasks.h"
 #include "CarrierTasks.h"
 #include "ColonizationTasks.h"
-#include "../js/parser.h"
 
 namespace ai {
 
@@ -613,7 +612,7 @@ void TaskTemplate::saveUserTasks() {
                 std::erase_if(p.value.as_array(),[](auto& v) { return v.empty(); });
             if (p.empty())
                 continue;
-            jt.as_object().emplace(p.id, p.value);
+            jt[p.id] = p.value;
         }
         j_tasks.as_array().push_back(jt);
     }

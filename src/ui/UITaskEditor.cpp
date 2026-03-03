@@ -891,13 +891,13 @@ js::value TaskCtrl::value() {
     if (!templ.nm.empty()) {
         auto& base_templ = ai::getTemplate(templ.id);
         if (!(templ.nm == templ.id || templ.nm == base_templ.nm || templ.name() == base_templ.name()))
-            obj.as_object().emplace("name", templ.nm);
+            obj["name"] = templ.nm;
     }
     for (int p=0; p < templ.params.size(); p++) {
         auto val = controls[p]->value();
         templ.params[p].set(val);
         if (!val.empty())
-            obj.as_object().emplace(templ.params[p].id, val);
+            obj[templ.params[p].id] = val;
     }
     return obj;
 }

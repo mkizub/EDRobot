@@ -8,7 +8,6 @@
 #include "AIManager.h"
 #include "../Keyboard.h"
 #include "../widget/EDWidget.h"
-#include "../js/parser.h"
 #include <synchapi.h>
 
 #ifndef NDEBUG
@@ -199,7 +198,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
         return true;
     }
     if (step.is_object()) {
-        if (step.as_object().contains("task_loop")) {
+        if (step.has_key("task_loop")) {
             LOG(DEBUG) << "action task_step task_loop: " << step;
             const js::value& loop = step.at("task_loop");
             const js::value& action = step.at("action");
@@ -217,10 +216,10 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             }
             return true;
         }
-        if (step.as_object().contains("wait")) {
+        if (step.has_key("wait")) {
             return executeWait(step, args);
         }
-        if (step.as_object().contains("check")) {
+        if (step.has_key("check")) {
             LOG(DEBUG) << "action task_step check: " << step;
             const js::value& state = step.at("check");
             ai::detectEDState(DetectLevel::Buttons);
@@ -237,7 +236,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             LOG_IF(!ok,ERROR) << "Step " << step << " failed, current state is " << ai::uiState;
             return ok;
         }
-        if (step.as_object().contains("key")) {
+        if (step.has_key("key")) {
             LOG(DEBUG) << "action task_step key: " << step;
             const js::value& key = step.at("key");
             bool ok;
@@ -267,7 +266,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }
-        if (step.as_object().contains("goto")) {
+        if (step.has_key("goto")) {
             LOG(DEBUG) << "action goto: " << step;
             const js::value& widget = step.at("goto");
             cv::Point pos;
@@ -280,7 +279,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }
-        if (step.as_object().contains("click")) {
+        if (step.has_key("click")) {
             LOG(DEBUG) << "action click: " << step;
             const js::value& widget = step.at("click");
             cv::Point pos;
@@ -294,7 +293,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
         }
-        if (step.as_object().contains("sleep")) {
+        if (step.has_key("sleep")) {
             LOG(DEBUG) << "action task_step sleep: " << step;
             int duration = get_int(step.at("sleep"), args);
             sleep(duration);

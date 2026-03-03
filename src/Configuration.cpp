@@ -14,7 +14,6 @@
 #include "ui/UIManager.h"
 #include "net/NetUtils.h"
 #include "net/RavenColonial.h"
-#include "js/parser.h"
 
 #include <zlib.h>
 #include <dirlistener/ReadDirectoryChanges.h>
@@ -236,7 +235,7 @@ bool Configuration::load() {
 }
 
 void Configuration::parseShortcutConfig(Command command, const std::string& name, js::value cfg) {
-    if (cfg.as_object().contains((name))) {
+    if (cfg.has_key(name)) {
         for (auto it = keyMapping.begin(); it != keyMapping.end();)  {
             if (it->second == command)
                 it = keyMapping.erase(it);
@@ -888,6 +887,9 @@ CommodityCategory* Configuration::getCommodityCategoryByName(const std::string& 
     return nullptr;
 }
 
+Commodity* Configuration::getCommodityById(std::string_view name) {
+    return getCommodityById(std::string(name));
+}
 Commodity* Configuration::getCommodityById(const std::string& id) {
     if (id.empty())
         return nullptr;
@@ -1088,8 +1090,7 @@ bool Configuration::loadMarket(spGameEvent ge) {
             .starSystem = j_market.at("StarSystem").as_string(),
     });
     auto items = j_market.at("Items").as_array();
-    for (auto& j_item : items) {
-        auto item = j_item.as_object();
+    for (auto& item : items) {
         std::array<std::string,2> translation;
         if (st::lng == Lang::EN)
             translation = {item.at("Category_Localised").as_string(),""};
@@ -1108,7 +1109,7 @@ bool Configuration::loadMarket(spGameEvent ge) {
                 .nameId = item["Name"].as_string(),
                 .category = &cc,
                 .translation = translation,
-                .rare = j_item["Rare"].as_bool_or()
+                .rare = item["Rare"].as_bool_or()
         });
         MarketLine ml {};
         ml.buyPrice = item.at("BuyPrice").as_int_or();
@@ -1169,9 +1170,8 @@ bool Configuration::loadShipCargo(spGameEvent ge) {
     }
 
     auto items = ge->data["Inventory"].as_array_or();
-    for (auto& j_item : items) {
-        auto item = j_item.as_object();
-        auto name = item.at("Name").as_string();
+    for (auto& item : items) {
+        auto name = item["Name"].as_string();
         if (name.empty()) {
             LOG(ERROR) << "Bad cargo item name: " << name;
             continue;
@@ -1239,9 +1239,8 @@ bool Configuration::loadCarrierCargo() {
         .vessel = "FleetCarrier",
         }));
     auto items = j_cargo.at("Cargo").as_array();
-    for (auto& j_item : items) {
-        auto item = j_item.as_object();
-        auto name = item.at("Name").as_string();
+    for (auto& item : items) {
+        auto name = item["Name"].as_string();
         if (name.empty()) {
             LOG(ERROR) << "Bad cargo item name: " << name;
             continue;
@@ -1276,15 +1275,14 @@ bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodi
         {"Vessel",    "FleetCarrier"},
         {"Cargo",     js::array({})},
         });
-    auto& jarr = jm.as_object()["Cargo"].as_array();
+    auto& jarr = jm["Cargo"].as_array();
     for (auto& c : allKnownCommodities) {
         if (c.fc.count <= 0)
             continue;
         js::value& jv = jarr.emplace_back(js::object({{"Id", c.intId}, {"Name", c.nameId}}));
-        auto& jo = jv.as_object();
         if (!c.translation[int(st::lng)].empty())
-            jo.emplace("Name_Localised", c.name);
-        jo.emplace("Count", c.fc.count);
+            jv["Name_Localised"] = c.name;
+        jv["Count"] = c.fc.count;
     }
 
     std::filesystem::path fp("cache/carriers/"+std::to_string(st::cmdr.fleetCarrierId)+".json");
@@ -1297,7 +1295,7 @@ bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodi
     if (!patch.empty()) {
         js::value j = js::object({});
         for (auto& p : patch)
-            j.as_object().emplace(p.first->nameId, p.second);
+            j[p.first->nameId] = p.second;
         RavenColonial::carrierPatchCargo(st::cmdr.fleetCarrierId, j);
     }
     return true;
@@ -1355,34 +1353,32 @@ bool Configuration::loadCommodityDatabase() {
         LOG(ERROR) << "Error loading commodity-database.json5: " << ex.what();
         return false;
     }
-    for (auto& jcc_it : j.as_object()) {
-        if (jcc_it.first.contains("-order-"))
+    for (auto [cc_nameId, jcc] : j.key_value()) {
+        if (cc_nameId.contains("-order-"))
             continue;
         CommodityCategory cc_add;
-        cc_add.nameId = jcc_it.first;
-        auto& jcc = jcc_it.second;
+        cc_add.nameId = cc_nameId;
         cc_add.intId = jcc["id"].as_int();
         cc_add.translation[int(Lang::EN)] = jcc["en"].as_string();
         cc_add.translation[int(Lang::RU)] = jcc["ru"].as_string();
         CommodityCategory& cc = getOrAddCommodityCategory(std::move(cc_add));
-        for (auto& jc_it : jcc["items"].as_object()) {
-            auto& jc = jc_it.second;
+        for (auto [c_nameId,j_c] : jcc["items"].key_value()) {
             Commodity c_add{
-                    .intId = (int)jc["id"].as_int(),
-                    .nameId = jc_it.first,
+                    .intId = (int)j_c["id"].as_int(),
+                    .nameId = std::string(c_nameId),
                     .category = &cc,
-                    .translation = {jc["en"].as_string(), jc["ru"].as_string()},
-                    .rare = jc.at("rare",false).as_bool(),
+                    .translation = {j_c["en"].as_string(), j_c["ru"].as_string()},
+                    .rare = j_c["rare"].as_bool_or(),
             };
             getOrAddCommodity(std::move(c_add));
         }
     }
-    for (auto& jcc_it : j.as_object()) {
-        if (!jcc_it.first.contains("-order-"))
+    for (auto [order_lng,j_order] : j.key_value()) {
+        if (!order_lng.contains("-order-"))
             continue;
-        Lang l = jcc_it.first.ends_with("-en") ? Lang::EN : Lang::RU;
+        Lang l = order_lng.ends_with("-en") ? Lang::EN : Lang::RU;
         int commodityOrder = 1;
-        for (auto& jn : jcc_it.second.as_array()) {
+        for (auto& jn : j_order.as_array()) {
             if (!jn.is_string())
                 continue;
             auto c = getCommodityByName(jn.as_string(), false);
