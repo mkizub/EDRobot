@@ -976,10 +976,14 @@ bool DepartureStep::run() {
     bool fromCompletedConstruction = false; // autopilot is off after construction is complete
     bool fromSpaceConstruction = false; // need UpThrustButton
     bool fromStarPort = false; // need special break for panthermkii
+    bool fromPlaneraryPort = false;
     if (fromDock && isConstrDepot(fromDock->type)) {
         auto market = gal::getMarket(fromDock->marketId);
         if (market && market->raven.status == "complete")
             fromCompletedConstruction = true;
+    }
+    if ((fromDock && isPlanetarySite(fromDock->type)) || st::shipAtBody.nearBody) {
+        fromPlaneraryPort = true;
     }
     if (!st::dockedAt.stationType.empty()) {
         if (gal::PLANETARY_CONSTR_DEPOT.match_type(st::dockedAt.stationType)) {
@@ -1132,7 +1136,14 @@ bool DepartureStep::run() {
     timer = utc_timer(15s);
     status = FLYAWAY;
     while (!timer.expired()) {
+        ai::detectEDState(DetectLevel::Screen);
         sleep(1000);
+        if (fromPlaneraryPort && ai::compassInfo.hemisphere && ai::compassInfo.targetAngle > 10) {
+            float roll = ai::compassInfo.targetRoll;
+            double delta = normalizeAngle(roll - 180);
+            if (std::abs(delta) > 5)
+                task->orientRollStep(delta);
+        }
     }
     setSpeed(50,false,"Departure: completed");
     prevSubStep.reset();
@@ -2964,16 +2975,16 @@ bool CruiseToDistStep::run() {
                 task->orientTowardTarget(5);
                 continue;
             }
-            if (currentDist <= maxDist * 2) {
+            if (currentDist <= maxDist * 1.5) {
                 status = DIST_NEAR;
-                setSpeed(25, false, "CruiseToDist: !flyAway && currentDist <= maxDist * 2");
+                setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= maxDist * 2");
             }
-            else if (currentDist <= 100_ls) {
+            else if (currentDist <= 50_ls) {
                 status = DIST_CLOSE;
                 setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= 100_ls");
                 sleep(100);
             }
-            else if (currentDist <= 1000_ls) {
+            else if (currentDist <= 500_ls) {
                 status = DIST_FAR;
                 setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls");
                 sleep(500);
@@ -3168,12 +3179,11 @@ bool DiveUnderPlanetStep::run() {
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
                     LOG(DEBUG) << "DiveUnderPlanet, disk_part=" << int(disk_part*100) << "%";
-                    if (disk_part > 0.85) {
-                        cruisePitch = std::lerp(12.f, 0.f, (1-std::clamp(disk_part,0.f,1.f))/0.15f);
-                        task->orientRollByTarget(180, 5);
+                    if (disk_part > 0.80) {
+                        float T = (1.f - std::clamp(disk_part,0.80f,1.f)) / 0.20f;
+                        cruisePitch = std::lerp(10.f, 0.f, T*T);
+                        task->orientRollByTarget(180, 8);
                         task->orientPitchStep(-(to_body_center_angle+cruisePitch), 10000);
-                        //if (!std::isnan(alphaO))
-                        //    cruisePitch = std::max(1.f, alphaO - to_body_center_angle);
                         keepCruisePitch = cruisePitch;
                     //} else if (disk_part < 0.6) {
                     //    if (!std::isnan(alphaO)) {
@@ -3183,7 +3193,7 @@ bool DiveUnderPlanetStep::run() {
                     //    }
                     //    keepCruisePitch = cruisePitch;
                     } else {
-                        task->orientRollByTarget(0, 5);
+                        task->orientRollByTarget(0, 8);
                         task->orientPitchStep(to_body_center_angle, 10000);
                         keepCruisePitch = 0;
                     }
@@ -3194,7 +3204,7 @@ bool DiveUnderPlanetStep::run() {
                         task->orientTowardTarget(5);
                         keepCruisePitch = 0;
                     } else {
-                        task->orientRollByTarget(180, 5);
+                        task->orientRollByTarget(180, 8);
                         task->orientPitchStep(-(to_body_center_angle+10), 10000);
                         keepCruisePitch = 7;
                     }
@@ -3272,7 +3282,7 @@ bool DiveUnderPlanetStep::run() {
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
                     if (disk_part > 0.85) {
-                        task->orientRollByTarget(0, 5);
+                        task->orientRollByTarget(0, 8);
                         task->orientPitchStep(-4, 10000);
                         if (!std::isnan(alphaO))
                             cruisePitch = std::max(1.f, alphaO - to_body_center_angle);
@@ -3285,7 +3295,7 @@ bool DiveUnderPlanetStep::run() {
                     //    }
                     //    keepCruisePitch = cruisePitch;
                     } else {
-                        task->orientRollByTarget(0, 5);
+                        task->orientRollByTarget(0, 8);
                         keepCruisePitch = 0;
                     }
                 } else {
@@ -3293,7 +3303,7 @@ bool DiveUnderPlanetStep::run() {
                     if (disk_part < 0.85 || disk_part > 2) {
                         keepCruisePitch = 0;
                     } else {
-                        task->orientRollByTarget(0, 5);
+                        task->orientRollByTarget(0, 8);
                         task->orientPitchStep(-10, 10000);
                         keepCruisePitch = 7;
                     }
@@ -3812,6 +3822,11 @@ bool CompleteNavRoute::run() {
     if (try_fast_jump) {
         status = ORIENT;
         setSpeed(50, true, "CompleteNavRoute, try fast jump");
+        if (st::shipAtBody.nearBody) {
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::compassInfo.hemisphere && ai::compassInfo.targetAngle > 15)
+                task->orientRollByTarget(180, 5);
+        }
         if (task->orientTowardTarget(6)) {
             if (ai::compassInfo.has_nav_target) {
                 status = JUMP;
@@ -4048,7 +4063,7 @@ full_path:
             if (toPort || st::autopilot.destBody->type == TypeNav::Planet) {
                 auto radius = std::max(1000.0, st::autopilot.destBody->radius);
                 min_dist = dist_t(dist_t::KM, radius * (relaxed_min_dist ? 2 : 4)).convertTo(dist_t::MM);
-                max_dist = dist_t(dist_t::KM, radius * 10).convertTo(dist_t::MM);
+                max_dist = dist_t(dist_t::KM, radius * (toPort? 8 : 10)).convertTo(dist_t::MM);
             } else if (st::autopilot.destBody->type == TypeNav::Star) {
                 auto radius = std::max((1_ls).get_km(), st::autopilot.destBody->radius);
                 min_dist = dist_t(dist_t::KM, radius * (relaxed_min_dist ? 3 : 5)).convertTo(dist_t::LS);

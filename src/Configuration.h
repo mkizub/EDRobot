@@ -52,13 +52,11 @@ public:
     bool rare;
 
     struct {
-        Timestamp timestamp;
         int count;
         int stolen;
     } ship;
 
     struct {
-        Timestamp timestamp;
         int count;
     } fc;
 };
@@ -67,11 +65,11 @@ struct RavenCmdrInfo {
     Timestamp timestamp; // contribution timestamp
 };
 struct Market {
-    Timestamp timestamp;
-    int64_t marketId;
-    std::string stationName;
-    std::string stationType;
-    std::string starSystem;
+    const Timestamp timestamp;
+    const int64_t marketId;
+    const std::string stationName;
+    const std::string stationType;
+    const std::string starSystem;
     struct RavenCmdrInfo {
         Timestamp timestamp; // contribution timestamp
         int deliveries; // number of deliveries
@@ -87,10 +85,10 @@ struct Market {
 };
 
 struct ShipCargo {
-    Timestamp timestamp;
-    std::string vessel;
-    int count {0};
-    std::vector<Commodity*> inventory;
+    const std::vector<Commodity*> cargo;
+    const Timestamp timestamp;
+    const int count {0};
+    const std::string vessel;
 };
 
 struct NavRoute {
@@ -100,15 +98,15 @@ struct NavRoute {
         cv::Point3d starpos;
         std::string starClass;
     };
-    Timestamp timestamp;
-    std::vector<Entry> route;
+    const Timestamp timestamp;
+    const std::vector<Entry> route;
 };
 
 struct GameEvent {
     GameEvent(js::value&& data);
     const js::value data;
-    Timestamp timestamp;
-    std::string event;
+    const Timestamp timestamp;
+    const std::string event;
 };
 
 typedef std::shared_ptr<Market> spMarket;
@@ -147,9 +145,6 @@ public:
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);
 
     bool loadMarket(spGameEvent ge);
-    bool loadShipCargo(spGameEvent ge);
-    bool loadCarrierCargo();
-    bool saveCarrierCargo(Timestamp timestamp, const std::map<Commodity*,int>& patch);
     bool loadNavRoute(Timestamp timestamp);
     const char* makeTesseractWordsFile();
 
@@ -165,6 +160,11 @@ public:
     cv::Rect getCroppedDisplayRect() const { return croppedScreenRect; }
     unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
     bool isRavenColonialEnabled() const { return mRavenColonialEnabled; }
+    std::string getRavenColonialKey(const std::string& cmdr) const {
+        if (mRavenColonialKeys.contains(cmdr))
+            return mRavenColonialKeys.at(cmdr);
+        return {};
+    }
     bool getCurlInsecure() const { return mCurlInsecure; }
     const std::string& getCurlProxyURL() const { return mCurlProxyUrl; }
 
@@ -175,6 +175,7 @@ public:
 
 private:
     friend class Master;
+    friend class CargoManager;
 
     void parseShortcutConfig(Command command, const std::string& name, js::value cfg);
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
@@ -214,6 +215,7 @@ private:
     uint8_t vJoyDeviceID = 1;
     bool mRavenColonialEnabled = false;
     bool mCurlInsecure = true;
+    std::map<std::string,std::string> mRavenColonialKeys;
     std::string mCurlProxyUrl;
     std::string mTesseractDataPath;
     std::wstring mEDSettingsPath;

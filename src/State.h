@@ -30,6 +30,7 @@ extern struct Commander {
     int64_t squadronCarrierId;
     std::string squadronCarrierInSystem;
     int squadronCarrierAtBodyId;
+    std::string ravenKey;
 } const cmdr;
 
 extern struct GameClient {
@@ -195,8 +196,6 @@ extern struct ShipAtBody {
 } shipAtBody;
 
 extern std::shared_ptr<Market> currentMarket;
-extern std::shared_ptr<ShipCargo> currentCargo;
-extern std::shared_ptr<ShipCargo> carrierCargo;
 extern std::shared_ptr<NavRoute> currentNavRoute;
 
 extern CompassInfo compass;

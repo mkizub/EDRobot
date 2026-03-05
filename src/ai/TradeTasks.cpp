@@ -110,9 +110,10 @@ bool TaskSellAll::run() {
                     except.push_back(v.as_string());
             }
         }
-        spShipCargo shipCargo = st::currentCargo;
-        for (Commodity* commodity: shipCargo->inventory) {
+        for (Commodity* commodity: Cfg.getAllKnownCommodities()) {
             if (commodity->category->intId <= 0 || commodity->category->intId >= 16)
+                continue;
+            if ((commodity->ship.count-commodity->ship.stolen) <= 0)
                 continue;
             if (contains(except, commodity->nameId))
                 continue;
@@ -881,7 +882,7 @@ bool TaskConstrUnload::run() {
 
     if (spMarket market = gal::getMarket(st::dockedAt.marketId); market && market->raven.status == "complete")
         throw_complete("Construction complete");
-    if (st::shipStats.cargo <= 0 && (!st::currentCargo || st::currentCargo->count <= 0)) {
+    if (st::shipStats.cargo <= 0) {
         status = DONE_NOTHING;
         return true;
     }
@@ -892,16 +893,7 @@ bool TaskConstrUnload::run() {
     if (!ai::uiState.match("scr-constr"))
         throw_trouble("Cannot enter unload screen");
 
-    spMarket marketBefore = gal::getMarket(st::dockedAt.marketId);
-    int demandBefore = 0;
-    if (marketBefore) {
-        for (auto& item : marketBefore->items) {
-            Commodity* c = item.first;
-            auto& ml = item.second;
-            if (ml.demand > ml.stock)
-                demandBefore += ml.demand - ml.stock;
-        }
-    }
+    Cfg.marketEvent.reset();
 
     status = UNLOAD;
     clickButton("btn-all");
@@ -909,37 +901,17 @@ bool TaskConstrUnload::run() {
     clickButton("btn-commit");
     sleep(2000);
 
-    int demandAfter = demandBefore;
-    waitMarketEvent(4s);
+    waitMarketEvent(8s);
     if (Cfg.marketEvent && Cfg.marketEvent->event == "ColonisationContribution") {
         for (auto& item : Cfg.marketEvent->data["Contributions"].as_array()) {
             int amount = item["Amount"].as_int_or();
             contributed += amount;
-            demandAfter -= amount;
-        }
-    }
-    spMarket marketAfter;
-    if (marketBefore && demandAfter <= 0) {
-        for (int i=0; i < 5; i++) {
-            sleep(2000);
-            marketAfter = gal::getMarket(st::dockedAt.marketId);
-            int demandNow = 0;
-            for (auto& item : marketAfter->items) {
-                Commodity* c = item.first;
-                auto& ml = item.second;
-                if (ml.demand > ml.stock)
-                    demandNow += ml.demand - ml.stock;
-            }
-            if (demandNow != demandBefore) {
-                demandAfter = demandNow;
-                break;
-            }
         }
     }
     status = DONE;
 
-    marketAfter = gal::getMarket(st::dockedAt.marketId);
-    if ((marketAfter && marketAfter->raven.status == "complete") || demandAfter <= 0)
+    spMarket marketAfter = gal::getMarket(st::dockedAt.marketId);
+    if (marketAfter && marketAfter->raven.status == "complete")
         throw_complete("Construction complete");
     return true;
 }
@@ -1154,7 +1126,7 @@ bool TradeLoopTask::run() {
         }
     }
     // check we need to sell first
-    if (marketIdx < 0 && st::currentCargo && st::currentCargo->count > 0) {
+    if (marketIdx < 0 && st::shipStats.cargo > 0) {
         // check we may sell something at designated market
         for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
             auto &mi = markets[i];
@@ -1167,11 +1139,15 @@ bool TradeLoopTask::run() {
                 }
             }
             if (marketIdx < 0 && mi.sell_all) {
-                for (auto* com : st::currentCargo->inventory) {
-                    if (com && com->ship.count > 0 && !contains(mi.sell_except, com)) {
-                        marketIdx = i;
-                        break;
-                    }
+                for (Commodity* commodity: Cfg.getAllKnownCommodities()) {
+                    if (commodity->category->intId <= 0 || commodity->category->intId >= 16)
+                        continue;
+                    if ((commodity->ship.count - commodity->ship.stolen) <= 0)
+                        continue;
+                    if (contains(mi.sell_except, commodity))
+                        continue;
+                    marketIdx = i;
+                    break;
                 }
             }
         }

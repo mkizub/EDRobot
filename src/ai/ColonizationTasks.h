@@ -29,6 +29,7 @@ protected:
     };
     struct Demands {
         std::set<Commodity*> specialCommodityList;
+        std::map<Commodity*, int> othersShipsCargo;
         std::map<Commodity*, int> toDeliver;
         std::map<Commodity*, int> toDeliverListed;
         std::map<Commodity*, int> toBuy;
@@ -49,6 +50,7 @@ protected:
     gal::spEntity getCurrDock();
     gal::spEntity travelTo(std::string systemName, std::string dockName);
     void travelResume();
+    bool cargoMissmatch();
     void addDemands(DepotInfo& depot, Demands& demands);
     Demands calcDemands();
 
@@ -58,6 +60,8 @@ protected:
                           const std::vector<Commodity*>* unnecessaryCargo = nullptr);
 
     std::vector<DepotInfo> depots;
+    Timestamp timestampRavenShipsCargo;
+    js::value ravenShipsCargo;
 private:
     std::string destSystemName;
     std::string destDockName;

@@ -27,6 +27,7 @@ struct CurlWrapper {
     std::string readBuffer;
     char errbuf[CURL_ERROR_SIZE];
     struct curl_slist* headers;
+    long http_code {};
 };
 
 size_t CurlWrapper::WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -65,7 +66,6 @@ CurlWrapper::CurlWrapper(const char* url)
 
     headers = curl_slist_append(headers, "Content-Type: application/json; charset: utf-8");
     headers = curl_slist_append(headers, "Accept: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
     std::string ua = std::format("EDRobot {} {}", EDROBOT_VERSION, curl_version());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, ua.c_str());
@@ -95,15 +95,17 @@ bool CurlWrapper::perform_get() {
         return false;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         LOG(ERROR) << "Curl GET error: " << errbuf;
         return false;
     }
-    long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     LOG(INFO) << "Curl GET Response Code: " << http_code;
-    return true;
+    bool ok = http_code >= 200 && http_code <= 250;
+    LOG_IF(!ok,WARNING) << "Curl GET Error Message: " << readBuffer;
+    return ok;
 }
 
 bool CurlWrapper::perform_put(const std::string& data) {
@@ -113,15 +115,17 @@ bool CurlWrapper::perform_put(const std::string& data) {
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)data.size());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         LOG(ERROR) << "Curl PUT error: " << errbuf;
         return false;
     }
-    long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     LOG(INFO) << "Curl PUT Response Code: " << http_code;
-    return true;
+    bool ok = http_code >= 200 && http_code <= 250;
+    LOG_IF(!ok,WARNING) << "Curl PUT Error Message: " << readBuffer;
+    return ok;
 }
 
 bool CurlWrapper::perform_post(const js::value& j) {
@@ -131,15 +135,17 @@ bool CurlWrapper::perform_post(const js::value& j) {
     std::string json_data = js::stringify(j);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_data.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)json_data.size());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         LOG(ERROR) << "Curl POST error: " << errbuf;
         return false;
     }
-    long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     LOG(INFO) << "Curl POST Response Code: " << http_code;
-    return true;
+    bool ok = http_code >= 200 && http_code <= 250;
+    LOG_IF(!ok,WARNING) << "Curl POST Error Message: " << readBuffer;
+    return ok;
 }
 
 bool CurlWrapper::perform_patch(const js::value& j) {
@@ -150,15 +156,17 @@ bool CurlWrapper::perform_patch(const js::value& j) {
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_data.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)json_data.size());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         LOG(ERROR) << "Curl PATCH error: " << errbuf;
         return false;
     }
-    long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     LOG(INFO) << "Curl PATCH Response Code: " << http_code;
-    return true;
+    bool ok = http_code >= 200 && http_code <= 250;
+    LOG_IF(!ok,WARNING) << "Curl PATCH Error Message: " << readBuffer;
+    return ok;
 }
 
 js::value CurlWrapper::parse_json() {
@@ -174,14 +182,16 @@ js::value CurlWrapper::parse_json() {
 }
 
 
-js::value curlRequestEDSM(std::string url, std::string systemName) {
+CurlResp curlRequestEDSM(std::string url, std::string systemName) {
     CurlWrapper cw(url.c_str());
     cw.url_append_esc(systemName);
     if (!cw.curl)
         return {};
     if (!cw.perform_get())
-        return {};
-    return cw.parse_json();
+        return {false, cw.http_code};
+    auto resp = cw.parse_json();
+    LOG(INFO) << "EDSM GET resp: " << resp;
+    return {true, cw.http_code, resp};
 }
 
 std::string curlRequestGithubLatest() {
@@ -194,47 +204,88 @@ std::string curlRequestGithubLatest() {
     return cw.readBuffer;
 }
 
-js::value curlSimpleGet(std::string url) {
+CurlResp curlSimpleGet(std::string url) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
+    LOG(INFO) << "curl GET req: " << cw.url;
     if (!cw.perform_get())
-        return {};
+        return {false, cw.http_code};
     auto resp = cw.parse_json();
     LOG(INFO) << "curl GET resp: " << resp;
-    return resp;
+    return {true, cw.http_code, resp};
 }
 
-js::value curlSimplePut(std::string url, std::string data) {
+CurlResp curlSimpleGetWithHeaders(std::string url, std::vector<std::string> headers) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
-    if (!cw.perform_put(data))
+    LOG(INFO) << "curl GET req: " << cw.url;
+    for (auto& hdr : headers) {
+        cw.headers = curl_slist_append(cw.headers, hdr.c_str());
+        LOG(INFO) << "curl GET hdr: " << hdr;
+    }
+    if (!cw.perform_get())
+        return {false, cw.http_code};
+    auto resp = cw.parse_json();
+    LOG(INFO) << "curl GET resp: " << resp;
+    return {true, cw.http_code, resp};
+}
+
+
+CurlResp curlSimplePut(std::string url, std::string data) {
+    CurlWrapper cw(url.c_str());
+    if (!cw.curl)
         return {};
+    LOG(INFO) << "curl PUT req: " << cw.url;
+    LOG(INFO) << "curl PUT data: " << data;
+    if (!cw.perform_put(data))
+        return {false, cw.http_code};
     auto resp = cw.parse_json();
     LOG(INFO) << "curl PUT resp: " << resp;
-    return resp;
+    return {true, cw.http_code, resp};
 }
 
-js::value curlSimplePost(std::string url, const js::value& j) {
+CurlResp curlSimplePost(std::string url, const js::value& j) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
+    LOG(INFO) << "curl POST req: " << cw.url;
+    LOG(INFO) << "curl POST body: " << j;
     if (!cw.perform_post(j))
-        return {};
+        return {false, cw.http_code};
     auto resp = cw.parse_json();
     LOG(INFO) << "curl POST resp: " << resp;
-    return resp;
+    return {true, cw.http_code, resp};
 }
 
-js::value curlSimplePatch(std::string url, const js::value& j) {
+CurlResp curlSimplePostWithHeaders(std::string url, const js::value& j, std::vector<std::string> headers) {
     CurlWrapper cw(url.c_str());
     if (!cw.curl)
         return {};
-    if (!cw.perform_patch(j))
+    LOG(INFO) << "curl POST req: " << cw.url;
+    for (auto& hdr : headers) {
+        cw.headers = curl_slist_append(cw.headers, hdr.c_str());
+        LOG(INFO) << "curl POST hdr: " << hdr;
+    }
+    LOG(INFO) << "curl POST body: " << j;
+    if (!cw.perform_post(j))
+        return {false, cw.http_code};
+    auto resp = cw.parse_json();
+    LOG(INFO) << "curl POST resp: " << resp;
+    return {true, cw.http_code, resp};
+}
+
+CurlResp curlSimplePatch(std::string url, const js::value& j) {
+    CurlWrapper cw(url.c_str());
+    if (!cw.curl)
         return {};
+    LOG(INFO) << "curl PATCH req: " << cw.url;
+    LOG(INFO) << "curl PATCH body: " << j;
+    if (!cw.perform_patch(j))
+        return {false, cw.http_code};
     auto resp = cw.parse_json();
     LOG(INFO) << "curl PATCH resp: " << resp;
-    return resp;
+    return {true, cw.http_code, resp};
 }
 

@@ -131,7 +131,7 @@ ai::TaskDeliverPPC::TaskDeliverPPC(const ai::TaskTemplate &templ)
 
 bool ai::TaskDeliverPPC::run() {
     int haveCount = 0;
-    spShipCargo shipCargo = st::currentCargo;
+    spShipCargo shipCargo = CM.getShipCargo();
     for (Commodity* commodity: Cfg.getAllKnownCommodities()) {
         if (commodity->category->intId != 16)
             continue;

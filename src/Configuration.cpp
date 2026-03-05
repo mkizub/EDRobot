@@ -5,6 +5,7 @@
 #include "pch.h"
 
 #include "Configuration.h"
+#include "CargoManager.h"
 #include "Keyboard.h"
 #include "FuzzyMatch.h"
 #include "widget/EDWidget.h"
@@ -154,6 +155,13 @@ bool Configuration::load() {
             mRavenColonialEnabled = tm.as_bool();
             LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
         }
+        if (auto& tm = j_config.at("ravencolonial-keys"); tm.is_object()) {
+            for (auto [cmdr,rcc_key] : tm.key_value()) {
+                if (rcc_key.is_string() && !rcc_key.empty())
+                    mRavenColonialKeys[std::string(cmdr)] = rcc_key.as_string();
+            }
+            LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
+        }
 
 #ifdef EDROBOT_USE_OPENCL
         if (auto& tm = j_config.at("opencl-disabled"); tm.is_bool()) {
@@ -215,7 +223,7 @@ bool Configuration::load() {
         //dumpCommodityDatabase();
         mCommodityDatabaseUpdated = false;
         if (st::cmdr.fleetCarrierId)
-            loadCarrierCargo();
+            CM.loadCarrierCargo();
 
         LOG(INFO) << "Setting journal directory listener";
         if (!changeDirListener) {
@@ -1131,176 +1139,6 @@ bool Configuration::loadMarket(spGameEvent ge) {
     return true;
 }
 
-bool Configuration::loadShipCargo(spGameEvent ge) {
-    if (st::currentCargo && st::currentCargo->timestamp > ge->timestamp)
-        return false;
-
-    spShipCargo cargo;
-    if ((ge->data["Count"].is_int() && ge->data["Count"].as_int() == 0) || !ge->data["Inventory"].empty()) {
-        cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
-            .timestamp = ge->timestamp,
-            .vessel = ge->data["Vessel"].as_string_or(),
-            .count = (int)ge->data["Count"].as_int_or(),
-            }));
-    } else {
-        js::value jv;
-        try {
-            std::ifstream cargoFile(mEDLogsPath + L"/Cargo.json", std::ifstream::in);
-            if (cargoFile.fail()) {
-                LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Cargo.json");
-                return false;
-            }
-            jv = js::parse5(cargoFile);
-            cargoFile.close();
-        } catch (...) {
-            LOG(ERROR) << "Failed to read/parse Cargo.json";
-            return false;
-        }
-        if (jv.empty())
-            return false;
-        Timestamp timestamp;
-        if (!parseTimestamp(jv, timestamp) || timestamp < ge->timestamp)
-            return false;
-        cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
-            .timestamp = timestamp,
-            .vessel = jv["Vessel"].as_string_or(),
-            .count = (int)jv["Count"].as_int_or(),
-            }));
-        const_cast<js::value&>(ge->data) = jv;
-    }
-
-    auto items = ge->data["Inventory"].as_array_or();
-    for (auto& item : items) {
-        auto name = item["Name"].as_string();
-        if (name.empty()) {
-            LOG(ERROR) << "Bad cargo item name: " << name;
-            continue;
-        }
-        Commodity* c = getCommodityByName(name, false);
-        if (!c) {
-            LOG(ERROR) << "Unknown cargo item name: " << name << ", adding to dummy category";
-            std::array<std::string,2> translation;
-            CommodityCategory* cc = getCommodityCategoryById(0);
-            if (st::lng == Lang::EN)
-                translation = {item.at("Name_Localised").as_string(),""};
-            if (st::lng == Lang::RU)
-                translation = {"",item.at("Name_Localised").as_string()};
-            c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
-        }
-        c->ship.timestamp = ge->timestamp;
-        c->ship.count = item.at("Count").as_int_or();
-        c->ship.stolen = item.at("Stolen").as_int_or();
-        cargo->inventory.push_back(c);
-    }
-    st::currentCargo.swap(cargo);
-    for (auto& c : allKnownCommodities) {
-        if (c.ship.timestamp != ge->timestamp) {
-            c.ship.timestamp = ge->timestamp;
-            c.ship.count = 0;
-            c.ship.stolen = 0;
-        }
-    }
-    UIManager::updateCargoDialog();
-    return true;
-}
-
-bool Configuration::loadCarrierCargo() {
-    if (!st::cmdr.fleetCarrierId || allKnownCommodities.empty())
-        return false;
-    std::string fname = std::format("cache/carriers/{}.json", st::cmdr.fleetCarrierId);
-    js::value j_cargo;
-    try {
-        std::ifstream cargoFile(fname, std::ifstream::in);
-        if (cargoFile.fail()) {
-            LOG(ERROR) << "Cannot read file: " << fname;
-            return false;
-        }
-        j_cargo = js::parse5(cargoFile);
-        cargoFile.close();
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse file: " << fname;
-        return false;
-    }
-    if (!j_cargo)
-        return false;
-    Timestamp timestamp;
-    if (!parseTimestamp(j_cargo, timestamp))
-        return false;
-    if (st::carrierCargo && st::carrierCargo->timestamp >= timestamp)
-        return false;
-
-    for (auto& c : allKnownCommodities) {
-        c.fc.timestamp = timestamp;
-        c.fc.count = 0;
-    }
-
-    spShipCargo cargo = std::shared_ptr<ShipCargo>(new ShipCargo({
-        .timestamp = timestamp,
-        .vessel = "FleetCarrier",
-        }));
-    auto items = j_cargo.at("Cargo").as_array();
-    for (auto& item : items) {
-        auto name = item["Name"].as_string();
-        if (name.empty()) {
-            LOG(ERROR) << "Bad cargo item name: " << name;
-            continue;
-        }
-        Commodity* c = getCommodityByName(name, false);
-        if (!c) {
-            LOG(ERROR) << "Unknown cargo item name: " << name << ", adding to dummy category";
-            std::array<std::string,2> translation;
-            CommodityCategory* cc = getCommodityCategoryById(0);
-            if (st::lng == Lang::EN)
-                translation = {item.at("Name_Localised").as_string(),""};
-            if (st::lng == Lang::RU)
-                translation = {"",item.at("Name_Localised").as_string()};
-            c = &getOrAddCommodity({.intId = 0, .nameId = name, .category = cc, .translation = translation, .rare = false});
-        }
-        c->fc.timestamp = timestamp;
-        c->fc.count = item.at("Count").as_int_or();
-        if (!contains(cargo->inventory, c))
-            cargo->inventory.push_back(c);
-    }
-    st::carrierCargo.swap(cargo);
-    return true;
-}
-
-bool Configuration::saveCarrierCargo(Timestamp timestamp, const std::map<Commodity*,int>& patch) {
-    if (!st::cmdr.fleetCarrierId)
-        return false;
-
-    //Timestamp timestamp = Timestamp::clock::now();
-    js::value jm = js::object({
-        {"timestamp", formatTimestampString(timestamp)},
-        {"Vessel",    "FleetCarrier"},
-        {"Cargo",     js::array({})},
-        });
-    auto& jarr = jm["Cargo"].as_array();
-    for (auto& c : allKnownCommodities) {
-        if (c.fc.count <= 0)
-            continue;
-        js::value& jv = jarr.emplace_back(js::object({{"Id", c.intId}, {"Name", c.nameId}}));
-        if (!c.translation[int(st::lng)].empty())
-            jv["Name_Localised"] = c.name;
-        jv["Count"] = c.fc.count;
-    }
-
-    std::filesystem::path fp("cache/carriers/"+std::to_string(st::cmdr.fleetCarrierId)+".json");
-    std::ofstream ofs(fp);
-    ofs << js::rule::ecma404() << js::rule::space_indent<1>() << jm;
-    ofs.close();
-
-    UIManager::updateCargoDialog();
-
-    if (!patch.empty()) {
-        js::value j = js::object({});
-        for (auto& p : patch)
-            j[p.first->nameId] = p.second;
-        RavenColonial::carrierPatchCargo(st::cmdr.fleetCarrierId, j);
-    }
-    return true;
-}
-
 bool Configuration::loadNavRoute(Timestamp event_timestamp) {
     js::value j_route;
     try {
@@ -1321,10 +1159,9 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
     if (!parseTimestamp(j_route, timestamp) || event_timestamp < timestamp)
         return false;
 
-    spNavRoute route = std::make_shared<NavRoute>();
-    route->timestamp = timestamp;
-    auto entries = j_route.at("Route").as_array();
-    for (auto& je : entries) {
+    std::vector<NavRoute::Entry> entries;
+    auto j_entries = j_route.at("Route").as_array();
+    for (auto& je : j_entries) {
         std::string starSystem = je["StarSystem"].as_string();
         int64_t systemAddress = je["SystemAddress"].as_int();
         cv::Point3d pos;
@@ -1333,8 +1170,9 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
             auto& jp = je.at("StarPos");
             pos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
         }
-        route->route.emplace_back(starSystem, systemAddress, pos, starClass);
+        entries.emplace_back(starSystem, systemAddress, pos, starClass);
     }
+    spNavRoute route = std::make_shared<NavRoute>(timestamp,entries);
     st::currentNavRoute.swap(route);
     return true;
 }

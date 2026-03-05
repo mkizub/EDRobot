@@ -91,12 +91,68 @@ void BaseColonizationTask::travelResume() {
     travelTo(destSystemName, destDockName);
 }
 
+bool BaseColonizationTask::cargoMissmatch() {
+    if (!Cfg.isRavenColonialEnabled() || depots.empty())
+        return false;
+    Timestamp tm_now = Timestamp::clock::now();
+    if (ravenShipsCargo.empty() || (timestampRavenShipsCargo + 30s) < tm_now) {
+        spMarket depot;
+        for (auto& di : depots) {
+            if (di.marketId)
+                depot = gal::getMarket(di.marketId);
+            if (depot)
+                break;
+        }
+        if (depot) {
+            ravenShipsCargo = RavenColonial::queryShipsCargo(depot);
+            timestampRavenShipsCargo = tm_now;
+        }
+    }
+    if (ravenShipsCargo.is_array()) {
+        // [{"cmdr":"mkz","name":"MK-28P","type":"panthermkii","time":"2026-03-04T03:58:30.8340778+00:00","maxCargo":1236,"cargo":{}},{"cmdr":"mkzu","name":"MK-13P","type":"panthermkii","time":"2026-03-04T04:12:40.7833535+00:00","maxCargo":1216,"cargo":{}}]
+        auto currentCargo = CM.getShipCargo();
+        for (auto& record : ravenShipsCargo.as_array()) {
+            if (st::cmdr.name != record["cmdr"].as_string_or())
+                continue;
+            for (auto [cid,count] : record["cargo"].key_value()) {
+                Commodity* c = Cfg.getCommodityById(cid);
+                if (c && c->ship.count != count.as_int_or())
+                    return true;
+            }
+            for (Commodity* c : currentCargo->cargo) {
+                if (c->ship.count != record["cargo"][c->nameId].as_int_or())
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+
 
 void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
     spMarket depotMarket = gal::getMarket(dv.marketId);
-    if (!dv.ravenBuildId.empty() && (dv.ravenProjectTimestamp+30s) < Timestamp::clock::now()) {
-        depotMarket = RavenColonial::updateConstructionDepot(depotMarket);
-        dv.ravenProjectTimestamp = depotMarket->raven.timestamp;
+    if (Cfg.isRavenColonialEnabled()) {
+        Timestamp tm_now = Timestamp::clock::now();
+        if (!dv.ravenBuildId.empty() && (!depotMarket || (depotMarket->timestamp+30s) < tm_now) && (dv.ravenProjectTimestamp+30s) < tm_now) {
+            depotMarket = RavenColonial::updateConstructionDepot(depotMarket);
+            dv.ravenProjectTimestamp = depotMarket->raven.timestamp;
+        }
+        if (ravenShipsCargo.empty() || (timestampRavenShipsCargo + 30s) < tm_now) {
+            ravenShipsCargo = RavenColonial::queryShipsCargo(depotMarket);
+            timestampRavenShipsCargo = tm_now;
+        }
+        if (ravenShipsCargo.is_array()) {
+            // [{"cmdr":"mkz","name":"MK-28P","type":"panthermkii","time":"2026-03-04T03:58:30.8340778+00:00","maxCargo":1236,"cargo":{}},{"cmdr":"mkzu","name":"MK-13P","type":"panthermkii","time":"2026-03-04T04:12:40.7833535+00:00","maxCargo":1216,"cargo":{}}]
+            for (auto& record : ravenShipsCargo.as_array()) {
+                if (st::cmdr.name == record["cmdr"].as_string_or() || record["cargo"].empty())
+                    continue;
+                for (auto [cid,count] : record["cargo"].key_value()) {
+                    Commodity* c = Cfg.getCommodityById(cid);
+                    if (c)
+                        demands.othersShipsCargo[c] += count.as_int_or();
+                }
+            }
+        }
     }
     for (auto& item : depotMarket->items) {
         Commodity* c = item.first;
@@ -111,10 +167,13 @@ void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
             }
         }
         int demand = item.second.demand - item.second.stock;
-        if (demand > 0)
+        if (demands.othersShipsCargo.contains(c))
+            demand -= demands.othersShipsCargo[c];
+        if (demand > 0) {
             demands.toDeliver[c] += demand;
-        if (!demands.specialCommodityList.empty() && demands.specialCommodityList.contains(c))
-            demands.toDeliverListed[c] += demand;
+            if (!demands.specialCommodityList.empty() && demands.specialCommodityList.contains(c))
+                demands.toDeliverListed[c] += demand;
+        }
     }
 }
 BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
@@ -351,6 +410,7 @@ BaseColonizationTask::MarketInfo TaskMyCarrierReserve::chooseBestMarket(const De
 }
 
 bool TaskMyCarrierReserve::deliverToCarrier() {
+    RavenColonial::reportShipCargo();
     if (st::shipStats.cargo <= 0)
         return false;
 
@@ -359,7 +419,7 @@ bool TaskMyCarrierReserve::deliverToCarrier() {
 
     TaskTemplate unloadImpl = getTemplate(ED_TASK_CARRIER_UNLOAD);
     run_sub_step(unloadImpl.factory(unloadImpl));
-
+    RavenColonial::reportShipCargo();
     return true;
 }
 
@@ -419,6 +479,10 @@ bool TaskConstruction::run() {
     if (depots.empty()) {
         const Param &p_depot = templ.get("depot");
         addDepotInfo(p_depot.value);
+        RavenColonial::reportShipCargo();
+    }
+    else if (cargoMissmatch()) {
+        RavenColonial::reportShipCargo();
     }
 
     travelResume();
@@ -446,7 +510,12 @@ bool TaskConstruction::run() {
 
         currDock = travelTo(mi.systemName, mi.dockName);
         if (currDock && !isConstrDepot(currDock->type)) {
+            demands = calcDemands();
             tradeCommodities(currDock, demands, &unnecessaryCargo);
+            if (Cfg.isRavenColonialEnabled()) {
+                RavenColonial::reportShipCargo();
+                sleep(3000);
+            }
         }
         demands = calcDemands();
 
@@ -527,6 +596,7 @@ BaseColonizationTask::MarketInfo TaskConstruction::chooseBestMarket(const Demand
 }
 
 bool TaskConstruction::deliverToDepot() {
+    RavenColonial::reportShipCargo();
     if (st::shipStats.cargo <= 0)
         return false;
 
@@ -538,10 +608,11 @@ bool TaskConstruction::deliverToDepot() {
 
     for (int i=0; i < 5; i++) {
         sleep(1000);
-        if (!st::currentCargo->inventory.empty())
+        if (CM.getShipCargo()->count)
             continue;
     }
-    unnecessaryCargo = st::currentCargo->inventory;
+    unnecessaryCargo = CM.getShipCargo()->cargo;
+    RavenColonial::reportShipCargo();
 
     return true;
 }

@@ -13,6 +13,10 @@
   "opencl-cache-dir": "cache", // use "disabled" to disable opencl cache
   "vjoy-device-id": 1,
   "ravencolonial-enabled": false, // enable fleet carrier and colonization reports to ravencolonial.com
+  "ravencolonial-keys" : {
+    "cmdr-name": "api-key",
+    "twink-name": "api-key",
+  },
   shortcuts: {
     start: "PrintScreen", // defaults to "printscreen"
     stop: ["Esc","Ctrl+Break"], // defaults to "esc" and ctrl-break

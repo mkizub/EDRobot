@@ -196,15 +196,14 @@ void UIShowCargo::on_cargo_load() {
     }
     cargoEditor.initControls();
     validate_callback(cargoEditor.validate(nullptr), false);
-    if (!st::carrierCargo)
-        Cfg.saveCarrierCargo(Timestamp::clock::now(), {});
+    CM.saveCarrierCargo(Timestamp::clock::now(), {});
 }
 
 void UIShowCargo::on_cargo_save() {
     if (!cargoEditor.validate(nullptr))
         return;
     cargoEditor.save();
-    Cfg.saveCarrierCargo(Timestamp::clock::now(), {});
+    CM.saveCarrierCargo(Timestamp::clock::now(), {});
     btn_save.set_enabled(false);
 
     // post new data to RavenColonial, if different

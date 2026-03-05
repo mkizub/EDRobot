@@ -102,7 +102,7 @@ TaskMyCarrierUnload::TaskMyCarrierUnload(const TaskTemplate &templ)
 }
 
 bool TaskMyCarrierUnload::run() {
-    if (st::shipStats.cargo <= 0 && (!st::currentCargo || st::currentCargo->count <= 0)) {
+    if (st::shipStats.cargo <= 0) {
         status = DONE_NOTHING;
         return true;
     }

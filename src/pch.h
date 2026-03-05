@@ -107,5 +107,6 @@ extern std::thread::id main_thread_id;
 #include "Configuration.h"
 #include "ClassifyEnv.h"
 #include "Master.h"
+#include "CargoManager.h"
 
 #endif //PCH_H

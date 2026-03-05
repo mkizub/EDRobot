@@ -7,12 +7,20 @@
 #ifndef EDROBOT_NETUTILS_H
 #define EDROBOT_NETUTILS_H
 
+struct CurlResp {
+    bool ok {};
+    int code {};
+    js::value body;
+};
+
 std::string curlRequestGithubLatest();
-js::value curlRequestEDSM(std::string url, std::string systemName);
-js::value curlSimpleGet(std::string url);
-js::value curlSimplePut(std::string url, std::string data);
-js::value curlSimplePost(std::string url, const js::value& j);
-js::value curlSimplePatch(std::string url, const js::value& j);
+CurlResp curlRequestEDSM(std::string url, std::string systemName);
+CurlResp curlSimpleGet(std::string url);
+CurlResp curlSimpleGetWithHeaders(std::string url, std::vector<std::string> headers);
+CurlResp curlSimplePut(std::string url, std::string data);
+CurlResp curlSimplePost(std::string url, const js::value& j);
+CurlResp curlSimplePostWithHeaders(std::string url, const js::value& j, std::vector<std::string> headers);
+CurlResp curlSimplePatch(std::string url, const js::value& j);
 
 
 

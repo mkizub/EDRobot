@@ -27,6 +27,7 @@ void saveMarket(Market* market) {
         {"MarketID", market->marketId},
         {"StationName", market->stationName},
         {"StationType", market->stationType},
+        {"StarSystem", market->starSystem},
         {"Items", js::array({})},
         });
     if (!market->raven.buildId.empty() || !market->raven.status.empty()) {
@@ -91,12 +92,18 @@ spMarket loadMarket(int64_t marketId) {
         return {};
     }
 
-    spMarket market = std::make_shared<Market>();
-    if (!parseTimestamp(jm["timestamp"], market->timestamp))
+    Timestamp timestamp;
+    if (!parseTimestamp(jm["timestamp"], timestamp))
         return {};
-    market->marketId = jm["MarketID"].as_int();
-    market->stationName = jm["StationName"].as_string();
-    market->stationType = jm["StationType"].as_string();
+    if (marketId != jm["MarketID"].as_int_or())
+        return {};
+    spMarket market = std::make_shared<Market>(Market{
+        .timestamp = timestamp,
+        .marketId = marketId,
+        .stationName = jm["StationName"].as_string_or(),
+        .stationType = jm["StationType"].as_string_or(),
+        .starSystem = jm["StarSystem"].as_string_or(),
+    });
     if (jm["RavenColonial"].is_object()) {
         market->raven.buildId = jm["RavenColonial"]["buildId"].as_string_or();
         market->raven.status = jm["RavenColonial"]["status"].as_string_or();
@@ -344,22 +351,24 @@ void saveStarSystem(StarSystem* ss) {
 
 static spStarSystem loadStarSystemFromNetwork(const std::string name) {
 
+    CurlResp cr;
     std::string url = "https://www.edsm.net/api-v1/system?showId=1&showCoordinates=1&systemName=";
-    js::value jsystem = curlRequestEDSM(url, name);
-    if (name != jsystem["name"].as_string_or())
+    cr = curlRequestEDSM(url, name);
+    if (cr.ok || name != cr.body["name"].as_string_or())
         return {};
+    js::value jsystem = cr.body;
 
     url = "https://www.edsm.net/api-system-v1/bodies?systemName=";
-    js::value bodies = curlRequestEDSM(url, name);
-    if (name != bodies["name"].as_string_or())
+    cr = curlRequestEDSM(url, name);
+    if (cr.ok || name != cr.body["name"].as_string_or())
         return {};
-    jsystem["bodies"] = bodies["bodies"].deref();
+    jsystem["bodies"] = cr.body["bodies"].deref();
 
     url = "https://www.edsm.net/api-system-v1/stations?systemName=";
-    js::value stations = curlRequestEDSM(url, name);
-    if (name != stations["name"].as_string_or())
+    cr = curlRequestEDSM(url, name);
+    if (!cr.ok || name != cr.body["name"].as_string_or())
         return {};
-    jsystem["stations"] = stations["stations"].deref();
+    jsystem["stations"] = cr.body["stations"].deref();
 
     return fromEDDN(jsystem, false);
 }

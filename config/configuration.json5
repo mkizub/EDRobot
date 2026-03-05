@@ -1,4 +1,8 @@
 {
   "ui-scale-percents": 125,
   "ravencolonial-enabled": true,
+  "ravencolonial-keys" : {
+    "mkz": "DtZpspCgX02sdYAF8op7hA",
+    "mkzu": "J3QOScLcdkaDCmZaaXbwMA",
+  },
 }

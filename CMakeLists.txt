@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release)
 
-project(EDRobot VERSION 0.9.1)
+project(EDRobot VERSION 0.9.2)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -36,6 +36,8 @@ add_executable(EDRobot
         src/ed_opencv.h
         src/Types.h
         src/main.cpp
+        src/CargoManager.cpp
+        src/CargoManager.h
         src/ClassifyEnv.cpp
         src/ClassifyEnv.h
         src/Configuration.cpp
@@ -66,6 +68,8 @@ add_executable(EDRobot
         src/ai/AutopilotTasks.h
         src/ai/CarrierTasks.h
         src/ai/CarrierTasks.cpp
+        src/ai/ColonizationTasks.cpp
+        src/ai/ColonizationTasks.h
         src/ai/ContactsTasks.cpp
         src/ai/ContactsTasks.h
         src/ai/NavList.cpp
@@ -83,17 +87,28 @@ add_executable(EDRobot
 
         src/detect/Detector.h
         src/detect/Detector.cpp
+        src/detect/Compass.cpp
+        src/detect/Compass.h
         src/detect/ImageTemplate.cpp
+        src/detect/Filters.h
+        src/detect/Filters.cpp
         src/detect/Lines.cpp
         src/detect/Lines.h
-        src/detect/Compass.cpp
         src/detect/NavPanel.cpp
         src/detect/NavPanel.h
+        src/detect/TextDetector.h
+        src/detect/TextDetector.cpp
         src/detect/Tiles.cpp
         src/detect/Tiles.h
 
-        src/net/NetUtils.h
+        src/js/value.h
+        src/js/parser.h
+        src/js/internal/impl.h
+
         src/net/NetUtils.cpp
+        src/net/NetUtils.h
+        src/net/RavenColonial.cpp
+        src/net/RavenColonial.h
 
         src/ui/UIAddTask.cpp
         src/ui/UIAddTask.h
@@ -123,6 +138,14 @@ add_executable(EDRobot
         src/ui/wl_cargobox.h
         src/ui/wl_panel.h
 
+        src/widget/EDWidget.cpp
+        src/widget/EDWidget.h
+        src/widget/Button.h
+        src/widget/Button.cpp
+        src/widget/List.h
+        src/widget/List.cpp
+        src/widget/LoadScreens.cpp
+
         src/Capturer.h
         src/capture/Capturer.cpp
         src/capture/CapturerWin32.cpp
@@ -146,26 +169,6 @@ add_executable(EDRobot
         thirdparty/glob/glob.h
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
-        src/detect/Filters.h
-        src/detect/Filters.cpp
-        src/detect/Compass.h
-        src/detect/TextDetector.h
-        src/detect/TextDetector.cpp
-
-        src/widget/EDWidget.cpp
-        src/widget/EDWidget.h
-        src/widget/Button.h
-        src/widget/Button.cpp
-        src/widget/List.h
-        src/widget/List.cpp
-        src/widget/LoadScreens.cpp
-        src/net/RavenColonial.cpp
-        src/net/RavenColonial.h
-        src/ai/ColonizationTasks.cpp
-        src/ai/ColonizationTasks.h
-        src/js/value.h
-        src/js/parser.h
-        src/js/internal/impl.h
 )
 
 
