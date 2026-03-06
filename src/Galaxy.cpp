@@ -30,15 +30,15 @@ void saveMarket(Market* market) {
         {"StarSystem", market->starSystem},
         {"Items", js::array({})},
         });
-    if (!market->raven.buildId.empty() || !market->raven.status.empty()) {
+    if (market->raven && (!market->raven->buildId.empty() || !market->raven->status.empty())) {
         jm["RavenColonial"] = js::object({
-            {"buildId",market->raven.buildId},
-            {"status",market->raven.status},
-            {"timestamp",formatTimestampString(market->raven.timestamp)},
+            {"buildId",market->raven->buildId},
+            {"status",market->raven->status},
+            {"timestamp",formatTimestampString(market->raven->timestamp, true)},
         });
-        if (!market->raven.commanders.empty()) {
+        if (!market->raven->commanders.empty()) {
             auto& jcommanders = jm["RavenColonial"]["commanders"].deref();
-            for (auto cmdr: market->raven.commanders) {
+            for (auto cmdr: market->raven->commanders) {
                 auto &name = cmdr.first;
                 auto &ci = cmdr.second;
                 auto& jcmdr = jcommanders[name].deref();
@@ -105,17 +105,18 @@ spMarket loadMarket(int64_t marketId) {
         .starSystem = jm["StarSystem"].as_string_or(),
     });
     if (jm["RavenColonial"].is_object()) {
-        market->raven.buildId = jm["RavenColonial"]["buildId"].as_string_or();
-        market->raven.status = jm["RavenColonial"]["status"].as_string_or();
-        parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven.timestamp);
+        market->raven = std::make_shared<RavenProj>();
+        market->raven->buildId = jm["RavenColonial"]["buildId"].as_string_or();
+        market->raven->status = jm["RavenColonial"]["status"].as_string_or();
+        parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven->timestamp);
         if (auto commanders=jm["RavenColonial"]["commanders"]; commanders.is_object())
         for (auto [name,jcmdr] : commanders.key_value()) {
-            Market::RavenCmdrInfo ci {};
+            RavenProj::CmdrInfo ci {};
             if (!jcmdr["timestamp"].empty())
                 parseTimestamp(jcmdr["timestamp"], ci.timestamp);
             ci.deliveries = jcmdr["deliveries"].as_int_or();
             ci.contributed = jcmdr["contributed"].as_int_or();
-            market->raven.commanders.emplace(name, ci);
+            market->raven->commanders.emplace(name, ci);
         }
     }
     auto& items = jm["Items"].as_array();

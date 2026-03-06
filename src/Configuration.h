@@ -61,27 +61,34 @@ public:
     } fc;
 };
 
-struct RavenCmdrInfo {
-    Timestamp timestamp; // contribution timestamp
+struct RavenProj {
+    struct CmdrInfo {
+        Timestamp timestamp; // contribution timestamp
+        int deliveries; // number of deliveries
+        int contributed; // total cargo contributed
+    };
+    std::string buildId;
+    std::string status;
+    Timestamp timestamp {}; // project timestamp
+    std::map<std::string,CmdrInfo> commanders;
 };
+
+typedef std::shared_ptr<RavenProj> spRavenProj;
+
 struct Market {
     const Timestamp timestamp;
     const int64_t marketId;
     const std::string stationName;
     const std::string stationType;
     const std::string starSystem;
-    struct RavenCmdrInfo {
-        Timestamp timestamp; // contribution timestamp
-        int deliveries; // number of deliveries
-        int contributed; // total cargo contributed
-    };
-    struct RavenProjInfo {
-        std::string buildId;
-        std::string status;
-        Timestamp timestamp; // project timestamp
-        std::map<std::string,RavenCmdrInfo> commanders;
-    } raven;
+    spRavenProj raven;
     std::unordered_map<Commodity*,MarketLine> items;
+
+    std::string_view ravenBuildId() {
+        if (!raven)
+            return {};
+        return raven->buildId;
+    }
 };
 
 struct ShipCargo {

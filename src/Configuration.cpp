@@ -1097,6 +1097,8 @@ bool Configuration::loadMarket(spGameEvent ge) {
             .stationType = j_market.at("StationType").as_string(),
             .starSystem = j_market.at("StarSystem").as_string(),
     });
+    if (oldMarket)
+        market->raven = oldMarket->raven;
     auto items = j_market.at("Items").as_array();
     for (auto& item : items) {
         std::array<std::string,2> translation;

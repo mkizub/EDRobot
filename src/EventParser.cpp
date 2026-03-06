@@ -938,18 +938,20 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             .stationType = "ConstrDepot",
             .starSystem = starSystem->systemName,
     });
-    bool complete = je["ConstructionComplete"].as_bool();
-    bool reportToRaven = false;
-    if (old_market && !old_market->raven.buildId.empty()) {
+    if (old_market)
         market->raven = old_market->raven;
-        if (!scanningOldEvents && market->raven.timestamp.time_since_epoch().count() == 0)
+    bool complete = je["ConstructionComplete"].as_bool();
+    bool hasRaven = Cfg.isRavenColonialEnabled() && !market->ravenBuildId().empty();
+    bool reportToRaven = false;
+    if (hasRaven) {
+        if (!scanningOldEvents && market->raven->timestamp.time_since_epoch().count() == 0)
             reportToRaven = true;
-        else if (complete && market->raven.status != "complete")
+        else if (complete && market->raven->status != "complete")
             reportToRaven = true;
         else {
             // check if there was a contribution past last raven project update
-            for (auto& ci : market->raven.commanders) {
-                if (ci.second.timestamp > market->raven.timestamp)
+            for (auto& ci : market->raven->commanders) {
+                if (ci.second.timestamp > market->raven->timestamp)
                     reportToRaven = true;
             }
         }
@@ -967,7 +969,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             continue;
         int provided = jr["ProvidedAmount"].as_int_or();
         int required = jr["RequiredAmount"].as_int_or();
-        if (old_market) {
+        if (hasRaven && old_market) {
             if (!old_market->items.contains(commodity))
                 reportToRaven = true;
             else {
@@ -985,21 +987,17 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
         market->items.emplace(commodity, ml);
     }
 
-    if (reportToRaven) {
-        if (market->raven.buildId.empty() || market->raven.timestamp >= ge->timestamp)
+    if (hasRaven && reportToRaven) {
+        if (market->ravenBuildId().empty() || market->raven->timestamp >= ge->timestamp)
             reportToRaven = false;
-        else if (market->raven.status == "complete")
+        else if (market->raven->status == "complete")
             reportToRaven = false;
         else
-            market->raven.timestamp = ge->timestamp;
-    }
-    else if (complete && (!Cfg.isRavenColonialEnabled() || market->raven.buildId.empty()) && market->raven.status != "complete") {
-        market->raven.timestamp = ge->timestamp;
-        market->raven.status = "complete";
+            market->raven->timestamp = ge->timestamp;
     }
     st::currentMarket.swap(market);
     gal::setMarketData(st::currentMarket);
-    if (reportToRaven)
+    if (hasRaven && reportToRaven)
         RavenColonial::reportConstructionDepot(ge, st::currentMarket);
  }
 

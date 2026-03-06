@@ -94,12 +94,14 @@ void reportShipCargo() {
 }
 
 js::value queryShipsCargo(spMarket market) {
-    if (!market || market->raven.buildId.empty() || market->raven.status == "complete")
+    if (!Cfg.isRavenColonialEnabled())
+        return {};
+    if (!market || market->ravenBuildId().empty() || market->raven->status == "complete")
         return {};
     std::vector<std::string> headers;
     if (!st::cmdr.ravenKey.empty())
         headers.emplace_back("rcc-key: "+st::cmdr.ravenKey);
-    auto cr = curlSimpleGetWithHeaders(RCAPI_PRJ + market->raven.buildId + "/ships", headers);
+    auto cr = curlSimpleGetWithHeaders(RCAPI_PRJ + market->raven->buildId + "/ships", headers);
     return cr.body;
 }
 
@@ -116,46 +118,49 @@ void reportContribution(spGameEvent& ge) {
     auto starSystem = gal::getCurrentStarSystem();
     if (!starSystem)
         return;
-    if (market->raven.buildId.empty()) {
+    if (!market->raven)
+        market->raven = std::make_shared<RavenProj>();
+    auto& raven = market->raven;
+    if (raven->buildId.empty()) {
         // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
         auto cr = curlSimpleGet(RCAPI + "v2/system/" + std::to_string(starSystem->systemAddress));
         std::vector<std::string> active_builds;
         for (auto& site : cr.body["sites"].as_array_or()) {
             if (site["marketId"].is_int() && site["marketId"].as_int() == marketId) {
-                market->raven.buildId = site["buildId"].as_string_or();
-                market->raven.status = site["status"].as_string_or();
+                raven->buildId = site["buildId"].as_string_or();
+                raven->status = site["status"].as_string_or();
                 break;
             }
         }
-        if (market->raven.buildId.empty()) {
+        if (raven->buildId.empty()) {
             for (auto& site : cr.body["sites"].as_array_or()) {
                 if (site["buildId"].empty() || site["status"].as_string_or() != "build")
                     continue;
                 if (site["marketId"].empty() && st::dockedAt.stationName.ends_with(site["name"].as_string_or())) {
-                    market->raven.buildId = site["buildId"].as_string_or();
-                    market->raven.status = site["status"].as_string_or();
+                    raven->buildId = site["buildId"].as_string_or();
+                    raven->status = site["status"].as_string_or();
                 }
                 if (site["status"].as_string_or() == "build") {
                     active_builds.push_back(site["buildId"].as_string_or());
                 }
             }
         }
-        if (market->raven.buildId.empty() && active_builds.size() == 1) {
-            market->raven.buildId = active_builds.front();
-            market->raven.status = "build";
+        if (raven->buildId.empty() && active_builds.size() == 1) {
+            raven->buildId = active_builds.front();
+            raven->status = "build";
         }
     }
-    if (market->raven.buildId.empty())
+    if (raven->buildId.empty())
         return;
     std::string cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
-    if (!market->raven.commanders.contains(st::cmdr.name)) {
-        auto cr = curlSimplePut(RCAPI_PRJ + market->raven.buildId + "/link/" + cmdr_esc_name, "");
+    if (!raven->commanders.contains(st::cmdr.name)) {
+        auto cr = curlSimplePut(RCAPI_PRJ + raven->buildId + "/link/" + cmdr_esc_name, "");
         if (!cr.ok)
             return;
-        market->raven.commanders[st::cmdr.name] = {};
+        raven->commanders[st::cmdr.name] = {};
     }
 
-    auto& rci = market->raven.commanders[st::cmdr.name];
+    auto& rci = raven->commanders[st::cmdr.name];
     if (rci.timestamp >= ge->timestamp)
         return;
     int contributed = 0;
@@ -169,7 +174,7 @@ void reportContribution(spGameEvent& ge) {
         post_json[name] = amount;
         contributed += amount;
     }
-    curlSimplePost(RCAPI_PRJ + market->raven.buildId + "/contribute/" + cmdr_esc_name, post_json);
+    curlSimplePost(RCAPI_PRJ + raven->buildId + "/contribute/" + cmdr_esc_name, post_json);
     rci.timestamp = ge->timestamp;
     rci.deliveries += 1;
     rci.contributed += contributed;
@@ -180,7 +185,7 @@ void reportContribution(spGameEvent& ge) {
 void reportConstructionDepot(spGameEvent& ge, spMarket market) {
     if (!Cfg.isRavenColonialEnabled())
         return;
-    if (!ge || !market || market->raven.buildId.empty() || market->raven.status == "complete" || market->raven.timestamp > ge->timestamp)
+    if (!ge || !market || market->ravenBuildId().empty() || market->raven->status == "complete" || market->raven->timestamp > ge->timestamp)
         return;
     int sumNeed = 0;
     int maxNeed = 0;
@@ -191,7 +196,7 @@ void reportConstructionDepot(spGameEvent& ge, spMarket market) {
     }
 
     js::value post_json = js::object({
-        {"buildId",     market->raven.buildId},
+        {"buildId",     market->raven->buildId},
         {"sumNeed",     sumNeed},
         {"maxNeed",     maxNeed},
         {"commodities", js::object({})}
@@ -202,36 +207,38 @@ void reportConstructionDepot(spGameEvent& ge, spMarket market) {
         int delta = std::max(0, mlp.second.demand - mlp.second.stock);
         comms[c->nameId] = delta;
     }
-    curlSimplePatch(RCAPI_PRJ + market->raven.buildId, post_json);
+    curlSimplePatch(RCAPI_PRJ + market->raven->buildId, post_json);
+    //{"timestamp":"2026-03-06T22:06:49.7348045+00:00","eTag":"W/\"datetime'2026-02-25T20%3A02%3A19.2367861Z'\"","buildId":"48145df8-dcd0-45f5-bdd3-7c1e5239592c","sumNeed":156112,"maxNeed":269924,"complete":false,"commodities":{"aluminium":40263,"autofabricators":0,"ceramiccomposites":0,"cmmcomposite":40983,"computercomponents":0,"copper":0,"foodcartridges":0,"fruitandvegetables":0,"insulatingmembrane":0,"liquidoxygen":0,"medicaldiagnosticequipment":0,"nonlethalweapons":0,"polymers":0,"powergenerators":0,"semiconductors":0,"steel":74062,"superconductors":0,"titanium":0,"water":804,"waterpurifiers":0},"ready":[],"linkedFC":[],"buildType":"dodec","buildName":"Primary port","marketId":3962779906,"systemAddress":1457705423626,"systemName":"Col 359 Sector YE-W c3-5","starPos":[-311.656,282.625,272.906],"bodyNum":2,"bodyName":null,"factionName":null,"architectName":null,"discordLink":null,"timeDue":null,"timeCompleted":null,"timestarted":null,"isPrimaryPort":true,"commanders":{"mkz":[],"mkzu":[]},"notes":"","bodyType":null,"bodyFeatures":null,"systemFeatures":null,"reserveLevel":null}
 
     if (ge->data["ConstructionComplete"].as_bool_or(false)) {
-        post_json = js::object({{"buildId", market->raven.buildId}});
-        curlSimplePost(RCAPI_PRJ+market->raven.buildId + "/complete", post_json);
-        market->raven.status = "complete";
+        post_json = js::object({{"buildId", market->raven->buildId}});
+        curlSimplePost(RCAPI_PRJ+market->raven->buildId + "/complete", post_json);
+        market->raven->status = "complete";
         gal::saveMarket(market.get());
     }
 }
 
 spMarket updateConstructionDepot(spMarket market) {
-    if (!market || market->raven.buildId.empty() || market->raven.status == "complete")
+    if (!market || market->ravenBuildId().empty() || market->raven->status == "complete")
         return market;
-    auto cr = curlSimpleGet(RCAPI_PRJ + market->raven.buildId + "/last");
+    auto& raven = market->raven;
+    auto cr = curlSimpleGet(RCAPI_PRJ + raven->buildId + "/last");
     // "2026-02-20T07:52:28.3894916+00:00"
     Timestamp timestamp;
     if (!cr.ok || !parseTimestamp(cr.body, timestamp))
         return market;
-    if ((market->timestamp+5s) >= timestamp || (market->raven.timestamp+5s) >= timestamp)
+    if ((market->timestamp+5s) >= timestamp || (raven->timestamp+5s) >= timestamp)
         return market;
-    cr = curlSimpleGet(RCAPI_PRJ+market->raven.buildId);
+    cr = curlSimpleGet(RCAPI_PRJ+raven->buildId);
     if (auto jid = cr.body["marketId"]; cr.ok && jid.is_int() && jid.as_int() == market->marketId) {
         market = std::make_shared<Market>(*market.get());
-        market->raven.timestamp = timestamp;
+        raven->timestamp = timestamp;
         if (auto jst = cr.body["complete"]; jst.is_bool() && jst.as_bool()) {
             for (auto& it : market->items) {
                 auto& ml = it.second;
                 ml.stock = ml.demand;
             }
-            market->raven.status = "complete";
+            raven->status = "complete";
         } else {
             for (auto& it : market->items) {
                 Commodity* c = it.first;

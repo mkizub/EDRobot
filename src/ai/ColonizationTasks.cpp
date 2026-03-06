@@ -45,9 +45,9 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
         throw_failed("Site '{}' is not a construction depot", fullName);
     auto& depotInfo = depots.emplace_back(systemName, fullName, shortName);
     depotInfo.marketId = depot->marketId;
-    if (depotMarket) {
-        depotInfo.ravenBuildId = depotMarket->raven.buildId;
-        depotInfo.ravenProjectTimestamp = depotMarket->raven.timestamp;
+    if (depotMarket && depotMarket->raven) {
+        depotInfo.ravenBuildId = depotMarket->raven->buildId;
+        depotInfo.ravenProjectTimestamp = depotMarket->raven->timestamp;
     }
 }
 
@@ -135,7 +135,7 @@ void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
         Timestamp tm_now = Timestamp::clock::now();
         if (!dv.ravenBuildId.empty() && (!depotMarket || (depotMarket->timestamp+30s) < tm_now) && (dv.ravenProjectTimestamp+30s) < tm_now) {
             depotMarket = RavenColonial::updateConstructionDepot(depotMarket);
-            dv.ravenProjectTimestamp = depotMarket->raven.timestamp;
+            dv.ravenProjectTimestamp = depotMarket->raven->timestamp;
         }
         if (ravenShipsCargo.empty() || (timestampRavenShipsCargo + 30s) < tm_now) {
             ravenShipsCargo = RavenColonial::queryShipsCargo(depotMarket);

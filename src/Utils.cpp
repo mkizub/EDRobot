@@ -394,9 +394,12 @@ std::string encodeShortcut(const std::string& name, unsigned flags) {
     return res;
 }
 
-std::string formatTimestampString(Timestamp timestamp) {
-    auto ts = std::chrono::floor<std::chrono::seconds>(timestamp);
-    return std::format("{:%Y-%m-%dT%H:%M:%S}Z", ts);
+std::string formatTimestampString(Timestamp timestamp, bool nanos) {
+    if (!nanos) {
+        auto ts = std::chrono::floor<std::chrono::seconds>(timestamp);
+        return std::format("{:%Y-%m-%dT%H:%M:%S}Z", ts);
+    }
+    return std::format("{:%Y-%m-%dT%H:%M:%S}Z", timestamp);
 }
 
 bool parseTimestampString(const std::string& str, Timestamp& timestamp) {

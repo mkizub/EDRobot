@@ -743,7 +743,7 @@ bool TaskBuyConstr::run() {
     gotoMarketScreen(true);
 
     depotMarket = RavenColonial::updateConstructionDepot(depotMarket);
-    if (depotMarket->raven.status == "complete")
+    if (depotMarket->raven && depotMarket->raven->status == "complete")
         throw_complete("Construction complete");
 
     bool triedToBuy = false;
@@ -880,7 +880,7 @@ TaskConstrUnload::TaskConstrUnload(const TaskTemplate& templ_)
 bool TaskConstrUnload::run() {
     Cfg.marketEvent.reset();
 
-    if (spMarket market = gal::getMarket(st::dockedAt.marketId); market && market->raven.status == "complete")
+    if (spMarket market = gal::getMarket(st::dockedAt.marketId); market && market->raven && market->raven->status == "complete")
         throw_complete("Construction complete");
     if (st::shipStats.cargo <= 0) {
         status = DONE_NOTHING;
@@ -911,7 +911,7 @@ bool TaskConstrUnload::run() {
     status = DONE;
 
     spMarket marketAfter = gal::getMarket(st::dockedAt.marketId);
-    if (marketAfter && marketAfter->raven.status == "complete")
+    if (marketAfter && marketAfter->raven && marketAfter->raven->status == "complete")
         throw_complete("Construction complete");
     return true;
 }

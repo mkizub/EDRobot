@@ -979,7 +979,7 @@ bool DepartureStep::run() {
     bool fromPlaneraryPort = false;
     if (fromDock && isConstrDepot(fromDock->type)) {
         auto market = gal::getMarket(fromDock->marketId);
-        if (market && market->raven.status == "complete")
+        if (market && market->raven && market->raven->status == "complete")
             fromCompletedConstruction = true;
     }
     if ((fromDock && isPlanetarySite(fromDock->type)) || st::shipAtBody.nearBody) {
@@ -988,14 +988,14 @@ bool DepartureStep::run() {
     if (!st::dockedAt.stationType.empty()) {
         if (gal::PLANETARY_CONSTR_DEPOT.match_type(st::dockedAt.stationType)) {
             auto market = gal::getMarket(st::dockedAt.marketId);
-            if (market && market->raven.status == "complete")
+            if (market && market->raven && market->raven->status == "complete")
                 fromCompletedConstruction = true;
             LOG(DEBUG) << "Departure from PlanetaryConstruction";
         }
         if (gal::SPACE_CONSTR_DEPOT.match_type(st::dockedAt.stationType)) {
             fromSpaceConstruction = true;
             auto market = gal::getMarket(st::dockedAt.marketId);
-            if (market && market->raven.status == "complete")
+            if (market && market->raven && market->raven->status == "complete")
                 fromCompletedConstruction = true;
             LOG(DEBUG) << "Departure from SpaceConstruction";
         }
