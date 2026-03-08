@@ -299,14 +299,16 @@ public:
     void setSlotModule(const js::value &jvalue);
     void updateStats();
 
-    double getRotationScale(Axis::Type at, int speed_percent);
-    double getRotationSpeed(Axis::Type at, int speed_percent);
-    double getPitchSpeed(int speed_percent);
-    double getYawSpeed(int speed_percent);
-    double getRollSpeed(int speed_percent);
-    double getThrustSpeed();
-    double getForwardAccel();
-    double getReverseAccel();
+    double getRotationScale(Axis::Type at, int speed_percent) const;
+    double getRotationSpeed(Axis::Type at, int speed_percent) const;
+    double getPitchSpeed(int speed_percent) const;
+    double getYawSpeed(int speed_percent) const;
+    double getRollSpeed(int speed_percent) const;
+    double getThrustSpeed() const;
+    double getForwardAccel() const;
+    double getReverseAccel() const;
+
+    bool hasFsdSco() const { return hasFsdScoModule; }
 
     const std::string type;
     const js::value &jship;
@@ -318,9 +320,10 @@ private:
 
     void updateStat(ShipSlot& slot, Attr attr);
     eddb::ShipSlot& getSlot(const std::string& name);
-    double getMassCurveMultiplier(double mass, double minMass, double optMass, double maxMass, double minMul, double optMul, double maxMul);
-    double getMassRotMultiplier();
-    double getMassSpdMultiplier();
+    double getMassCurveMultiplier(double mass, double minMass, double optMass, double maxMass, double minMul, double optMul, double maxMul) const;
+    double getMassRotMultiplier() const;
+    double getMassSpdMultiplier() const;
+    bool hasFsdScoModule;
 
     std::map<std::string, eddb::ShipSlot> slots;
 };

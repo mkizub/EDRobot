@@ -109,7 +109,7 @@ bool selectOnGalaxyMap(const std::string& systemName) {
         if (ai::uiState.guiFocus != GuiFocus::GalaxyMap || !ai::uiState.match("scr-galaxy"))
             return false;
     }
-    if (!clickWidget("lbl-search",100,500,0.8))
+    if (!clickWidget("lbl-search",100,500,0.3))
         return false;
     kbd::send("BackSpace", 100, 500);
 
@@ -131,17 +131,17 @@ bool selectOnGalaxyMap(const std::string& systemName) {
         ai::sleep(1500);
         ai::detectEDState(DetectLevel::Buttons);
 
-        clickWidget("btn-tgt-copy",300,500,0.8);
+        clickWidget("btn-tgt-copy",300,500,0.3);
         auto name = textFromClipboard();
         if (name == systemName) {
-            clickWidget("btn-tgt-nav-to", 500, 1000, 0.6);
+            clickWidget("btn-tgt-nav-to", 500, 1000, 0.3);
             leaveScrGalaxy();
             return true;
         }
 
         cv::Rect rect = Mgr.resolveWidgetReferenceRect("lbl-search", ai::rEnv);
         pos = (rect.tl() + rect.br()) * 0.5;
-        mouseMoveTo(pos, 0.8);
+        mouseMoveTo(pos, 0.3);
     }
     return false;
 }

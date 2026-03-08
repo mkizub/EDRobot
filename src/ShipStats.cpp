@@ -524,6 +524,9 @@ void ShipStats::updateStats() {
     updateStat(slot_eng, Attr::minmulrot);
     updateStat(slot_eng, Attr::optmulrot);
     updateStat(slot_eng, Attr::maxmulrot);
+
+    auto& slot_fsd = getSlot("FrameShiftDrive");
+    hasFsdScoModule = slot_fsd.module && (*slot_fsd.module)["mtype"].as_string_or() == "cfsdo";
 }
 
 eddb::ShipSlot& ShipStats::getSlot(const std::string& name) {
@@ -558,11 +561,11 @@ eddb::ShipSlot& ShipStats::getSlot(const std::string& name) {
     return it.first->second;
 }
 
-double ShipStats::getMassCurveMultiplier(double mass, double minMass, double optMass, double maxMass, double minMul, double optMul, double maxMul) {
+double ShipStats::getMassCurveMultiplier(double mass, double minMass, double optMass, double maxMass, double minMul, double optMul, double maxMul) const {
     // https://forums.frontier.co.uk/threads/the-one-formula-to-rule-them-all-the-mechanics-of-shield-and-thruster-mass-curves.300225/
     return (minMul + std::pow(std::min(1.0, (maxMass - mass) / (maxMass - minMass)), std::log((optMul - minMul) / (maxMul - minMul)) / std::log((maxMass - optMass) / (maxMass - minMass))) * (maxMul - minMul));
 }
-double ShipStats::getMassRotMultiplier() {
+double ShipStats::getMassRotMultiplier() const {
     double totallMass = st::shipStats.unladenMass + st::shipStats.fuelMain + st::shipStats.fuelReservoir + st::shipStats.cargo;
     double minmass = stats[int(Attr::engminmass)];
     double optmass = stats[int(Attr::engoptmass)];
@@ -572,7 +575,7 @@ double ShipStats::getMassRotMultiplier() {
     double maxmulrot = stats[int(Attr::maxmulrot)];
     return getMassCurveMultiplier(totallMass, minmass, optmass, maxmass, minmulrot, optmulrot, maxmulrot);
 }
-double ShipStats::getMassSpdMultiplier() {
+double ShipStats::getMassSpdMultiplier() const {
     double totallMass = st::shipStats.unladenMass + st::shipStats.fuelMain + st::shipStats.fuelReservoir + st::shipStats.cargo;
     double minmass = stats[int(Attr::engminmass)];
     double optmass = stats[int(Attr::engoptmass)];
@@ -583,7 +586,7 @@ double ShipStats::getMassSpdMultiplier() {
     return getMassCurveMultiplier(totallMass, minmass, optmass, maxmass, minmulspd, optmulspd, maxmulspd);
 }
 
-double speed_scale(int speed_percent, float values[3]) {
+double speed_scale(int speed_percent, const float values[3]) {
     float spd = 0.01f * std::clamp(speed_percent, 0, 100);
     if (spd >= 0.5f)
         return std::lerp(values[1], values[2], 2*spd-1);
@@ -591,13 +594,13 @@ double speed_scale(int speed_percent, float values[3]) {
 }
 const double MAX_POWER_DIST = 8.0;
 
-double ShipStats::getRotationScale(Axis::Type at, int speed_percent) {
+double ShipStats::getRotationScale(Axis::Type at, int speed_percent) const {
     if (st::ship.flags.cruise)
         return speed_scale(speed_percent, cruise_rot[at]) / cruise_rot[at][1];
     return speed_scale(speed_percent, space_rot[at]);
 }
 
-double ShipStats::getRotationSpeed(Axis::Type at, int speed_percent) {
+double ShipStats::getRotationSpeed(Axis::Type at, int speed_percent) const {
     switch (at) {
     case Axis::Pitch:
         return getPitchSpeed(speed_percent);
@@ -610,7 +613,7 @@ double ShipStats::getRotationSpeed(Axis::Type at, int speed_percent) {
     }
 }
 
-double ShipStats::getPitchSpeed(int speed_percent) {
+double ShipStats::getPitchSpeed(int speed_percent) const {
     if (st::ship.flags.cruise)
         return speed_scale(speed_percent, cruise_rot[Axis::Pitch]);
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
@@ -618,7 +621,7 @@ double ShipStats::getPitchSpeed(int speed_percent) {
     double value = stats[int(Attr::pitch)] * pipsEngMul + stats[int(Attr::minpitch)] * (1 - pipsEngMul);
     return value * massRotMul * speed_scale(speed_percent, space_rot[Axis::Pitch]);
 }
-double ShipStats::getYawSpeed(int speed_percent) {
+double ShipStats::getYawSpeed(int speed_percent) const {
     if (st::ship.flags.cruise)
         return speed_scale(speed_percent, cruise_rot[Axis::Yaw]);
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
@@ -626,7 +629,7 @@ double ShipStats::getYawSpeed(int speed_percent) {
     double value = stats[int(Attr::yaw)] * pipsEngMul + stats[int(Attr::minyaw)] * (1 - pipsEngMul);
     return value * massRotMul * speed_scale(speed_percent, space_rot[Axis::Yaw]);
 }
-double ShipStats::getRollSpeed(int speed_percent) {
+double ShipStats::getRollSpeed(int speed_percent) const {
     if (st::ship.flags.cruise)
         return speed_scale(speed_percent, cruise_rot[Axis::Roll]);
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
@@ -634,7 +637,7 @@ double ShipStats::getRollSpeed(int speed_percent) {
     double value = stats[int(Attr::roll)] * pipsEngMul + stats[int(Attr::minroll)] * (1 - pipsEngMul);
     return value * massRotMul * speed_scale(speed_percent, space_rot[Axis::Roll]);
 }
-double ShipStats::getThrustSpeed() {
+double ShipStats::getThrustSpeed() const {
     if (st::ship.flags.cruise)
         return DNaN;
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
@@ -642,7 +645,7 @@ double ShipStats::getThrustSpeed() {
     double value = stats[int(Attr::topspd)] * (pipsEngMul + stats[int(Attr::minthrust)] * (1 - pipsEngMul));
     return value * massSpdMul;
 }
-double ShipStats::getForwardAccel() {
+double ShipStats::getForwardAccel() const {
     if (st::ship.flags.cruise)
         return DNaN;
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
@@ -650,7 +653,7 @@ double ShipStats::getForwardAccel() {
     double value = stats[int(Attr::fwdacc)] * (pipsEngMul + stats[int(Attr::minthrust)] * (1 - pipsEngMul));
     return value * massSpdMul;
 }
-double ShipStats::getReverseAccel() {
+double ShipStats::getReverseAccel() const {
     if (st::ship.flags.cruise)
         return DNaN;
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
@@ -658,5 +661,6 @@ double ShipStats::getReverseAccel() {
     double value = stats[int(Attr::revacc)] * (pipsEngMul + stats[int(Attr::minthrust)] * (1 - pipsEngMul));
     return value * massSpdMul;
 }
+
 
 } // namespace eddb

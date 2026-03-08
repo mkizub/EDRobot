@@ -218,13 +218,18 @@ std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage, int& focus
     focusIdx = -1;
     list.clear();
     for (int retry=0; retry < 3; retry++) {
-        if (!ai::uiState.match("scr-left-panel:mod-nav-list"))
-            if (!ai::gotoNavPage("mod-nav-list", false))
+        if (!ai::uiState.match("scr-left-panel:mod-nav-list")) {
+            if (!ai::gotoNavPage("mod-nav-list", false, &grayImage))
                 continue;
-        if (ai::uiState.focused_name() != "lst-bodies")
+        } else {
+            if (!ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage))
+                continue;
+        }
+        if (ai::uiState.focused_name() != "lst-bodies" || retry > 0) {
             kbd::send("UI_Right");
-        if (!ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage))
-            continue;
+            if (!ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage))
+                continue;
+        }
         rows.clear();
         for (auto &cr: ai::rEnv.classified) {
             if (cr.cdt != ClsDetType::ListRow)
@@ -237,7 +242,6 @@ std::vector<ClassifiedRect*> NavList::initNavList(cv::Mat& grayImage, int& focus
             list.resize(rows.size());
             break;
         }
-        kbd::send("UI_Right");
     }
     if (focusIdx < 0 || focusIdx >= rows.size())
         return {};
@@ -542,7 +546,7 @@ bool NavList::focusDestBody(int* conf) {
     LOG(DEBUG) << "NavList::focusDestBody";
     auto destBody = st::autopilot.destBody;
     auto destDock = st::autopilot.destDock;
-    if (!st::autopilot.destBody)
+    if (!destBody)
         return false;
     if (st::autopilot.isDestBodyFocused) {
         if (conf)
@@ -568,7 +572,7 @@ bool NavList::focusDestBody(int* conf) {
     for (int idx=startIdx; !list[idx].parsed; nextIdx(idx, incr, list.size())) {
         parseNavRow(grayImage, ai::rEnv, *rows[idx], idx);
         guessNavItem(idx);
-        if (destBody && list[idx].item.get() == destBody.get()) {
+        if (list[idx].item.get() == destBody.get()) {
             destBodyNavIdx = idx;
             parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
             if (list[idx].dist)

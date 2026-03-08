@@ -35,6 +35,8 @@ CompassInfo compass;
 Autopilot autopilot;
 
 void Autopilot::setDestBody(gal::spEntity body) {
+    if (destBody == body)
+        return;
     destBody = body;
     isDestDockFocused = false;
     isDestBodyFocused = false;
@@ -46,6 +48,8 @@ void Autopilot::setDestBody(gal::spEntity body) {
     }
 }
 void Autopilot::setDestDock(gal::spEntity dock) {
+    if (destDock == dock)
+        return;
     destDock = dock;
     isDestDockFocused = false;
     isDestBodyFocused = false;
@@ -486,7 +490,7 @@ void parseEvent_Location(spGameEvent& ge) {
     if (auto starSystem = je["StarSystem"]; starSystem.is_string() && starSystem.as_string() != st::currentStarSystem) {
         st::currentStarSystem = starSystem.as_string();
         int64_t address = je["SystemAddress"].as_int_or();
-        gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
+        gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
         if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
             auto& jp = je["StarPos"].as_array();
             ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
@@ -623,8 +627,12 @@ void parseEvent_StartJump(spGameEvent& ge) {
     if (je["JumpType"].as_string_or() == "Hyperspace") {
         st::currentStarSystem = je["StarSystem"].as_string();
         int64_t address = je["SystemAddress"].as_int();
-        gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
+        gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
         gal::setCurrentStarSystem(ss);
+        st::autopilot.isDestDockTargeted = false;
+        st::autopilot.isDestBodyTargeted = false;
+        st::autopilot.isDestDockFocused = false;
+        st::autopilot.isDestBodyFocused = false;
     }
     ai::resetCompassDetects();
 }
@@ -638,7 +646,7 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::space = {};
     st::currentStarSystem = je["StarSystem"].as_string();
     int64_t address = je["SystemAddress"].as_int();
-    gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
+    gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
     if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
         auto& jp = je["StarPos"].as_array();
         ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
@@ -647,6 +655,10 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
+    st::autopilot.isDestDockTargeted = false;
+    st::autopilot.isDestBodyTargeted = false;
+    st::autopilot.isDestDockFocused = false;
+    st::autopilot.isDestBodyFocused = false;
     ai::resetCompassDetects();
 }
 
@@ -665,7 +677,7 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
             carrier->parentBodyId = -1;
             std::erase(ss->stations, carrier);
             ss->saved = false;
-            gal::saveStarSystem(ss.get());
+            ss->save();
         } else {
             carrier.reset();
         }
@@ -674,7 +686,7 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     st::shipAtBody.nearBody = false;
     st::currentStarSystem = je["StarSystem"].as_string();
     int64_t address = je["SystemAddress"].as_int();
-    gal::spStarSystem ss = gal::getStarSystem(st::currentStarSystem, address);
+    gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
     if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
         auto& jp = je["StarPos"].as_array();
         ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
@@ -693,7 +705,7 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
         ss->stations.push_back(carrier);
         carrier->parentBodyId = st::space.bodyId;
         ss->saved = false;
-        gal::saveStarSystem(ss.get());
+       ss->save();
     }
 }
 
@@ -777,7 +789,7 @@ void parseEvent_Scan(spGameEvent& ge) {
     auto starSystem = je["StarSystem"].as_string_or();
     int64_t address = je["SystemAddress"].as_int_or();
     int bodyId = je["BodyID"].as_int_or(-1);
-    gal::spStarSystem ss = gal::getStarSystem(starSystem, address);
+    gal::spStarSystem ss = gal::makeStarSystem(starSystem, address);
     auto body = ss->getBodyById(bodyId);
     if (!body) {
         body = std::make_shared<gal::Entity>();
@@ -878,7 +890,7 @@ void parseEvent_Scan(spGameEvent& ge) {
         }
     }
     if (!ss->saved)
-        gal::saveStarSystem(ss.get());
+        ss->save();
 }
 
 void parseEvent_ScanBaryCentre(spGameEvent& ge) {
@@ -887,7 +899,7 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     auto starSystem = je["StarSystem"].as_string_or();
     int64_t address = je["SystemAddress"].as_int_or();
     int bodyId = je["BodyID"].as_int();
-    gal::spStarSystem ss = gal::getStarSystem(starSystem, address);
+    gal::spStarSystem ss = gal::makeStarSystem(starSystem, address);
     auto body = ss->getBodyById(bodyId);
     if (!body) {
         body = std::make_shared<gal::Entity>();
@@ -901,7 +913,7 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
         ss->saved = false;
     }
     if (!ss->saved)
-        gal::saveStarSystem(ss.get());
+        ss->save();
 }
 
 void parseEvent_ApproachBody(spGameEvent& ge) {

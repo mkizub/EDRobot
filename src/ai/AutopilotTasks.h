@@ -114,7 +114,7 @@ public:
     gal::spEntity fromDock;
     std::string fromDockName;
     int notAutoPilotCounter {};
-    float pitchAfterAutopilot {};
+    CompassInfo compassAfterAutopilot;
 };
 
 class EnterCruiseStep : public BaseAutopilotStep {
@@ -208,26 +208,30 @@ public:
 class NavDockSelect : public BaseAutopilotStep {
 public:
     explicit NavDockSelect(gal::spEntity dock={}) : dock(std::move(dock)) {}
-    bool run() override;
     std::string getTitle() override;
+    bool run() override;
+    NavDockSelect* keepSpeed() { mKeepSpeed = true; return this; }
 
     enum {
         READY, SELECTING, FAILED, DONE
     } status {READY};
     gal::spEntity dock;
+    bool mKeepSpeed {};
 };
 
 class NavBodySelect : public BaseAutopilotStep {
 public:
-    explicit NavBodySelect(gal::spEntity body={}, bool dockBody=false) : body(std::move(body)), checkDockBody(dockBody) {}
+    explicit NavBodySelect(gal::spEntity body={}, bool dockBody=false) : body(std::move(body)), mCheckDockBody(dockBody) {}
     std::string getTitle() override;
     bool run() override;
+    NavBodySelect* keepSpeed() { mKeepSpeed = true; return this; }
 
     enum {
         READY, SELECTING, FAILED, DONE
     } status {READY};
     gal::spEntity body;
-    bool checkDockBody;
+    bool mCheckDockBody {};
+    bool mKeepSpeed {};
 };
 
 class BaseCruiseStep : public BaseAutopilotStep {
@@ -349,6 +353,8 @@ public:
     explicit TaskTravel(const TaskTemplate& templ);
     std::string getTitle() override;
     bool run() final;
+
+    bool setDestDockAndBody(bool required);
 
     std::string destSystemName;
     std::string destDockName;

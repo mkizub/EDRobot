@@ -9,7 +9,7 @@
 
 namespace gal {
 
-class Entity : public std::enable_shared_from_this<Entity> {
+class Entity {
 public:
     virtual ~Entity() = default;
     bool nameEq(const std::string& nm) const;
@@ -30,17 +30,21 @@ public:
 
 typedef std::shared_ptr<Entity> spEntity;
 
-struct StarSystem : public std::enable_shared_from_this<StarSystem> {
-    StarSystem() = default;
+struct StarSystem {
+    StarSystem(int64_t address, std::string name)
+        : systemAddress(address)
+        , systemName(std::move(name))
+    {}
     virtual ~StarSystem() = default;
-    int64_t systemAddress {0};
-    std::string systemName;
+    const int64_t systemAddress;
+    const std::string systemName;
     cv::Point3d starPos;
 
     std::vector<spEntity> bodies;
     std::vector<spEntity> stations;
     std::vector<spEntity> signals;
     bool saved {false};
+    void save();
 
     spEntity getMainStar();
     spEntity getEntity(const std::string& bname);
@@ -62,11 +66,10 @@ private:
 
 typedef std::shared_ptr<StarSystem> spStarSystem;
 
-spStarSystem getStarSystem(const std::string& name);
-spStarSystem getStarSystem(const std::string& name, int64_t address);
+spStarSystem getStarSystem(std::string_view name);
+spStarSystem makeStarSystem(const std::string& name, int64_t address);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
-void saveStarSystem(StarSystem* ss);
 
 spMarket getMarket(int64_t marketId);
 void saveMarket(Market* market);

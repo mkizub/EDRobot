@@ -103,7 +103,7 @@ enum class CheckResult {
 bool detectEDState(DetectLevel level);
 bool detectEDStateGrayIm(DetectLevel level, cv::Mat& grayImage);
 
-bool gotoNavPage(const std::string &page_name, bool required=true);
+bool gotoNavPage(const std::string &page_name, bool required=true, cv::Mat* grayImage=nullptr);
 void rollBlindCompass();
 
 

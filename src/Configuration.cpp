@@ -699,6 +699,7 @@ bool Configuration::loadInputBindings() {
             //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardThrustButton");
             //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "ForwardKey");
             //ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "BackwardKey");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UseBoostJuice");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus100");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus75");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SetSpeedMinus50");
