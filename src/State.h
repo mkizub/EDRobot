@@ -170,12 +170,17 @@ extern struct ShipStatus {
             bool telepresence_multicrew : 1;
             bool physical_multicrew : 1;
             bool fsd_hyperdrive_charging : 1;
+            bool supercruise_overcharge : 1;
+            bool supercruise_assist : 1;
+            bool npc_crew_active : 1;
         };
         uint32_t all;
     } flags2;
     uint8_t pips[3];
     uint8_t fireGroup;
     uint64_t balance;
+    double oxygen; // 0..1
+    double health; // 0..1
     LegalState legalState;
 
     friend std::ostream& operator<<(std::ostream& os, const ShipStatus& obj);
@@ -193,6 +198,7 @@ extern struct ShipAtBody {
     double longitude;
     double heading;
     double planetRadius;
+    double gravity; // in G
 } shipAtBody;
 
 extern std::shared_ptr<Market> currentMarket;

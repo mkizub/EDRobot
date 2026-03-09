@@ -12,6 +12,8 @@ namespace RavenColonial {
 bool init();
 bool shutdown();
 
+gal::spEntity importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName);
+
 js::value carrierGetCargo(int64_t marketId);
 void carrierPostCargo(int64_t marketId, js::value& j);
 void carrierPatchCargo(int64_t marketId, js::value& j);

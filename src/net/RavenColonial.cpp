@@ -21,6 +21,113 @@ static Timestamp timestampCargo;
 static js::value reportedCargo;
 static std::mutex mutexCargo;
 
+
+gal::spEntity importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName) {
+    // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
+    auto starSystem = gal::getStarSystem(systemName);
+    if (!starSystem)
+        return {};
+    auto depot = starSystem->getDock(fullName);
+
+    auto cr = curlSimpleGet(RCAPI + "v2/system/" + std::to_string(starSystem->systemAddress));
+    if (!cr.ok)
+        return {};
+    std::string buildId;
+    for (auto& site : cr.body["sites"].as_array_or()) {
+        if (depot && depot->marketId) {
+            if (depot && depot->marketId && site["marketId"].is_int() && site["marketId"].as_int() == depot->marketId) {
+                buildId = site["buildId"].as_string_or();
+                break;
+            }
+        } else {
+            if (site["status"].as_string_or() != "build")
+                continue;
+            if (site["name"].as_string_or() == shortName) {
+                buildId = site["buildId"].as_string_or();
+                break;
+            }
+        }
+    }
+    if (buildId.empty()) {
+        // check (the only) primary port
+        if (!depot || !depot->marketId) {
+            std::vector<std::string> active_builds;
+            for (auto &site: cr.body["sites"].as_array_or()) {
+                if (site["buildId"].empty() || site["status"].as_string_or() != "build")
+                    continue;
+                active_builds.push_back(site["buildId"].as_string_or());
+            }
+            if (active_builds.size() == 1) {
+                buildId = active_builds.front();
+            }
+        }
+    }
+    if (buildId.empty())
+        return {};
+    cr = curlSimpleGet(RCAPI_PRJ + buildId);
+    if (!cr.ok)
+        return {};
+    Timestamp timestamp;
+    parseTimestamp(cr.body, timestamp);
+    if (!depot) {
+        depot = std::make_shared<gal::Entity>();
+        depot->name = fullName;
+        depot->marketId = cr.body["marketId"].as_int_or();
+        depot->parentBodyId = cr.body["bodyNum"].as_int_or(-1);
+        if (cr.body["isPrimaryPort"].as_bool_or())
+            depot->type = TypeNav::ColonisationShip;
+        else if (fullName.starts_with("Orbital Construction Site:"))
+            depot->type = TypeNav::SpaceConstrDepot;
+        else if (fullName.starts_with("Planetary Construction Site:"))
+            depot->type = TypeNav::PlanetaryConstrDepot;
+        starSystem->addStation(depot);
+        starSystem->saved = false;
+        starSystem->save();
+    } else {
+        if (!depot->marketId) {
+            depot->marketId = cr.body["marketId"].as_int_or();
+            starSystem->saved = false;
+        }
+        if (depot->parentBodyId < 0) {
+            depot->parentBodyId = cr.body["bodyNum"].as_int_or(-1);
+            starSystem->saved = false;
+        }
+        if (!starSystem->saved)
+            starSystem->save();
+    }
+
+    spMarket market = gal::getMarket(depot->marketId);
+    if (!market)
+        market = std::make_shared<Market>(timestamp, depot->marketId, fullName, "ConstrDepot", systemName);
+    else
+        market = std::make_shared<Market>(*market);
+    if (!market->raven)
+        market->raven = std::make_shared<RavenProj>();
+    market->raven->timestamp = timestamp;
+    market->raven->buildId = buildId;
+    for (auto [key,count] : cr.body["commodities"].key_value()) {
+        Commodity* c = Cfg.getCommodityById(key);
+        if (!c)
+            continue;
+        if (!market->items.contains(c)) {
+            MarketLine ml {};
+            ml.demand = count.as_int_or();
+            market->items.emplace(c, ml);
+        } else {
+            auto &ml = market->items[c];
+            if (ml.demand) {
+                ml.stock = std::max(0, ml.demand - (int) count.as_int_or());
+            } else {
+                ml.demand = ml.stock + (int) count.as_int_or();
+            }
+        }
+    }
+    gal::setMarketData(market);
+
+    return depot;
+}
+
+
 // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/fc/{marketId}
 // {"marketId":3708647424,"name":"VFT-85B","displayName":"Daimonio tou Sokrati","owner":"mkzu","cargo":{"agronomictreatment":32,"bertrandite":234,"cobalt":403,"drones":11,"titanium":587,"tritium":1337}}
 js::value carrierGetCargo(int64_t marketId) {

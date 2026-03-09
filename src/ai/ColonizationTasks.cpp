@@ -36,11 +36,18 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
     if (!starSystem)
         throw_failed("Star system '{}' not known", systemName);
     auto depot = starSystem->getDock(fullName);
-    if (!depot)
-        throw_failed("Construction depot '{}' not known", fullName);
+    if (!depot) {
+        depot = RavenColonial::importConstructionProject(systemName, fullName, shortName);
+        if (!depot)
+            throw_failed("Construction depot '{}' not known", fullName);
+    }
     spMarket depotMarket = gal::getMarket(depot->marketId);
-    if (!depotMarket|| depotMarket->items.empty())
-        throw_failed("Construction depot '{}' demand is not known", fullName);
+    if (!depotMarket|| depotMarket->items.empty()) {
+        RavenColonial::importConstructionProject(systemName, fullName, shortName);
+        depotMarket = gal::getMarket(depot->marketId);
+        if (!depotMarket|| depotMarket->items.empty())
+            throw_failed("Construction depot '{}' demand is not known", fullName);
+    }
     if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot || depot->type == TypeNav::ColonisationShip || depotMarket->stationType == "ConstrDepot"))
         throw_failed("Site '{}' is not a construction depot", fullName);
     auto& depotInfo = depots.emplace_back(systemName, fullName, shortName);

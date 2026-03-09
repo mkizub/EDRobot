@@ -765,6 +765,12 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
     return dock;
 }
 
+spEntity StarSystem::addStation(spEntity station) {
+    if (station) {
+        stations.push_back(station);
+    }
+    return station;
+}
 
 spEntity StarSystem::addSignal(spEntity signal) {
     if (signal) {

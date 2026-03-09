@@ -101,6 +101,11 @@ std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
     if (st.flags.in_interdiction) os << "in-interdiction,";
     if (st.flags.hud_in_analysis) os << "hud-in-analysis,";
     if (st.flags.night_vision) os << "night-vision,";
+    if (st.flags2.fsd_hyperdrive_charging) os << "fsd_hyperdrive_charging,";
+    if (st.flags2.supercruise_overcharge) os << "supercruise_overcharge,";
+    if (st.flags2.supercruise_assist) os << "supercruise_assist,";
+    if (st.oxygen < 1) os << std::format("oxygen {:.3f},", st.oxygen);
+    if (st.health < 1) os << std::format("health {:.3f},", st.health);
     os << "pips:[" << int(st.pips[0]) << "," << int(st.pips[1]) << "," << int(st.pips[2]) << "]";
     os << "}";
     return os;
@@ -330,6 +335,8 @@ bool Configuration::loadGameStatus() {
         ss.totalMass = ss.unladenMass + ss.fuelMain + ss.fuelReservoir + ss.cargo;
     }
     st::ship.balance = j["Balance"].as_int_or();
+    st::ship.oxygen = j["Oxygen"].as_real_or(1);
+    st::ship.health = j["Health"].as_real_or(1);
     st::ship.legalState = enum_cast<st::ShipStatus::LegalState>(j["LegalState"].as_string_or())
             .value_or(st::ShipStatus::LegalState::Clean);
 
@@ -341,6 +348,7 @@ bool Configuration::loadGameStatus() {
         st::shipAtBody.altitude = j["Altitude"].as_real_or();
         st::shipAtBody.heading = j["Heading"].as_real_or();
         st::shipAtBody.planetRadius = j["PlanetRadius"].as_real_or();
+        st::shipAtBody.gravity = j["Gravity"].as_real_or();
         //LOG(INFO) << "Body: " << st::shipAtBody.bodyName << "; alt: " << std::round(st::shipAtBody.altitude/1000) << "km; radius: " << std::round(st::shipAtBody.planetRadius/1000) << "km";
         //if (old_status.flags.cruise && !st::ship.flags.cruise)
         //    LOG(INFO) << "Exit cruise alt: " << std::round(st::shipAtBody.altitude/1000) << "km";

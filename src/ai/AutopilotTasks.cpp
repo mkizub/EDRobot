@@ -1027,90 +1027,100 @@ bool DepartureStep::run() {
         }
     }
 
-    ExpectSceeenLocker expectAutopilot("scr-autopilot");
-    if (st::ship.flags.docked) {
-        status = REFUEL;
-        gotoLandingPad(true);
+    {
+        ExpectSceeenLocker expectAutopilot("scr-autopilot");
+        if (st::ship.flags.docked) {
+            status = REFUEL;
+            gotoLandingPad(false);
 
-        LOG(INFO) << "Takeoff...";
-        // 20 seconds to leave landing pad
-        timer = utc_timer(25s);
-        status = TAKEOFF;
-        kbd::send("UI_Down");
-        kbd::send("UI_Down");
-        kbd::send("UI_Select");
+            LOG(INFO) << "Takeoff...";
+            // 20 seconds to leave landing pad
+            timer = utc_timer(25s);
+            status = TAKEOFF;
+            kbd::send("UI_Down");
+            kbd::send("UI_Down");
+            kbd::send("UI_Select");
 
-        while (st::ship.flags.docked && !timer.expired()) {
-            sleep(1000);
-            ai::detectEDState(DetectLevel::Screen);
-            if (ai::uiState.autopilot)
-                break;
+            while (st::ship.flags.docked && !timer.expired()) {
+                sleep(1000);
+                ai::detectEDState(DetectLevel::Screen);
+                if (ai::uiState.autopilot)
+                    break;
+            }
+            if (st::ship.flags.docked && !ai::uiState.autopilot)
+                throw_trouble("Takeoff failed");
         }
-        if (st::ship.flags.docked && !ai::uiState.autopilot)
-            throw_trouble("Takeoff failed");
-    }
-    if (!ai::uiState.autopilot) {
-        LOG(INFO) << "Departure autopilot waiting...";
-        // 15 seconds wait autopilot
-        timer = utc_timer(15s);
-        status = WAIT_AUTOPILOT;
-        // wait at least 15 seconds for autopilot to departure
-        while (!ai::uiState.autopilot && !timer.expired()) {
+        if (!ai::uiState.autopilot) {
+            LOG(INFO) << "Departure autopilot waiting...";
+            // 15 seconds wait autopilot
+            timer = utc_timer(15s);
+            status = WAIT_AUTOPILOT;
+            // wait at least 15 seconds for autopilot to departure
+            while (!ai::uiState.autopilot && !timer.expired()) {
+                sleep(250);
+                ai::detectEDState(DetectLevel::Screen);
+            }
+        }
+        if (fromCompletedConstruction && !ai::uiState.autopilot) {
+            LOG(INFO) << "Departure from completed construction...";
+            if (st::ship.flags.landing_gear_down) {
+                LOG(DEBUG) << "EnterCruise: LandingGearToggle";
+                kbd::send("LandingGearToggle");
+            }
+            kbd::send("UpThrustButton", 20000);
+        }
+        // 4 minutes for departure
+        LOG(INFO) << "Departure: got autopilot";
+        timer = utc_timer(4min);
+        status = AUTOPILOT;
+        setSpeed(0, true, "Departure: got autopilot");
+        notAutoPilotCounter = 0;
+        int waitCounter = 4;
+        //if (fromStarPort && st::shipInfo.shipType == "panthermkii") {
+        //    LOG(DEBUG) << "Departure: panthermkii from StarPort";
+        //    waitCounter = 7;
+        //}
+        for (;;) {
+            if (timer.expired()) {
+                notify_error("Autopilot time expired");
+                status = RELOGIN;
+                task->relogin();
+                return false;
+            }
+            if (timer.sec_passed() > 60) {
+                pitchAxis.set(0.25, 60);
+            }
+            //unsigned kh = kbd::post("SetSpeedZero", 500);
             sleep(250);
             ai::detectEDState(DetectLevel::Screen);
+            //kbd::clearInput(kh);
+            if (ai::uiState.autopilot) {
+                notAutoPilotCounter = 0;
+                continue;
+            }
+            if (++notAutoPilotCounter > waitCounter) {
+                notify_info("Departure complete (autopilot off)");
+                break;
+            } else {
+                //notify_info("Auto-pilot off counter: {}", notAutoPilotCounter);
+                //if ((notAutoPilotCounter%3)==0 && fromStarPort && st::shipInfo.shipType == "panthermkii") {
+                //    setSpeed(-50, true, "panthermkii bug");
+                //    sleep(1000);
+                //    setSpeed(0, true, "panthermkii bug");
+                //    kbd::send("SetSpeedZero", 2500);
+                //}
+            }
         }
+        Axis::resetAll(true);
     }
-    if (fromCompletedConstruction && !ai::uiState.autopilot) {
-        LOG(INFO) << "Departure from completed construction...";
-        if (st::ship.flags.landing_gear_down) {
-            LOG(DEBUG) << "EnterCruise: LandingGearToggle";
-            kbd::send("LandingGearToggle");
-        }
-        kbd::send("UpThrustButton", 20000);
+
+    if (fromSpaceConstruction) {
+        LOG(DEBUG) << "Departure: from SpaceConstruction, thrust up";
+        timer = utc_timer(15s);
+        status = LEAVE_DEPOT;
+        setSpeed(0,true,"Departure: from SpaceConstruction, thrust up");
+        kbd::send("UpThrustButton", 15000);
     }
-    // 4 minutes for departure
-    LOG(INFO) << "Departure: got autopilot";
-    timer = utc_timer(4min);
-    status = AUTOPILOT;
-    setSpeed(0, true, "Departure: got autopilot");
-    notAutoPilotCounter = 0;
-    int waitCounter = 4;
-    //if (fromStarPort && st::shipInfo.shipType == "panthermkii") {
-    //    LOG(DEBUG) << "Departure: panthermkii from StarPort";
-    //    waitCounter = 7;
-    //}
-    for (;;) {
-        if (timer.expired()) {
-            notify_error("Autopilot time expired");
-            status = RELOGIN;
-            task->relogin();
-            return false;
-        }
-        if (timer.sec_passed() > 60) {
-            pitchAxis.set(0.25, 60);
-        }
-        //unsigned kh = kbd::post("SetSpeedZero", 500);
-        sleep(250);
-        ai::detectEDState(DetectLevel::Screen);
-        //kbd::clearInput(kh);
-        if (ai::uiState.autopilot) {
-            notAutoPilotCounter = 0;
-            continue;
-        }
-        if (++notAutoPilotCounter > waitCounter) {
-            notify_info("Departure complete (autopilot off)");
-            break;
-        } else {
-            //notify_info("Auto-pilot off counter: {}", notAutoPilotCounter);
-            //if ((notAutoPilotCounter%3)==0 && fromStarPort && st::shipInfo.shipType == "panthermkii") {
-            //    setSpeed(-50, true, "panthermkii bug");
-            //    sleep(1000);
-            //    setSpeed(0, true, "panthermkii bug");
-            //    kbd::send("SetSpeedZero", 2500);
-            //}
-        }
-    }
-    Axis::resetAll(true);
 
     kbd::send("TargetNextRouteSystem", 0, 500);
     if (!st::shipAtBody.nearBody && (!st::currentNavRoute || st::currentNavRoute->route.empty())) {
@@ -1122,6 +1132,7 @@ bool DepartureStep::run() {
                     run_sub_step(new NavDockSelect);
                 else
                     run_sub_step(new NavBodySelect);
+                sendUiBack();
             }
         }
     }
@@ -1132,13 +1143,6 @@ bool DepartureStep::run() {
         LOG(DEBUG) << "Departure: shipAtBody nearBody " << st::shipAtBody.bodyName;
         status = ORIENT_AWAY;
         task->orientPitchStep(90, 7000);
-    }
-    if (fromSpaceConstruction) {
-        LOG(DEBUG) << "Departure: from SpaceConstruction, thrust up";
-        timer = utc_timer(15s);
-        status = LEAVE_DEPOT;
-        setSpeed(0,true,"Departure: from SpaceConstruction, thrust up");
-        kbd::send("UpThrustButton", 15000);
     }
     bool needFlyAway = true;
     if (compassAfterAutopilot.hemisphere) {
@@ -1699,6 +1703,8 @@ bool LeaveBodyStep::run() {
     }
     if (useFsdOvercharge) {
         kbd::send("UseBoostJuice", 100, 1000);
+        while (st::ship.flags2.supercruise_overcharge)
+            kbd::send("UseBoostJuice", 100, 1000);
     } else {
         timer = utc_timer(15s);
         setSpeed(100, true, "LeaveBody: fly away");
@@ -4337,7 +4343,7 @@ bool TaskTravel::setDestDockAndBody(bool required) {
                 throw_trouble("Cannot select destination dock");
             return false;
         }
-        sleep(500);
+        sendUiBack();
     }
 
     int bodyId = st::autopilot.destDock->parentBodyId;

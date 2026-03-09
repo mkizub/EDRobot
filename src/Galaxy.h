@@ -55,6 +55,7 @@ struct StarSystem {
     void addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>& events);
     spEntity addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& name, int bodyId);
     spEntity addStation(spGameEvent& ge);
+    spEntity addStation(spEntity station);
     spEntity addSignal(spEntity signal);
     void addDestination();
 
