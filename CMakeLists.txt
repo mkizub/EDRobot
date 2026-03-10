@@ -169,6 +169,7 @@ add_executable(EDRobot
         thirdparty/glob/glob.h
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
+        src/ui/wl_ibutton.h
 )
 
 

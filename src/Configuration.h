@@ -131,6 +131,7 @@ public:
 
     bool load();
     void shutdown();
+    void savePrefs();
     std::string getErrorMessage() const { return errorMessage; }
     std::string getForcedDXGIDeviceName() const { return forceDXGIDevice; }
     int getForcedDXGIDeviceId() const { return forceDXGIDeviceId; }
@@ -179,6 +180,8 @@ public:
 
     spGameEvent dockingEvent;
     spGameEvent marketEvent;
+
+    js::value jprefs;
 
 private:
     friend class Master;

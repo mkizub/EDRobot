@@ -9,14 +9,18 @@
 
 #include <shellapi.h>
 #include <winlamb/dialog_main.h>
+#include <winlamb/window_main.h>
 #include <winlamb/label.h>
 #include <winlamb/button.h>
 #include <winlamb/checkbox.h>
+#include <winlamb/menu.h>
+#include <winlamb/icon.h>
+#include "wl_svg_button.h"
 
 #include "../ai/AIManager.h"
 #include "UIShowCargo.h"
 
-class UIMainDialog : public wl::dialog_main {
+class UIMainDialog : public wl::window_main {
     friend class UIShowCargo;
 public:
     UIMainDialog();
@@ -24,30 +28,37 @@ public:
     bool show();
     bool hide(bool force);
     void initialize();
+    void savePrefs();
     void relayout();
-    void on_command_stop_new();
-    void on_command_pause_resume();
+    void on_command_task_new();
+    void on_command_task_stop();
+    void on_command_task_resume();
+    void on_command_task_repeat();
+    void on_command_task_pause();
     void on_command_show_cargo();
 
     void update_curr_task();
 
+    std::string startup_message;
+    std::string latest_version;
+    std::string latest_url;
+
     NOTIFYICONDATA mNotifyIconData;
     wl::font font;
+    wl::menu menu;
     wl::label lbl_task;
     wl::label lbl_curr_task;
     wl::label lbl_task_status;
     wl::label lbl_status;
-    wl::checkbox cb_keep_on_top;
-    wl::button btn_stop_new;
-    wl::button btn_pause_resume;
-    wl::button btn_ok;
-    wl::button btn_watch;
-    wl::button btn_exit;
+    wl::svg_button btn_stop_new;
+    wl::svg_button btn_pause_resume;
 
     UINT_PTR mUpdateTimerId {};
 
     // for (re)layout
     int scaled_to_dpi {};
+    bool initializing {};
+    bool keepOnTop {};
 };
 
 

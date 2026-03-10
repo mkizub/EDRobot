@@ -239,8 +239,31 @@ bool Configuration::load() {
         }
     }
 
+    LOG(INFO) << "Loading preferences";
+    try {
+        std::ifstream prefsFile("prefs.json5", std::ifstream::in);
+        if (prefsFile.fail()) {
+            LOG(ERROR) << "Cannot read file: prefs.json5";
+            return false;
+        }
+        jprefs = js::parse5(prefsFile);
+        prefsFile.close();
+    } catch (...) {
+        LOG(ERROR) << "Failed to read/parse prefs.json5";
+        return false;
+    }
+
     return true;
 }
+
+void Configuration::savePrefs() {
+    LOG(INFO) << "Saving preferences";
+
+    std::ofstream ofs("prefs.json5", std::ios::trunc | std::ios::binary);
+    ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << jprefs;
+    ofs.close();
+}
+
 
 void Configuration::parseShortcutConfig(Command command, const std::string& name, js::value cfg) {
     if (cfg.has_key(name)) {

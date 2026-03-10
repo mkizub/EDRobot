@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include "pch.h"
-
 #ifndef EDROBOT_CAPTURER_H
 #define EDROBOT_CAPTURER_H
 

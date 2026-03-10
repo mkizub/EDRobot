@@ -34,11 +34,15 @@ public:
     static bool askSelectRectWindow();
 
     UIMainDialog& uiMain;
+    static HBITMAP makeIconBitmap(const std::string& icon, int size);
 
 private:
     void uiThreadLoop();
+    HBITMAP svgToBitmap(int iconSize, const std::string&  svg);
 
     std::thread uiThread;
+    static std::map<std::string,const std::string> iconSVG;
+    std::map<std::string,HBITMAP> iconBitmaps;
 };
 
 

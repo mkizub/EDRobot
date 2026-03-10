@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include "pch.h"
-
 #ifndef EDROBOT_OCR_H
 #define EDROBOT_OCR_H
 
