@@ -14,26 +14,6 @@
 
 namespace wl {
 
-// Wrapper to native scrollbar control.
-//class scrollbar final :
-//        public wnd,
-//        public _wli::base_native_ctrl_pubm<scrollbar>
-//{
-//private:
-//    HWND                   _hWnd = nullptr;
-//    _wli::base_native_ctrl _baseNativeCtrl{_hWnd};
-//
-//public:
-//    // Wraps window style changes done by Get/SetWindowLongPtr.
-//    _wli::styler<scrollbar> style{this};
-//
-//    scrollbar() noexcept :
-//            wnd(_hWnd), base_native_ctrl_pubm(_baseNativeCtrl) { }
-//
-//    scrollbar(scrollbar&&) = default;
-//    scrollbar& operator=(scrollbar&&) = default; // movable only
-//};
-
 class params_panel :
         public window_control
 {
@@ -45,19 +25,6 @@ public:
         setup.style |= (WS_TABSTOP | WS_GROUP | WS_VSCROLL | WS_CHILD);
 
         layout = { 16, 4, 22, 100 };
-
-        //on_message(WM_PAINT, [this](wl::params p)->LRESULT
-        //{
-        //    PAINTSTRUCT ps{};
-        //    /*HDC hdc =*/ BeginPaint(hwnd(), &ps);
-        //    EndPaint(hwnd(), &ps);
-        //    return 0;
-        //});
-
-        //on_message(WM_ERASEBKGND, [](wl::params p)->LRESULT
-        //{
-        //    return 0;
-        //});
 
         on_message(WM_VSCROLL, [this](wl::params params) {
             on_scrollbar(params);

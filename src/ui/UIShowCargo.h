@@ -7,40 +7,43 @@
 #ifndef EDROBOT_UISHOWCARGO_H
 #define EDROBOT_UISHOWCARGO_H
 
-#include <shellapi.h>
-#include <winlamb/dialog_main.h>
+#include "UIControl.h"
 #include <winlamb/button.h>
-#include "UICargoEditor.h"
 
-class UIShowCargo : public wl::dialog_main {
+class BaseCargoCtrl;
+class FullCargoCtrl;
+class NewCargoCtrl;
+
+class UIShowCargo : public UIControl {
 public:
-    static std::shared_ptr<UIShowCargo> getInstance();
-    static std::shared_ptr<UIShowCargo> makeInstance();
-
-    void initialize();
-    void relayout();
-    void on_cargo_load();
-    void on_cargo_save();
-    void validate_callback(bool valid, bool changed);
+    UIShowCargo();
+    ~UIShowCargo() override;
+    const wchar_t* title() const override { return L"EDRobot cargo"; }
+    void initialize() override {};
+    void relayout() override { relayout(false); };
+    int nextID();
+    void freeCtrl(wl::wnd& wnd);
+    void beginControls();
+    void endControls();
+    void initControls();
+    bool appendCargoControl(Commodity* commodity);
+    void clear();
+    void relayout(bool scroll_to_top);
     bool updateCargo();
 
-    bool isInitialized {};
-    bool isDestroyed {};
+    void on_ctrl_change(wl::params& params);
+    bool validate(bool* changed) const;
+    void on_ctrl_edit(int id, WORD msg);
+    void on_cargo_load();
+    void on_cargo_save();
+
+    std::deque<std::unique_ptr<FullCargoCtrl>> controls;
+    std::unique_ptr<NewCargoCtrl> new_control;
+
 private:
-    static std::shared_ptr<UIShowCargo> g_showCargo;
-    static std::jthread uiThread;
-    static void uiThreadLoop();
-
-    UIShowCargo();
-
-    wl::font font;
-    wl::button btn_run;
-    wl::button btn_save;
-    wl::button btn_load;
-    UICargoEditor cargoEditor;
-
-    // for (re)layout
-    int scaled_to_dpi {};
+    bool initializing {};
+    int nextTryId;
+    std::array<bool, 100> usedIds;
 };
 
 

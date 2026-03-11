@@ -9,6 +9,9 @@
 
 #include "UIManager.h"
 #include "UIMainDialog.h"
+#include "UIControl.h"
+#include "UIControlDialog.h"
+#include "UIShowCargo.h"
 #include "UIStartupDialog.h"
 #include "UIToast.h"
 #include "UIAddTask.h"
@@ -57,11 +60,11 @@ bool UIManager::shutdown() {
     getInstance().uiMain.run_thread_ui([](){
         DestroyWindow(getInstance().uiMain.hwnd());
     });
-    if (auto dlg = UIShowCargo::getInstance()) {
-        dlg->run_thread_ui([dlg](){
-            DestroyWindow(dlg->hwnd());
-        });
-    }
+//    if (auto dlg = UIShowCargo::getInstance()) {
+//        dlg->run_thread_ui([dlg](){
+//            DestroyWindow(dlg->hwnd());
+//        });
+//    }
     return true;
 }
 
@@ -72,14 +75,11 @@ void UIManager::uiThreadLoop() {
     uiMain.winmain_run(hInstance, SW_SHOW);
 }
 
-bool UIManager::showStartupDialog(const std::string &message, std::string latest_version, std::string latest_url) {
+bool UIManager::showStartupDialog(const std::string &message, const std::string& latest_version, const std::string& latest_url) {
 //    UIStartupDialog dlg(message, latest_version, latest_url);
 //    return dlg.show();
     UIManager& mgr = getInstance();
-    mgr.uiMain.startup_message = message;
-    mgr.uiMain.latest_version = latest_version;
-    mgr.uiMain.latest_url = latest_url;
-    return mgr.uiMain.show();
+    return mgr.uiMain.show_startup(message, latest_version, latest_url);
 }
 
 bool UIManager::showMainDialog() {
@@ -93,10 +93,11 @@ bool UIManager::hideMainDialog(bool force) {
 }
 
 bool UIManager::updateCargoDialog() {
-    auto dlg = UIShowCargo::getInstance();
-    if (!dlg)
-        return false;
-    return dlg->updateCargo();
+//    auto dlg = UIShowCargo::getInstance();
+//    if (!dlg)
+//        return false;
+//    return dlg->updateCargo();
+    return true;
 }
 
 bool UIManager::showToast(const std::string &title, const std::string &text) {
@@ -195,6 +196,28 @@ std::map<std::string,const std::string> UIManager::iconSVG
   <path fill="none" d="M0 0h24v24H0z"/>
   <path d="M6 4h15a1 1 0 0 1 1 1v7h-2V6H6v3L1 5l5-4v3zm12 16H3a1 1 0 0 1-1-1v-7h2v6h14v-3l5 4-5 4v-3z"/>
  </g>
+</svg>)SVG"
+        },
+
+        {"cargo-add",
+                R"SVG(<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800px" height="800px" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
+ <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+  <g id="uncollapse" fill="#000000" transform="translate(64.000000, 64.000000)">
+   <path d="M213.333333,1.42108547e-14 L213.333,170.666 L384,170.666667 L384,213.333333 L213.333,213.333 L213.333333,384 L170.666667,384 L170.666,213.333 L1.42108547e-14,213.333333 L1.42108547e-14,170.666667 L170.666,170.666 L170.666667,1.42108547e-14 L213.333333,1.42108547e-14 Z"/>
+  </g>
+ </g>
+</svg>)SVG"
+        },
+
+        {"cargo-save",
+                R"SVG(<?xml version="1.0" encoding="utf-8"?>
+<svg width="800px" height="800px" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" id="svg2" version="1.1">
+  <g id="layer1" transform="matrix(.875 0 0 .875 -1.625 -903.192)">
+    <g id="layer1-7">
+      <path id="path821" d="M3 1033.362v16h16v-13.714l-2.286-2.286zm1.143 1.143H7.57v4.571h6.858v-4.571h1.142l2.286 2.286v11.428h-1.143v-6.857H5.286v6.857H4.143zm4.571 0h3.429v3.429H8.714zm-2.285 8h9.142v5.714H6.43z" style="fill:#373737;fill-opacity:1;stroke:none;stroke-width:1.14285707px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"/>
+    </g>
+  </g>
 </svg>)SVG"
         },
 

@@ -2,175 +2,263 @@
 // Created by mkizub on 09.02.2026.
 //
 
+#include "../pch.h"
+
 #include "UIShowCargo.h"
 #include "UILayout.h"
-#include "UIManager.h"
-#include "UIMainDialog.h"
 #include "../net/RavenColonial.h"
-
 #include "../../ui/resource.h"
 
-std::shared_ptr<UIShowCargo> UIShowCargo::g_showCargo;
-std::jthread UIShowCargo::uiThread;
+#include <winlamb/label.h>
+#include <winlamb/textbox.h>
+#include "wl_cargobox.h"
+#include "wl_svg_button.h"
 
-std::shared_ptr<UIShowCargo> UIShowCargo::getInstance() {
-    if (g_showCargo && !g_showCargo->isDestroyed)
-        return g_showCargo;
-    return {};
-}
-std::shared_ptr<UIShowCargo> UIShowCargo::makeInstance() {
-    if (g_showCargo && !g_showCargo->isDestroyed)
-        return g_showCargo;
-    uiThread = std::jthread(&UIShowCargo::uiThreadLoop);
-    while (!g_showCargo || !g_showCargo->isInitialized) {
-        Sleep(100);
-    }
-    return g_showCargo;
-}
+class BaseCargoCtrl {
+public:
+    BaseCargoCtrl(UIShowCargo* ui) : ui(ui) {}
+    virtual ~BaseCargoCtrl() = default;
+    virtual void create() = 0;
+    virtual void layout(UILayout& lo) = 0;
+    virtual void on_ctrl_edit(HWND changed, WORD msg) = 0;
+    virtual bool validate(bool* changed) = 0;
+    virtual bool save() = 0;
+    virtual Commodity* updateCargo() = 0;
+    UIShowCargo* ui;
+};
 
-void UIShowCargo::uiThreadLoop() {
-    SetThreadDescription(GetCurrentThread(), L"UIShowCargo thread");
-    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    HINSTANCE hInstance = GetModuleHandle(nullptr);
-    g_showCargo.reset(new UIShowCargo());
-    g_showCargo->winmain_run(hInstance, SW_SHOW);
-    g_showCargo.reset();
-}
+class FullCargoCtrl : public BaseCargoCtrl {
+public:
+    FullCargoCtrl(UIShowCargo* ui, Commodity* commodity);
+    ~FullCargoCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate(bool* changed) override;
+    bool save() override;
+    Commodity * updateCargo() override;
+    std::wstring com_text;
+    std::wstring sh_text;
+    std::wstring fc_text;
+    std::wstring dp_text;
+    Commodity* commodity;
 
-UIShowCargo::UIShowCargo() {
-    setup.dialogId = IDD_SHOW_CARGO;
+    wl::label lbl_cargo;
+    wl::textbox txt_sh_count;
+    wl::textbox txt_fc_count;
+    wl::textbox txt_dp_count;
+};
 
-    on_message(WM_INITDIALOG, [this](wl::params p){
-        initialize();
-        return TRUE;
-    });
-    on_message(WM_DESTROY, [this](wl::params params) {
-        cargoEditor.clear();
-        isDestroyed = true;
-        return 0;
-    });
-    on_command(ID_RUN, [this](wl::params params) {
-        updateCargo();
-        return 0;
-    });
-    on_command(ID_SAVE, [this](wl::params params) {
-        on_cargo_save();
-        return 0;
-    });
-    on_command(ID_LOAD, [this](wl::params params) {
-        on_cargo_load();
-        return 0;
-    });
-    on_message(WM_DPICHANGED, [this](wl::params params) {
-        cv::Rect r = fromRECT(*(PRECT)params.lParam);
-        SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, r.width, r.height, SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
-        relayout();
-        return 0;
-    });
-    on_message(WM_SIZE, [this](wl::params params) {
-        relayout();
-        return 0;
-    });
-}
+class NewCargoCtrl : public BaseCargoCtrl {
+public:
+    NewCargoCtrl(UIShowCargo* ui);
+    ~NewCargoCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate(bool* changed) override;
+    bool save() override;
+    Commodity* updateCargo() override;
+    std::wstring text;
 
-void UIShowCargo::initialize() {
-    SetDialogDpiChangeBehavior(hwnd(), DDC_DISABLE_ALL, DDC_DISABLE_ALL);
+    wl::cargobox dl;
+    wl::svg_button btn_add;
+    wl::svg_button btn_fc_save;
+    wl::svg_button btn_dp_save;
+};
 
-    int uiDpi = GetDpiForWindow(hwnd());
-    int uiPercent = Cfg.getUiScalePercents();
 
-    loCreateFont(font, uiDpi, uiPercent);
-
-    btn_run.assign(hwnd(), ID_RUN);
-    btn_save.assign(hwnd(), ID_SAVE);
-    btn_load.assign(hwnd(), ID_LOAD);
-    btn_run.set_enabled(true);
-    btn_save.set_enabled(st::cmdr.fleetCarrierId != 0);
-    btn_load.set_enabled(st::cmdr.fleetCarrierId != 0);
-    btn_run.set_text(toUtf16(_gt("Update")));
-    btn_save.set_text(toUtf16(_gt("Save")));
-    btn_load.set_text(toUtf16(_gt("Load")));
-
-    cargoEditor.create(hwnd(), IDC_TASK_PARAMETERS, {10,10}, {100, 100});
-    cargoEditor.validate_callback = [this](bool valid, bool changed){ validate_callback(valid, changed); };
-
-    {
-        RECT rect;
-        GetWindowRect(UIManager::getInstance().uiMain.hwnd(), &rect);
-        SetWindowPos(this->hwnd(), HWND_TOPMOST,
-                     rect.left, rect.top+50, rect.right-rect.left, rect.bottom-rect.top,
-                     SWP_NOOWNERZORDER);
-    }
-    cargoEditor.initControls();
-    validate_callback(cargoEditor.validate(nullptr), false);
-    relayout();
-    isInitialized = true;
-}
-
-#define S(N) MulDiv((N), uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI)
-void UIShowCargo::relayout() {
-    RECT rect{};
-    GetClientRect(hwnd(), &rect);
-    int l = rect.left;
-    int t = rect.top;
-    int r = rect.right;
-    int b = rect.bottom;
-    int width = r - l;
-    int height = b - t;
-
-    int uiDpi = GetDpiForWindow(hwnd());
-    int uiPercent = Cfg.getUiScalePercents();
-    if (uiDpi != scaled_to_dpi) {
-        scaled_to_dpi = uiDpi;
-        loCreateFont(font, uiDpi, uiPercent);
-        font.set_on(btn_run);
-        font.set_on(btn_save);
-        font.set_on(btn_load);
+UIShowCargo::UIShowCargo() : UIControl(true) {
+    for (int i=0; i < usedIds.size(); i++) {
+        on_command(ctrlIdBase + i, [this](wl::params p) {
+            on_ctrl_change(p);
+            return 0;
+        });
     }
 
-    auto wpi = BeginDeferWindowPos(10);
-    int x = l + width*10/100;
-    int y = t + S(LO_DLG_BORDER);
-    int w = width*80/100;
-    int h = height - t;
-
-    int cx = (l + r) / 2;
-    w = S(LO_BTN_W);
-    h = S(LO_BTN_H);
-    y = b - S(LO_DLG_BORDER+LO_BTN_H);
-
-    x = cx - w/2 - S(LO_H_GAP+LO_BTN_W);
-    wpi = DeferWindowPos(wpi, btn_run.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
-    x = cx - w/2;
-    wpi = DeferWindowPos(wpi, btn_save.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
-    x = cx + w/2 + S(LO_H_GAP);
-    wpi = DeferWindowPos(wpi, btn_load.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
-
-    x = l + S(LO_DLG_BORDER);
-    y = t + S(LO_DLG_BORDER+LO_BTN_H+LO_V_GAP);
-    w = width - S(2*LO_DLG_BORDER);
-    h = height - S(2*LO_DLG_BORDER+2*LO_V_GAP+2*LO_BTN_H);
-    wpi = DeferWindowPos(wpi, cargoEditor.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
-
-    EndDeferWindowPos(wpi);
-
-    RedrawWindow(this->hwnd(), 0, 0, RDW_INVALIDATE | RDW_ALLCHILDREN);
-    InvalidateRect(this->hwnd(), nullptr, true);
-    UpdateWindow(this->hwnd());
+//    on_command(ID_RUN, [this](wl::params params) {
+//        updateCargo();
+//        return 0;
+//    });
+//    on_command(ID_SAVE, [this](wl::params params) {
+//        on_cargo_save();
+//        return 0;
+//    });
+//    on_command(ID_LOAD, [this](wl::params params) {
+//        on_cargo_load();
+//        return 0;
+//    });
 }
-#undef S
 
-void UIShowCargo::validate_callback(bool valid, bool changed) {
-    btn_save.set_enabled(valid && changed);
+UIShowCargo::~UIShowCargo() {
+}
+
+
+int UIShowCargo::nextID() {
+    assert (initializing);
+    for (int i=nextTryId; i < usedIds.size(); i++) {
+        if (!usedIds[i]) {
+            usedIds[i] = true;
+            nextTryId = i+1;
+            return ctrlIdBase + i;
+        }
+    }
+    nextTryId = 0;
+    for (int i=0; i < usedIds.size(); i++) {
+        if (!usedIds[i]) {
+            usedIds[i] = true;
+            nextTryId = i+1;
+            return ctrlIdBase + i;
+        }
+    }
+    return ctrlIdBase;
+}
+
+void UIShowCargo::freeCtrl(wl::wnd& w) {
+    if (!w.hwnd())
+        return;
+    int id = GetDlgCtrlID(w.hwnd());
+    DestroyWindow(w.hwnd());
+    if (id < ctrlIdBase || id - ctrlIdBase >= usedIds.size())
+        return;
+    id -= ctrlIdBase;
+    usedIds[id] = false;
+    nextTryId = 0;
+}
+
+void UIShowCargo::beginControls() {
+    initializing = true;
+}
+void UIShowCargo::endControls() {
+    initializing = false;
+}
+
+void UIShowCargo::initControls() {
+    clear();
+    beginControls();
+    std::vector<Commodity*> allCommodities = Cfg.getAllKnownCommodities();
+    for (auto* c : allCommodities) {
+        if (c->ship.count <= 0 && c->fc.count <= 0)
+            continue;
+        controls.emplace_back(new FullCargoCtrl(this, c))->create();
+    }
+    new_control.reset(new NewCargoCtrl(this));
+    new_control->create();
+    endControls();
+    relayout(true);
+}
+
+bool UIShowCargo::appendCargoControl(Commodity* commodity) {
+    for (auto& ctrl : controls) {
+        if (auto fcc = dynamic_cast<FullCargoCtrl*>(ctrl.get())) {
+            if (fcc->commodity == commodity)
+                return false;
+        }
+    }
+    beginControls();
+    controls.emplace_back(new FullCargoCtrl(this, commodity))->create();
+    endControls();
+    relayout(true);
+    return true;
+}
+
+void UIShowCargo::clear() {
+    controls.clear();
+    new_control.reset();
+    nextTryId = 0;
+    usedIds = {};
 }
 
 bool UIShowCargo::updateCargo() {
-    if (isDestroyed || !isInitialized)
-        return false;
-    if (uiThread.get_id() == std::this_thread::get_id())
-        return cargoEditor.updateCargo();
-    PostMessage(hwnd(), WM_COMMAND, ID_RUN, 0);
+    std::set<Commodity*> hasCommodities;
+    for (auto& cc : controls) {
+        Commodity* c = cc->updateCargo();
+        if (c)
+            hasCommodities.insert(c);
+    }
+    std::vector<Commodity*> addCommodities;
+    for (auto* c : Cfg.getAllKnownCommodities()) {
+        if ((c->ship.count > 0 || c->fc.count > 0) && !hasCommodities.contains(c))
+            addCommodities.push_back(c);
+    }
+    if (!addCommodities.empty() && !controls.empty()) {
+        beginControls();
+        for (auto* c : addCommodities)
+            controls.emplace_back(new FullCargoCtrl(this, c))->create();
+        endControls();
+        relayout(true);
+    }
     return true;
+}
+
+void UIShowCargo::relayout(bool scroll_to_top) {
+    if (scroll_to_top)
+        reset_scroll(true);
+
+    RECT rect{};
+    GetClientRect(hwnd(), &rect);
+
+    int uiPercent = Cfg.getUiScalePercents();
+    int uiDpi = GetDpiForWindow(hwnd());
+    UILayout lo(uiDpi, uiPercent, rect);
+    if (uiDpi != scaled_to_dpi) {
+        scaled_to_dpi = uiDpi;
+        loCreateFont(font, uiDpi, uiPercent);
+        lo.font = &font;
+    }
+
+    panel_width = lo.width;
+    panel_height = lo.height;
+
+    lo.wpi = BeginDeferWindowPos(100);
+    lo.left = lo.vgap;
+    lo.top = lo.vgap - scroll_pos;
+    lo.width -= 2*lo.vgap;
+    for (auto& cc : controls)
+        cc->layout(lo);
+    if (new_control)
+        new_control->layout(lo);
+    params_height = lo.top + scroll_pos;
+    EndDeferWindowPos(lo.wpi);
+
+    reset_scroll(false);
+}
+
+void UIShowCargo::on_ctrl_change(wl::params& p) {
+    if (initializing)
+        return;
+    auto hw = HIWORD(p.wParam);
+    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELENDOK && hw != CBN_EDITCHANGE)
+        return;
+    int id = LOWORD(p.wParam);
+    if (id < ctrlIdBase)
+        return;
+    on_ctrl_edit(id, hw);
+
+    bool changed = false;
+    bool valid = validate(&changed);
+    if (new_control)
+        new_control->btn_fc_save.set_enabled(valid && changed);
+}
+
+bool UIShowCargo::validate(bool* changed) const {
+    bool valid = true;
+    for (auto& cc : controls) {
+        bool cc_changed = false;
+        if (!cc->validate(&cc_changed))
+            valid = false;
+        if (changed && cc_changed)
+            *changed = true;
+    }
+    return valid;
+}
+
+void UIShowCargo::on_ctrl_edit(int id, WORD msg) {
+    HWND changed = GetDlgItem(hwnd(), id);
+    for (auto& cc : controls)
+        cc->on_ctrl_edit(changed, msg);
+    if (new_control)
+        new_control->on_ctrl_edit(changed, msg);
 }
 
 void UIShowCargo::on_cargo_load() {
@@ -194,17 +282,20 @@ void UIShowCargo::on_cargo_load() {
         }
         c->fc.count = count.as_int();
     }
-    cargoEditor.initControls();
-    validate_callback(cargoEditor.validate(nullptr), false);
+    initControls();
+    if (new_control)
+        new_control->btn_fc_save.set_enabled(false);
     CM.saveCarrierCargo(Timestamp::clock::now(), {});
 }
 
 void UIShowCargo::on_cargo_save() {
-    if (!cargoEditor.validate(nullptr))
+    if (!validate(nullptr))
         return;
-    cargoEditor.save();
+    for (auto& cc : controls)
+        cc->save();
     CM.saveCarrierCargo(Timestamp::clock::now(), {});
-    btn_save.set_enabled(false);
+    if (new_control)
+        new_control->btn_fc_save.set_enabled(false);
 
     // post new data to RavenColonial, if different
     const auto jv = RavenColonial::carrierGetCargo(st::cmdr.fleetCarrierId);
@@ -233,3 +324,236 @@ void UIShowCargo::on_cargo_save() {
         RavenColonial::carrierPostCargo(st::cmdr.fleetCarrierId, diff);
 }
 
+FullCargoCtrl::FullCargoCtrl(UIShowCargo* ui, Commodity* commodity)
+        : BaseCargoCtrl(ui)
+        , commodity(commodity)
+{
+    com_text = commodity->wide;
+}
+
+FullCargoCtrl::~FullCargoCtrl()
+{
+    ui->freeCtrl(lbl_cargo);
+    ui->freeCtrl(txt_sh_count);
+    ui->freeCtrl(txt_fc_count);
+}
+
+void FullCargoCtrl::create() {
+    lbl_cargo.create(ui->hwnd(), ui->nextID(), commodity->wide.c_str(), {0, 0}, {200, 24});
+    lbl_cargo.style.set_style(TRUE, SS_WORDELLIPSIS|SS_NOTIFY);
+    txt_sh_count.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {0, 0}, 80, 24);
+    txt_sh_count.style.set_style(TRUE, ES_RIGHT);
+    txt_sh_count.set_enabled(false);
+    txt_fc_count.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {200, 0}, 80, 24);
+    txt_fc_count.style.set_style(TRUE, ES_RIGHT);
+    txt_fc_count.style.set_style(TRUE, WS_TABSTOP);
+    txt_dp_count.create(ui->hwnd(), ui->nextID(), wl::textbox::type::NORMAL, {280, 0}, 80, 24);
+    txt_dp_count.style.set_style(TRUE, ES_RIGHT);
+    txt_dp_count.style.set_style(TRUE, WS_TABSTOP);
+    if (commodity->ship.count) {
+        sh_text = std::format(L"{:d}", commodity->ship.count);
+        txt_sh_count.set_text(sh_text.c_str());
+    }
+    if (commodity->fc.count) {
+        fc_text = std::format(L"{:d}", commodity->fc.count);
+        txt_fc_count.set_text(fc_text.c_str());
+    }
+    ui->font.set_on(lbl_cargo);
+    ui->font.set_on(txt_sh_count);
+    ui->font.set_on(txt_fc_count);
+    ui->font.set_on(txt_dp_count);
+}
+
+void FullCargoCtrl::layout(UILayout& lo) {
+    if (lo.font) {
+        lo.font->set_on(lbl_cargo);
+        lo.font->set_on(txt_sh_count);
+        lo.font->set_on(txt_fc_count);
+        lo.font->set_on(txt_dp_count);
+    }
+    int w_txt = lo.txt6w;
+    int w_lbl = lo.width - 3*lo.txt6w - 3*lo.hgap;
+    if (w_lbl > lo.txt50w)
+        w_lbl = lo.txt50w;
+    else if (w_lbl < lo.txt20w)
+        w_lbl = lo.txt20w;
+    int x = lo.left;
+    lo.wpi = DeferWindowPos(lo.wpi, lbl_cargo.hwnd(), nullptr, x, lo.top, w_lbl, lo.vrow, SWP_NOZORDER);
+    x += w_lbl + lo.hgap;
+    lo.wpi = DeferWindowPos(lo.wpi, txt_sh_count.hwnd(), nullptr, x, lo.top, w_txt, lo.vrow, SWP_NOZORDER);
+    x += w_txt + lo.hgap;
+    lo.wpi = DeferWindowPos(lo.wpi, txt_fc_count.hwnd(), nullptr, x, lo.top, w_txt, lo.vrow, SWP_NOZORDER);
+    x += w_txt + lo.hgap;
+    lo.wpi = DeferWindowPos(lo.wpi, txt_dp_count.hwnd(), nullptr, x, lo.top, w_txt, lo.vrow, SWP_NOZORDER);
+    lo.top += lo.vrow + lo.vgap;
+}
+
+void FullCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
+    if (changed == txt_fc_count.hwnd()) {
+        fc_text = txt_fc_count.get_text();
+    }
+    if (changed == txt_dp_count.hwnd()) {
+        fc_text = txt_dp_count.get_text();
+    }
+}
+
+bool FullCargoCtrl::validate(bool* changed) {
+    std::string fc_s = trim(toUtf8(fc_text));
+    int64_t result = 0;
+    if (fc_s.empty() || parseInt(fc_s, result)) {
+        if (changed)
+            *changed = commodity->fc.count != result;
+        return result >= 0;
+    }
+
+    std::string dp_s = trim(toUtf8(dp_text));
+    if (dp_s.empty() || parseInt(dp_s, result)) {
+        return result >= 0;
+    }
+
+    return false;
+}
+
+bool FullCargoCtrl::save() {
+    std::string s = trim(toUtf8(fc_text));
+    int64_t result = 0;
+    if (s.empty() || parseInt(s, result)) {
+        commodity->fc.count = std::max(0, int(result));
+        return true;
+    }
+    return false;
+}
+
+Commodity * FullCargoCtrl::updateCargo() {
+    if (commodity->ship.count) {
+        auto text = std::format(L"{:d}", commodity->ship.count);
+        if (text != sh_text) {
+            sh_text = text;
+            txt_sh_count.set_text(sh_text.c_str());
+        }
+    } else {
+        if (!sh_text.empty()) {
+            sh_text.clear();
+            txt_sh_count.set_text(L"");
+        }
+    }
+
+    if (commodity->fc.count) {
+        auto text = std::format(L"{:d}", commodity->fc.count);
+        if (text != fc_text) {
+            fc_text = text;
+            txt_fc_count.set_text(fc_text.c_str());
+        }
+    } else {
+        if (!fc_text.empty()) {
+            fc_text.clear();
+            txt_fc_count.set_text(L"");
+        }
+    }
+
+    return commodity;
+}
+
+NewCargoCtrl::NewCargoCtrl(UIShowCargo *ui)
+        : BaseCargoCtrl(ui)
+{
+}
+
+NewCargoCtrl::~NewCargoCtrl() {
+    ui->freeCtrl(dl);
+}
+
+void NewCargoCtrl::create() {
+    dl.create(ui->hwnd(), ui->nextID(), {0, 0}, {200, LO_V_ROW}, LO_V_ROW * 8);
+    btn_add.create(ui->hwnd(), ui->nextID(), "cargo-add", LO_ICN_S, {200, 0}, {20,20});
+    btn_add.set_enabled(false);
+    btn_fc_save.create(ui->hwnd(), ui->nextID(), "cargo-save", LO_ICN_S, {220, 0}, {20,20});
+    btn_fc_save.set_enabled(false);
+    btn_dp_save.create(ui->hwnd(), ui->nextID(), "cargo-save", LO_ICN_S, {280, 0}, {20,20});
+    btn_dp_save.set_enabled(false);
+
+    ui->font.set_on(dl);
+    ui->font.set_on(btn_add);
+}
+
+void NewCargoCtrl::layout(UILayout& lo) {
+    if (lo.font) {
+        lo.font->set_on(dl);
+        lo.font->set_on(btn_add);
+        btn_add.set_icon_size(lo.icsz);
+    }
+    int w_txt = lo.txt6w;
+    int w_lbl = lo.width - 3*w_txt - 3*lo.hgap;
+    if (w_lbl > lo.txt50w)
+        w_lbl = lo.txt50w;
+    else if (w_lbl < lo.txt20w)
+        w_lbl = lo.txt20w;
+    int x = lo.left;
+    lo.wpi = DeferWindowPos(lo.wpi, dl.hwnd(), nullptr, x, lo.top, w_lbl, lo.vrow, SWP_NOZORDER);
+    x += w_lbl + w_txt + 2*lo.hgap;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_add.hwnd(), nullptr, x, lo.top, lo.vrow, lo.vrow, SWP_NOZORDER);
+    lo.wpi = DeferWindowPos(lo.wpi, btn_fc_save.hwnd(), nullptr, x+lo.vrow, lo.top, lo.vrow, lo.vrow, SWP_NOZORDER);
+    x += w_txt + lo.hgap;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_dp_save.hwnd(), nullptr, x+lo.vrow, lo.top, lo.vrow, lo.vrow, SWP_NOZORDER);
+    lo.top += lo.vrow + lo.xgap;
+}
+
+void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
+    if (changed == btn_add.hwnd() && msg == BN_CLICKED) {
+        text = dl.get_selected_text();
+        auto* c = Cfg.getCommodityByName(text, false);
+        if (c && ui->appendCargoControl(c)) {
+            text.clear();
+            dl.remove_all();
+            btn_add.set_enabled(false);
+        }
+    }
+    if (changed != dl.hwnd())
+        return;
+    if (msg == CBN_SELENDOK)
+        text = dl.get_selected_text();
+    else
+        text = dl.get_text();
+    bool can_add = false;
+    auto* c = Cfg.getCommodityByName(text, false);
+    if (c) {
+        can_add = true;
+        for (auto& ctrl : ui->controls) {
+            if (auto fcc = dynamic_cast<FullCargoCtrl*>(ctrl.get())) {
+                if (fcc->commodity == c)
+                    can_add = false;
+            }
+        }
+    }
+    btn_add.set_enabled(can_add);
+    if (text.empty()) {
+        dl.remove_all();
+        return;
+    }
+    std::set<std::wstring> new_set;
+    std::wstring text_l = toLower(text);
+    for (auto* c : Cfg.getAllKnownCommodities()) {
+        if (toUtf16(c->nameId).starts_with(text_l))
+            new_set.insert(c->wide);
+        else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
+            new_set.insert(c->wide);
+        else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
+            new_set.insert(c->wide);
+    }
+    dl.set_list(new_set);
+    if (dl.count() <= 10)
+        SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
+}
+
+bool NewCargoCtrl::validate(bool *changed) {
+    if (changed)
+        *changed = false;
+    return text.empty();
+}
+
+bool NewCargoCtrl::save() {
+    return true;
+}
+Commodity* NewCargoCtrl::updateCargo() {
+    return nullptr;
+}

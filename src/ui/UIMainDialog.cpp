@@ -5,7 +5,10 @@
 #include "../pch.h"
 
 #include "UIMainDialog.h"
+#include "UIControl.h"
+#include "UIControlDialog.h"
 #include "UIManager.h"
+#include "UIShowTask.h"
 #include "UIAddTask.h"
 #include "UIShowCargo.h"
 #include "UILayout.h"
@@ -13,15 +16,6 @@
 
 const int TRAY_ICONUID = 100;
 const int WM_TRAY_NOTIFY = WM_APP + 100;
-
-#define S(N) MulDiv((N), uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI)
-
-void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent) {
-    NONCLIENTMETRICS ncm{};
-    ncm.cbSize = sizeof(ncm);
-    SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0, MulDiv(uiDpi, uiPercent, 100));
-    font.create(ncm.lfMessageFont); // Tahoma/Segoe
-}
 
 static cv::Rect rect_from_json(const js::value& v) {
     cv::Rect rect;
@@ -39,6 +33,7 @@ static js::value rect_to_json(const cv::Rect& r) {
 }
 
 #define W(STR) toUtf16(gettext(STR)).c_str()
+#define S(N) MulDiv((N), uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI)
 
 UIMainDialog::UIMainDialog()
     : mNotifyIconData{}
@@ -85,8 +80,10 @@ UIMainDialog::UIMainDialog()
             .append_item(IDC_EXIT,W("Exit"))
             ;
     menu.append_submenu(W("More"))
-            .append_item(IDM_COMMODITIES,W("Commodities"))
-            .append_item(IDC_KEEP_ON_TOP,W("Keep on top")).set_item_check_by_id(IDC_KEEP_ON_TOP, keepOnTop)
+            .append_item(IDM_TASK_STATUS,W("Show task state"))
+            .append_item(IDM_COMMODITIES,W("Show commodities"))
+            .append_item(IDM_KEEP_ON_TOP,W("Keep on top")).set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop)
+            .append_item(IDM_DETACH,W("Detach"))
             ;
     menu.append_submenu(W("Debug"))
             .append_item(IDM_DEBUG_WATCH,W("Watch"))
@@ -138,8 +135,12 @@ UIMainDialog::UIMainDialog()
         }
         return FALSE;
     });
-    this->base_msg_pubm::on_command({IDOK,IDCANCEL}, [this](wl::params params) noexcept -> INT_PTR {
-        hide(false);
+    this->base_msg_pubm::on_command(IDM_DETACH, [this](wl::params p){
+        on_command_show_detach();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_TASK_STATUS, [this](wl::params p){
+        on_command_show_task();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_COMMODITIES, [this](wl::params p){
@@ -186,10 +187,10 @@ UIMainDialog::UIMainDialog()
         UIManager::showDebugWindow();
         return 0;
     });
-    this->base_msg_pubm::on_command(IDC_KEEP_ON_TOP, [this](wl::params p){
+    this->base_msg_pubm::on_command(IDM_KEEP_ON_TOP, [this](wl::params p){
         STD_PASTE;
         keepOnTop = !keepOnTop;
-        menu.get_submenu(1).set_item_check_by_id(IDC_KEEP_ON_TOP, keepOnTop);
+        menu.set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop);
         if (keepOnTop) {
             this->style.set_style_ex(true, WS_EX_TOPMOST);
         } else {
@@ -257,14 +258,7 @@ void UIMainDialog::initialize() {
     btn_stop_new.create(hwnd(), IDC_BUTTON_STOP_NEW, "task-new", S(LO_ICN_S), {244,32}, {24,24});
     btn_pause_resume.create(hwnd(), IDC_BUTTON_PAUSE_RESUME, "task-repeat", S(LO_ICN_S), {344,32}, {24,24});
 
-    lbl_task_status.create(hwnd(), IDC_TASK_STATUS, L"", {10,58}, {414,421})
-            .style.set_style(true, WS_BORDER);
-    font.set_on(lbl_task_status);
-
-    lbl_status.create(hwnd(), IDC_STATUS, L"", {10,481}, {414,20})
-            .style.set_style(true, WS_BORDER | WS_EX_TRANSPARENT);
-    font.set_on(lbl_status);
-
+    relayout();
     update_curr_task();
     initializing = false;
 }
@@ -286,6 +280,17 @@ void UIMainDialog::savePrefs() {
         Cfg.jprefs["ui"]["main"]["rect"] = nullptr;
 
     Cfg.savePrefs();
+}
+
+bool UIMainDialog::show_startup(const std::string &message, const std::string& latest_version, const std::string& latest_url) {
+    show();
+    run_thread_ui([=, this](){
+        control = std::unique_ptr<UIControl>(new UIShowTask(message, latest_version, latest_url));
+        control->create(hwnd(), 0, {10,10}, {400,400});
+        relayout();
+        menu.set_item_radio_by_id(IDM_TASK_STATUS, 2, IDM_TASK_STATUS);
+    });
+    return true;
 }
 
 bool UIMainDialog::show() {
@@ -396,12 +401,58 @@ void UIMainDialog::on_command_task_pause() {
     }
 }
 
+void UIMainDialog::on_command_show_detach() {
+    for (auto& d : detached) {
+        if (d->control->title() == control->title()) {
+            ShowWindow(d->hwnd(), SW_RESTORE);
+            SetForegroundWindow(d->hwnd());
+            BringWindowToTop(d->hwnd());
+            return;
+        }
+    }
+
+    auto& dlg = detached.emplace_back();
+    dlg.reset(new UIControlDialog(control));
+    on_command_show_task();
+    run_thread_detached([&dlg,this](){
+        dlg->winmain_run(GetModuleHandle(nullptr), SW_SHOW);
+        std::erase(this->detached, dlg);
+    });
+}
+
+void UIMainDialog::on_command_show_task() {
+    try {
+        if (dynamic_cast<UIShowTask*>(control.get()))
+            return;
+        if (control)
+            DestroyWindow(control->hwnd());
+        control = std::unique_ptr<UIControl>(new UIShowTask);
+        control->create(hwnd(), 0, {10,10}, {400,400});
+        relayout();
+        menu.set_item_radio_by_id(IDM_TASK_STATUS, 2, IDM_TASK_STATUS);
+    } catch (const std::system_error& ex) {
+        LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << ex.what();
+    }
+}
+
 void UIMainDialog::on_command_show_cargo() {
     try {
-        if (auto dlg = UIShowCargo::getInstance())
-            SetForegroundWindow(dlg->hwnd());
-        else
-            UIShowCargo::makeInstance();
+        if (dynamic_cast<UIShowCargo*>(control.get()))
+            return;
+        if (control)
+            DestroyWindow(control->hwnd());
+        control = std::unique_ptr<UIControl>(new UIShowCargo);
+        control->create(hwnd(), 0, {10,10}, {400,400});
+        relayout();
+        menu.set_item_radio_by_id(IDM_TASK_STATUS, 2, IDM_COMMODITIES);
+        ((UIShowCargo*)control.get())->initControls();
+
+        //if (auto dlg = UIShowCargo::getInstance())
+        //    SetForegroundWindow(dlg->hwnd());
+        //else
+        //    UIShowCargo::makeInstance();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -410,26 +461,6 @@ void UIMainDialog::on_command_show_cargo() {
 }
 
 void UIMainDialog::update_curr_task() {
-    if (!ai::curr_task() && !ai::last_task() && !startup_message.empty()) {
-        lbl_task_status.set_text(toUtf16("\n\n\n"+startup_message));
-        lbl_task_status.style.set_style(true, SS_CENTER);
-
-        std::string version;
-        if (latest_version == EDROBOT_VERSION)
-            version = lc_format("Version: {}", EDROBOT_VERSION);
-        else
-            version = lc_format("Version: {}, available {}", EDROBOT_VERSION, latest_version);
-
-        lbl_status.set_text(toUtf16(version));
-        lbl_status.style.set_style(true, SS_CENTER);
-        return;
-    }
-    else if (!startup_message.empty()) {
-        startup_message.clear();
-        lbl_task_status.style.set_style(false, SS_CENTER);
-        lbl_status.style.set_style(false, SS_CENTER);
-    }
-
     ai::spTask task = ai::curr_task();
     if (!task) {
         lbl_curr_task.set_text(toUtf16(_gt("No active task")).c_str());
@@ -448,92 +479,13 @@ void UIMainDialog::update_curr_task() {
         }
         btn_pause_resume.set_enabled(true);
     }
-    bool completed = false;
-    bool failed = false;
-    if (!task) {
-        task = ai::last_task();
-        completed = true;
-        failed = task && task->progress == ai::TaskExitReason::FAILED;
-    }
-    std::string status;
-    int indent = 0;
-    for (ai::spStep step=task; step; step = step->currSubStep) {
-        status += std::string(indent, ' ');
-        status += step->getTitle();
-        status += ":\n";
-        indent += 4;
-        if (step->prevSubStep) {
-            status += std::string(indent, ' ');
-            status += step->prevSubStep->getTitle();
-            status += "\n";
-            for (auto& msg : step->prevSubStep->getMessages()) {
-                if (msg.empty())
-                    continue;
-                status += std::string(indent+4, ' ');
-                status += msg;
-                status += "\n";
-            }
-        }
-        if (!step->currSubStep || failed) {
-            for (auto& msg : step->getMessages()) {
-                if (msg.empty())
-                    continue;
-                status += std::string(indent, ' ');
-                status += msg;
-                status += "\n";
-            }
-            for (auto& msg : split(step->getStatus(), '\n')) {
-                if (msg.empty())
-                    continue;
-                status += std::string(indent, ' ');
-                status += msg;
-                status += "\n";
-            }
-        }
-        if (failed)
-            break;
-    }
-    lbl_task_status.set_text(toUtf16(status));
 
-    if (!task) {
-        lbl_status.set_text(L"");
-    }
-    else if (completed) {
-        if (task->progress == ai::TaskExitReason::FAILED)
-            lbl_status.set_text(toUtf16(_gt("Finished (failed)")).c_str());
-        else
-            lbl_status.set_text(toUtf16(_gt("Finished")).c_str());
-    }
-    else if (!ai::active()) {
-        lbl_status.set_text(toUtf16(_gt("Paused (inactive)")).c_str());
-    }
-    else if (ai::isDebugPause()) {
-        lbl_status.set_text(toUtf16(_gt("Paused (active)")).c_str());
-    }
-    else if (st::ship.flags.docked) {
-        lbl_status.set_text(toUtf16(_gt("Docked")).c_str());
-    }
-    else if (st::ship.flags.landed) {
-        lbl_status.set_text(toUtf16(_gt("Landed")).c_str());
-    }
-    else if (st::ship.flags.fsd_jump) {
-        lbl_status.set_text(toUtf16(_gt("Hyperspace")).c_str());
-    }
-    else {
-        std::string space = st::ship.flags.cruise ? _gt("Cruise") : _gt("Space");
-        std::string spd = "??";
-        if (st::autopilot.speed_set_to.has_value())
-            spd = std::to_string(st::autopilot.speed_set_to.value());
-        std::string dist = "??";
-        if (st::autopilot.isDestBodyTargeted && st::autopilot.distanceToBody)
-            dist = st::autopilot.distanceToBody.to_string();
-        if (st::autopilot.isDestDockTargeted && st::autopilot.distanceToDock)
-            dist = st::autopilot.distanceToDock.to_string();
-        lbl_status.set_text(toUtf16(lc_format("{}: speed {}%, distance {}", space, spd, dist)));
-    }
+    if (control)
+        control->on_timer_update();
+
     if (IsWindowVisible(hwnd())) {
-        if (keepOnTop && ai::curr_task())
-            SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        //if (keepOnTop && ai::curr_task())
+        //    SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
     } else {
         KillTimer(this->hwnd(), mUpdateTimerId);
@@ -544,69 +496,60 @@ void UIMainDialog::update_curr_task() {
 void UIMainDialog::relayout() {
     RECT rect{};
     GetClientRect(hwnd(), &rect);
-    int l = rect.left;
-    int t = rect.top;
-    int r = rect.right;
-    int b = rect.bottom;
-    int width = r - l;
-    int height = b - t;
 
-    int uiDpi = GetDpiForWindow(hwnd());
     int uiPercent = Cfg.getUiScalePercents();
+    int uiDpi = GetDpiForWindow(hwnd());
+    UILayout lo(uiDpi, uiPercent, rect);
     if (uiDpi != scaled_to_dpi) {
         scaled_to_dpi = uiDpi;
         loCreateFont(font, uiDpi, uiPercent);
-        font.set_on(lbl_task);
-        font.set_on(lbl_curr_task);
-        font.set_on(lbl_task_status);
-        font.set_on(lbl_status);
-        btn_stop_new.set_icon_size(S(LO_ICN_S));
-        btn_pause_resume.set_icon_size(S(LO_ICN_S));
+        lo.font = &font;
     }
 
-    auto wpi = BeginDeferWindowPos(10);
-    int x = l + S(LO_DLG_BORDER);
-    int y = t + S(LO_DLG_BORDER);
-    int w = S(LO_TXT_6_W);
-    int h = S(LO_V_ROW);
-    wpi = DeferWindowPos(wpi, lbl_task.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+    lo.wpi = BeginDeferWindowPos(10);
+    lo.left += lo.border;
+    lo.top += lo.border;
+    lo.width -= 2*lo.border;
+    lo.height -= 2*lo.border;
 
-    x = l + S(LO_DLG_BORDER+LO_TXT_6_W+LO_H_GAP);
-    w = width - x - S(LO_DLG_BORDER+LO_H_GAP+2*LO_BTN_H);
-    wpi = DeferWindowPos(wpi, lbl_curr_task.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+    if (lo.font) {
+        lo.font->set_on(lbl_task);
+        lo.font->set_on(lbl_curr_task);
+        btn_stop_new.set_icon_size(lo.icsz);
+        btn_pause_resume.set_icon_size(lo.icsz);
+    }
 
-    w = S(LO_BTN_H);
-    x = width - S(LO_DLG_BORDER+LO_BTN_H);
-    wpi = DeferWindowPos(wpi, btn_pause_resume.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+    int x = lo.left;
+    int w = lo.txt6w + lo.hgap/2;
+    lo.wpi = DeferWindowPos(lo.wpi, lbl_task.hwnd(), nullptr, x, lo.top, w, lo.vrow, SWP_NOZORDER);
 
-    x -= S(LO_H_GAP/2+LO_BTN_H);
-    wpi = DeferWindowPos(wpi, btn_stop_new.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+    x = lo.left + lo.txt6w + lo.hgap;
+    w = lo.width - x - 2*lo.btnh;
+    lo.wpi = DeferWindowPos(lo.wpi, lbl_curr_task.hwnd(), nullptr, x, lo.top, w, lo.vrow, SWP_NOZORDER);
 
-    int status_t = y + S(LO_V_ROW+LO_V_GAP);
+    w = lo.btnh;
+    x = lo.left + lo.width - lo.btnh;
+    int y = lo.top - (lo.btnh-lo.vrow)/2;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_pause_resume.hwnd(), nullptr, x, y, lo.btnh, lo.btnh, SWP_NOZORDER);
 
-    int cx = (l + r) / 2;
+    x -= lo.hgap/2 + lo.btnh;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_stop_new.hwnd(), nullptr, x, y, lo.btnh, lo.btnh, SWP_NOZORDER);
 
-    w = S(LO_BTN_W);
-    h = S(LO_BTN_H);
-    y = b - S(LO_DLG_BORDER+LO_BTN_H);
+    lo.top += lo.vrow + lo.vgap;
 
-    x = l + S(LO_DLG_BORDER);
-    w = width - S(2*LO_DLG_BORDER);
-    h = S(LO_V_ROW);
-    wpi = DeferWindowPos(wpi, lbl_status.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
+    EndDeferWindowPos(lo.wpi);
 
-    int status_b = y - S(LO_V_GAP);
+    lo.wpi = nullptr;
+    lo.font = nullptr;
 
-    x = l + S(LO_DLG_BORDER);
-    y = status_t;
-    w = width - S(2*LO_DLG_BORDER);
-    h = status_b - status_t;
-    wpi = DeferWindowPos(wpi, lbl_task_status.hwnd(), nullptr, x, y, w, h, SWP_NOZORDER);
-
-    EndDeferWindowPos(wpi);
+    if (control) {
+        POINT pos = {lo.left, lo.top};
+        SIZE sz = {lo.width, rect.bottom - lo.top - lo.border};
+        SetWindowPos(control->hwnd(), nullptr, pos.x, pos.y, sz.cx, sz.cy, SWP_NOZORDER);
+        control->relayout();
+    }
 
     RedrawWindow(this->hwnd(), 0, 0, RDW_INVALIDATE | RDW_ALLCHILDREN);
     InvalidateRect(this->hwnd(), nullptr, true);
     UpdateWindow(this->hwnd());
 }
-#undef S

@@ -17,14 +17,15 @@
 #include <winlamb/icon.h>
 #include "wl_svg_button.h"
 
-#include "../ai/AIManager.h"
-#include "UIShowCargo.h"
+class UIControl;
+class UIControlDialog;
 
 class UIMainDialog : public wl::window_main {
     friend class UIShowCargo;
 public:
     UIMainDialog();
 
+    bool show_startup(const std::string &message, const std::string& latest_version, const std::string& latest_url);
     bool show();
     bool hide(bool force);
     void initialize();
@@ -35,30 +36,29 @@ public:
     void on_command_task_resume();
     void on_command_task_repeat();
     void on_command_task_pause();
+    void on_command_show_detach();
+    void on_command_show_task();
     void on_command_show_cargo();
 
     void update_curr_task();
-
-    std::string startup_message;
-    std::string latest_version;
-    std::string latest_url;
 
     NOTIFYICONDATA mNotifyIconData;
     wl::font font;
     wl::menu menu;
     wl::label lbl_task;
     wl::label lbl_curr_task;
-    wl::label lbl_task_status;
-    wl::label lbl_status;
     wl::svg_button btn_stop_new;
     wl::svg_button btn_pause_resume;
 
+    std::unique_ptr<UIControl> control;
+    std::vector<std::unique_ptr<UIControlDialog>> detached;
+
     UINT_PTR mUpdateTimerId {};
 
-    // for (re)layout
-    int scaled_to_dpi {};
+    int scaled_to_dpi;
     bool initializing {};
     bool keepOnTop {};
+
 };
 
 

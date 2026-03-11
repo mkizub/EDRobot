@@ -112,10 +112,12 @@ add_executable(EDRobot
 
         src/ui/UIAddTask.cpp
         src/ui/UIAddTask.h
-        src/ui/UICargoEditor.cpp
-        src/ui/UICargoEditor.h
         src/ui/UIMainDialog.cpp
         src/ui/UIMainDialog.h
+        src/ui/UIControl.cpp
+        src/ui/UIControl.h
+        src/ui/UIControlDialog.cpp
+        src/ui/UIControlDialog.h
         src/ui/UIDebug.cpp
         src/ui/UIDebug.h
         src/ui/UIDialog.cpp
@@ -127,6 +129,8 @@ add_executable(EDRobot
         src/ui/UISelectRect.h
         src/ui/UIShowCargo.cpp
         src/ui/UIShowCargo.h
+        src/ui/UIShowTask.cpp
+        src/ui/UIShowTask.h
         src/ui/UIStartupDialog.cpp
         src/ui/UIStartupDialog.h
         src/ui/UITaskEditor.cpp
