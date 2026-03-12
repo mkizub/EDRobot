@@ -9,7 +9,7 @@
 #include "UIControlDialog.h"
 #include "UIManager.h"
 #include "UIShowTask.h"
-#include "UIAddTask.h"
+#include "UIEditTask.h"
 #include "UIShowCargo.h"
 #include "UILayout.h"
 #include "../../ui/resource.h"
@@ -43,6 +43,9 @@ UIMainDialog::UIMainDialog()
     setup.wndClassEx.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_DIALOGS));
     setup.wndClassEx.hIconSm = setup.wndClassEx.hIcon;
     setup.wndClassEx.lpszClassName = L"EDRobotMain";
+    setup.style |= WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+    setup.exStyle |= WS_EX_APPWINDOW;
+    setup.title = L"EDRobot";
 
     keepOnTop = Cfg.jprefs["ui"]["main"]["keepOnTop"].as_bool_or();
     cv::Rect wndRect = rect_from_json(Cfg.jprefs["ui"]["main"]["rect"]);
@@ -64,9 +67,6 @@ UIMainDialog::UIMainDialog()
         wndSize = {w, h};
     }
 
-    setup.title = L"EDRobot";
-    setup.style = WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN | WS_BORDER | WS_THICKFRAME;
-    setup.exStyle = 0;
     setup.position = wndPosition;
     setup.size = wndSize;
     menu = CreateMenu();
@@ -81,6 +81,7 @@ UIMainDialog::UIMainDialog()
             ;
     menu.append_submenu(W("More"))
             .append_item(IDM_TASK_STATUS,W("Show task state"))
+            .append_item(IDM_TASK_EDITOR,W("Show task editor"))
             .append_item(IDM_COMMODITIES,W("Show commodities"))
             .append_item(IDM_KEEP_ON_TOP,W("Keep on top")).set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop)
             .append_item(IDM_DETACH,W("Detach"))
@@ -141,6 +142,10 @@ UIMainDialog::UIMainDialog()
     });
     this->base_msg_pubm::on_command(IDM_TASK_STATUS, [this](wl::params p){
         on_command_show_task();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_TASK_EDITOR, [this](wl::params p){
+        on_command_edit_task();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_COMMODITIES, [this](wl::params p){
@@ -249,11 +254,9 @@ void UIMainDialog::initialize() {
 
     lbl_task.create(hwnd(), IDC_STATIC, W("Task:"), {10, 10}, {80, 20})
             .style.set_style(true, SS_RIGHT);
-    font.set_on(lbl_task);
 
     lbl_curr_task.create(hwnd(), IDC_CURRENT_TASK, L"", {100, 10}, {324, 20})
             .style.set_style(true, WS_BORDER | SS_CENTER);
-    font.set_on(lbl_curr_task);
 
     btn_stop_new.create(hwnd(), IDC_BUTTON_STOP_NEW, "task-new", S(LO_ICN_S), {244,32}, {24,24});
     btn_pause_resume.create(hwnd(), IDC_BUTTON_PAUSE_RESUME, "task-repeat", S(LO_ICN_S), {344,32}, {24,24});
@@ -288,10 +291,18 @@ bool UIMainDialog::show_startup(const std::string &message, const std::string& l
         control = std::unique_ptr<UIControl>(new UIShowTask(message, latest_version, latest_url));
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_TASK_STATUS, 2, IDM_TASK_STATUS);
+        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_STATUS);
     });
     return true;
 }
+
+bool UIMainDialog::show_task_status() {
+    if (control && dynamic_cast<UIShowTask*>(control.get()))
+        return true;
+    on_command_show_task();
+    return true;
+}
+
 
 bool UIMainDialog::show() {
     struct ClipboardLocker {
@@ -328,19 +339,27 @@ bool UIMainDialog::hide(bool force) {
 }
 
 void UIMainDialog::on_command_task_new() {
-    try {
-        UIAddTask addTaskDlg;
-        int res = addTaskDlg.show(this);
-        if (res == IDOK) {
-            if (hide(false))
-                return;
+    if (dynamic_cast<UIEditTask*>(control.get()))
+        return;
+    try_again:;
+    for (auto& d : detached) {
+        if (dynamic_cast<UIEditTask*>(d->control.get())) {
+            if (!IsWindow(d->hwnd())) {
+                std::erase(detached, d);
+                goto try_again;
+            }
+            ShowWindow(d->hwnd(), SW_RESTORE);
+            SetForegroundWindow(d->hwnd());
+            BringWindowToTop(d->hwnd());
+            return;
         }
-        update_curr_task();
-    } catch (const std::system_error& ex) {
-        LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
-    } catch (const std::exception& ex) {
-        LOG(ERROR) << ex.what();
     }
+    if (control)
+        DestroyWindow(control->hwnd());
+    control = std::unique_ptr<UIControl>(new UIEditTask);
+    control->create(hwnd(), 0, {10,10}, {400,400});
+    relayout();
+    menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_STATUS);
 }
 void UIMainDialog::on_command_task_stop() {
     try {
@@ -429,7 +448,24 @@ void UIMainDialog::on_command_show_task() {
         control = std::unique_ptr<UIControl>(new UIShowTask);
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_TASK_STATUS, 2, IDM_TASK_STATUS);
+        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_STATUS);
+    } catch (const std::system_error& ex) {
+        LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << ex.what();
+    }
+}
+
+void UIMainDialog::on_command_edit_task() {
+    try {
+        if (dynamic_cast<UIEditTask*>(control.get()))
+            return;
+        if (control)
+            DestroyWindow(control->hwnd());
+        control = std::unique_ptr<UIControl>(new UIEditTask);
+        control->create(hwnd(), 0, {10,10}, {400,400});
+        relayout();
+        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_EDITOR);
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -446,7 +482,7 @@ void UIMainDialog::on_command_show_cargo() {
         control = std::unique_ptr<UIControl>(new UIShowCargo);
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_TASK_STATUS, 2, IDM_COMMODITIES);
+        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_COMMODITIES);
         ((UIShowCargo*)control.get())->initControls();
 
         //if (auto dlg = UIShowCargo::getInstance())

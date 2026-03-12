@@ -6,6 +6,7 @@
 
 #include "UIControl.h"
 #include "UILayout.h"
+#include "wl_cargobox.h"
 
 void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent) {
     NONCLIENTMETRICS ncm{};
@@ -57,10 +58,27 @@ UIControl::UIControl(bool scrollable) {
         return 0;
     });
     on_message(WM_SIZE, [this](wl::params params) {
-        if (params.wParam == SIZE_RESTORED)
-            relayout();
+        relayout();
         return 0;
     });
+
+    on_message(WM_MENUCOMMAND, [](wl::params params) {
+        int idx = params.wParam;
+        HMENU hMenu = (HMENU)params.lParam;
+        MENUINFO mi {sizeof(MENUINFO), MIM_MENUDATA|MIM_HELPID|MIM_STYLE};
+        BOOL ok = GetMenuInfo(hMenu, &mi);
+        if (!ok || mi.dwContextHelpID != wl::cargobox_menu_id || !mi.dwMenuData)
+            return 0;
+        wl::cargobox* cb = (wl::cargobox*)mi.dwMenuData;
+        cb->apply_menu(idx);
+        return 0;
+    });
+    for (int i=0; i < usedIds.size(); i++) {
+        on_command(ctrlIdBase + i, [this](wl::params p) {
+            on_ctrl_change(p);
+            return 0;
+        });
+    }
 }
 
 void UIControl::reset_scroll(bool scroll_to_top) {
@@ -135,4 +153,57 @@ void UIControl::on_scrollbar(wl::params& params) {
         InvalidateRect(hwnd(), nullptr, true);
         UpdateWindow(hwnd());
     }
+}
+
+int UIControl::nextID() {
+    assert (initializing);
+    for (int i=nextTryId; i < usedIds.size(); i++) {
+        if (!usedIds[i]) {
+            usedIds[i] = true;
+            nextTryId = i+1;
+            return ctrlIdBase + i;
+        }
+    }
+    nextTryId = 0;
+    for (int i=0; i < usedIds.size(); i++) {
+        if (!usedIds[i]) {
+            usedIds[i] = true;
+            nextTryId = i+1;
+            return ctrlIdBase + i;
+        }
+    }
+    return ctrlIdBase;
+}
+
+void UIControl::freeCtrl(wl::wnd& w) {
+    if (!w.hwnd())
+        return;
+    int id = GetDlgCtrlID(w.hwnd());
+    DestroyWindow(w.hwnd());
+    if (id < ctrlIdBase || id - ctrlIdBase >= usedIds.size())
+        return;
+    id -= ctrlIdBase;
+    usedIds[id] = false;
+    nextTryId = 0;
+}
+
+void UIControl::beginControls() {
+    SendMessage(hwnd(), WM_SETREDRAW, FALSE, 0);
+    initializing = true;
+}
+void UIControl::endControls() {
+    initializing = false;
+    SendMessage(hwnd(), WM_SETREDRAW, TRUE, 0);
+}
+
+void UIControl::on_ctrl_change(wl::params& p) {
+    if (initializing)
+        return;
+    auto hw = HIWORD(p.wParam);
+    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELENDOK && hw != CBN_EDITCHANGE && hw != EN_SETFOCUS)
+        return;
+    int id = LOWORD(p.wParam);
+    if (id < ctrlIdBase)
+        return;
+    on_ctrl_edit(id, hw);
 }

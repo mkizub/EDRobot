@@ -122,6 +122,9 @@ private:
                 return {large.ptr, large.length};
             return {buff, length};
         }
+        bool operator==(const obj_key& other) const {
+            return this->operator std::string_view() == other.operator std::string_view();
+        }
         bool operator<(const obj_key& other) const {
             const char* p1 = this->operator const char *();
             const char* p2 = other.operator const char *();

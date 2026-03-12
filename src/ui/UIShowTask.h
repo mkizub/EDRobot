@@ -19,9 +19,11 @@ public:
 
     const wchar_t* title() const override { return L"EDRobit task status"; }
     void initialize() override;
-    void relayout() override;
+    void relayout(bool scroll_to_top=false) override;
     bool need_timer_update() const override { return true; }
     void on_timer_update() override;
+    void on_ctrl_edit(int id, WORD msg) {};
+    bool validate() const { return true; };
 
     std::string startup_message;
     std::string latest_version;

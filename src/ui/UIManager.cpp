@@ -14,7 +14,7 @@
 #include "UIShowCargo.h"
 #include "UIStartupDialog.h"
 #include "UIToast.h"
-#include "UIAddTask.h"
+#include "UIEditTask.h"
 #include "UISelectRect.h"
 #include "UIDebug.h"
 
@@ -80,6 +80,11 @@ bool UIManager::showStartupDialog(const std::string &message, const std::string&
 //    return dlg.show();
     UIManager& mgr = getInstance();
     return mgr.uiMain.show_startup(message, latest_version, latest_url);
+}
+
+bool UIManager::showTaskStatus() {
+    UIManager& mgr = getInstance();
+    return mgr.uiMain.show_task_status();
 }
 
 bool UIManager::showMainDialog() {
@@ -151,6 +156,14 @@ bool UIManager::postToDebugWindow(const XMat& image, const cv::Mat& overlay) {
 
 std::map<std::string,const std::string> UIManager::iconSVG
 {
+        {"task-run",
+                R"SVG(<?xml version="1.0" encoding="utf-8"?>
+<svg width="800px" height="800px" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="#000000">
+  <path d="M2.78 2L2 2.41v12l.78.42 9-6V8l-9-6zM3 13.48V3.35l7.6 5.07L3 13.48z"/>
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M6 14.683l8.78-5.853V8L6 2.147V3.35l7.6 5.07L6 13.48v1.203z"/>
+</svg>)SVG"
+        },
+
         {"task-new",
          R"SVG(<?xml version="1.0" encoding="UTF-8"?>
 <svg width="800px" height="800px" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
@@ -199,7 +212,7 @@ std::map<std::string,const std::string> UIManager::iconSVG
 </svg>)SVG"
         },
 
-        {"cargo-add",
+        {"icon-add",
                 R"SVG(<?xml version="1.0" encoding="UTF-8"?>
 <svg width="800px" height="800px" viewBox="0 0 512 512" version="1.1" xmlns="http://www.w3.org/2000/svg">
  <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
@@ -210,7 +223,7 @@ std::map<std::string,const std::string> UIManager::iconSVG
 </svg>)SVG"
         },
 
-        {"cargo-save",
+        {"icon-save",
                 R"SVG(<?xml version="1.0" encoding="utf-8"?>
 <svg width="800px" height="800px" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" id="svg2" version="1.1">
   <g id="layer1" transform="matrix(.875 0 0 .875 -1.625 -903.192)">
@@ -218,6 +231,13 @@ std::map<std::string,const std::string> UIManager::iconSVG
       <path id="path821" d="M3 1033.362v16h16v-13.714l-2.286-2.286zm1.143 1.143H7.57v4.571h6.858v-4.571h1.142l2.286 2.286v11.428h-1.143v-6.857H5.286v6.857H4.143zm4.571 0h3.429v3.429H8.714zm-2.285 8h9.142v5.714H6.43z" style="fill:#373737;fill-opacity:1;stroke:none;stroke-width:1.14285707px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"/>
     </g>
   </g>
+</svg>)SVG"
+        },
+
+        {"icon-del",
+                R"SVG(<?xml version="1.0" encoding="utf-8"?>
+<svg fill="#000000" width="800px" height="800px" viewBox="0 0 256 256" id="Flat" xmlns="http://www.w3.org/2000/svg">
+  <path d="M215.99609,48H180V36A28.03146,28.03146,0,0,0,152,8H104A28.03146,28.03146,0,0,0,76,36V48H39.99609a12,12,0,0,0,0,24h4V208a20.0226,20.0226,0,0,0,20,20h128a20.0226,20.0226,0,0,0,20-20V72h4a12,12,0,0,0,0-24ZM100,36a4.00458,4.00458,0,0,1,4-4h48a4.00458,4.00458,0,0,1,4,4V48H100Zm87.99609,168h-120V72h120ZM116,104v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Zm48,0v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Z"/>
 </svg>)SVG"
         },
 

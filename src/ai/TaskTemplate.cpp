@@ -449,12 +449,12 @@ void initTemplates() {
             { Param::Site,     "depot",  _lc("Construction depot") },
             { Param::Bool,     "carrier",_lc("Consider Fleet Carrier")  },
             { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
-                                                                                         js::object({{"id", "ListLittleFirst"}, {"name", _lc("Listed, then Little first")}}),
-                                                                                         js::object({{"id", "ListBulkFirst"}, {"name", _lc("Listed, then Bulk first")}}),
-                                                                                         js::object({{"id", "ExceptLittleFirst"}, {"name", _lc("Except listed, Little first")}}),
-                                                                                         js::object({{"id", "ExceptBulkFirst"}, {"name", _lc("Except listed, Bulk first")}}),
-                                                                                         js::object({{"id", "OnlyLittleFirst"}, {"name", _lc("Only listed, Little first")}}),
-                                                                                         js::object({{"id", "OnlyBulkFirst"}, {"name", _lc("Only listed, Bulk first")}})
+                js::object({{"id", "ListLittleFirst"}, {"name", _lc("Listed, then Little first")}}),
+                js::object({{"id", "ListBulkFirst"}, {"name", _lc("Listed, then Bulk first")}}),
+                js::object({{"id", "ExceptLittleFirst"}, {"name", _lc("Except listed, Little first")}}),
+                js::object({{"id", "ExceptBulkFirst"}, {"name", _lc("Except listed, Bulk first")}}),
+                js::object({{"id", "OnlyLittleFirst"}, {"name", _lc("Only listed, Little first")}}),
+                js::object({{"id", "OnlyBulkFirst"}, {"name", _lc("Only listed, Bulk first")}})
             })}}), "ListLittleFirst"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
@@ -467,9 +467,9 @@ void initTemplates() {
             { Param::Array,    "markets",  _lc("Markets"), META(
                     R"({elements:{type:'Site'}})")},
             { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
-                                                                                         js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
-                                                                                         js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
-                                                                                         js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
+                js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
+                js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
+                js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
             })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
@@ -478,9 +478,9 @@ void initTemplates() {
             { Param::Array,    "markets", _lc("Markets"), META(
                     R"({elements:{type:'Site'}})")},
             { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
-                                                                                         js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
-                                                                                         js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
-                                                                                         js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
+                js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
+                js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
+                js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
             })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
@@ -551,7 +551,7 @@ TaskTemplate TaskTemplate::loadTask(const js::value& j_task) {
         }
     }
     if (!templ_ptr) {
-        LOG(ERROR) << "Task template '" << templ_id << "' not found";
+        LOG_IF(!templ_id.empty(),ERROR) << "Task template '" << templ_id << "' not found";
         return {};
     }
     auto task = *templ_ptr;

@@ -1,84 +1,292 @@
 //
-// Created by mkizub on 24.11.2025.
+// Created by mkizub on 27.06.2025.
 //
 
 #include "../pch.h"
 
-#include "windowsx.h"
-
-#include "UITaskEditor.h"
+#include "UIEditTask.h"
 #include "UILayout.h"
+#include "UIManager.h"
+#include "UIMainDialog.h"
 
+#include "wl_cargobox.h"
 
-UITaskEditor::UITaskEditor() : UIControl(true) {
-    for (int i=0; i < usedIds.size(); i++) {
-        on_command(ctrlIdBase + i, [this](wl::params p) {
-            on_ctrl_change(p);
-            return 0;
-        });
-    }
-    font.create_ui();
+#include "../../ui/resource.h"
 
-    on_message(WM_SIZE, [this](wl::params params) {
-        relayout();
+class ParamCtrl {
+public:
+    ParamCtrl(UIEditTask* ui);
+    ParamCtrl(UIEditTask* ui, ai::Param& param);
+    virtual ~ParamCtrl();
+    virtual void create();
+    virtual void layout(UILayout& lo);
+    virtual void on_ctrl_edit(HWND changed, WORD msg);
+    virtual bool validate();
+    virtual js::value value();
+    UIEditTask* ui;
+    std::wstring name;
+    const js::value meta;
+    bool optional;
+    std::wstring text;
+    wl::label label;
+};
+
+class BoolCtrl : public ParamCtrl {
+public:
+    BoolCtrl(UIEditTask* ui, ai::Param& param);
+    ~BoolCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+    bool checked;
+    wl::checkbox cb;
+};
+
+class EnumCtrl : public ParamCtrl {
+public:
+    EnumCtrl(UIEditTask* ui, ai::Param& param);
+    ~EnumCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+
+    int selected_index {-1};
+    wl::combobox dl;
+
+    struct IdName {
+        std::string enum_id;
+        std::wstring enum_name;
+    };
+    std::vector<IdName> entries;
+};
+
+class TextCtrl : public ParamCtrl {
+public:
+    TextCtrl(UIEditTask* ui, ai::Param& param);
+    ~TextCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+
+    ai::Param::Type type;
+    wl::textbox tb;
+};
+
+class SiteCtrl : public ParamCtrl {
+public:
+    SiteCtrl(UIEditTask* ui, ai::Param& param);
+    ~SiteCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+
+    std::wstring system_text;
+    std::wstring dock_text;
+
+    wl::textbox tb_system;
+    wl::textbox tb_dock;
+};
+
+class CargoCtrl : public ParamCtrl {
+public:
+    CargoCtrl(UIEditTask* ui, ai::Param& param);
+    ~CargoCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+
+    wl::cargobox dl;
+};
+
+class ArrayCtrl;
+class ElemCtrl : public ParamCtrl {
+public:
+    ElemCtrl(UIEditTask* ui, ArrayCtrl* arr_ctrl, int idx);
+    ~ElemCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+
+    const ArrayCtrl* arr_ctrl;
+    int index;
+    std::unique_ptr<ParamCtrl> el_ctrl;
+};
+
+class ArrayCtrl : public ParamCtrl {
+public:
+    ArrayCtrl(UIEditTask* ui, ai::Param& param);
+    ~ArrayCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+
+    const js::value& el_meta;
+    const ai::Param::Type el_type;
+    bool simple;
+    std::vector<js::value> arr_value;
+    std::deque<std::unique_ptr<ElemCtrl>> controls;
+};
+
+class TaskCtrl : public ParamCtrl {
+public:
+    TaskCtrl(UIEditTask* ui, ai::TaskTemplate& templ);
+    TaskCtrl(UIEditTask* ui, ai::Param& param);
+    ~TaskCtrl() override;
+    void create() override;
+    void layout(UILayout& lo) override;
+    void on_ctrl_edit(HWND changed, WORD msg) override;
+    bool validate() override;
+    js::value value() override;
+
+    bool toplevel;
+    std::vector<const ai::TaskTemplate*> templates;
+    ai::TaskTemplate templ;
+    wl::textbox tb;
+    wl::combobox dl;
+    std::deque<std::unique_ptr<ParamCtrl>> controls;
+};
+
+UIEditTask::UIEditTask() : UIControl(true) {
+    on_command(IDC_COMBO_TEMPLATES, [this](wl::params p) {
+        if (HIWORD(p.wParam) == CBN_SELCHANGE)
+            on_template_selected();
+        return 0;
+    });
+    on_command(ID_RUN, [this](wl::params params) {
+        on_template_run();
+        return 0;
+    });
+    on_command(ID_SAVE, [this](wl::params params) {
+        on_template_save();
+        return 0;
+    });
+    on_command(ID_DELETE, [this](wl::params params) {
+        on_template_delete();
         return 0;
     });
 }
 
-void UITaskEditor::setTaskTemplate(ai::TaskTemplate& tt) {
-    clear();
-    beginControls();
-    task_ctrl = std::make_unique<TaskCtrl>(this, tt);
-    task_ctrl->create();
-    endControls();
-    relayout(true);
+UIEditTask::~UIEditTask() {
 }
 
-ai::TaskTemplate UITaskEditor::makeTemplate() {
+void UIEditTask::initialize() {
+    SetDialogDpiChangeBehavior(hwnd(), DDC_DISABLE_ALL, DDC_DISABLE_ALL);
+
+    RECT rect{};
+    GetClientRect(hwnd(), &rect);
+    int uiDpi = GetDpiForWindow(hwnd());
+    int uiPercent = Cfg.getUiScalePercents();
+
+    UILayout lo(uiDpi, uiPercent, rect);
+    loCreateFont(font, uiDpi, uiPercent);
+
+    lo.left += lo.border;
+    lo.top += lo.border;
+    lo.width -= 2*lo.border;
+    int x = lo.left;
+    int y = lo.top;
+    int cb_w = lo.width - 3*(lo.btnh+lo.xgap);
+    cb_tasks.create(hwnd(), IDC_COMBO_TEMPLATES, {x,y}, cb_w, wl::combobox::sort::UNSORTED);
+    x += cb_w + lo.xgap;
+    btn_run.create(hwnd(), ID_RUN, "task-run", lo.icsz, {x,y}, {lo.btnh,lo.btnh}).set_enabled(false);
+    x += cb_w + lo.xgap;
+    btn_save.create(hwnd(), ID_SAVE, "icon-save", lo.icsz, {x,y}, {lo.btnh,lo.btnh}).set_enabled(false);
+    x += cb_w + lo.xgap;
+    btn_del.create(hwnd(), ID_DELETE, "icon-del", lo.icsz, {x,y}, {lo.btnh,lo.btnh}).set_enabled(false);
+
+    init_templ_list();
+    relayout();
+}
+
+void UIEditTask::clear() {
+    task_ctrl.reset();
+    nextTryId = 0;
+    usedIds = {};
+}
+
+void UIEditTask::init_templ_list(std::string select) {
+    cb_tasks.remove_all();
+    templates.clear();
+    for (auto& tt : ai::getUserTasks())
+        templates.push_back(tt);
+    for (auto& tt : ai::getTemplates())
+        templates.push_back(tt);
+    int select_index = -1;
+    for (int i=0; i < templates.size(); i++) {
+        auto& tt = templates[i];
+        cb_tasks.add({toUtf16(tt.name()).c_str()});
+        if (select_index < 0 && !select.empty() && select == tt.nm)
+            select_index = i;
+    }
+    if (select_index >= 0)
+        cb_tasks.select(select_index);
+}
+
+void UIEditTask::on_template_run() {
+    if (!task_ctrl)
+        return;
+    if (validate()) {
+        ai::new_task(makeTemplate());
+        clear();
+        if (detached) {
+            auto p = GetParent(hwnd());
+            PostMessage(p, WM_CLOSE, 0, 0);
+            //bool ok = CloseWindow(p);
+            //ok = DestroyWindow(p);
+            //LOG(INFO) << "ok = " << ok;
+        } else {
+            UIManager::showTaskStatus();
+        }
+    }
+}
+
+void UIEditTask::on_template_save() {
+    if (!task_ctrl)
+        return;
+    task_ctrl->validate();
+    ai::TaskTemplate templ = makeTemplate();
+    if (templ.id.empty())
+        return;
+    ai::saveUserTask(templ);
+    init_templ_list(templ.nm);
+    btn_save.set_enabled(false);
+}
+
+void UIEditTask::on_template_delete() {
+    auto selected_index = cb_tasks.get_selected_index();
+    auto user_tasks_size = ai::getUserTasks().size();
+    if (selected_index < user_tasks_size) {
+        ai::delUserTask(selected_index);
+        clear();
+        init_templ_list();
+        btn_run.set_enabled(false);
+        btn_save.set_enabled(false);
+        btn_del.set_enabled(false);
+    }
+}
+
+ai::TaskTemplate UIEditTask::makeTemplate() {
     if (!task_ctrl)
         return {};
     task_ctrl->validate();
     return task_ctrl->templ;
 }
 
-void UITaskEditor::clear() {
-    task_ctrl.reset();
-    nextTryId = 0;
-    usedIds = {};
-}
-void UITaskEditor::relayout(bool scroll_to_top) {
-    if (!task_ctrl)
-        return;
-
-    if (scroll_to_top)
-        reset_scroll(true);
-
-    RECT rect{};
-    GetClientRect(hwnd(), &rect);
-
-    int uiPercent = Cfg.getUiScalePercents();
-    int uiDpi = GetDpiForWindow(hwnd());
-    UILayout lo(uiDpi, uiPercent, rect);
-    if (uiDpi != scaled_to_dpi) {
-        scaled_to_dpi = uiDpi;
-        loCreateFont(font, uiDpi, uiPercent);
-        lo.font = &font;
-    }
-
-    panel_width = lo.width;
-    panel_height = lo.height;
-
-    lo.wpi = BeginDeferWindowPos(100);
-    lo.left = lo.vgap;
-    lo.top = lo.vgap - scroll_pos;
-    lo.width -= 2*lo.vgap;
-    task_ctrl->layout(lo);
-    params_height = lo.top + scroll_pos;
-    EndDeferWindowPos(lo.wpi);
-    reset_scroll(false);
-}
-
-std::unique_ptr<ParamCtrl> UITaskEditor::create_ctrl(ai::Param& param) {
+std::unique_ptr<ParamCtrl> UIEditTask::create_ctrl(ai::Param& param) {
     switch (param.type) {
     case ai::Param::Void:
         break;
@@ -102,26 +310,129 @@ std::unique_ptr<ParamCtrl> UITaskEditor::create_ctrl(ai::Param& param) {
     return std::make_unique<ParamCtrl>(this);
 }
 
-bool UITaskEditor::validate() const {
+void UIEditTask::on_ctrl_edit(int id, WORD msg) {
+    if (task_ctrl) {
+        HWND changed = GetDlgItem(hwnd(), id);
+        task_ctrl->on_ctrl_edit(changed, msg);
+    }
+    validate_callback(validate());
+}
+
+bool UIEditTask::validate() const {
     return task_ctrl && task_ctrl->validate();
 }
-void UITaskEditor::on_ctrl_edit(int id, WORD msg) {
-    if (!task_ctrl)
+
+void UIEditTask::validate_callback(bool valid) {
+    btn_run.set_enabled(valid && task_ctrl);
+    ai::TaskTemplate templ = makeTemplate();
+    if (templ.id.empty() || templ.nm.empty()) {
+        btn_save.set_enabled(false);
+        btn_del.set_enabled(false);
         return;
-    HWND changed = GetDlgItem(hwnd(), id);
-    task_ctrl->on_ctrl_edit(changed, msg);
-    task_ctrl->validate();
+    }
+
+    auto selected_index = cb_tasks.get_selected_index();
+    bool is_template = selected_index >= ai::getUserTasks().size();
+    btn_del.set_enabled(!is_template);
+
+    bool is_modified = false;
+    int name_eq_counter = 0;
+    for (auto& tt : ai::getUserTasks()) {
+        if (tt.id == templ.id && tt.nm == templ.nm) {
+            name_eq_counter += 1;
+            if (!templ.params.empty() && templ != tt)
+                is_modified = true;
+            break;
+        }
+    }
+    for (auto& tt : ai::getTemplates()) {
+        if (tt.nm == templ.nm || tt.name() == templ.nm)
+            name_eq_counter += 1;
+    }
+    if (!is_template) {
+        btn_save.set_enabled((is_modified && name_eq_counter == 1) || name_eq_counter == 0);
+    } else {
+        btn_save.set_enabled(valid && name_eq_counter == 0);
+    }
 }
 
 
-ParamCtrl::ParamCtrl(UITaskEditor* ui)
+void UIEditTask::relayout(bool scroll_to_top) {
+    if (scroll_to_top)
+        reset_scroll(true);
+
+    RECT rect{};
+    GetClientRect(hwnd(), &rect);
+
+    int uiPercent = Cfg.getUiScalePercents();
+    int uiDpi = GetDpiForWindow(hwnd());
+    UILayout lo(uiDpi, uiPercent, rect);
+    if (uiDpi != scaled_to_dpi) {
+        scaled_to_dpi = uiDpi;
+        loCreateFont(font, uiDpi, uiPercent);
+        lo.font = &font;
+        font.set_on(cb_tasks);
+        font.set_on(btn_run);
+        font.set_on(btn_save);
+        font.set_on(btn_del);
+    }
+
+    panel_width = lo.width;
+    panel_height = lo.height;
+    lo.left += lo.xgap;
+    lo.width -= 2*lo.xgap;
+    lo.top += lo.border - scroll_pos;
+
+    lo.wpi = BeginDeferWindowPos(100);
+
+    int x = lo.left;
+    int y = lo.top;
+    int cb_w = lo.width - 3*(lo.btnh+lo.xgap);
+    lo.wpi = DeferWindowPos(lo.wpi, cb_tasks.hwnd(), nullptr, x, y, cb_w, lo.height, SWP_NOZORDER);
+    x += cb_w + lo.xgap;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_run.hwnd(), nullptr, x, y, lo.btnh, lo.btnh, SWP_NOZORDER);
+    x += lo.btnh + lo.xgap;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_save.hwnd(), nullptr, x, y, lo.btnh, lo.btnh, SWP_NOZORDER);
+    x += lo.btnh + lo.xgap;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_del.hwnd(), nullptr, x, y, lo.btnh, lo.btnh, SWP_NOZORDER);
+
+    lo.top += lo.btnh + lo.vgap;
+
+    if (task_ctrl)
+        task_ctrl->layout(lo);
+
+    params_height = lo.top + scroll_pos + 5*lo.vrow;
+
+    EndDeferWindowPos(lo.wpi);
+
+    reset_scroll(false);
+}
+
+void UIEditTask::on_template_selected() {
+    int idx = cb_tasks.get_selected_index();
+    clear();
+    if (idx < 0 || idx >= templates.size())
+        return;
+
+    beginControls();
+    task_ctrl = std::make_unique<TaskCtrl>(this, templates[idx]);
+    task_ctrl->create();
+    endControls();
+    relayout(true);
+
+    validate_callback(validate());
+}
+
+
+
+ParamCtrl::ParamCtrl(UIEditTask* ui)
         : ui(ui)
 {}
-ParamCtrl::ParamCtrl(UITaskEditor* ui, ai::Param& param)
-    : ui(ui)
-    , name(toUtf16(param.name()))
-    , meta(param.meta)
-    , optional(param.optional())
+ParamCtrl::ParamCtrl(UIEditTask* ui, ai::Param& param)
+        : ui(ui)
+        , name(toUtf16(param.name()))
+        , meta(param.meta)
+        , optional(param.optional())
 {}
 
 
@@ -142,9 +453,9 @@ js::value ParamCtrl::value() {
 }
 
 
-BoolCtrl::BoolCtrl(UITaskEditor* ui, ai::Param& param)
-    : ParamCtrl(ui, param)
-    , checked(param.as_boolean())
+BoolCtrl::BoolCtrl(UIEditTask* ui, ai::Param& param)
+        : ParamCtrl(ui, param)
+        , checked(param.as_boolean())
 {}
 BoolCtrl::~BoolCtrl() {
     ui->freeCtrl(cb);
@@ -173,8 +484,8 @@ js::value BoolCtrl::value() {
 }
 
 
-EnumCtrl::EnumCtrl(UITaskEditor* ui, ai::Param& param)
-    : ParamCtrl(ui, param)
+EnumCtrl::EnumCtrl(UIEditTask* ui, ai::Param& param)
+        : ParamCtrl(ui, param)
 {
     selected_index= -1;
     if (param.value.is_int())
@@ -257,9 +568,9 @@ js::value EnumCtrl::value() {
 }
 
 
-TextCtrl::TextCtrl(UITaskEditor* ui, ai::Param& param)
-    : ParamCtrl(ui, param)
-    , type(param.type)
+TextCtrl::TextCtrl(UIEditTask* ui, ai::Param& param)
+        : ParamCtrl(ui, param)
+        , type(param.type)
 {
     if (!param.empty()) {
         if (param.type == ai::Param::Commodity) {
@@ -344,8 +655,8 @@ js::value TextCtrl::value() {
     return s;
 }
 
-SiteCtrl::SiteCtrl(UITaskEditor* ui, ai::Param& param)
-    : ParamCtrl(ui, param)
+SiteCtrl::SiteCtrl(UIEditTask* ui, ai::Param& param)
+        : ParamCtrl(ui, param)
 {
     if (!param.empty() && param.value.is_object()) {
         system_text = toUtf16(param.value["system"].as_string_or());
@@ -400,9 +711,9 @@ void SiteCtrl::on_ctrl_edit(HWND changed, WORD msg) {
 bool SiteCtrl::validate() {
     ai::Param param{ai::Param::Site, "", "", meta};
     js::value v = js::object({
-        {"system", toUtf8(trimTextLine(system_text))},
-        {"dock", toUtf8(trimTextLine(dock_text))}
-    });
+                                     {"system", toUtf8(trimTextLine(system_text))},
+                                     {"dock", toUtf8(trimTextLine(dock_text))}
+                             });
     param.set(v, true);
     return param.valid();
 }
@@ -410,13 +721,13 @@ js::value SiteCtrl::value() {
     if (system_text.empty() && dock_text.empty())
         return {};
     js::value v = js::object({
-        {"system", toUtf8(trimTextLine(system_text))},
-        {"dock", toUtf8(trimTextLine(dock_text))}
-    });
+                                     {"system", toUtf8(trimTextLine(system_text))},
+                                     {"dock", toUtf8(trimTextLine(dock_text))}
+                             });
     return v;
 }
 
-CargoCtrl::CargoCtrl(UITaskEditor* ui, ai::Param& param)
+CargoCtrl::CargoCtrl(UIEditTask* ui, ai::Param& param)
         : ParamCtrl(ui, param)
 {
     assert (param.type == ai::Param::Commodity);
@@ -456,7 +767,7 @@ void CargoCtrl::layout(UILayout& lo) {
     const int lw = lo.width / 3 - lo.vgap;
     const int rw = lo.width * 2 / 3;
     const int cx = lo.left + lo.width / 3;
-    lo.wpi = DeferWindowPos(lo.wpi, dl.hwnd(), nullptr, cx, lo.top, rw, lo.vrow*8, SWP_NOZORDER);
+    lo.wpi = DeferWindowPos(lo.wpi, dl.hwnd(), nullptr, cx, lo.top, rw, lo.vrow, SWP_NOZORDER);
     if (!name.empty()) {
         lo.wpi = DeferWindowPos(lo.wpi, label.hwnd(), nullptr, lo.left, lo.top, lw, lo.vrow, SWP_NOZORDER);
     }
@@ -465,27 +776,12 @@ void CargoCtrl::layout(UILayout& lo) {
 void CargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed != dl.hwnd())
         return;
-    if (msg == CBN_SELENDOK)
-        text = dl.get_selected_text();
-    else
-        text = dl.get_text();
-    if (text.empty()) {
-        dl.remove_all();
+    if (msg == EN_SETFOCUS) {
+        PostMessage(dl.hwnd(), EM_SETSEL, (WPARAM)0, (LPARAM)-1);
         return;
     }
-    std::set<std::wstring> new_set;
-    std::wstring text_l = toLower(text);
-    for (auto* c : Cfg.getAllKnownCommodities()) {
-        if (toUtf16(c->nameId).starts_with(text_l))
-            new_set.insert(c->wide);
-        else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
-            new_set.insert(c->wide);
-        else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
-            new_set.insert(c->wide);
-    }
-    dl.set_list(new_set);
-    if (dl.count() <= 10)
-        SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
+    text = dl.get_text();
+    dl.auto_drop(ui->hwnd());
 }
 bool CargoCtrl::validate() {
     ai::Param param{ai::Param::Commodity, "", "", meta};
@@ -502,10 +798,10 @@ js::value CargoCtrl::value() {
     return s;
 }
 
-ElemCtrl::ElemCtrl(UITaskEditor* ui, ArrayCtrl* arr_ctrl, int idx)
-    : arr_ctrl(arr_ctrl)
-    , index(idx)
-    , ParamCtrl(ui)
+ElemCtrl::ElemCtrl(UIEditTask* ui, ArrayCtrl* arr_ctrl, int idx)
+        : arr_ctrl(arr_ctrl)
+        , index(idx)
+        , ParamCtrl(ui)
 {}
 ElemCtrl::~ElemCtrl() {
     el_ctrl.reset();
@@ -535,7 +831,7 @@ js::value ElemCtrl::value() {
 }
 
 
-ArrayCtrl::ArrayCtrl(UITaskEditor* ui, ai::Param& param)
+ArrayCtrl::ArrayCtrl(UIEditTask* ui, ai::Param& param)
         : ParamCtrl(ui, param)
         , el_meta(meta["elements"])
         , el_type(enum_cast<ai::Param::Type>(el_meta["type"].as_string()).value())
@@ -620,17 +916,17 @@ js::value ArrayCtrl::value() {
     return arr;
 }
 
-TaskCtrl::TaskCtrl(UITaskEditor* ui, ai::TaskTemplate& templ)
-    : ParamCtrl(ui)
-    , toplevel(true)
-    , templ(templ)
+TaskCtrl::TaskCtrl(UIEditTask* ui, ai::TaskTemplate& templ)
+        : ParamCtrl(ui)
+        , toplevel(true)
+        , templ(templ)
 {
     name = toUtf16(templ.name());
 }
-TaskCtrl::TaskCtrl(UITaskEditor* ui, ai::Param& param)
-    : ParamCtrl(ui, param)
-    , toplevel(false)
-    , templ(ai::TaskTemplate::loadTask(param.value))
+TaskCtrl::TaskCtrl(UIEditTask* ui, ai::Param& param)
+        : ParamCtrl(ui, param)
+        , toplevel(false)
+        , templ(ai::TaskTemplate::loadTask(param.value))
 {
     name = toUtf16(templ.name());
     std::vector<std::string> valid_templates;
@@ -775,7 +1071,7 @@ js::value TaskCtrl::value() {
     }
     for (int p=0; p < templ.params.size(); p++) {
         auto val = controls[p]->value();
-        templ.params[p].set(val);
+        templ.params[p].set(val, true);
         if (!val.empty())
             obj[templ.params[p].id] = val;
     }

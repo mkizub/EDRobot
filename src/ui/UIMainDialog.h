@@ -26,6 +26,7 @@ public:
     UIMainDialog();
 
     bool show_startup(const std::string &message, const std::string& latest_version, const std::string& latest_url);
+    bool show_task_status();
     bool show();
     bool hide(bool force);
     void initialize();
@@ -38,6 +39,7 @@ public:
     void on_command_task_pause();
     void on_command_show_detach();
     void on_command_show_task();
+    void on_command_edit_task();
     void on_command_show_cargo();
 
     void update_curr_task();

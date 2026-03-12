@@ -18,8 +18,8 @@ UIControlDialog::UIControlDialog(std::unique_ptr<UIControl>& ctrl) {
     setup.wndClassEx.lpszClassName = L"EDRobotDetached";
 
     setup.title = ctrl->title();
-    setup.style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
-    setup.exStyle = 0;
+    setup.style |= WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+    setup.exStyle |= WS_EX_APPWINDOW;
     RECT prect {};
     if (auto pwnd = GetParent(ctrl->hwnd()); pwnd && GetWindowRect(pwnd, &prect)) {
         auto hMonitor = MonitorFromWindow(pwnd, MONITOR_DEFAULTTOPRIMARY);
@@ -36,6 +36,10 @@ UIControlDialog::UIControlDialog(std::unique_ptr<UIControl>& ctrl) {
         initialize();
         return 0;
     });
+    on_message(WM_CLOSE, [this](wl::params p) -> INT_PTR {
+        bool ok = DestroyWindow(hwnd());
+        return 0;
+    });
 
     on_message(WM_DPICHANGED, [this](wl::params params) {
         relayout();
@@ -46,7 +50,7 @@ UIControlDialog::UIControlDialog(std::unique_ptr<UIControl>& ctrl) {
             relayout();
             update_control();
         } else {
-            ShowWindow(this->hwnd(), SW_HIDE);
+            //ShowWindow(this->hwnd(), SW_SHOWMINIMIZED);
             KillTimer(this->hwnd(), mUpdateTimerId);
             mUpdateTimerId = {};
         }
@@ -59,6 +63,7 @@ UIControlDialog::UIControlDialog(std::unique_ptr<UIControl>& ctrl) {
     });
 
     control.swap(ctrl);
+    control->detached = true;
 }
 
 UIControlDialog::~UIControlDialog() {

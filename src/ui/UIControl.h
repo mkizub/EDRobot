@@ -21,9 +21,17 @@ public:
 
     virtual const wchar_t* title() const = 0;
     virtual void initialize() = 0;
-    virtual void relayout() = 0;
+    virtual void relayout(bool scroll_to_top=false) = 0;
     virtual bool need_timer_update() const { return false; }
     virtual void on_timer_update() {};
+    virtual void on_ctrl_change(wl::params& params);
+    virtual void on_ctrl_edit(int id, WORD msg) = 0;
+    virtual bool validate() const = 0;
+
+    int nextID();
+    void freeCtrl(wl::wnd& wnd);
+    void beginControls();
+    void endControls();
 
     wl::font font;
     wl::scrollinfo scrollinfo;
@@ -36,6 +44,11 @@ public:
     int scroll_line_delta = 24;
 
     int scaled_to_dpi {};
+
+    bool initializing {};
+    bool detached {};
+    int nextTryId;
+    std::bitset<256> usedIds;
 };
 
 

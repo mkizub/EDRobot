@@ -20,20 +20,16 @@ public:
     ~UIShowCargo() override;
     const wchar_t* title() const override { return L"EDRobot cargo"; }
     void initialize() override {};
-    void relayout() override { relayout(false); };
-    int nextID();
-    void freeCtrl(wl::wnd& wnd);
-    void beginControls();
-    void endControls();
+    void relayout(bool scroll_to_top) override;
     void initControls();
     bool appendCargoControl(Commodity* commodity);
     void clear();
-    void relayout(bool scroll_to_top);
     bool updateCargo();
 
-    void on_ctrl_change(wl::params& params);
+    void on_ctrl_change(wl::params& params) override;
+    void on_ctrl_edit(int id, WORD msg) override;
+    bool validate() const override;
     bool validate(bool* changed) const;
-    void on_ctrl_edit(int id, WORD msg);
     void on_cargo_load();
     void on_cargo_save();
 

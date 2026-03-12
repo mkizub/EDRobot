@@ -49,9 +49,10 @@
 #define IDM_TASK_RESUME                 32795
 #define IDM_FILE_EXIT                   32796
 #define IDM_TASK_STATUS                 32797
-#define IDM_COMMODITIES                 32798
-#define IDM_DETACH                      32799
-#define IDM_DEBUG_WATCH                 32800
+#define IDM_TASK_EDITOR                 32798
+#define IDM_COMMODITIES                 32799
+#define IDM_DETACH                      32800
+#define IDM_DEBUG_WATCH                 32801
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

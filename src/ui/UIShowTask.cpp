@@ -37,7 +37,9 @@ void UIShowTask::initialize() {
     on_timer_update();
 }
 
-void UIShowTask::relayout() {
+void UIShowTask::relayout(bool scroll_to_top) {
+    if (scroll_to_top)
+        reset_scroll(true);
     RECT rect{};
     GetClientRect(hwnd(), &rect);
 

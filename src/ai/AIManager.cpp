@@ -243,12 +243,12 @@ bool new_task(spTask&& task) {
     isInterrupted = true;
     isDebugPaused = false;
     lastTask.reset();
-    activeTask.reset();
     taskCond.notify_one();
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || isLoopWaiting;
     });
     LOG(INFO) << "AIManager::new_task(): activating " << task->getTitle();
+    lastTask.swap(activeTask);
     activeTask.swap(task);
     isInterrupted = false;
     taskCond.notify_one();

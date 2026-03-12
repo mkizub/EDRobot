@@ -110,8 +110,6 @@ add_executable(EDRobot
         src/net/RavenColonial.cpp
         src/net/RavenColonial.h
 
-        src/ui/UIAddTask.cpp
-        src/ui/UIAddTask.h
         src/ui/UIMainDialog.cpp
         src/ui/UIMainDialog.h
         src/ui/UIControl.cpp
@@ -122,6 +120,8 @@ add_executable(EDRobot
         src/ui/UIDebug.h
         src/ui/UIDialog.cpp
         src/ui/UIDialog.h
+        src/ui/UIEditTask.cpp
+        src/ui/UIEditTask.h
         src/ui/UILayout.h
         src/ui/UIManager.cpp
         src/ui/UIManager.h
@@ -133,8 +133,6 @@ add_executable(EDRobot
         src/ui/UIShowTask.h
         src/ui/UIStartupDialog.cpp
         src/ui/UIStartupDialog.h
-        src/ui/UITaskEditor.cpp
-        src/ui/UITaskEditor.h
         src/ui/UIToast.cpp
         src/ui/UIToast.h
         src/ui/UIWindow.cpp

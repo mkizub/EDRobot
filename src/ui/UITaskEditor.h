@@ -7,6 +7,8 @@
 #ifndef EDROBOT_UITASKEDITOR_H
 #define EDROBOT_UITASKEDITOR_H
 
+#include "UIControl.h"
+
 #include <shellapi.h>
 #include <winlamb/combobox.h>
 #include <winlamb/checkbox.h>
@@ -22,6 +24,7 @@
 #include "wl_cargobox.h"
 #include "../ai/AIManager.h"
 
+class UILayout;
 class UITaskEditor;
 
 class ParamCtrl {
@@ -30,7 +33,7 @@ public:
     ParamCtrl(UITaskEditor* ui, ai::Param& param);
     virtual ~ParamCtrl();
     virtual void create();
-    virtual void layout();
+    virtual void layout(UILayout& lo);
     virtual void on_ctrl_edit(HWND changed, WORD msg);
     virtual bool validate();
     virtual js::value value();
@@ -47,7 +50,7 @@ public:
     BoolCtrl(UITaskEditor* ui, ai::Param& param);
     ~BoolCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -60,7 +63,7 @@ public:
     EnumCtrl(UITaskEditor* ui, ai::Param& param);
     ~EnumCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -80,7 +83,7 @@ public:
     TextCtrl(UITaskEditor* ui, ai::Param& param);
     ~TextCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -94,7 +97,7 @@ public:
     SiteCtrl(UITaskEditor* ui, ai::Param& param);
     ~SiteCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -111,7 +114,7 @@ public:
     CargoCtrl(UITaskEditor* ui, ai::Param& param);
     ~CargoCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -125,7 +128,7 @@ public:
     ElemCtrl(UITaskEditor* ui, ArrayCtrl* arr_ctrl, int idx);
     ~ElemCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -140,7 +143,7 @@ public:
     ArrayCtrl(UITaskEditor* ui, ai::Param& param);
     ~ArrayCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -158,7 +161,7 @@ public:
     TaskCtrl(UITaskEditor* ui, ai::Param& param);
     ~TaskCtrl() override;
     void create() override;
-    void layout() override;
+    void layout(UILayout& lo) override;
     void on_ctrl_edit(HWND changed, WORD msg) override;
     bool validate() override;
     js::value value() override;
@@ -171,23 +174,20 @@ public:
     std::deque<std::unique_ptr<ParamCtrl>> controls;
 };
 
-class UITaskEditor : public wl::params_panel {
+class UITaskEditor : public UIControl {
 public:
 
     UITaskEditor();
-    int nextID();
-    void freeCtrl(wl::wnd& wnd);
-    void beginControls();
-    void endControls();
+    const wchar_t* title() const override { return L"EDRobot task editor"; }
+
     void setTaskTemplate(ai::TaskTemplate& tt);
     ai::TaskTemplate makeTemplate();
     void clear();
-    void relayout(bool scroll_to_top);
+    void relayout(bool scroll_to_top=false) override;
 
     std::unique_ptr<ParamCtrl> create_ctrl(ai::Param& param);
-    void on_ctrl_change(wl::params& params);
-    bool validate() const;
-    bool on_ctrl_edit(int id, WORD msg);
+    bool validate() const override;
+    void on_ctrl_edit(int id, WORD msg) override;
 
     std::function<void(bool)> validate_callback;
     std::unique_ptr<TaskCtrl> task_ctrl;

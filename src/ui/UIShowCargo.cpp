@@ -94,45 +94,6 @@ UIShowCargo::~UIShowCargo() {
 }
 
 
-int UIShowCargo::nextID() {
-    assert (initializing);
-    for (int i=nextTryId; i < usedIds.size(); i++) {
-        if (!usedIds[i]) {
-            usedIds[i] = true;
-            nextTryId = i+1;
-            return ctrlIdBase + i;
-        }
-    }
-    nextTryId = 0;
-    for (int i=0; i < usedIds.size(); i++) {
-        if (!usedIds[i]) {
-            usedIds[i] = true;
-            nextTryId = i+1;
-            return ctrlIdBase + i;
-        }
-    }
-    return ctrlIdBase;
-}
-
-void UIShowCargo::freeCtrl(wl::wnd& w) {
-    if (!w.hwnd())
-        return;
-    int id = GetDlgCtrlID(w.hwnd());
-    DestroyWindow(w.hwnd());
-    if (id < ctrlIdBase || id - ctrlIdBase >= usedIds.size())
-        return;
-    id -= ctrlIdBase;
-    usedIds[id] = false;
-    nextTryId = 0;
-}
-
-void UIShowCargo::beginControls() {
-    initializing = true;
-}
-void UIShowCargo::endControls() {
-    initializing = false;
-}
-
 void UIShowCargo::initControls() {
     clear();
     beginControls();
@@ -241,6 +202,9 @@ void UIShowCargo::on_ctrl_change(wl::params& p) {
         new_control->btn_fc_save.set_enabled(valid && changed);
 }
 
+bool UIShowCargo::validate() const {
+    return validate(nullptr);
+}
 bool UIShowCargo::validate(bool* changed) const {
     bool valid = true;
     for (auto& cc : controls) {
@@ -465,11 +429,11 @@ NewCargoCtrl::~NewCargoCtrl() {
 
 void NewCargoCtrl::create() {
     dl.create(ui->hwnd(), ui->nextID(), {0, 0}, {200, LO_V_ROW}, LO_V_ROW * 8);
-    btn_add.create(ui->hwnd(), ui->nextID(), "cargo-add", LO_ICN_S, {200, 0}, {20,20});
+    btn_add.create(ui->hwnd(), ui->nextID(), "icon-add", LO_ICN_S, {200, 0}, {20,20});
     btn_add.set_enabled(false);
-    btn_fc_save.create(ui->hwnd(), ui->nextID(), "cargo-save", LO_ICN_S, {220, 0}, {20,20});
+    btn_fc_save.create(ui->hwnd(), ui->nextID(), "icon-save", LO_ICN_S, {220, 0}, {20,20});
     btn_fc_save.set_enabled(false);
-    btn_dp_save.create(ui->hwnd(), ui->nextID(), "cargo-save", LO_ICN_S, {280, 0}, {20,20});
+    btn_dp_save.create(ui->hwnd(), ui->nextID(), "icon-save", LO_ICN_S, {280, 0}, {20,20});
     btn_dp_save.set_enabled(false);
 
     ui->font.set_on(dl);
@@ -500,7 +464,7 @@ void NewCargoCtrl::layout(UILayout& lo) {
 
 void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed == btn_add.hwnd() && msg == BN_CLICKED) {
-        text = dl.get_selected_text();
+        text = dl.get_text();
         auto* c = Cfg.getCommodityByName(text, false);
         if (c && ui->appendCargoControl(c)) {
             text.clear();
@@ -511,7 +475,7 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed != dl.hwnd())
         return;
     if (msg == CBN_SELENDOK)
-        text = dl.get_selected_text();
+        text = dl.get_text();
     else
         text = dl.get_text();
     bool can_add = false;
@@ -530,19 +494,19 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
         dl.remove_all();
         return;
     }
-    std::set<std::wstring> new_set;
-    std::wstring text_l = toLower(text);
-    for (auto* c : Cfg.getAllKnownCommodities()) {
-        if (toUtf16(c->nameId).starts_with(text_l))
-            new_set.insert(c->wide);
-        else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
-            new_set.insert(c->wide);
-        else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
-            new_set.insert(c->wide);
-    }
-    dl.set_list(new_set);
-    if (dl.count() <= 10)
-        SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
+//    std::set<std::wstring> new_set;
+//    std::wstring text_l = toLower(text);
+//    for (auto* c : Cfg.getAllKnownCommodities()) {
+//        if (toUtf16(c->nameId).starts_with(text_l))
+//            new_set.insert(c->wide);
+//        else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
+//            new_set.insert(c->wide);
+//        else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
+//            new_set.insert(c->wide);
+//    }
+//    dl.set_list(new_set);
+//    if (dl.count() <= 10)
+//        SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
 }
 
 bool NewCargoCtrl::validate(bool *changed) {
