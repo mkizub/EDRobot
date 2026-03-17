@@ -48,6 +48,7 @@ UIMainDialog::UIMainDialog()
     setup.title = L"EDRobot";
 
     keepOnTop = Cfg.jprefs["ui"]["main"]["keepOnTop"].as_bool_or();
+    minimizeToTray = Cfg.jprefs["ui"]["main"]["minimizeToTray"].as_bool_or();
     cv::Rect wndRect = rect_from_json(Cfg.jprefs["ui"]["main"]["rect"]);
     POINT wndPosition {wndRect.x, wndRect.y};
     SIZE wndSize {wndRect.width, wndRect.height};
@@ -79,12 +80,27 @@ UIMainDialog::UIMainDialog()
             .append_separator()
             .append_item(IDC_EXIT,W("Exit"))
             ;
-    menu.append_submenu(W("More"))
-            .append_item(IDM_TASK_STATUS,W("Show task state"))
-            .append_item(IDM_TASK_EDITOR,W("Show task editor"))
-            .append_item(IDM_COMMODITIES,W("Show commodities"))
-            .append_item(IDM_KEEP_ON_TOP,W("Keep on top")).set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop)
+    menu.append_submenu(W("Window"))
+            .append_item(IDM_SHOW_TASK_STATUS,W("Show task state"))
+            .append_item(IDM_SHOW_TASK_EDITOR,W("Show task editor"))
+            .append_item(IDM_SHOW_COMMODITIES,W("Show commodities"))
+            .append_separator()
             .append_item(IDM_DETACH,W("Detach"))
+            .append_item(IDM_KEEP_ON_TOP,W("Keep on top")).set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop)
+            .append_item(IDM_MINIMIZE_TO_TRAY,W("Minimize to tray")).set_item_check_by_id(IDM_MINIMIZE_TO_TRAY, minimizeToTray)
+            ;
+    menu.append_submenu(W("Network"))
+            .append_item(IDM_NETW_RAVEN_ENABLED,W("Enable RavenColonial"))
+                .set_item_check_by_id(IDM_NETW_RAVEN_ENABLED, Cfg.isRavenColonialEnabled())
+            .append_item(IDM_NETW_RAVEN_CARRIER_CARGO,W("Report carrier cargo"))
+                .set_item_check_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialReportCarrierCargo())
+                .enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialEnabled() && st::cmdr.fleetCarrierId != 0)
+            .append_item(IDM_NETW_RAVEN_SHIP_CARGO,W("Report ship cargo"))
+                .set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialReportShipCargo())
+                .enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled() && !st::cmdr.ravenKey.empty())
+            .append_separator()
+            .append_item(IDM_NETW_EDDN_STAR_SYSTEM,W("Report EDDN star system")).set_item_check_by_id(IDM_NETW_EDDN_STAR_SYSTEM, false)
+            .append_item(IDM_NETW_EDDN_MARKETS,W("Report EDDN markets")).set_item_check_by_id(IDM_NETW_EDDN_MARKETS, false)
             ;
     menu.append_submenu(W("Debug"))
             .append_item(IDM_DEBUG_WATCH,W("Watch"))
@@ -140,15 +156,15 @@ UIMainDialog::UIMainDialog()
         on_command_show_detach();
         return 0;
     });
-    this->base_msg_pubm::on_command(IDM_TASK_STATUS, [this](wl::params p){
+    this->base_msg_pubm::on_command(IDM_SHOW_TASK_STATUS, [this](wl::params p){
         on_command_show_task();
         return 0;
     });
-    this->base_msg_pubm::on_command(IDM_TASK_EDITOR, [this](wl::params p){
+    this->base_msg_pubm::on_command(IDM_SHOW_TASK_EDITOR, [this](wl::params p){
         on_command_edit_task();
         return 0;
     });
-    this->base_msg_pubm::on_command(IDM_COMMODITIES, [this](wl::params p){
+    this->base_msg_pubm::on_command(IDM_SHOW_COMMODITIES, [this](wl::params p){
         on_command_show_cargo();
         return 0;
     });
@@ -193,7 +209,6 @@ UIMainDialog::UIMainDialog()
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_KEEP_ON_TOP, [this](wl::params p){
-        STD_PASTE;
         keepOnTop = !keepOnTop;
         menu.set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop);
         if (keepOnTop) {
@@ -202,6 +217,35 @@ UIMainDialog::UIMainDialog()
             this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
             SetWindowPos(this->hwnd(), HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
+        savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_MINIMIZE_TO_TRAY, [this](wl::params p){
+        minimizeToTray = !minimizeToTray;
+        menu.set_item_check_by_id(IDM_MINIMIZE_TO_TRAY, minimizeToTray);
+        savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_NETW_RAVEN_ENABLED, [this](wl::params p){
+        bool on = !Cfg.isRavenColonialEnabled();
+        Cfg.setRavenColonialEnabled(on);
+        menu.set_item_check_by_id(IDM_NETW_RAVEN_ENABLED, on);
+        menu.enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, on && st::cmdr.fleetCarrierId != 0);
+        menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on && !st::cmdr.ravenKey.empty());
+        savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_NETW_RAVEN_CARRIER_CARGO, [this](wl::params p){
+        bool on = !Cfg.isRavenColonialReportCarrierCargo();
+        Cfg.setRavenColonialReportCarrierCargo(on);
+        menu.set_item_check_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, on);
+        savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_NETW_RAVEN_SHIP_CARGO, [this](wl::params p){
+        bool on = !Cfg.isRavenColonialReportShipCargo();
+        Cfg.setRavenColonialReportShipCargo(on);
+        menu.set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on);
         savePrefs();
         return 0;
     });
@@ -222,7 +266,13 @@ UIMainDialog::UIMainDialog()
         return 0;
     });
     on_message(WM_SIZE, [this](wl::params params) {
-        relayout();
+        if (params.wParam == SIZE_MINIMIZED) {
+            if (minimizeToTray)
+                hide(true);
+        } else {
+            relayout();
+            update_curr_task();
+        }
         return 0;
     });
     on_message(WM_EXITSIZEMOVE, [this](wl::params params) {
@@ -271,6 +321,7 @@ void UIMainDialog::savePrefs() {
         return;
 
     Cfg.jprefs["ui"]["main"]["keepOnTop"] = keepOnTop;
+    Cfg.jprefs["ui"]["main"]["minimizeToTray"] = minimizeToTray;
 
     cv::Rect rect;
     WINDOWPLACEMENT wp{sizeof(WINDOWPLACEMENT)};
@@ -291,15 +342,17 @@ bool UIMainDialog::show_startup(const std::string &message, const std::string& l
         control = std::unique_ptr<UIControl>(new UIShowTask(message, latest_version, latest_url));
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_STATUS);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_TASK_STATUS);
     });
     return true;
 }
 
 bool UIMainDialog::show_task_status() {
-    if (control && dynamic_cast<UIShowTask*>(control.get()))
-        return true;
-    on_command_show_task();
+    if (control && dynamic_cast<UIShowTask*>(control.get())) {
+        update_curr_task();
+    } else {
+        on_command_show_task();
+    }
     return true;
 }
 
@@ -318,23 +371,41 @@ bool UIMainDialog::show() {
     return true;
 }
 
-bool UIMainDialog::hide(bool force) {
-    if (!force && keepOnTop) {
-        if (GetSystemMetrics(SM_CMONITORS) > 1 || Cfg.getGameScreenMode() == Configuration::GameScreenMode::Window)
+bool UIMainDialog::toggle() {
+    if (ai::isDebugPause()) {
+        if (!IsWindowVisible(hwnd()))
+            ShowWindow(this->hwnd(), SW_MINIMIZE);
+    } else {
+        hide(false);
+    }
+    return true;
+}
+
+bool UIMainDialog::hide(bool force_close) {
+    if (!force_close && keepOnTop && Cfg.getGameScreenMode() != Configuration::GameScreenMode::FullScreen) {
+        HWND hWndED = FindWindow(Master::ED_WINDOW_CLASS, Master::ED_WINDOW_NAME);
+        RECT rectED {};
+        GetWindowRect(hWndED, &rectED);
+        RECT rectRobot {};
+        GetWindowRect(hwnd(), &rectRobot);
+        if ((fromRECT(rectED) & fromRECT(rectRobot)).empty())
             return false;
-        if (Cfg.getGameScreenMode() == Configuration::GameScreenMode::Borderless) {
-            this->style.set_style_ex(true, WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT);
-            float transparency_percentage = 0.6f;
-            SetLayeredWindowAttributes(hwnd(), 0, (BYTE) (255 * transparency_percentage), LWA_ALPHA);
-            return false;
-        }
-        // Configuration::GameScreenMode::FullScreen => hide
+        this->style.set_style_ex(true, WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT);
+        float transparency_percentage = 0.6f;
+        SetLayeredWindowAttributes(hwnd(), 0, (BYTE) (255 * transparency_percentage), LWA_ALPHA);
+        return false;
     }
     if (this->style.has_style_ex(WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT))
         this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
-    ShowWindow(this->hwnd(), SW_HIDE);
-    KillTimer(this->hwnd(), mUpdateTimerId);
-    mUpdateTimerId = {};
+
+    if (!force_close && !minimizeToTray) {
+        ShowWindow(this->hwnd(), SW_MINIMIZE);
+        mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 2000, nullptr);
+    } else {
+        ShowWindow(this->hwnd(), SW_HIDE);
+        KillTimer(this->hwnd(), mUpdateTimerId);
+        mUpdateTimerId = {};
+    }
     return true;
 }
 
@@ -359,7 +430,7 @@ void UIMainDialog::on_command_task_new() {
     control = std::unique_ptr<UIControl>(new UIEditTask);
     control->create(hwnd(), 0, {10,10}, {400,400});
     relayout();
-    menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_STATUS);
+    menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_TASK_STATUS);
 }
 void UIMainDialog::on_command_task_stop() {
     try {
@@ -373,15 +444,8 @@ void UIMainDialog::on_command_task_stop() {
 }
 void UIMainDialog::on_command_task_resume() {
     try {
-        ai::spTask task = ai::curr_task();
-        if (task && (!ai::active() || ai::isDebugPause())) {
-            if (ai::isDebugPause())
-                ai::toggleDebugPause();
-            if (!ai::active())
-                ai::resume();
-            if (hide(false))
-                return;
-        }
+        ai::resume();
+        hide(false);
         update_curr_task();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
@@ -448,7 +512,8 @@ void UIMainDialog::on_command_show_task() {
         control = std::unique_ptr<UIControl>(new UIShowTask);
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_STATUS);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_TASK_STATUS);
+        update_curr_task();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -465,7 +530,7 @@ void UIMainDialog::on_command_edit_task() {
         control = std::unique_ptr<UIControl>(new UIEditTask);
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_TASK_EDITOR);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_TASK_EDITOR);
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -482,7 +547,7 @@ void UIMainDialog::on_command_show_cargo() {
         control = std::unique_ptr<UIControl>(new UIShowCargo);
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_TASK_STATUS, 3, IDM_COMMODITIES);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_COMMODITIES);
         ((UIShowCargo*)control.get())->initControls();
 
         //if (auto dlg = UIShowCargo::getInstance())
@@ -516,14 +581,19 @@ void UIMainDialog::update_curr_task() {
         btn_pause_resume.set_enabled(true);
     }
 
-    if (control)
+    bool needUpdate = false;
+    if (control) {
         control->on_timer_update();
+        needUpdate = control->need_timer_update();
+    }
 
-    if (IsWindowVisible(hwnd())) {
-        //if (keepOnTop && ai::curr_task())
-        //    SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
-    } else {
+    if (needUpdate && IsWindowVisible(hwnd())) {
+        mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, nullptr);
+    }
+    else if (needUpdate && IsIconic(hwnd())) {
+        mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 2000, nullptr);
+    }
+    else {
         KillTimer(this->hwnd(), mUpdateTimerId);
         mUpdateTimerId = {};
     }

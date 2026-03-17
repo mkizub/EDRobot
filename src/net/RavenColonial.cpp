@@ -138,16 +138,16 @@ js::value carrierGetCargo(int64_t marketId) {
 }
 
 void carrierPostCargo(int64_t marketId, js::value& j) {
-    if (!Cfg.isRavenColonialEnabled())
+    if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportCarrierCargo())
         return;
     LOG(INFO) << "RavenColonial FC cargo post: " << j;
     curlSimplePost(RCAPI_FC+std::to_string(marketId)+"/cargo", j);
 }
 
 void carrierPatchCargo(int64_t marketId, js::value& j) {
-    if (!Cfg.isRavenColonialEnabled())
+    if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportCarrierCargo())
         return;
-    std::jthread jt([=](std::stop_token){
+    std::jthread jt([=](std::stop_token){ // NOLINT(*-unnecessary-value-param)
         LOG(INFO) << "RavenColonial FC cargo patch: " << j;
         curlSimplePatch(RCAPI_FC+std::to_string(marketId)+"/cargo", j);
     });
@@ -175,13 +175,13 @@ js::value buildCargoReeport() {
     return j;
 }
 void reportShipCargo() {
-    if (!Cfg.isRavenColonialEnabled() || st::cmdr.ravenKey.empty() || buildCargoReeport().empty())
+    if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportShipCargo() || st::cmdr.ravenKey.empty())
+        return;
+    js::value j = buildCargoReeport();
+    if (j.empty())
         return;
 
-    std::jthread jt([](std::stop_token) mutable {
-        js::value j = buildCargoReeport();
-        if (j.empty())
-            return;
+    std::jthread jt([j](std::stop_token) mutable { // NOLINT(*-unnecessary-value-param)
         LOG(INFO) << "RavenColonial current ship cargo: " << j;
         std::vector<std::string> headers = {"rcc-key: " + st::cmdr.ravenKey};
         auto cr = curlSimplePostWithHeaders(RCAPI_CMDR + "currentShip", j, headers);
@@ -200,8 +200,8 @@ void reportShipCargo() {
     });
 }
 
-js::value queryShipsCargo(spMarket market) {
-    if (!Cfg.isRavenColonialEnabled())
+js::value queryShipsCargo(const spMarket& market) {
+    if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportShipCargo())
         return {};
     if (!market || market->ravenBuildId().empty() || market->raven->status == "complete")
         return {};
@@ -289,7 +289,7 @@ void reportContribution(spGameEvent& ge) {
 }
 
 //{ "timestamp":"2026-02-11T18:55:36Z", "event":"ColonisationConstructionDepot", "MarketID":3955958274, "ConstructionProgress":0.752324, "ConstructionComplete":false, "ConstructionFailed":false, "ResourcesRequired":[ { "Name":"$aluminium_name;", "Name_Localised":"Алюминий", "RequiredAmount":500, "ProvidedAmount":500, "Payment":3239 }, { "Name":"$ceramiccomposites_name;", "Name_Localised":"Керамокомпозиты", "RequiredAmount":521, "ProvidedAmount":521, "Payment":724 }, { "Name":"$cmmcomposite_name;", "Name_Localised":"CMM-композит", "RequiredAmount":4508, "ProvidedAmount":4508, "Payment":6788 }, { "Name":"$computercomponents_name;", "Name_Localised":"Компьютерные компоненты", "RequiredAmount":62, "ProvidedAmount":62, "Payment":1112 }, { "Name":"$copper_name;", "Name_Localised":"Медь", "RequiredAmount":242, "ProvidedAmount":242, "Payment":1050 }, { "Name":"$foodcartridges_name;", "Name_Localised":"Пищевые брикеты", "RequiredAmount":94, "ProvidedAmount":94, "Payment":673 }, { "Name":"$fruitandvegetables_name;", "Name_Localised":"Фрукты и овощи", "RequiredAmount":50, "ProvidedAmount":50, "Payment":865 }, { "Name":"$insulatingmembrane_name;", "Name_Localised":"Изолирующая мембрана", "RequiredAmount":347, "ProvidedAmount":347, "Payment":11788 }, { "Name":"$liquidoxygen_name;", "Name_Localised":"Жидкий кислород", "RequiredAmount":1792, "ProvidedAmount":1792, "Payment":2260 }, { "Name":"$medicaldiagnosticequipment_name;", "Name_Localised":"Диагностическое медоборудование", "RequiredAmount":13, "ProvidedAmount":13, "Payment":3609 }, { "Name":"$nonlethalweapons_name;", "Name_Localised":"Нелетальное оружие", "RequiredAmount":13, "ProvidedAmount":13, "Payment":2503 }, { "Name":"$polymers_name;", "Name_Localised":"Полимеры", "RequiredAmount":521, "ProvidedAmount":521, "Payment":682 }, { "Name":"$powergenerators_name;", "Name_Localised":"Электрогенераторы", "RequiredAmount":19, "ProvidedAmount":19, "Payment":3072 }, { "Name":"$semiconductors_name;", "Name_Localised":"Полупроводники", "RequiredAmount":68, "ProvidedAmount":68, "Payment":1526 }, { "Name":"$steel_name;", "Name_Localised":"Сталь", "RequiredAmount":6660, "ProvidedAmount":6199, "Payment":5057 }, { "Name":"$superconductors_name;", "Name_Localised":"Сверхпроводники", "RequiredAmount":112, "ProvidedAmount":112, "Payment":7657 }, { "Name":"$titanium_name;", "Name_Localised":"Титан", "RequiredAmount":5534, "ProvidedAmount":587, "Payment":5360 }, { "Name":"$water_name;", "Name_Localised":"Вода", "RequiredAmount":741, "ProvidedAmount":741, "Payment":662 }, { "Name":"$waterpurifiers_name;", "Name_Localised":"Водоочистители", "RequiredAmount":38, "ProvidedAmount":38, "Payment":849 } ] }
-void reportConstructionDepot(spGameEvent& ge, spMarket market) {
+void reportConstructionDepot(spGameEvent& ge, const spMarket& market) {
     if (!Cfg.isRavenColonialEnabled())
         return;
     if (!ge || !market || market->ravenBuildId().empty() || market->raven->status == "complete" || market->raven->timestamp > ge->timestamp)
@@ -326,7 +326,7 @@ void reportConstructionDepot(spGameEvent& ge, spMarket market) {
 }
 
 spMarket updateConstructionDepot(spMarket market) {
-    if (!market || market->ravenBuildId().empty() || market->raven->status == "complete")
+    if (!Cfg.isRavenColonialEnabled() || !market || market->ravenBuildId().empty() || market->raven->status == "complete")
         return market;
     auto& raven = market->raven;
     auto cr = curlSimpleGet(RCAPI_PRJ + raven->buildId + "/last");

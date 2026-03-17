@@ -3919,7 +3919,7 @@ bool CompleteNavRoute::run() {
     }
 
     int orientAvoid = 60;
-    while ((routeIdx = getNavRoutePosition(st::currentNavRoute)) >= 0) {
+    while ((routeIdx = getNavRoutePosition(st::currentNavRoute)) > 0) {
         lastNavRoute = st::currentNavRoute;
         targetNextNavRoute(routeIdx);
         for (int retry=0; retry < 5; retry++) {
@@ -4000,7 +4000,7 @@ std::string CompleteNavRoute::getTitle() {
     if (nr && !nr->route.empty()) {
         name = nr->route.back().starSystem;
         count = nr->route.size()-1;
-        step = std::clamp(getNavRoutePosition(nr)+1,0,count);
+        step = std::clamp(getNavRoutePosition(nr),0,count);
     }
     if (status == DONE || count < 1)
         return lc_format("Routed to: {}", name);

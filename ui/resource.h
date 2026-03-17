@@ -32,6 +32,7 @@
 #define IDC_VERSION                     1028
 #define IDC_CHECK1                      1029
 #define IDM_KEEP_ON_TOP                 1029
+#define IDM_MINIMIZE_TO_TRAY            1030
 #define ID_SHOW_TOAST                   32781
 #define ID_TRAY_ICON                    32782
 #define ID_FILE_COMMODITY               32783
@@ -48,11 +49,16 @@
 #define IDM_TASK_PAUSE                  32794
 #define IDM_TASK_RESUME                 32795
 #define IDM_FILE_EXIT                   32796
-#define IDM_TASK_STATUS                 32797
-#define IDM_TASK_EDITOR                 32798
-#define IDM_COMMODITIES                 32799
+#define IDM_SHOW_TASK_STATUS            32797
+#define IDM_SHOW_TASK_EDITOR            32798
+#define IDM_SHOW_COMMODITIES            32799
 #define IDM_DETACH                      32800
 #define IDM_DEBUG_WATCH                 32801
+#define IDM_NETW_RAVEN_ENABLED          32802
+#define IDM_NETW_RAVEN_CARRIER_CARGO    32803
+#define IDM_NETW_RAVEN_SHIP_CARGO       32804
+#define IDM_NETW_EDDN_STAR_SYSTEM       32805
+#define IDM_NETW_EDDN_MARKETS           32806
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

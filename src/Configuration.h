@@ -168,6 +168,11 @@ public:
     cv::Rect getCroppedDisplayRect() const { return croppedScreenRect; }
     unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
     bool isRavenColonialEnabled() const { return mRavenColonialEnabled; }
+    bool isRavenColonialReportCarrierCargo() const { return mRavenColonialReportCarrierCargo && st::cmdr.fleetCarrierId != 0; }
+    bool isRavenColonialReportShipCargo() const { return mRavenColonialReportShipCargo && !st::cmdr.ravenKey.empty(); }
+    void setRavenColonialEnabled(bool on) { mRavenColonialEnabled = on; }
+    void setRavenColonialReportCarrierCargo(bool on) { mRavenColonialReportCarrierCargo = on; }
+    void setRavenColonialReportShipCargo(bool on) { mRavenColonialReportShipCargo = on; }
     std::string getRavenColonialKey(const std::string& cmdr) const {
         if (mRavenColonialKeys.contains(cmdr))
             return mRavenColonialKeys.at(cmdr);
@@ -224,6 +229,8 @@ private:
     bool openclD3dInterop = true;
     uint8_t vJoyDeviceID = 1;
     bool mRavenColonialEnabled = false;
+    bool mRavenColonialReportCarrierCargo = false;
+    bool mRavenColonialReportShipCargo = false;
     bool mCurlInsecure = true;
     std::map<std::string,std::string> mRavenColonialKeys;
     std::string mCurlProxyUrl;

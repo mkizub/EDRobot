@@ -141,7 +141,7 @@ BEGIN
     MENUITEM SEPARATOR
     POPUP "More"
     BEGIN
-        MENUITEM "Commodities",                 IDM_COMMODITIES
+        MENUITEM "Commodities",                 IDM_SHOW_COMMODITIES
     END
     MENUITEM SEPARATOR
     POPUP "Debug"

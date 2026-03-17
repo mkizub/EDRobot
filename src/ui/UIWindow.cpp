@@ -192,6 +192,8 @@ INT_PTR UIWindow::onMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 
 void UIWindow::show() {
     if (hWnd) {
+        if (!IsWindowVisible(hWnd))
+            ShowWindow(hWnd, SW_SHOW);
         SetForegroundWindow(hWnd);
         return;
     }

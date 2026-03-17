@@ -82,34 +82,26 @@ bool UIManager::showStartupDialog(const std::string &message, const std::string&
     return mgr.uiMain.show_startup(message, latest_version, latest_url);
 }
 
-bool UIManager::showTaskStatus() {
-    UIManager& mgr = getInstance();
-    return mgr.uiMain.show_task_status();
-}
-
 bool UIManager::showMainDialog() {
     UIManager& mgr = getInstance();
     return mgr.uiMain.show();
 }
 
-bool UIManager::hideMainDialog(bool force) {
+bool UIManager::hideMainDialog() {
     UIManager& mgr = getInstance();
-    return mgr.uiMain.hide(force);
+    return mgr.uiMain.hide(true);
 }
 
-bool UIManager::updateCargoDialog() {
-//    auto dlg = UIShowCargo::getInstance();
-//    if (!dlg)
-//        return false;
-//    return dlg->updateCargo();
-    return true;
+bool UIManager::toggleMainDialog() {
+    UIManager& mgr = getInstance();
+    return mgr.uiMain.toggle();
 }
 
 bool UIManager::showToast(const std::string &title, const std::string &text) {
-//    std::shared_ptr<UIToast> wnd = UIToast::getInstance();
-//    if (!wnd)
-//        return false;
-//    wnd->showText(toUtf16(title), toUtf16(text));
+    std::shared_ptr<UIToast> wnd = UIToast::getInstance();
+    if (!wnd)
+        return false;
+    wnd->showText(toUtf16(title), toUtf16(text));
     return true;
 }
 
@@ -197,8 +189,8 @@ std::map<std::string,const std::string> UIManager::iconSVG
 
         {"task-resume",
          R"SVG(<?xml version="1.0" encoding="utf-8"?>
-<svg width="800px" height="800px" viewBox="0 0 76 76" xmlns="http://www.w3.org/2000/svg" version="1.1" baseProfile="full" enable-background="new 0 0 76.00 76.00" xml:space="preserve">
-  <path fill="#000000" fill-opacity="1" stroke-width="0.2" stroke-linejoin="round" d="M 38,22.1667L 58.5832,37.6043L 58.5832,38.7918L 38,53.8333L 38,22.1667 Z M 33.25,22.1667L 33.25,53.8333L 26.9167,53.8333L 26.9167,22.1667L 33.25,22.1667 Z "/>
+<svg width="800px" height="800px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <path fill="none" stroke="#000000" stroke-width="2" d="M1,20 L6,20 L6,4 L1,4 L1,20 Z M11,19.0000002 L22,12 L11,5 L11,19.0000002 Z"/>
 </svg>)SVG"
         },
 

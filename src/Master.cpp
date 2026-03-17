@@ -485,10 +485,18 @@ void Master::loop() {
                 break;
             case Command::PauseResume:
                 ai::toggleDebugPause();
-                if (ai::isDebugPause())
-                    UIManager::showMainDialog();
-                else
-                    UIManager::hideMainDialog(false);
+                UIManager::toggleMainDialog();
+                break;
+            case Command::Pause:
+                if (!ai::isDebugPause())
+                    ai::toggleDebugPause();
+                if (auto task = ai::curr_task())
+                    UIManager::showToast(_gt("EDRobot paused"), lc_format("Paused task '{}'", task->getTitle()));
+                UIManager::toggleMainDialog();
+                break;
+            case Command::Resume:
+                ai::resume();
+                UIManager::toggleMainDialog();
                 break;
             case Command::Stop:
                 stopAITask();
@@ -604,9 +612,9 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
         case Command::PauseResume:
             ai::toggleDebugPause();
             if (ai::isDebugPause())
-                UIManager::showMainDialog();
+                self.pushCommand(Command::Pause);
             else
-                UIManager::hideMainDialog(false);
+                self.pushCommand(Command::Resume);
             break;
         // in-game shortcuts
         case Command::Stop:
@@ -883,7 +891,7 @@ bool Master::approximateListOfCommodities(ResolvedEnv& rEnv, const cv::Mat& gray
 bool Master::stopAITask() {
     kbd::reset_vJoy();
     ai::interrupt(ai::InterruptReason::UNKNOWN);
-    UIManager::hideMainDialog(true);
+    UIManager::hideMainDialog();
     return true;
 }
 

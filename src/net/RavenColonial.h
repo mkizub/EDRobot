@@ -18,10 +18,10 @@ js::value carrierGetCargo(int64_t marketId);
 void carrierPostCargo(int64_t marketId, js::value& j);
 void carrierPatchCargo(int64_t marketId, js::value& j);
 void reportShipCargo();
+js::value queryShipsCargo(const spMarket& market);
 void reportContribution(spGameEvent& ge);
-void reportConstructionDepot(spGameEvent& ge, spMarket market);
+void reportConstructionDepot(spGameEvent& ge, const spMarket& market);
 spMarket updateConstructionDepot(spMarket market);
-js::value queryShipsCargo(spMarket market);
 
 }
 

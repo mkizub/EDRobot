@@ -23,7 +23,7 @@ const int LO_TXT_20_W       = 100;
 const int LO_TXT_50_W       = 250;
 const int LO_TXT_6_W        = 40;
 
-extern void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent);
+extern void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent, LONG weight=0);
 
 struct UILayout {
     UILayout(int uiDpi, int uiPercent, RECT& rect);

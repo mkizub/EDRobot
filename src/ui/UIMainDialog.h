@@ -28,7 +28,8 @@ public:
     bool show_startup(const std::string &message, const std::string& latest_version, const std::string& latest_url);
     bool show_task_status();
     bool show();
-    bool hide(bool force);
+    bool hide(bool force_close);
+    bool toggle();
     void initialize();
     void savePrefs();
     void relayout();
@@ -60,6 +61,7 @@ public:
     int scaled_to_dpi;
     bool initializing {};
     bool keepOnTop {};
+    bool minimizeToTray {};
 
 };
 

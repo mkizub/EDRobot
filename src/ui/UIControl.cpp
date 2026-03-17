@@ -8,11 +8,14 @@
 #include "UILayout.h"
 #include "wl_cargobox.h"
 
-void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent) {
+void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent, LONG weight) {
     NONCLIENTMETRICS ncm{};
     ncm.cbSize = sizeof(ncm);
     SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0, MulDiv(uiDpi, uiPercent, 100));
-    font.create(ncm.lfMessageFont); // Tahoma/Segoe
+    LOGFONT lf = ncm.lfMessageFont;
+    if (weight >= FW_THIN && weight <= FW_HEAVY)
+        lf.lfWeight = weight;
+    font.create(lf);
 }
 
 UILayout::UILayout(int uiDpi, int uiPercent, RECT& rect) {

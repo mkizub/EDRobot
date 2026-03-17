@@ -20,6 +20,8 @@ enum class Command {
     NoOp,
     Start,
     PauseResume,
+    Pause,
+    Resume,
     Stop,
     Autopilot,
     DebugTemplates,

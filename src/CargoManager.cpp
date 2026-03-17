@@ -115,11 +115,6 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
         timestampShip = file_timestamp;
     }
 
-    UIManager::updateCargoDialog();
-
-    // TODO: just for testing, to be removed
-    //if (Cfg.isRavenColonialEnabled())
-    //    RavenColonial::reportShipCargo();
     return true;
 }
 
@@ -182,7 +177,6 @@ bool CargoManager::loadCarrierCargo() {
         timestampFC = timestamp;
     }
 
-    UIManager::updateCargoDialog();
     return true;
 }
 
@@ -230,8 +224,6 @@ bool CargoManager::saveCarrierCargo(Timestamp timestamp, const std::map<Commodit
     ofs << js::rule::ecma404() << js::rule::space_indent<1>() << j_cargo;
     ofs.close();
 
-    UIManager::updateCargoDialog();
-
     if (!patch.empty()) {
         js::value j = js::object({});
         for (auto& p : patch)
@@ -273,7 +265,6 @@ bool CargoManager::processMarketBuy(spGameEvent ge) {
             }
         }
     }
-    UIManager::updateCargoDialog();
     if (saveCarrier) {
         std::map<Commodity *, int> fcPatch{{commodity, -count}};
         saveCarrierCargo(ge->timestamp, fcPatch);
@@ -315,7 +306,6 @@ bool CargoManager::processMarketSell(spGameEvent ge) {
             }
         }
     }
-    UIManager::updateCargoDialog();
     if (saveCarrier) {
         std::map<Commodity*,int> fcPatch {{commodity, count}};
         saveCarrierCargo(ge->timestamp, fcPatch);
@@ -430,6 +420,5 @@ bool CargoManager::processCargoTransfer(spGameEvent ge) {
     }
     if (!fcPatch.empty())
         saveCarrierCargo(ge->timestamp, fcPatch);
-    UIManager::updateCargoDialog();
     return true;
 }

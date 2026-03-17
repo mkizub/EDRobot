@@ -23,10 +23,9 @@ public:
     static bool shutdown();
 
     static bool showStartupDialog(const std::string& message, const std::string& latest_version, const std::string& latest_url);
-    static bool showTaskStatus();
     static bool showMainDialog();
-    static bool hideMainDialog(bool force);
-    static bool updateCargoDialog();
+    static bool hideMainDialog();
+    static bool toggleMainDialog();
     static bool showToast(const std::string& title, const std::string& text);
     static bool hasDebugWindow();
     static bool showDebugWindow();

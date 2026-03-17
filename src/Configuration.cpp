@@ -67,7 +67,7 @@ bool Configuration::load() {
             {{"printscreen", 0},                      Command::Start},
             {{"pause",       0},                      Command::PauseResume},
             {{"esc",         0},                      Command::Stop},
-            {{"pause",       kbd::LCTRL},             Command::Stop},
+            {{"cancel",      0},                      Command::Stop}, // CtrlBreak
             {{"a",           kbd::LALT},              Command::Autopilot},
             {{"printscreen", kbd::LCTRL | kbd::LALT}, Command::DebugTemplates},
             {{"r",           kbd::LCTRL | kbd::LALT}, Command::DevRectSelect},
@@ -90,8 +90,15 @@ bool Configuration::load() {
         } else if (!dirUserProfile.empty()) {
             mEDSettingsPath = dirUserProfile + LR"(\AppData\Local\Frontier Developments\Elite Dangerous)";
         }
-        std::ifstream ifs_config("configuration.json5");
-        js::value j_config = js::parse5(ifs_config);
+        js::value j_config;
+        try {
+            std::ifstream ifs_config("configuration.json5");
+            j_config = js::parse5(ifs_config);
+        } catch (const js::syntax_error& ex) {
+            LOG(ERROR) << ex.what();
+        }
+        if (!j_config)
+            LOG(ERROR) << "Error loading configuration.json5";
         if (auto& tm = j_config.at("ui-scale-percents"); tm.is_int()) {
             if (tm.as_int() >= 25 && tm.as_int() <= 400)
                 mUiScalePercents = tm.as_int();
@@ -244,20 +251,25 @@ bool Configuration::load() {
         std::ifstream prefsFile("prefs.json5", std::ifstream::in);
         if (prefsFile.fail()) {
             LOG(ERROR) << "Cannot read file: prefs.json5";
-            return false;
+        } else {
+            jprefs = js::parse5(prefsFile);
         }
-        jprefs = js::parse5(prefsFile);
-        prefsFile.close();
     } catch (...) {
         LOG(ERROR) << "Failed to read/parse prefs.json5";
-        return false;
     }
+    mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
+    mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
+    mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
 
     return true;
 }
 
 void Configuration::savePrefs() {
     LOG(INFO) << "Saving preferences";
+
+    Cfg.jprefs["raven"]["enabled"] = mRavenColonialEnabled;
+    Cfg.jprefs["raven"]["carrier"] = mRavenColonialReportCarrierCargo;
+    Cfg.jprefs["raven"]["ship"] = mRavenColonialReportShipCargo;
 
     std::ofstream ofs("prefs.json5", std::ios::trunc | std::ios::binary);
     ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << jprefs;

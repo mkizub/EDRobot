@@ -76,11 +76,11 @@ static Key US_QWERTY_KEYBOARD_TABLE[] = {
         { VK_F9,     0x43, "F9" },
         { VK_F10,    0x44, "F10" },
         { VK_F11,    0x57, "F11" },
-        { VK_F12,            0x58,           "F12" },
+        { VK_F12,    0x58, "F12" },
         { VK_SNAPSHOT,       0x54,           {"PrintScreen", "PrntScrn", "PrtScr", "PrtSc", "Snapshot"} },
         { VK_SCROLL,         0x46,           {"ScrollLock", "Scroll"} },
-        { VK_F1,             0x46 | EXT_KEY, "CtrlBreak" },
-        { VK_PAUSE,          0x45,           {"Pause","Break"} },
+        { VK_CANCEL,         0x46 | EXT_KEY, {"Cancel", "CtrlBreak"} },
+        { VK_PAUSE,          0x45,           "Pause" },
         { VK_OEM_3,          0x29,           {"`", "Grave"} },
         { '1',               0x02 },
         { '2',               0x03 },
@@ -765,6 +765,8 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                 keyName = it->second.names[0];
             else
                 keyName = unknownKeyName;
+            if (pKeyBoard->vkCode == VK_CANCEL)
+                flags = 0;
             keyboardCallback(pKeyBoard->vkCode, pKeyBoard->scanCode, flags, keyName);
         }
     }

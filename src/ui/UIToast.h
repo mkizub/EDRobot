@@ -8,6 +8,10 @@
 #define EDROBOT_UITOAST_H
 
 #include "UIWindow.h"
+#include "UILayout.h"
+
+#include <shellapi.h>
+#include <winlamb/font.h>
 
 class UIToast : public UIWindow {
 public:
@@ -29,11 +33,15 @@ private:
     std::wstring mTitle;
     std::wstring mText;
 
-    const int mAnimationTime = 100;
+    int uiPercent = 100;
+    UINT uiDpi = USER_DEFAULT_SCREEN_DPI;
+    wl::font fontTitle;
+    wl::font fontMessage;
+
     ULONGLONG mAnimationStartTick {};
     int mAnimationProgress {};
-
-    UINT_PTR mPopupTimerId {};
+    bool mAnimationStarted {};
+    bool mShowingToast {};
 };
 
 

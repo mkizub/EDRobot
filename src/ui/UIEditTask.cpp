@@ -242,15 +242,13 @@ void UIEditTask::on_template_run() {
     if (validate()) {
         ai::new_task(makeTemplate());
         clear();
+        UIManager& mgr = UIManager::getInstance();
         if (detached) {
-            auto p = GetParent(hwnd());
-            PostMessage(p, WM_CLOSE, 0, 0);
-            //bool ok = CloseWindow(p);
-            //ok = DestroyWindow(p);
-            //LOG(INFO) << "ok = " << ok;
+            PostMessage(GetParent(hwnd()), WM_CLOSE, 0, 0);
         } else {
-            UIManager::showTaskStatus();
+            mgr.uiMain.show_task_status();
         }
+        mgr.uiMain.hide(false);
     }
 }
 

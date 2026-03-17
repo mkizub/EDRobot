@@ -184,7 +184,9 @@ static spStarSystem fromEDDN(const js::value& jsystem, bool saved) {
     auto systemAddress = jsystem["address"].exists()
             ? jsystem["address"].as_int()
             : jsystem["id64"].as_int();
-    spStarSystem ss(new StarSystem(systemAddress, systemName));
+    auto ss_it = gSystemsByNameCache.find(systemName);
+    spStarSystem ss = ss_it != gSystemsByNameCache.end() ? *ss_it
+            : spStarSystem(new StarSystem(systemAddress, systemName));
     ss->starPos.x = jsystem["coords"]["x"].as_real_or();
     ss->starPos.y = jsystem["coords"]["y"].as_real_or();
     ss->starPos.z = jsystem["coords"]["z"].as_real_or();
@@ -365,13 +367,13 @@ static spStarSystem loadStarSystemFromNetwork(const std::string name) {
     CurlResp cr;
     std::string url = "https://www.edsm.net/api-v1/system?showId=1&showCoordinates=1&systemName=";
     cr = curlRequestEDSM(url, name);
-    if (cr.ok || name != cr.body["name"].as_string_or())
+    if (!cr.ok || name != cr.body["name"].as_string_or())
         return {};
     js::value jsystem = cr.body;
 
     url = "https://www.edsm.net/api-system-v1/bodies?systemName=";
     cr = curlRequestEDSM(url, name);
-    if (cr.ok || name != cr.body["name"].as_string_or())
+    if (!cr.ok || name != cr.body["name"].as_string_or())
         return {};
     jsystem["bodies"] = cr.body["bodies"].deref();
 
@@ -385,29 +387,32 @@ static spStarSystem loadStarSystemFromNetwork(const std::string name) {
 }
 
 static spStarSystem loadStarSystem(std::string name) {
-    assert(!gSystemsByNameCache.contains(name));
-
+    spStarSystem ss;
     std::filesystem::path fp("cache/systems/"+name+".json");
-    if (!std::filesystem::exists(fp))
-        return loadStarSystemFromNetwork(name);
-
-    try {
-        std::ifstream ifs(fp);
-        auto jsystem = js::parse5(ifs);
-        return fromEDDN(jsystem, true);
-    } catch (...) {
-        LOG(ERROR) << "Error while loading cached star system: " << name;
-        return loadStarSystemFromNetwork(name);
+    if (std::filesystem::exists(fp)) {
+        try {
+            std::ifstream ifs(fp);
+            auto jsystem = js::parse5(ifs);
+            ss = fromEDDN(jsystem, true);
+        } catch (...) {
+            LOG(ERROR) << "Error while loading cached star system: " << name;
+        }
     }
+    if (!ss || ss->bodies.empty())
+        ss = loadStarSystemFromNetwork(name);
+    return ss;
 }
 
 spStarSystem getStarSystem(std::string_view name) {
-    if (gCurrentStarSystem && gCurrentStarSystem->systemName == name)
-        return gCurrentStarSystem;
-    const auto& it = gSystemsByNameCache.find(name);
-    if (it != gSystemsByNameCache.end())
-        return *it;
-    spStarSystem ss = loadStarSystem(std::string(name));
+    spStarSystem ss;
+    if (gCurrentStarSystem && gCurrentStarSystem->systemName == name) {
+        ss = gCurrentStarSystem;
+    }
+    else if (const auto& it = gSystemsByNameCache.find(name); it != gSystemsByNameCache.end()) {
+        ss = *it;
+    }
+    if (!ss || ss->bodies.empty())
+        ss = loadStarSystem(std::string(name));
     if (ss && !ss->saved) {
         assert (ss->systemName == name);
         ss->save();

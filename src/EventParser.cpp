@@ -424,8 +424,7 @@ static void setCommander(const std::string& name, const std::string& fid) {
         cmdr = {};
         cmdr.name = name;
         cmdr.fid = fid;
-        if (Cfg.isRavenColonialEnabled())
-            cmdr.ravenKey = Cfg.getRavenColonialKey(name);
+        cmdr.ravenKey = Cfg.getRavenColonialKey(name);
     }
 }
 
