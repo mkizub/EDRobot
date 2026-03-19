@@ -12,6 +12,7 @@
 #include "UIEditTask.h"
 #include "UIShowCargo.h"
 #include "UILayout.h"
+#include "../net/RavenColonial.h"
 #include "../../ui/resource.h"
 
 const int TRAY_ICONUID = 100;
@@ -227,12 +228,20 @@ UIMainDialog::UIMainDialog()
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_NETW_RAVEN_ENABLED, [this](wl::params p){
+        if (Cfg.isRavenColonialEnabled()) {
+            if (auto rc = RavenColonial::getInstance())
+                rc->setShipCargoReport(false);
+        }
         bool on = !Cfg.isRavenColonialEnabled();
         Cfg.setRavenColonialEnabled(on);
         menu.set_item_check_by_id(IDM_NETW_RAVEN_ENABLED, on);
         menu.enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, on && st::cmdr.fleetCarrierId != 0);
         menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on && !st::cmdr.ravenKey.empty());
         savePrefs();
+        if (Cfg.isRavenColonialEnabled()) {
+            if (auto rc = RavenColonial::getInstance())
+                rc->setShipCargoReport(Cfg.isRavenColonialReportShipCargo());
+        }
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_NETW_RAVEN_CARRIER_CARGO, [this](wl::params p){
@@ -247,6 +256,8 @@ UIMainDialog::UIMainDialog()
         Cfg.setRavenColonialReportShipCargo(on);
         menu.set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on);
         savePrefs();
+        if (auto rc = RavenColonial::getInstance())
+            rc->setShipCargoReport(on);
         return 0;
     });
     this->base_msg_pubm::on_command({IDC_EXIT,IDM_FILE_EXIT}, [](wl::params p){

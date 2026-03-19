@@ -115,6 +115,9 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
         timestampShip = file_timestamp;
     }
 
+    if (auto rc = RavenColonial::getInstance())
+        rc->reportShipCargo();
+
     return true;
 }
 
@@ -224,12 +227,8 @@ bool CargoManager::saveCarrierCargo(Timestamp timestamp, const std::map<Commodit
     ofs << js::rule::ecma404() << js::rule::space_indent<1>() << j_cargo;
     ofs.close();
 
-    if (!patch.empty()) {
-        js::value j = js::object({});
-        for (auto& p : patch)
-            j[p.first->nameId] = p.second;
-        RavenColonial::carrierPatchCargo(st::cmdr.fleetCarrierId, j);
-    }
+    if (auto rc = RavenColonial::getInstance())
+        rc->carrierPatchCargo(st::cmdr.fleetCarrierId, patch);
     return true;
 }
 

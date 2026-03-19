@@ -3277,7 +3277,7 @@ bool DiveUnderPlanetStep::run() {
                 } else {
                     LOG(DEBUG) << "DiveUnderPlanet, dockIsVisible && !toPort";
                     LOG(DEBUG) << "DiveUnderPlanet, disk_part=" << int(disk_part*100) << "%";
-                    if (disk_part < 0.85 || disk_part > 2 || st::autopilot.distanceToDock < dist_body) {
+                    if (disk_part < 0.85 || disk_part > 2.5 || st::autopilot.distanceToDock < dist_body) {
                         task->orientTowardTarget(5);
                         keepCruisePitch = 0;
                     } else {
@@ -4000,7 +4000,10 @@ std::string CompleteNavRoute::getTitle() {
     if (nr && !nr->route.empty()) {
         name = nr->route.back().starSystem;
         count = nr->route.size()-1;
-        step = std::clamp(getNavRoutePosition(nr),0,count);
+        step = getNavRoutePosition(nr);
+        if (st::ship.flags.fsd_jump)
+            step -= 1;
+        step = std::clamp(step,0,count);
     }
     if (status == DONE || count < 1)
         return lc_format("Routed to: {}", name);
@@ -4336,12 +4339,10 @@ bool TaskTravel::setDestDockAndBody(bool required) {
         return false;
     }
 
-    if (st::autopilot.destDock->parentBodyId < 0) {
+    if (required && st::autopilot.destDock->parentBodyId < 0) {
         initNavFilter();
         if (!run_sub_step(new NavDockSelect)) {
-            if (required)
-                throw_trouble("Cannot select destination dock");
-            return false;
+            throw_trouble("Cannot select destination dock");
         }
         sendUiBack();
     }

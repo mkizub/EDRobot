@@ -310,7 +310,7 @@ void reportCompassDetect(CompassInfo& compass) {
 static int compassLostCounter;
 
 void turn_loop() {
-    SetThreadDescription(GetCurrentThread(), L"ShitTracker loop");
+    SetThreadDescription(GetCurrentThread(), L"ShipTracker loop");
 
     LOG(INFO) << "Starting ship tracker";
     std::chrono::duration<double> wait_dur = 0ms;

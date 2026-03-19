@@ -10,6 +10,8 @@
 #include "Types.h"
 #include "Task.h"
 
+class RavenColonial;
+
 namespace ai {
 
 class BaseColonizationTask : public Task {
@@ -50,7 +52,6 @@ protected:
     gal::spEntity getCurrDock();
     gal::spEntity travelTo(std::string systemName, std::string dockName);
     void travelResume();
-    bool cargoMissmatch();
     void addDemands(DepotInfo& depot, Demands& demands);
     Demands calcDemands();
 
@@ -62,6 +63,7 @@ protected:
     std::vector<DepotInfo> depots;
     Timestamp timestampRavenShipsCargo;
     js::value ravenShipsCargo;
+    std::shared_ptr<RavenColonial> rcInstance;
 private:
     std::string destSystemName;
     std::string destDockName;

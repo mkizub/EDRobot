@@ -4,36 +4,137 @@
 
 #include "../pch.h"
 
-#include "NetUtils.h"
 #include "RavenColonial.h"
 #include "../Galaxy.h"
 
 #include <curl/curl.h>
+#include <cpr/cpr.h>
 
-namespace RavenColonial {
 
 const std::string RCAPI = "https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/";
 const std::string RCAPI_FC = RCAPI+"fc/";
 const std::string RCAPI_PRJ = RCAPI+"project/";
 const std::string RCAPI_CMDR = RCAPI+"cmdr/";
 
-static Timestamp timestampCargo;
-static js::value reportedCargo;
-static std::mutex mutexCargo;
+std::shared_ptr<RavenColonial> RavenColonial::gInstance;
+cpr::ConnectionPool ravenPool;
 
+class RavenInterceptor : public cpr::Interceptor {
+    static std::atomic<int> reqCounter;
+    const int reqId;
+public:
+    RavenInterceptor() : reqId(++reqCounter) {}
+    cpr::Response intercept(cpr::Session& session) override {
+        // Log the request URL
+        LOG(INFO) << "HTTP["<<reqId<<"] request url: " << session.GetFullRequestUrl();
+        auto& content = session.GetContent();
+        if (std::holds_alternative<cpr::Body>(content))
+            LOG(INFO) << "HTTP["<<reqId<<"] request body: " << std::get<cpr::Body>(content).str();
+        else if (std::holds_alternative<cpr::Body>(content))
+            LOG(INFO) << "HTTP["<<reqId<<"] request body: " << std::get<cpr::BodyView>(content).str();
 
-gal::spEntity importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName) {
+        static std::string ua;
+        if (ua.empty())
+            ua = std::format("EDRobot {} {}", EDROBOT_VERSION, curl_version());
+        session.SetUserAgent(cpr::UserAgent(ua));
+
+        session.UpdateHeader({{"Content-Type", "application/json; charset: utf-8"}}); // "Accept: application/json" ?
+        if (!st::cmdr.ravenKey.empty())
+            session.UpdateHeader({{"rcc-key", st::cmdr.ravenKey}});
+
+        session.SetTimeout(10s);
+        session.SetConnectionPool(ravenPool);
+        if (Cfg.getCurlInsecure()) {
+            auto curl = session.GetCurlHolder()->handle;
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
+            curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
+            curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
+            curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
+            curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
+            curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
+        }
+        if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty()) {
+            auto curl = session.GetCurlHolder()->handle;
+            curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+        }
+
+        // Proceed the request and save the response
+        cpr::Response response = proceed(session);
+
+        if (response.status_code == 0) {
+            LOG(ERROR) << "HTTP["<<reqId<<"] request error: " << response.error.message;
+        } else if (response.status_code >= 400) {
+            LOG(ERROR) << "HTTP["<<reqId<<"] error code [" << response.status_code << "] in request to " << response.url;
+        } else {
+            LOG(INFO) << "HTTP["<<reqId<<"] response [" << response.status_code << "] took " << response.elapsed;
+            LOG(INFO) << "HTTP["<<reqId<<"] response body:" << response.text;
+        }
+
+        // Return the stored response
+        return response;
+    }
+};
+
+std::atomic<int> RavenInterceptor::reqCounter;
+
+namespace cpr::priv {
+
+template <>
+inline void set_option_internal<false, Url>(Session& session, Url&& url) {
+    session.SetUrl(std::forward<Url>(url));
+    session.AddInterceptor(std::shared_ptr<cpr::Interceptor>(new RavenInterceptor()));
+}
+
+} //namespace cpr::priv
+
+std::shared_ptr<RavenColonial> RavenColonial::getInstance() {
+    return gInstance;
+}
+std::shared_ptr<RavenColonial> RavenColonial::newInstance() {
+    gInstance = std::shared_ptr<RavenColonial>(new RavenColonial);
+    return gInstance;
+}
+
+bool isOK(cpr::Response& cr) {
+    return cr.status_code > 0 && cr.status_code < 400 ;
+}
+
+js::value getJS(cpr::Response& cr) {
+    if (!isOK(cr))
+        return nullptr;
+    js::value result;
+    try {
+        result = js::parse5(cr.text);
+    } catch (const js::syntax_error& ex) {
+        LOG(ERROR) << ex.what();
+    }
+    return result;
+}
+
+RavenColonial::RavenColonial() {
+    setShipCargoReport(Cfg.isRavenColonialReportShipCargo());
+}
+
+RavenColonial::~RavenColonial() {
+    if (shipCargoReportEnabled)
+        setShipCargoReport(false);
+}
+
+gal::spEntity RavenColonial::importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName) {
     // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
     auto starSystem = gal::getStarSystem(systemName);
     if (!starSystem)
         return {};
     auto depot = starSystem->getDock(fullName);
 
-    auto cr = curlSimpleGet(RCAPI + "v2/system/" + std::to_string(starSystem->systemAddress));
-    if (!cr.ok)
+    cpr::Response cr = cpr::Get(cpr::Url{RCAPI + "v2/system/" + std::to_string(starSystem->systemAddress)});
+    auto cr_body = getJS(cr);
+    if (cr_body.empty())
         return {};
     std::string buildId;
-    for (auto& site : cr.body["sites"].as_array_or()) {
+    for (auto& site : cr_body["sites"].as_array_or()) {
         if (depot && depot->marketId) {
             if (depot && depot->marketId && site["marketId"].is_int() && site["marketId"].as_int() == depot->marketId) {
                 buildId = site["buildId"].as_string_or();
@@ -52,7 +153,7 @@ gal::spEntity importConstructionProject(const std::string& systemName, const std
         // check (the only) primary port
         if (!depot || !depot->marketId) {
             std::vector<std::string> active_builds;
-            for (auto &site: cr.body["sites"].as_array_or()) {
+            for (auto &site: cr_body["sites"].as_array_or()) {
                 if (site["buildId"].empty() || site["status"].as_string_or() != "build")
                     continue;
                 active_builds.push_back(site["buildId"].as_string_or());
@@ -64,17 +165,19 @@ gal::spEntity importConstructionProject(const std::string& systemName, const std
     }
     if (buildId.empty())
         return {};
-    cr = curlSimpleGet(RCAPI_PRJ + buildId);
-    if (!cr.ok)
+
+    cr = cpr::Get(cpr::Url{RCAPI_PRJ + buildId});
+    cr_body = getJS(cr);
+    if (cr_body.empty())
         return {};
     Timestamp timestamp;
-    parseTimestamp(cr.body, timestamp);
+    parseTimestamp(cr_body, timestamp);
     if (!depot) {
         depot = std::make_shared<gal::Entity>();
         depot->name = fullName;
-        depot->marketId = cr.body["marketId"].as_int_or();
-        depot->parentBodyId = cr.body["bodyNum"].as_int_or(-1);
-        if (cr.body["isPrimaryPort"].as_bool_or())
+        depot->marketId = cr_body["marketId"].as_int_or();
+        depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
+        if (cr_body["isPrimaryPort"].as_bool_or())
             depot->type = TypeNav::ColonisationShip;
         else if (fullName.starts_with("Orbital Construction Site:"))
             depot->type = TypeNav::SpaceConstrDepot;
@@ -85,11 +188,11 @@ gal::spEntity importConstructionProject(const std::string& systemName, const std
         starSystem->save();
     } else {
         if (!depot->marketId) {
-            depot->marketId = cr.body["marketId"].as_int_or();
+            depot->marketId = cr_body["marketId"].as_int_or();
             starSystem->saved = false;
         }
         if (depot->parentBodyId < 0) {
-            depot->parentBodyId = cr.body["bodyNum"].as_int_or(-1);
+            depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
             starSystem->saved = false;
         }
         if (!starSystem->saved)
@@ -105,7 +208,7 @@ gal::spEntity importConstructionProject(const std::string& systemName, const std
         market->raven = std::make_shared<RavenProj>();
     market->raven->timestamp = timestamp;
     market->raven->buildId = buildId;
-    for (auto [key,count] : cr.body["commodities"].key_value()) {
+    for (auto [key,count] : cr_body["commodities"].key_value()) {
         Commodity* c = Cfg.getCommodityById(key);
         if (!c)
             continue;
@@ -127,93 +230,89 @@ gal::spEntity importConstructionProject(const std::string& systemName, const std
     return depot;
 }
 
-
 // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/fc/{marketId}
 // {"marketId":3708647424,"name":"VFT-85B","displayName":"Daimonio tou Sokrati","owner":"mkzu","cargo":{"agronomictreatment":32,"bertrandite":234,"cobalt":403,"drones":11,"titanium":587,"tritium":1337}}
-js::value carrierGetCargo(int64_t marketId) {
-    auto cr = curlSimpleGet(RCAPI_FC+std::to_string(marketId));
-    if (!cr.ok)
-        return {};
-    return cr.body;
+js::value RavenColonial::carrierGetCargo(int64_t marketId) {
+    cpr::Response cr = cpr::Get(cpr::Url{RCAPI_FC+std::to_string(marketId)});
+    return getJS(cr);
 }
 
-void carrierPostCargo(int64_t marketId, js::value& j) {
+void RavenColonial::carrierPostCargo(int64_t marketId, js::value& j) {
     if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportCarrierCargo())
         return;
-    LOG(INFO) << "RavenColonial FC cargo post: " << j;
-    curlSimplePost(RCAPI_FC+std::to_string(marketId)+"/cargo", j);
+    std::string json_data = js::stringify(j);
+    LOG(INFO) << "RavenColonial FC cargo post: " << json_data;
+    cpr::PostAsync(cpr::Url{RCAPI_FC+std::to_string(marketId)+"/cargo"},
+                   cpr::Body{json_data});
 }
 
-void carrierPatchCargo(int64_t marketId, js::value& j) {
-    if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportCarrierCargo())
+void RavenColonial::carrierPatchCargo(int64_t marketId, const std::map<Commodity*,int>& patch) {
+    if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportCarrierCargo() || patch.empty())
         return;
-    std::jthread jt([=](std::stop_token){ // NOLINT(*-unnecessary-value-param)
-        LOG(INFO) << "RavenColonial FC cargo patch: " << j;
-        curlSimplePatch(RCAPI_FC+std::to_string(marketId)+"/cargo", j);
-    });
-    jt.detach(); // After this call, 'jt' no longer owns any thread
+    js::value j = js::object({});
+    for (auto& p : patch)
+        j[p.first->nameId] = p.second;
+    std::string json_data = j.stringify();
+    LOG(INFO) << "RavenColonial FC cargo patch: " << json_data;
+    cpr::PatchAsync(cpr::Url{RCAPI_FC+std::to_string(marketId)+"/cargo"},
+                    cpr::Body{json_data});
 }
 
-js::value buildCargoReeport() {
-    std::scoped_lock<std::mutex> lock(mutexCargo);
-    Timestamp tm_now = Timestamp::clock::now();
-    js::value j = js::object({
+js::value shipCargoInit() {
+    const std::string& shipName = st::shipInfo.shipUserName.empty()
+            ? st::shipInfo.shipType
+            : st::shipInfo.shipUserName;
+    return js::object({
         {"cmdr", st::cmdr.name},
-        {"name", st::shipInfo.shipIdent},
+        {"name", shipName},
         {"type", toLower(st::shipInfo.shipType)},
         {"maxCargo", st::shipStats.cargoCapacity},
         {"cargo", js::object({})},
         });
-    for (auto* c : CM.getShipCargo()->cargo)
-        j["cargo"][c->nameId] = c->ship.count;
-    if ((timestampCargo+40s) > tm_now && !reportedCargo.empty()) {
-        if (j == reportedCargo)
-            return {};
-    }
-    timestampCargo = tm_now;
-    reportedCargo = j;
-    return j;
 }
-void reportShipCargo() {
+
+
+void RavenColonial::setShipCargoReport(bool on) {
+    if (!Cfg.isRavenColonialEnabled() || st::cmdr.ravenKey.empty())
+        return;
+    shipCargoReportEnabled = on;
+    auto j = shipCargoInit();
+    if (on) {
+        for (auto *c: CM.getShipCargo()->cargo)
+            j["cargo"][c->nameId] = c->ship.count;
+    }
+    std::string json_data = j.stringify();
+    LOG(INFO) << "RavenColonial current ship cargo: " << json_data;
+    cpr::Post(cpr::Url{RCAPI_CMDR + "currentShip"},
+              cpr::Body{json_data});
+}
+
+void RavenColonial::reportShipCargo() {
     if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportShipCargo() || st::cmdr.ravenKey.empty())
         return;
-    js::value j = buildCargoReeport();
-    if (j.empty())
+    if (!shipCargoReportEnabled)
         return;
 
-    std::jthread jt([j](std::stop_token) mutable { // NOLINT(*-unnecessary-value-param)
-        LOG(INFO) << "RavenColonial current ship cargo: " << j;
-        std::vector<std::string> headers = {"rcc-key: " + st::cmdr.ravenKey};
-        auto cr = curlSimplePostWithHeaders(RCAPI_CMDR + "currentShip", j, headers);
-        if (cr.ok)
-            return;
-        std::this_thread::sleep_for(15s);
-        reportedCargo = nullptr;
-        j = buildCargoReeport();
-        if (j.empty())
-            return;
-        cr = curlSimplePostWithHeaders(RCAPI_CMDR + "currentShip", j, headers);
-        if (!cr.ok) {
-            timestampCargo = {};
-            reportedCargo = nullptr;
-        }
-    });
+    auto j = shipCargoInit();
+    for (auto* c : CM.getShipCargo()->cargo)
+        j["cargo"][c->nameId] = c->ship.count;
+    std::string json_data = j.stringify();
+    LOG(INFO) << "RavenColonial current ship cargo: " << json_data;
+    cpr::PostAsync(cpr::Url{RCAPI_CMDR + "currentShip"},
+                   cpr::Body{json_data});
 }
 
-js::value queryShipsCargo(const spMarket& market) {
+js::value RavenColonial::queryShipsCargo(const spMarket& market) {
     if (!Cfg.isRavenColonialEnabled() || !Cfg.isRavenColonialReportShipCargo())
         return {};
     if (!market || market->ravenBuildId().empty() || market->raven->status == "complete")
         return {};
-    std::vector<std::string> headers;
-    if (!st::cmdr.ravenKey.empty())
-        headers.emplace_back("rcc-key: "+st::cmdr.ravenKey);
-    auto cr = curlSimpleGetWithHeaders(RCAPI_PRJ + market->raven->buildId + "/ships", headers);
-    return cr.body;
+    cpr::Response cr = cpr::Get(cpr::Url{RCAPI_PRJ + market->raven->buildId + "/ships"});
+    return getJS(cr);
 }
 
 //{ "timestamp":"2026-02-11T18:55:36Z", "event":"ColonisationContribution", "MarketID":3955958274, "Contributions":[ { "Name":"$ComputerComponents_name;", "Name_Localised":"Компьютерные компоненты", "Amount":62 }, { "Name":"$FruitAndVegetables_name;", "Name_Localised":"Фрукты и овощи", "Amount":50 }, { "Name":"$InsulatingMembrane_name;", "Name_Localised":"Изолирующая мембрана", "Amount":347 }, { "Name":"$PowerGenerators_name;", "Name_Localised":"Электрогенераторы", "Amount":19 }, { "Name":"$Steel_name;", "Name_Localised":"Сталь", "Amount":13 }, { "Name":"$Water_name;", "Name_Localised":"Вода", "Amount":741 } ] }
-void reportContribution(spGameEvent& ge) {
+void RavenColonial::reportContribution(spGameEvent& ge) {
     if (!Cfg.isRavenColonialEnabled())
         return;
     auto& je = ge->data;
@@ -230,9 +329,12 @@ void reportContribution(spGameEvent& ge) {
     auto& raven = market->raven;
     if (raven->buildId.empty()) {
         // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
-        auto cr = curlSimpleGet(RCAPI + "v2/system/" + std::to_string(starSystem->systemAddress));
+        cpr::Response cr = cpr::Get(cpr::Url{RCAPI + "v2/system/" + std::to_string(starSystem->systemAddress)});
+        auto cr_body = getJS(cr);
+        if (cr_body.empty())
+            return;
         std::vector<std::string> active_builds;
-        for (auto& site : cr.body["sites"].as_array_or()) {
+        for (auto& site : cr_body["sites"].as_array_or()) {
             if (site["marketId"].is_int() && site["marketId"].as_int() == marketId) {
                 raven->buildId = site["buildId"].as_string_or();
                 raven->status = site["status"].as_string_or();
@@ -240,7 +342,7 @@ void reportContribution(spGameEvent& ge) {
             }
         }
         if (raven->buildId.empty()) {
-            for (auto& site : cr.body["sites"].as_array_or()) {
+            for (auto& site : cr_body["sites"].as_array_or()) {
                 if (site["buildId"].empty() || site["status"].as_string_or() != "build")
                     continue;
                 if (site["marketId"].empty() && st::dockedAt.stationName.ends_with(site["name"].as_string_or())) {
@@ -261,10 +363,9 @@ void reportContribution(spGameEvent& ge) {
         return;
     std::string cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
     if (!raven->commanders.contains(st::cmdr.name)) {
-        auto cr = curlSimplePut(RCAPI_PRJ + raven->buildId + "/link/" + cmdr_esc_name, "");
-        if (!cr.ok)
-            return;
-        raven->commanders[st::cmdr.name] = {};
+        cpr::Response cr = cpr::Put(cpr::Url{RCAPI_PRJ + raven->buildId + "/link/" + cmdr_esc_name});
+        if (isOK(cr))
+            raven->commanders[st::cmdr.name] = {};
     }
 
     auto& rci = raven->commanders[st::cmdr.name];
@@ -281,7 +382,10 @@ void reportContribution(spGameEvent& ge) {
         post_json[name] = amount;
         contributed += amount;
     }
-    curlSimplePost(RCAPI_PRJ + raven->buildId + "/contribute/" + cmdr_esc_name, post_json);
+    std::string json_data = js::stringify(post_json);
+    LOG(INFO) << "RavenColonial contribution post: " << json_data;
+    cpr::PostAsync(cpr::Url{RCAPI_PRJ + raven->buildId + "/contribute/" + cmdr_esc_name},
+                   cpr::Body{json_data});
     rci.timestamp = ge->timestamp;
     rci.deliveries += 1;
     rci.contributed += contributed;
@@ -289,7 +393,7 @@ void reportContribution(spGameEvent& ge) {
 }
 
 //{ "timestamp":"2026-02-11T18:55:36Z", "event":"ColonisationConstructionDepot", "MarketID":3955958274, "ConstructionProgress":0.752324, "ConstructionComplete":false, "ConstructionFailed":false, "ResourcesRequired":[ { "Name":"$aluminium_name;", "Name_Localised":"Алюминий", "RequiredAmount":500, "ProvidedAmount":500, "Payment":3239 }, { "Name":"$ceramiccomposites_name;", "Name_Localised":"Керамокомпозиты", "RequiredAmount":521, "ProvidedAmount":521, "Payment":724 }, { "Name":"$cmmcomposite_name;", "Name_Localised":"CMM-композит", "RequiredAmount":4508, "ProvidedAmount":4508, "Payment":6788 }, { "Name":"$computercomponents_name;", "Name_Localised":"Компьютерные компоненты", "RequiredAmount":62, "ProvidedAmount":62, "Payment":1112 }, { "Name":"$copper_name;", "Name_Localised":"Медь", "RequiredAmount":242, "ProvidedAmount":242, "Payment":1050 }, { "Name":"$foodcartridges_name;", "Name_Localised":"Пищевые брикеты", "RequiredAmount":94, "ProvidedAmount":94, "Payment":673 }, { "Name":"$fruitandvegetables_name;", "Name_Localised":"Фрукты и овощи", "RequiredAmount":50, "ProvidedAmount":50, "Payment":865 }, { "Name":"$insulatingmembrane_name;", "Name_Localised":"Изолирующая мембрана", "RequiredAmount":347, "ProvidedAmount":347, "Payment":11788 }, { "Name":"$liquidoxygen_name;", "Name_Localised":"Жидкий кислород", "RequiredAmount":1792, "ProvidedAmount":1792, "Payment":2260 }, { "Name":"$medicaldiagnosticequipment_name;", "Name_Localised":"Диагностическое медоборудование", "RequiredAmount":13, "ProvidedAmount":13, "Payment":3609 }, { "Name":"$nonlethalweapons_name;", "Name_Localised":"Нелетальное оружие", "RequiredAmount":13, "ProvidedAmount":13, "Payment":2503 }, { "Name":"$polymers_name;", "Name_Localised":"Полимеры", "RequiredAmount":521, "ProvidedAmount":521, "Payment":682 }, { "Name":"$powergenerators_name;", "Name_Localised":"Электрогенераторы", "RequiredAmount":19, "ProvidedAmount":19, "Payment":3072 }, { "Name":"$semiconductors_name;", "Name_Localised":"Полупроводники", "RequiredAmount":68, "ProvidedAmount":68, "Payment":1526 }, { "Name":"$steel_name;", "Name_Localised":"Сталь", "RequiredAmount":6660, "ProvidedAmount":6199, "Payment":5057 }, { "Name":"$superconductors_name;", "Name_Localised":"Сверхпроводники", "RequiredAmount":112, "ProvidedAmount":112, "Payment":7657 }, { "Name":"$titanium_name;", "Name_Localised":"Титан", "RequiredAmount":5534, "ProvidedAmount":587, "Payment":5360 }, { "Name":"$water_name;", "Name_Localised":"Вода", "RequiredAmount":741, "ProvidedAmount":741, "Payment":662 }, { "Name":"$waterpurifiers_name;", "Name_Localised":"Водоочистители", "RequiredAmount":38, "ProvidedAmount":38, "Payment":849 } ] }
-void reportConstructionDepot(spGameEvent& ge, const spMarket& market) {
+void RavenColonial::reportConstructionDepot(spGameEvent& ge, const spMarket& market) {
     if (!Cfg.isRavenColonialEnabled())
         return;
     if (!ge || !market || market->ravenBuildId().empty() || market->raven->status == "complete" || market->raven->timestamp > ge->timestamp)
@@ -314,33 +418,43 @@ void reportConstructionDepot(spGameEvent& ge, const spMarket& market) {
         int delta = std::max(0, mlp.second.demand - mlp.second.stock);
         comms[c->nameId] = delta;
     }
-    curlSimplePatch(RCAPI_PRJ + market->raven->buildId, post_json);
+    std::string json_data = js::stringify(post_json);
+    LOG(INFO) << "RavenColonial construction depot patch: " << json_data;
+    cpr::PatchAsync(cpr::Url{RCAPI_PRJ + market->raven->buildId},
+                    cpr::Body{json_data});
     //{"timestamp":"2026-03-06T22:06:49.7348045+00:00","eTag":"W/\"datetime'2026-02-25T20%3A02%3A19.2367861Z'\"","buildId":"48145df8-dcd0-45f5-bdd3-7c1e5239592c","sumNeed":156112,"maxNeed":269924,"complete":false,"commodities":{"aluminium":40263,"autofabricators":0,"ceramiccomposites":0,"cmmcomposite":40983,"computercomponents":0,"copper":0,"foodcartridges":0,"fruitandvegetables":0,"insulatingmembrane":0,"liquidoxygen":0,"medicaldiagnosticequipment":0,"nonlethalweapons":0,"polymers":0,"powergenerators":0,"semiconductors":0,"steel":74062,"superconductors":0,"titanium":0,"water":804,"waterpurifiers":0},"ready":[],"linkedFC":[],"buildType":"dodec","buildName":"Primary port","marketId":3962779906,"systemAddress":1457705423626,"systemName":"Col 359 Sector YE-W c3-5","starPos":[-311.656,282.625,272.906],"bodyNum":2,"bodyName":null,"factionName":null,"architectName":null,"discordLink":null,"timeDue":null,"timeCompleted":null,"timestarted":null,"isPrimaryPort":true,"commanders":{"mkz":[],"mkzu":[]},"notes":"","bodyType":null,"bodyFeatures":null,"systemFeatures":null,"reserveLevel":null}
 
     if (ge->data["ConstructionComplete"].as_bool_or(false)) {
         post_json = js::object({{"buildId", market->raven->buildId}});
-        curlSimplePost(RCAPI_PRJ+market->raven->buildId + "/complete", post_json);
+        json_data = js::stringify(post_json);
+        LOG(INFO) << "RavenColonial construction complete post: " << json_data;
+        cpr::PostAsync(cpr::Url{RCAPI_PRJ+market->raven->buildId + "/complete"},
+                       cpr::Body{json_data});
         market->raven->status = "complete";
         gal::saveMarket(market.get());
     }
 }
 
-spMarket updateConstructionDepot(spMarket market) {
+spMarket RavenColonial::updateConstructionDepot(spMarket market) {
     if (!Cfg.isRavenColonialEnabled() || !market || market->ravenBuildId().empty() || market->raven->status == "complete")
         return market;
     auto& raven = market->raven;
-    auto cr = curlSimpleGet(RCAPI_PRJ + raven->buildId + "/last");
     // "2026-02-20T07:52:28.3894916+00:00"
+    cpr::Response cr = cpr::Get(cpr::Url{RCAPI_PRJ + raven->buildId + "/last"});
+    auto cr_body = getJS(cr);
     Timestamp timestamp;
-    if (!cr.ok || !parseTimestamp(cr.body, timestamp))
+    if (cr_body.empty() || !parseTimestamp(cr_body, timestamp))
         return market;
     if ((market->timestamp+5s) >= timestamp || (raven->timestamp+5s) >= timestamp)
         return market;
-    cr = curlSimpleGet(RCAPI_PRJ+raven->buildId);
-    if (auto jid = cr.body["marketId"]; cr.ok && jid.is_int() && jid.as_int() == market->marketId) {
+    cr = cpr::Get(cpr::Url{RCAPI_PRJ + raven->buildId});
+    cr_body = getJS(cr);
+    if (cr_body.empty())
+        return market;
+    if (auto jid = cr_body["marketId"]; jid.is_int() && jid.as_int() == market->marketId) {
         market = std::make_shared<Market>(*market.get());
         raven->timestamp = timestamp;
-        if (auto jst = cr.body["complete"]; jst.is_bool() && jst.as_bool()) {
+        if (auto jst = cr_body["complete"]; jst.is_bool() && jst.as_bool()) {
             for (auto& it : market->items) {
                 auto& ml = it.second;
                 ml.stock = ml.demand;
@@ -351,7 +465,7 @@ spMarket updateConstructionDepot(spMarket market) {
                 Commodity* c = it.first;
                 auto& ml = it.second;
                 int demandOld = ml.demand - ml.stock;
-                int demandNew = cr.body["commodities"][c->nameId].as_int_or();
+                int demandNew = cr_body["commodities"][c->nameId].as_int_or();
                 if (demandNew != demandOld) {
                     LOG(INFO) << std::format("Demand update from RavenColonial: '{}' {} => {}",
                                              c->name, demandOld, demandNew);
@@ -364,6 +478,4 @@ spMarket updateConstructionDepot(spMarket market) {
     return market;
 }
 
-
-}
 

@@ -32,5 +32,8 @@
   }, {
     "name" : "zlib",
     "version>=" : "1.3.1"
+  }, {
+    "name" : "cpr",
+    "version>=" : "1.14.2"
   } ]
 }

@@ -7,22 +7,30 @@
 #ifndef EDROBOT_RAVENCOLONIAL_H
 #define EDROBOT_RAVENCOLONIAL_H
 
-namespace RavenColonial {
+class RavenColonial {
+    static std::shared_ptr<RavenColonial> gInstance;
 
-bool init();
-bool shutdown();
+    std::atomic<bool> shipCargoReportEnabled;
+    RavenColonial();
+public:
+    static std::shared_ptr<RavenColonial> getInstance();
+    static std::shared_ptr<RavenColonial> newInstance();
 
-gal::spEntity importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName);
+    virtual ~RavenColonial();
 
-js::value carrierGetCargo(int64_t marketId);
-void carrierPostCargo(int64_t marketId, js::value& j);
-void carrierPatchCargo(int64_t marketId, js::value& j);
-void reportShipCargo();
-js::value queryShipsCargo(const spMarket& market);
-void reportContribution(spGameEvent& ge);
-void reportConstructionDepot(spGameEvent& ge, const spMarket& market);
-spMarket updateConstructionDepot(spMarket market);
+    static gal::spEntity importConstructionProject(
+            const std::string& systemName, const std::string& fullName, const std::string& shortName);
 
-}
+    static js::value carrierGetCargo(int64_t marketId);
+    static void carrierPostCargo(int64_t marketId, js::value& j);
+    static void carrierPatchCargo(int64_t marketId, const std::map<Commodity*,int>& patch);
+    static void reportContribution(spGameEvent& ge);
+    static void reportConstructionDepot(spGameEvent& ge, const spMarket& market);
+    static spMarket updateConstructionDepot(spMarket market);
+
+    void setShipCargoReport(bool on);
+    void reportShipCargo();
+    js::value queryShipsCargo(const spMarket& market);
+};
 
 #endif //EDROBOT_RAVENCOLONIAL_H

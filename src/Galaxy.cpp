@@ -22,7 +22,7 @@ struct CompareStarSystem
     bool operator()(const spStarSystem& a, std::string_view b) const {return a->systemName < b;}
 };
 std::set<spStarSystem, CompareStarSystem> gSystemsByNameCache;
-spStarSystem gCurrentStarSystem;
+spStarSystem gCurrentStarSystem = std::make_shared<StarSystem>(0, "Void");
 
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
