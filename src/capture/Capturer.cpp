@@ -178,24 +178,24 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
 
     HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
     if (!hMonitor) {
-        LOG(ERROR) << "Could not get monitor handle.";
+        LOG_ERROR("Could not get monitor handle.");
         return nullptr;
     }
 
     MONITORINFOEX monitorInfo;
     monitorInfo.cbSize = sizeof(monitorInfo);
     if (!GetMonitorInfo(hMonitor, &monitorInfo)) {
-        LOG(ERROR) << "Could not get monitor information.";
+        LOG_ERROR("Could not get monitor information.");
         return nullptr;
     } else {
-        LOG(DEBUG) << "Lookup capturer for monitor " << monitorInfo.szDevice;
+        LOG_DEBUG("Lookup capturer for monitor {}", toUtf8(monitorInfo.szDevice));
     }
 
     RECT windowRect;
     RECT captureRect;
     BOOL ok = hwnd && GetWindowRect(hwnd, &windowRect);
     if (!ok) {
-        LOG(ERROR) << "Cannot get window for capturer";
+        LOG_ERROR("Cannot get window for capturer");
         return nullptr;
     }
     bool fullscreen;
@@ -247,7 +247,7 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
         }
     }
 
-    LOG(ERROR) << "Cannot find capturer for monitor " << monitorInfo.szDevice;
+    LOG_ERROR("Cannot find capturer for monitor {}", toUtf8(monitorInfo.szDevice));
     return nullptr;
 }
 

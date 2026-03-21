@@ -53,49 +53,49 @@ const wchar_t Master::ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
 using namespace widget;
 
 namespace {
-void writeOpenCVLogMessageFunc(cv::utils::logging::LogLevel cvLevel, const char* msg) {
-    if (!msg || !*msg)
-        return;
-    static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
-    switch (cvLevel) {
-        default: return;
-        case cv::utils::logging::LOG_LEVEL_FATAL:
-            cvLogger->fatal(msg);
-            break;
-        case cv::utils::logging::LOG_LEVEL_ERROR:
-            cvLogger->error(msg);
-            break;
-        case cv::utils::logging::LOG_LEVEL_WARNING:
-            if (cvLogger->enabled(el::Level::Warning))
-                cvLogger->warn(msg); break;
-            break;
-        case cv::utils::logging::LOG_LEVEL_INFO:
-            if (cvLogger->enabled(el::Level::Info))
-                cvLogger->info(msg); break;
-            break;
-        case cv::utils::logging::LOG_LEVEL_DEBUG:
-            if (cvLogger->enabled(el::Level::Debug))
-                cvLogger->debug(msg);
-            break;
-        //case cv::utils::logging::LOG_LEVEL_VERBOSE: cvLogger->verbose(0, msg); break;
-    }
-}
-void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const char* tag, const char* file, int line, const char* func, const char* msg) {
-    if (!msg || !*msg)
-        return;
-    el::Level elLevel = el::Level::Unknown;
-    switch (cvLevel) {
-        default: return;
-        case cv::utils::logging::LOG_LEVEL_FATAL:   elLevel = el::Level::Fatal; break;
-        case cv::utils::logging::LOG_LEVEL_ERROR:   elLevel = el::Level::Error; break;
-        case cv::utils::logging::LOG_LEVEL_WARNING: elLevel = el::Level::Warning; break;
-        case cv::utils::logging::LOG_LEVEL_INFO:    elLevel = el::Level::Info; break;
-        case cv::utils::logging::LOG_LEVEL_DEBUG:   elLevel = el::Level::Debug; break;
-        //case cv::utils::logging::LOG_LEVEL_VERBOSE:  elLevel = el::Level::Verbose; break;
-    }
-    static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
-    el::base::Writer(elLevel, file, line, func).construct(cvLogger) << msg;
-}
+//void writeOpenCVLogMessageFunc(cv::utils::logging::LogLevel cvLevel, const char* msg) {
+//    if (!msg || !*msg)
+//        return;
+//    static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
+//    switch (cvLevel) {
+//        default: return;
+//        case cv::utils::logging::LOG_LEVEL_FATAL:
+//            cvLogger->fatal(msg);
+//            break;
+//        case cv::utils::logging::LOG_LEVEL_ERROR:
+//            cvLogger->error(msg);
+//            break;
+//        case cv::utils::logging::LOG_LEVEL_WARNING:
+//            if (cvLogger->enabled(el::Level::Warning))
+//                cvLogger->warn(msg); break;
+//            break;
+//        case cv::utils::logging::LOG_LEVEL_INFO:
+//            if (cvLogger->enabled(el::Level::Info))
+//                cvLogger->info(msg); break;
+//            break;
+//        case cv::utils::logging::LOG_LEVEL_DEBUG:
+//            if (cvLogger->enabled(el::Level::Debug))
+//                cvLogger->debug(msg);
+//            break;
+//        //case cv::utils::logging::LOG_LEVEL_VERBOSE: cvLogger->verbose(0, msg); break;
+//    }
+//}
+//void writeOpenCVLogMessageFuncEx(cv::utils::logging::LogLevel cvLevel, const char* tag, const char* file, int line, const char* func, const char* msg) {
+//    if (!msg || !*msg)
+//        return;
+//    el::Level elLevel = el::Level::Unknown;
+//    switch (cvLevel) {
+//        default: return;
+//        case cv::utils::logging::LOG_LEVEL_FATAL:   elLevel = el::Level::Fatal; break;
+//        case cv::utils::logging::LOG_LEVEL_ERROR:   elLevel = el::Level::Error; break;
+//        case cv::utils::logging::LOG_LEVEL_WARNING: elLevel = el::Level::Warning; break;
+//        case cv::utils::logging::LOG_LEVEL_INFO:    elLevel = el::Level::Info; break;
+//        case cv::utils::logging::LOG_LEVEL_DEBUG:   elLevel = el::Level::Debug; break;
+//        //case cv::utils::logging::LOG_LEVEL_VERBOSE:  elLevel = el::Level::Verbose; break;
+//    }
+//    static el::Logger* cvLogger = el::Loggers::getLogger("OpenCV");
+//    el::base::Writer(elLevel, file, line, func).construct(cvLogger) << msg;
+//}
 
 static std::pair<std::string,std::string> getLatestVersionAndUrl() {
     auto path = std::filesystem::path("cache/rel-latest.json");
@@ -275,7 +275,7 @@ bool UIState::match(const std::string& state) const {
     auto names1 = parseState(widget->path);
     auto names2 = parseState(state);
     if (names1.size() != names2.size()) {
-        LOG(DEBUG) << "States '" << names1 << "' and '" << names2 << "' do not match";
+        LOGD("States '{}' and '{}' do not match", names1, names2);
         return false;
     }
     if (names1.empty())
@@ -288,7 +288,7 @@ bool UIState::match(const std::string& state) const {
         if (name1 == "*" && name2 == "*") {
             Widget* found = getItemMode(item, "");
             if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no modes";
+                LOGD("Widget '{}' have no modes", item->path);
                 return false;
             }
             item = found;
@@ -297,7 +297,7 @@ bool UIState::match(const std::string& state) const {
         else if (name1 == "*") {
             Widget* found = getItemMode(item, name2);
             if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no mode '" << name2 << "'";
+                LOGD("Widget '{}' have no mode '{}'", item->path, name2);
                 return false;
             }
             item = found;
@@ -306,7 +306,7 @@ bool UIState::match(const std::string& state) const {
         else if (name2 == "*") {
             Widget* found = getItemMode(item, name1);
             if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no mode '" << name1 << "'";
+                LOGD("Widget '{}' have no mode '{}'", item->path, name1);
                 return false;
             }
             item = found;
@@ -315,13 +315,13 @@ bool UIState::match(const std::string& state) const {
         else if (name1 == name2) {
             Widget* found = getItemByName(item, name2);
             if (!found) {
-                LOG(DEBUG) << "Widget '" << item->path << "' have no item '" << name2 << "'";
+                LOGD("Widget '{}' have no item '{}'", item->path, name2);
                 return false;
             }
             item = found;
             continue;
         }
-        LOG(DEBUG) << "States '" << names1 << "' and '" << names2 << "' do not match";
+        LOGD("States '{}' and '{}' do not match", names1, names2);
         return false;
     }
     return true;
@@ -380,7 +380,7 @@ bool Master::initialize(int argc, char* argv[]) {
     TRY {
         error = initializeInternal();
     } CATCH(const std::exception& e) {
-        LOG(ERROR) << "Exception in initialization: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in initialization: " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
         error = lc_format("Exception in initialization: {}", e.what());
     }
 
@@ -528,7 +528,7 @@ void Master::loop() {
         }
     }
     CATCH(const std::exception& e) {
-        LOG(ERROR) << "Exception in main task_loop: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in main task_loop: " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
         //clearCurrentTask();
     }
 }
@@ -1473,7 +1473,7 @@ void Master::processDetectRequest(pCommand &cmd) {
         }
         c->promise.set_value(ok);
     } catch (const std::exception& ex) {
-        LOG(ERROR) << "Exception in processDetectRequest: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in processDetectRequest: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
         c->promise.set_value(false);
     }
 }

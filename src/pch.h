@@ -33,15 +33,19 @@ using namespace std::chrono_literals;
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#define ELPP_PERFORMANCE_MICROSECONDS
-#define ELPP_STL_LOGGING
-//#define ELPP_THREAD_SAFE
-// #define ELPP_FEATURE_CRASH_LOG -- Stack trace not available for MinGW GCC
-#define ELPP_LOG_STD_ARRAY
-#define ELPP_LOG_UNORDERED_MAP
-#include <easylogging/easylogging++.h>
+//#define ELPP_PERFORMANCE_MICROSECONDS
+//#define ELPP_STL_LOGGING
+////#define ELPP_THREAD_SAFE
+//// #define ELPP_FEATURE_CRASH_LOG -- Stack trace not available for MinGW GCC
+//#define ELPP_LOG_STD_ARRAY
+//#define ELPP_LOG_UNORDERED_MAP
+//#include <easylogging/easylogging++.h>
 
-#include "spdlog/spdlog.h"
+#include <bitset>
+#include <sstream>
+#include <fstream>
+
+#include "ed_spdlog.h"
 
 #include <magic_enum/magic_enum.hpp>
 using namespace magic_enum;

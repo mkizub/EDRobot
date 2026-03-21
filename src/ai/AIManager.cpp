@@ -331,7 +331,7 @@ void task_step() {
         else if (dynamic_cast<const interrupted_error*>(&ex))
             ;
         else
-            LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+            LOG(ERROR) << "Exception during task execution: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
     }
     if (ok || reason > TaskExitReason::ONGOING) {
         if (ok && activeTask && activeTask->templ.id == ED_TASK_RESURRECT) {

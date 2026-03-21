@@ -36,6 +36,7 @@ add_executable(EDRobot
         src/pch.cpp
         src/pch.h
         src/ed_opencv.h
+        src/ed_spdlog.h
         src/Types.h
         src/main.cpp
         src/CargoManager.cpp
@@ -111,6 +112,12 @@ add_executable(EDRobot
         src/net/NetUtils.h
         src/net/RavenColonial.cpp
         src/net/RavenColonial.h
+        src/net/EDDN.cpp
+        src/net/EDDN.h
+        src/net/HttpInterceptor.cpp
+        src/net/HttpInterceptor.h
+        src/net/EDSM.cpp
+        src/net/EDSM.h
 
         src/ui/UIMainDialog.cpp
         src/ui/UIMainDialog.h
@@ -140,7 +147,7 @@ add_executable(EDRobot
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
         src/ui/wl_cargobox.h
-        src/ui/wl_panel.h
+        src/ui/wl_svg_button.h
 
         src/widget/EDWidget.cpp
         src/widget/EDWidget.h
@@ -161,8 +168,6 @@ add_executable(EDRobot
 
         ui/Dialogs.rc
 
-        thirdparty/easylogging/easylogging++.cc
-        thirdparty/easylogging/easylogging++.h
         thirdparty/dirlistener/ReadDirectoryChanges.cpp
         thirdparty/dirlistener/ReadDirectoryChanges.h
         thirdparty/dirlistener/ReadDirectoryChangesPrivate.cpp
@@ -173,13 +178,6 @@ add_executable(EDRobot
         thirdparty/glob/glob.h
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
-        src/ui/wl_ibutton.h
-        src/net/EDDN.cpp
-        src/net/EDDN.h
-        src/net/HttpInterceptor.cpp
-        src/net/HttpInterceptor.h
-        src/net/EDSM.cpp
-        src/net/EDSM.h
 )
 
 

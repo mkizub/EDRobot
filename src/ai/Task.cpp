@@ -52,7 +52,7 @@ bool Step::run_sub_step(spStep step) {
             throw;
         }
         else {
-            LOG(ERROR) << "Exception during task task_step execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+            LOG(ERROR) << "Exception during task task_step execution: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
             return false;
         }
     }

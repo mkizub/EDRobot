@@ -168,7 +168,7 @@ bool TaskSellAll::run() {
                 throw;
             }
             else {
-                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+                LOG(ERROR) << "Exception during task execution: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
                 st.failed = true;
                 st.complete = true;
             }
@@ -464,7 +464,7 @@ bool TaskBuyAll::run() {
                 throw;
             }
             else {
-                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+                LOG(ERROR) << "Exception during task execution: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
                 st.failed = true;
                 st.complete = true;
             }
@@ -848,7 +848,7 @@ bool TaskBuyConstr::run() {
                 throw;
             }
             else {
-                LOG(ERROR) << "Exception during task execution: " << ex.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+                LOG(ERROR) << "Exception during task execution: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
                 st.failed = true;
                 st.complete = true;
             }

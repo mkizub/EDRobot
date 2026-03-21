@@ -71,7 +71,7 @@ static bool safeDetect(Widget* widget, Widget::DetectParams& params) {
     TRY {
         detected = widget->detect(params);
     } CATCH(const std::exception& e) {
-        LOG(ERROR) << "Exception in widget '" << widget->path << "' detection: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in widget '" << widget->path << "' detection: " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
 #ifndef NDEBUG
         throw;
 #endif
