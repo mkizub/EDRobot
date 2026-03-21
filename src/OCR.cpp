@@ -18,8 +18,6 @@ namespace ocr {
 static std::mutex tesseractMutex;
 
 static tesseract::TessBaseAPI* tesseractApi;
-//static tesseract::TessBaseAPI* tesseractApiTmp;
-//static cv::dnn_superres::DnnSuperResImpl dnnSuperRes;
 
 //#define DEBUG_OCR 1
 #if defined(DEBUG_OCR) && defined(NDEBUG)
@@ -28,7 +26,7 @@ static tesseract::TessBaseAPI* tesseractApi;
 
 
 bool init(const std::string& tessdata) {
-    LOG(INFO) << "Initializing Tesseract OCR for lang '" << enum_name<Lang>(st::lng) << "', tessdata: " << tessdata << "";
+    LOG(INFO) << "Initializing Tesseract OCR tessdata: " << tessdata << "";
 
     std::set<std::wstring> words_set;
     std::filesystem::path twpath(std::format("tesseract-words-{}.txt", enum_name<Lang>(st::lng)));
@@ -70,18 +68,13 @@ bool init(const std::string& tessdata) {
 }
 
 void shutdown() {
-    LOG(INFO) << "Shutdown Tesseract OCR";
     std::scoped_lock<std::mutex> lock(tesseractMutex);
     if (tesseractApi) {
+        LOG(INFO) << "Shutdown Tesseract OCR";
         tesseractApi->End();
         delete tesseractApi;
         tesseractApi = nullptr;
     }
-//    if (tesseractApiTmp) {
-//        tesseractApiTmp->End();
-//        delete tesseractApiTmp;
-//        tesseractApiTmp = nullptr;
-//    }
 }
 
 bool ocrPageSegm(const cv::Mat& grayImage, cv::Rect& rectOut, std::vector<cv::Line>& baselineOut) {

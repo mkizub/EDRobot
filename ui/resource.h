@@ -57,7 +57,7 @@
 #define IDM_NETW_RAVEN_ENABLED          32802
 #define IDM_NETW_RAVEN_CARRIER_CARGO    32803
 #define IDM_NETW_RAVEN_SHIP_CARGO       32804
-#define IDM_NETW_EDDN_STAR_SYSTEM       32805
+#define IDM_NETW_EDDN_SYSTEMS           32805
 #define IDM_NETW_EDDN_MARKETS           32806
 #define IDC_STATIC                      -1
 

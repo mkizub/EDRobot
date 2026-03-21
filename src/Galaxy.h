@@ -52,7 +52,7 @@ struct StarSystem {
     spEntity getBody(const std::string& bname);
     spEntity getDock(const std::string& sname);
     spEntity getDock(int64_t marketId);
-    void addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>& events);
+    void addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEvent>>& events);
     spEntity addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& name, int bodyId);
     spEntity addStation(spGameEvent& ge);
     spEntity addStation(spEntity station);

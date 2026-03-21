@@ -682,6 +682,17 @@ public:
     inline ref<1,false> operator[](string_p_type key) const;
     inline ref<1,false> operator[](const string_type& key) const;
 
+    void erase(std::string_view sv)
+    {
+        if (is_object()) {
+            auto& ov = std::get<TYPE_OBJECT>(content);
+            obj_key key(0, sv);
+            auto iter = ov.map.find(key);
+            if (iter != ov.map.end())
+                ov.map.erase(iter);
+        }
+    }
+
     /*================================================================================
      * Assignment (Copying)
      */

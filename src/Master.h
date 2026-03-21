@@ -115,7 +115,7 @@ private:
     Master();
     ~Master();
 
-    std::string initializeInternal(std::string ocr_dir);
+    std::string initializeInternal();
 
     static void tradingKbHook(int code, int scancode, int flags, const std::string& name);
 

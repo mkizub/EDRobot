@@ -1156,7 +1156,7 @@ bool TradeLoopTask::run() {
         // go to the market in current system to buy something
         for (int i = 0; marketIdx < 0 && i < markets.size(); i++) {
             auto &mi = markets[i];
-            if (st::currentStarSystem == mi.system) {
+            if (st::eddnStarSystem.name == mi.system) {
                 if (mi.buy_all)
                     marketIdx = i;
                 else if (!mi.buy_list.empty()) {

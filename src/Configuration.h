@@ -110,10 +110,10 @@ struct NavRoute {
 };
 
 struct GameEvent {
-    GameEvent(js::value&& data);
     const js::value data;
     const Timestamp timestamp;
     const std::string event;
+    const bool expired;
 };
 
 typedef std::shared_ptr<Market> spMarket;
@@ -133,6 +133,7 @@ public:
     void shutdown();
     void savePrefs();
     std::string getErrorMessage() const { return errorMessage; }
+    std::string getTesseractDataPath() const { return mTesseractDataPath; }
     std::string getForcedDXGIDeviceName() const { return forceDXGIDevice; }
     int getForcedDXGIDeviceId() const { return forceDXGIDeviceId; }
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
@@ -153,7 +154,7 @@ public:
     Commodity* getCommodityByName(const std::wstring& name, bool fuzzy_ocr);
 
     bool loadMarket(spGameEvent ge);
-    bool loadNavRoute(Timestamp timestamp);
+    bool loadNavRoute(spGameEvent& ge);
     const char* makeTesseractWordsFile();
 
     std::vector<Commodity*> getMarketInSellOrder();
@@ -178,6 +179,10 @@ public:
             return mRavenColonialKeys.at(cmdr);
         return {};
     }
+    bool isEddnSystemsEnabled() const { return mEddnSystemsEnabled; }
+    bool isEddnMarketsEnabled() const { return mEddnMarketsEnabled; }
+    void setEddnSystemsEnabled(bool on) { mEddnSystemsEnabled = on; }
+    void setEddnMarketsEnabled(bool on) { mEddnMarketsEnabled = on; }
     bool getCurlInsecure() const { return mCurlInsecure; }
     const std::string& getCurlProxyURL() const { return mCurlProxyUrl; }
 
@@ -191,6 +196,8 @@ public:
 private:
     friend class Master;
     friend class CargoManager;
+    friend void parseEvent_Fileheader(spGameEvent& ge); // for updateLanguage
+    friend void parseEvent_LoadGame(spGameEvent& ge); // for updateLanguage
 
     void parseShortcutConfig(Command command, const std::string& name, js::value cfg);
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
@@ -198,18 +205,18 @@ private:
     bool loadGameSettings(bool initial);
     bool loadPlayerOptions(bool initial);
     bool loadInputBindings();
+    void updateLanguage(Lang lng);
     bool findLatestJournalFile();
-    bool preloadGameJournal();
     bool loadCommodityDatabase();
     bool dumpCommodityDatabase();
     bool loadGameStatus();
     CommodityCategory& getOrAddCommodityCategory(CommodityCategory&& cc);
     Commodity& getOrAddCommodity(Commodity&& c);
+    void writeLogTimestamp(std::ofstream& fs, Timestamp timestamp);
     void changeDirThreadLoop();
 
-    void preloadOldEventsComplete();
-    void readJournalChanges(std::ifstream& journalStream, std::string& journalLine);
-    spGameEvent parseEvent(const std::string& line);
+    void readJournalChanges(std::ifstream& journalStream, Timestamp& latest_log_timestamp, std::string& journalLine);
+    spGameEvent parseEvent(Timestamp& latest_log_timestamp, const std::string& line);
 
     std::string errorMessage;
 
@@ -231,6 +238,8 @@ private:
     bool mRavenColonialEnabled = false;
     bool mRavenColonialReportCarrierCargo = false;
     bool mRavenColonialReportShipCargo = false;
+    bool mEddnSystemsEnabled = false;
+    bool mEddnMarketsEnabled = false;
     bool mCurlInsecure = true;
     std::map<std::string,std::string> mRavenColonialKeys;
     std::string mCurlProxyUrl;

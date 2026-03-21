@@ -100,8 +100,10 @@ UIMainDialog::UIMainDialog()
                 .set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialReportShipCargo())
                 .enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled() && !st::cmdr.ravenKey.empty())
             .append_separator()
-            .append_item(IDM_NETW_EDDN_STAR_SYSTEM,W("Report EDDN star system")).set_item_check_by_id(IDM_NETW_EDDN_STAR_SYSTEM, false)
-            .append_item(IDM_NETW_EDDN_MARKETS,W("Report EDDN markets")).set_item_check_by_id(IDM_NETW_EDDN_MARKETS, false)
+            .append_item(IDM_NETW_EDDN_SYSTEMS,W("Report EDDN star system"))
+                .set_item_check_by_id(IDM_NETW_EDDN_SYSTEMS, Cfg.isEddnSystemsEnabled())
+            .append_item(IDM_NETW_EDDN_MARKETS,W("Report EDDN markets"))
+                .set_item_check_by_id(IDM_NETW_EDDN_MARKETS, Cfg.isEddnMarketsEnabled())
             ;
     menu.append_submenu(W("Debug"))
             .append_item(IDM_DEBUG_WATCH,W("Watch"))
@@ -258,6 +260,20 @@ UIMainDialog::UIMainDialog()
         savePrefs();
         if (auto rc = RavenColonial::getInstance())
             rc->setShipCargoReport(on);
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_NETW_EDDN_SYSTEMS, [this](wl::params p){
+        bool on = !Cfg.isEddnSystemsEnabled();
+        Cfg.setEddnSystemsEnabled(on);
+        menu.set_item_check_by_id(IDM_NETW_EDDN_SYSTEMS, on);
+        savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_NETW_EDDN_MARKETS, [this](wl::params p){
+        bool on = !Cfg.isEddnMarketsEnabled();
+        Cfg.setEddnMarketsEnabled(on);
+        menu.set_item_check_by_id(IDM_NETW_EDDN_MARKETS, on);
+        savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command({IDC_EXIT,IDM_FILE_EXIT}, [](wl::params p){

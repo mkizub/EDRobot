@@ -12,9 +12,13 @@
 #include "Capturer.h"
 #include "ShipStats.h"
 #include "Galaxy.h"
+#include "OCR.h"
 #include "ui/UIManager.h"
 #include "net/NetUtils.h"
 #include "net/RavenColonial.h"
+#include "net/EDDN.h"
+
+#include <cpr/cpr.h>
 
 #include <zlib.h>
 #include <dirlistener/ReadDirectoryChanges.h>
@@ -130,8 +134,11 @@ bool Configuration::load() {
             mEDSettingsPath = toUtf16(tm.as_string());
         if (auto& tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
             mEDLogsPath = toUtf16(tm.as_string());
-        if (auto& tm = j_config.at("tesseract-data-path"); tm.is_string())
+        if (auto& tm = j_config.at("tesseract-data-path"); tm.is_string()) {
             mTesseractDataPath = tm.as_string();
+        } else {
+            mTesseractDataPath = "tessdata";
+        }
         if (auto& tm = j_config.at("force-dxgi-device")) {
             if (tm.is_string())
                 forceDXGIDevice = tm.as_string();
@@ -203,8 +210,6 @@ bool Configuration::load() {
     {
         if (!eddb::loadEDDB())
             errorMessage = _gt("Failed to load ship database");
-        if (!preloadGameJournal())
-            errorMessage = _gt("Failed to load game journal");
         if (!loadGameSettings(true))
             errorMessage = _gt("Failed to load game settings");
         if (!loadPlayerOptions(true))
@@ -231,6 +236,8 @@ bool Configuration::load() {
         mCommodityDatabaseUpdated = false;
         if (st::cmdr.fleetCarrierId)
             CM.loadCarrierCargo();
+
+        cpr::GlobalThreadPool::GetInstance()->SetMaxThreadNum(1);
 
         LOG(INFO) << "Setting journal directory listener";
         if (!changeDirListener) {
@@ -260,6 +267,9 @@ bool Configuration::load() {
     mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
     mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
     mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
+    mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
+    mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
+
 
     return true;
 }
@@ -270,6 +280,8 @@ void Configuration::savePrefs() {
     Cfg.jprefs["raven"]["enabled"] = mRavenColonialEnabled;
     Cfg.jprefs["raven"]["carrier"] = mRavenColonialReportCarrierCargo;
     Cfg.jprefs["raven"]["ship"] = mRavenColonialReportShipCargo;
+    Cfg.jprefs["eddn"]["systems"] = mEddnSystemsEnabled;
+    Cfg.jprefs["eddn"]["markets"] = mEddnMarketsEnabled;
 
     std::ofstream ofs("prefs.json5", std::ios::trunc | std::ios::binary);
     ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << jprefs;
@@ -794,39 +806,6 @@ bool Configuration::findLatestJournalFile() {
     return true;
 }
 
-bool Configuration::preloadGameJournal() {
-    LOG(INFO) << "Pre-Loading game journal";
-    if (!findLatestJournalFile())
-        return false;
-    std::ifstream ifs(mEDCurrentJournalFile, std::ifstream::in);
-    if (!ifs.is_open()) {
-        LOG(ERROR) << "Cannot open journal file: " << mEDCurrentJournalFile;
-        return false;
-    }
-
-    bool start = true;
-    for (;;) {
-        std::string line;
-        getline(ifs, line);
-
-        std::string event;
-        Timestamp timestamp;
-
-        auto ge = parseEvent(line);
-        if (!ge)
-            return false;
-        if (start) {
-            start = false;
-            if (ge->event != "Fileheader") {
-                LOG(ERROR) << "Corrupted journal file, expecting 'Fileheader': " << line;
-                return false;
-            }
-        }
-        else if (ge->event == "Shutdown" || ge->event == "Loadout")
-            return true;
-    }
-}
-
 std::string Configuration::getShortcutFor(Command cmd) const {
     for (const auto& entry : keyMapping) {
         if (entry.second == cmd) {
@@ -1174,10 +1153,15 @@ bool Configuration::loadMarket(spGameEvent ge) {
 
     st::currentMarket.swap(market);
     gal::setMarketData(st::currentMarket);
+
+    if (!ge->expired) {
+        spGameEvent ge_loaded(new GameEvent{std::move(j_market), timestamp, "Market", false});
+        EDDN::getInstance()->event_Market(ge_loaded);
+    }
     return true;
 }
 
-bool Configuration::loadNavRoute(Timestamp event_timestamp) {
+bool Configuration::loadNavRoute(spGameEvent& ge) {
     js::value j_route;
     try {
         std::ifstream routeFile(mEDLogsPath + L"/NavRoute.json", std::ifstream::in);
@@ -1194,7 +1178,7 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
     if (!j_route)
         return false;
     Timestamp timestamp;
-    if (!parseTimestamp(j_route, timestamp) || event_timestamp < timestamp)
+    if (!parseTimestamp(j_route, timestamp) || ge->timestamp < timestamp)
         return false;
 
     std::vector<NavRoute::Entry> entries;
@@ -1212,7 +1196,36 @@ bool Configuration::loadNavRoute(Timestamp event_timestamp) {
     }
     spNavRoute route = std::make_shared<NavRoute>(timestamp,entries);
     st::currentNavRoute.swap(route);
+
+    if (!ge->expired) {
+        const_cast<js::value&>(ge->data) = j_route;
+        EDDN::getInstance()->event_NavRoute(ge);
+    }
     return true;
+}
+
+void Configuration::updateLanguage(Lang lng) {
+    if (lng == st::lng)
+        return;
+    st::lng = lng;
+    for (auto& cc : allKnownCommodityCategories) {
+        if (lng == Lang::XX)
+            cc.name = cc.nameId;
+        else
+            cc.name = cc.translation[int(lng)];
+        cc.wide = toUtf16(cc.name);
+    }
+    FuzzyMatch fm;
+    for (auto& c : allKnownCommodities) {
+        if (lng == Lang::XX)
+            c.name = c.nameId;
+        else
+            c.name = c.translation[int(lng)];
+        c.wide = toUtf16(c.name);
+        c.wocr = fm.toOCR(c.wide);
+    }
+    ocr::shutdown();
+    ocr::init(mTesseractDataPath);
 }
 
 bool Configuration::loadCommodityDatabase() {
@@ -1353,16 +1366,44 @@ static const char* ExplainAction(DWORD dwAction)
     }
 }
 
+void Configuration::writeLogTimestamp(std::ofstream& fs, Timestamp timestamp) {
+    if (!fs.good())
+        fs.close();
+    if (!fs.is_open())
+        fs.open("cache/journal.json5", std::fstream::out | std::fstream::trunc | std::fstream::binary);
+
+    fs.seekp(0, std::ios::beg);
+    int64_t unix_ts = std::chrono::duration_cast<std::chrono::seconds>(timestamp.time_since_epoch()).count();
+    std::filesystem::path p(mEDCurrentJournalFile);
+    fs << js::rule::json5() << js::object({{"ts", unix_ts},{"file", p.filename().string()}}) << std::flush;
+}
+
 void Configuration::changeDirThreadLoop() {
     SetThreadDescription(GetCurrentThread(), L"Directory listener");
 
-    const HANDLE handles[] = {hShutdownEvent, changeDirListener->GetWaitHandle()};
+    const HANDLE handles[2] = {hShutdownEvent, changeDirListener->GetWaitHandle()};
 
+    findLatestJournalFile();
+
+    Timestamp latest_log_timestamp {};
+    Timestamp dumped_log_timestamp {};
+    try {
+        std::ifstream ifs_latest_log("cache/journal.json5");
+        js::value j_log = js::parse5(ifs_latest_log);
+        std::filesystem::path log_path = std::filesystem::path(mEDLogsPath) / toUtf16(j_log["file"].as_string_or());
+        if (log_path == mEDCurrentJournalFile) {
+            latest_log_timestamp = Timestamp(std::chrono::seconds(j_log["ts"].as_int_or()));
+            dumped_log_timestamp = latest_log_timestamp;
+        }
+    } catch (const js::syntax_error& ex) {
+        //LOG(ERROR) << ex.what();
+    }
+
+    std::ofstream ofs_latest_log;
     std::string journalLine;
     std::ifstream journalStream(mEDCurrentJournalFile, std::ifstream::in);
     // read all events from journal
-    readJournalChanges(journalStream, journalLine);
-    preloadOldEventsComplete();
+    readJournalChanges(journalStream, latest_log_timestamp, journalLine);
     // read last ship status after all events
     loadGameStatus();
 
@@ -1370,12 +1411,12 @@ void Configuration::changeDirThreadLoop() {
         DWORD rc = ::MsgWaitForMultipleObjectsEx(
                         _countof(handles),
                         handles,
-                        INFINITE,
+                        5000, // wakeup every 5 seconds
                         QS_ALLINPUT,
                         MWMO_INPUTAVAILABLE | MWMO_ALERTABLE);
-        if (rc == WAIT_OBJECT_0)
+        if (rc == WAIT_OBJECT_0) // shutdown
             break;
-        if (rc != (WAIT_OBJECT_0+1))
+        if (!(rc == WAIT_TIMEOUT || rc == (WAIT_OBJECT_0+1))) // timeout or dir listener
             continue;
 
         // We've received a notification in the queue.
@@ -1414,16 +1455,27 @@ void Configuration::changeDirThreadLoop() {
             loadGameStatus();
 
         // real all events from journal
-        readJournalChanges(journalStream, journalLine);
+        readJournalChanges(journalStream, latest_log_timestamp, journalLine);
 
         if (!journalFilenameW.empty() && journalFilenameW != mEDCurrentJournalFile) {
             mEDCurrentJournalFile = journalFilenameW;
             LOG(INFO) << "Journal file: " << mEDCurrentJournalFile;
             if (journalStream.is_open())
                 journalStream.close();
+            if (ofs_latest_log.is_open())
+                ofs_latest_log.close();
+            latest_log_timestamp = {};
+            writeLogTimestamp(ofs_latest_log, Timestamp());
             journalStream.open(mEDCurrentJournalFile, std::ifstream::in);
             // real all events from journal
-            readJournalChanges(journalStream, journalLine);
+            readJournalChanges(journalStream, latest_log_timestamp, journalLine);
+        }
+
+        if (latest_log_timestamp > dumped_log_timestamp+4s) {
+            writeLogTimestamp(ofs_latest_log, latest_log_timestamp);
+            dumped_log_timestamp = latest_log_timestamp;
         }
     }
+    writeLogTimestamp(ofs_latest_log, latest_log_timestamp);
+    ofs_latest_log.close();
 }

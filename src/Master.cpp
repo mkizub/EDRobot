@@ -341,7 +341,6 @@ bool Master::initialize(int argc, char* argv[]) {
     std::string ocr_dir;
     std::string lang;
     options.add_flag("--kwd,--keep-working-dir", kwd, "Keep working directory (do not change on start)");
-    options.add_option("--ocr-dir,--tesseract-dir", ocr_dir, "Tesseract OCR data directory");
     options.add_option("--lang,--language", lang, "Language (ru for russian)");
 
     CLI11_PARSE(options, argc, argv)
@@ -379,7 +378,7 @@ bool Master::initialize(int argc, char* argv[]) {
 
     std::string error;
     TRY {
-        error = initializeInternal(ocr_dir);
+        error = initializeInternal();
     } CATCH(const std::exception& e) {
         LOG(ERROR) << "Exception in initialization: " << e.what() << std::endl << GET_EXCEPTION_STACK_TRACE;
         error = lc_format("Exception in initialization: {}", e.what());
@@ -401,7 +400,7 @@ bool Master::initialize(int argc, char* argv[]) {
         return false;
     }
 }
-std::string Master::initializeInternal(std::string ocr_dir) {
+std::string Master::initializeInternal() {
 
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
@@ -413,13 +412,6 @@ std::string Master::initializeInternal(std::string ocr_dir) {
     ai::init();
     if (!ai::init_ship_tracker())
         return _gt("Missing required vJoy axis bindings for ship");
-
-    if (ocr_dir.empty())
-        ocr_dir = Cfg.mTesseractDataPath;
-    if (ocr_dir.empty())
-        ocr_dir = "tessdata";
-    if (!ocr::init(ocr_dir))
-        return _gt("OCR Tesseract initialization error");
 
     LOG(INFO) << "Initializing compass detector";
     mCompassDetector = std::make_unique<detect::CompassDetector>();

@@ -813,7 +813,7 @@ void StarSystem::checkNloc(spEntity& site, const std::string& nloc, Timestamp ti
         site->updated = timestamp;
     }
 }
-void StarSystem::addFSSSignalDiscovered(std::vector<std::shared_ptr<GameEvent>>& events) {
+void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEvent>>& events) {
     if (events.empty())
         return;
     Timestamp timestamp = events.front()->timestamp;

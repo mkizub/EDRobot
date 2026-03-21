@@ -8,15 +8,16 @@
 #include "Galaxy.h"
 #include "ShipStats.h"
 #include "ai/AIManager.h"
-#include "ui/UIManager.h"
 #include "net/RavenColonial.h"
+#include "net/EDDN.h"
 
 namespace st {
 Lang lng {Lang::XX};
-std::string currentStarSystem;
 
 GuiFocus guiFocus {GuiFocus::None};
 bool isDead {};
+
+EddnStarSystem eddnStarSystem;
 
 const Commander cmdr {};
 const GameClient client {};
@@ -114,7 +115,6 @@ std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
 
 static int64_t fssSignalSystemAddress;
 static std::vector<spGameEvent> allFSSSignalEvents;
-static bool scanningOldEvents = true;
 
 inline void set(std::string& field, const js::value& value) {
     if (!value.is_string()) {
@@ -124,22 +124,6 @@ inline void set(std::string& field, const js::value& value) {
     if (field == value.as_string())
         return;
     field = value.as_string();
-}
-
-GameEvent::GameEvent(js::value&& j)
-    : data(std::move(j))
-    , timestamp{}
-    , event{}
-{
-    auto jev = data["event"];
-    auto jts = data["timestamp"];
-    if (!jev.is_string() || !jts.is_string())
-        return;
-    Timestamp ts;
-    if (parseTimestampString(jts.as_string(), ts)) {
-        const_cast<Timestamp&>(timestamp) = ts;
-        const_cast<std::string&>(event) = jev.as_string();
-    }
 }
 
 void parseEvent_Fileheader(spGameEvent& ge);
@@ -170,6 +154,10 @@ void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge);
 void parseEvent_ApproachSettlement(spGameEvent& ge);
 void parseEvent_SupercruiseExit(spGameEvent& ge);
 void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
+void parseEvent_NavBeaconScan(spGameEvent& ge);
+void parseEvent_FSSDiscoveryScan(spGameEvent& ge);
+void parseEvent_FSSAllBodiesFound(spGameEvent& ge);
+void parseEvent_FSSBodySignals(spGameEvent& ge);
 void parseEvent_Scan(spGameEvent& ge);
 void parseEvent_ScanBaryCentre(spGameEvent& ge);
 void parseEvent_ApproachBody(spGameEvent& ge);
@@ -185,6 +173,7 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"Died", parseEvent_Died},
         {"Resurrect", parseEvent_Resurrect},
         {"Cargo", parseEvent_Cargo},
+        {"Market", parseEvent_Market},
         {"Market", parseEvent_Market},
         {"NavRoute", parseEvent_NavRoute},
         {"NavRouteClear", parseEvent_NavRouteClear},
@@ -209,22 +198,34 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"ApproachSettlement", parseEvent_ApproachSettlement},
         {"SupercruiseExit", parseEvent_SupercruiseExit},
         {"FSSSignalDiscovered", parseEvent_FSSSignalDiscovered},
+        {"NavBeaconScan", parseEvent_NavBeaconScan},
+        {"FSSDiscoveryScan", parseEvent_FSSDiscoveryScan},
+        {"FSSAllBodiesFound", parseEvent_FSSAllBodiesFound},
+        {"FSSBodySignals", parseEvent_FSSBodySignals},
         {"Scan", parseEvent_Scan},
         {"ScanBaryCentre", parseEvent_ScanBaryCentre},
         {"ApproachBody", parseEvent_ApproachBody},
         {"LeaveBody", parseEvent_LeaveBody},
 };
 
-spGameEvent Configuration::parseEvent(const std::string& line) {
+spGameEvent Configuration::parseEvent(Timestamp& latest_log_timestamp, const std::string& line) {
     spGameEvent gameEvent;
     {
         if (trim(line).empty())
             return {};
         try {
             auto res = js::parse(line);
-            gameEvent.reset(new GameEvent(std::move(res)));
-            if (gameEvent->event.empty())
+            auto& jev = res["event"].deref();
+            auto& jts = res["timestamp"].deref();
+            Timestamp ts;
+            if (!jev.is_string() || jev.empty() || !jts.is_string() || !parseTimestampString(jts.as_string(), ts))
                 return {};
+            bool expired = false;
+            if (ts < latest_log_timestamp)
+                expired = true;
+            else
+                latest_log_timestamp = ts;
+            gameEvent.reset(new GameEvent{std::move(res), ts, jev.as_string(), expired});
         } catch (const js::syntax_error& ex) {
             return {};
         }
@@ -246,11 +247,7 @@ spGameEvent Configuration::parseEvent(const std::string& line) {
     return gameEvent;
 }
 
-void Configuration::preloadOldEventsComplete() {
-    scanningOldEvents = false;
-}
-
-void Configuration::readJournalChanges(std::ifstream& journalStream, std::string& journalLine) {
+void Configuration::readJournalChanges(std::ifstream& journalStream, Timestamp& latest_log_timestamp, std::string& journalLine) {
     if (!journalStream.is_open())
         return;
     for (;;) {
@@ -270,7 +267,7 @@ void Configuration::readJournalChanges(std::ifstream& journalStream, std::string
             journalLine.append(buffer, len);
             if (len == count)
                 continue; // no '\n' was extracted from stream
-            auto ge = parseEvent(journalLine);
+            auto ge = parseEvent(latest_log_timestamp, journalLine);
             if (ge && ge->event == "Shutdown")
                 journalStream.close();
             journalLine.clear();
@@ -299,7 +296,8 @@ bool Configuration::loadGameStatus() {
         buffer << ifs.rdbuf();
         ifs.clear();
         ifs.seekg(0, std::ios::beg);
-        ge = parseEvent(buffer.str());
+        Timestamp latest_log_timestamp {};
+        ge = parseEvent(latest_log_timestamp, buffer.str());
         if (!ge) {
             if (cnt < 3) {
                 Sleep(50);
@@ -399,22 +397,27 @@ bool Configuration::loadGameStatus() {
 void parseEvent_Fileheader(spGameEvent& ge) {
     auto& je = ge->data;
     auto& client = const_cast<st::GameClient&>(st::client);
-    client.isOdyssey = je["Odyssey"].as_bool();
+    if (je["Odyssey"].is_bool())
+        client.isOdyssey = je["Odyssey"].as_bool();
+    if (je["Horizons"].is_bool())
+        client.isHorizons = je["Horizons"].as_bool();
     client.language = je["language"].as_string();
     client.gameversion = je["gameversion"].as_string();
     client.build = je["build"].as_string();
 
+    Lang lng = Lang::XX;
     if (client.language == "Russian/RU" || client.language.ends_with("/RU"))
-        st::lng = Lang::RU;
+        lng = Lang::RU;
     else if (client.language == "English/EN" || client.language.ends_with("/EN"))
-        st::lng = Lang::EN;
+        lng = Lang::EN;
     else if (client.language == "English/UK" || client.language.ends_with("/UK"))
-        st::lng = Lang::EN;
+        lng = Lang::EN;
     else {
         LOG(ERROR) << "Unsupported game language: " << client.language;
-        st::lng = Lang::XX;
+        lng = Lang::XX;
     }
-    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(st::lng);
+    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(lng);
+    Cfg.updateLanguage(lng);
 }
 
 static void setCommander(const std::string& name, const std::string& fid) {
@@ -426,6 +429,18 @@ static void setCommander(const std::string& name, const std::string& fid) {
         cmdr.fid = fid;
         cmdr.ravenKey = Cfg.getRavenColonialKey(name);
     }
+}
+
+static void setEddnStarSystem(spGameEvent& ge) {
+    auto& je = ge->data;
+    st::eddnStarSystem.name = je["StarSystem"].as_string();
+    st::eddnStarSystem.addr = je["SystemAddress"].as_int_or();
+    auto& jp = je["StarPos"].as_array();
+    st::eddnStarSystem.pos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
+    gal::spStarSystem ss = gal::makeStarSystem(st::eddnStarSystem.name, st::eddnStarSystem.addr);
+    if (cv::norm(ss->starPos) == 0)
+        ss->starPos = st::eddnStarSystem.pos;
+    gal::setCurrentStarSystem(ss);
 }
 
 void parseEvent_Commander(spGameEvent& ge) {
@@ -445,26 +460,30 @@ void parseEvent_LoadGame(spGameEvent& ge) {
         setCommander(je["Commander"].as_string(), je["FID"].as_string());
 
     auto& client = const_cast<st::GameClient&>(st::client);
-    client.isOdyssey = bool(je["Odyssey"]);
-    client.isHorizons = bool(je["Horizons"]);
+    if (je["Odyssey"].is_bool())
+        client.isOdyssey = je["Odyssey"].as_bool();
+    if (je["Horizons"].is_bool())
+        client.isHorizons = je["Horizons"].as_bool();
     client.gameversion = je["gameversion"].as_string();
     client.build = je["build"].as_string();
     client.language = je["language"].as_string();
+    Lang lng = st::lng;
     if (client.language == "Russian/RU" || client.language.ends_with("/RU"))
-        st::lng = Lang::RU;
+        lng = Lang::RU;
     else if (client.language == "English/EN" || client.language.ends_with("/EN"))
-        st::lng = Lang::EN;
+        lng = Lang::EN;
     else if (client.language == "English/UK" || client.language.ends_with("/UK"))
-        st::lng = Lang::EN;
+        lng = Lang::EN;
     else {
         LOG(ERROR) << "Unsupported game language: " << client.language;
-        st::lng = Lang::XX;
+        lng = Lang::XX;
     }
-    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(st::lng);
+    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(lng);
+    Cfg.updateLanguage(lng);
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
     set(shipInfo.shipType, je.at("Ship",""));
-    set(shipInfo.shipTypeLocalized, je.at("Ship_Localised",""));
+    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", ""));
     set(shipInfo.shipUserName, je.at("ShipName",""));
     set(shipInfo.shipIdent, je.at("ShipIdent",""));
     shipInfo.shipId = je["ShipID"].as_int_or();
@@ -494,17 +513,9 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
 void parseEvent_Location(spGameEvent& ge) {
     auto& je = ge->data;
 
-    if (auto starSystem = je["StarSystem"]; starSystem.is_string() && starSystem.as_string() != st::currentStarSystem) {
-        st::currentStarSystem = starSystem.as_string();
-        int64_t address = je["SystemAddress"].as_int_or();
-        gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
-        if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
-            auto& jp = je["StarPos"].as_array();
-            ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
-        }
-        gal::setCurrentStarSystem(ss);
-    }
-    if (ge->event == "Docked" || je["Docked"]) {
+    setEddnStarSystem(ge);
+
+    if (je["Docked"]) {
         st::dockedAt.marketId = je["MarketID"].as_int_or();
         set(st::dockedAt.stationName, je["StationName"]);
         set(st::dockedAt.stationType, je["StationType"]);
@@ -522,6 +533,9 @@ void parseEvent_Location(spGameEvent& ge) {
         }
         st::dockedAt = {};
     }
+
+    if (!ge->expired)
+        EDDN::getInstance()->event_Location(ge);
 }
 
 void parseEvent_Loadout(spGameEvent& ge) {
@@ -529,7 +543,7 @@ void parseEvent_Loadout(spGameEvent& ge) {
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
     set(shipInfo.shipType, je["Ship"]);
-    set(shipInfo.shipTypeLocalized, je.at("Ship_Localised",shipInfo.shipType));
+    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
     set(shipInfo.shipUserName, je["ShipName"]);
     set(shipInfo.shipIdent, je["ShipIdent"]);
     shipInfo.shipId = je["ShipID"].as_int_or();
@@ -557,7 +571,7 @@ void parseEvent_Loadout(spGameEvent& ge) {
 
 void parseEvent_Died(spGameEvent& ge) {
     st::isDead = true;
-    if (!scanningOldEvents)
+    if (!ge->expired)
         ai::interrupt(ai::InterruptReason::DEATH);
 }
 
@@ -572,7 +586,7 @@ void parseEvent_Market(spGameEvent& ge) {
     Cfg.loadMarket(ge);
 }
 void parseEvent_NavRoute(spGameEvent& ge) {
-    Cfg.loadNavRoute(ge->timestamp);
+    Cfg.loadNavRoute(ge);
 }
 void parseEvent_NavRouteClear(spGameEvent& ge) {
     st::currentNavRoute = std::make_shared<NavRoute>();
@@ -584,7 +598,7 @@ void parseEvent_ShipyardSwap(spGameEvent& ge) {
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
     shipInfo = {};
     set(shipInfo.shipType, je["Ship"]);
-    set(shipInfo.shipTypeLocalized, je.at("Ship_Localised",shipInfo.shipType));
+    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
     set(shipInfo.shipUserName, je["ShipName"]);
     set(shipInfo.shipIdent, je["ShipIdent"]);
     shipInfo.shipId = je["ShipID"].as_int_or();
@@ -593,7 +607,21 @@ void parseEvent_ShipyardSwap(spGameEvent& ge) {
 
 void parseEvent_Docked(spGameEvent& ge) {
     Cfg.dockingEvent = ge;
-    parseEvent_Location(ge);
+
+    auto& je = ge->data;
+
+    gal::spStarSystem ss = gal::makeStarSystem(je["StarSystem"].as_string(), je["SystemAddress"].as_int());
+    gal::setCurrentStarSystem(ss);
+    st::dockedAt.marketId = je["MarketID"].as_int_or();
+    set(st::dockedAt.stationName, je["StationName"]);
+    set(st::dockedAt.stationType, je["StationType"]);
+    gal::getCurrentStarSystem()->addStation(ge);
+    auto market = gal::getMarket(st::dockedAt.marketId);
+    st::currentMarket.swap(market);
+    st::space = {};
+
+    if (!ge->expired)
+        EDDN::getInstance()->event_Docked(ge);
 }
 
 void parseEvent_Undocked(spGameEvent& ge) {
@@ -632,9 +660,9 @@ void parseEvent_StartJump(spGameEvent& ge) {
     st::space = {};
     // "Hyperspace" or "Supercruise"
     if (je["JumpType"].as_string_or() == "Hyperspace") {
-        st::currentStarSystem = je["StarSystem"].as_string();
+        auto& name = je["StarSystem"].as_string();
         int64_t address = je["SystemAddress"].as_int();
-        gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
+        gal::spStarSystem ss = gal::makeStarSystem(name, address);
         gal::setCurrentStarSystem(ss);
         st::autopilot.isDestDockTargeted = false;
         st::autopilot.isDestBodyTargeted = false;
@@ -651,14 +679,9 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::shipAtBody.nearBody = false;
     st::dockedAt = {};
     st::space = {};
-    st::currentStarSystem = je["StarSystem"].as_string();
-    int64_t address = je["SystemAddress"].as_int();
-    gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
-    if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
-        auto& jp = je["StarPos"].as_array();
-        ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
-    }
-    gal::setCurrentStarSystem(ss);
+
+    setEddnStarSystem(ge);
+
     st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
@@ -667,6 +690,9 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::autopilot.isDestDockFocused = false;
     st::autopilot.isDestBodyFocused = false;
     ai::resetCompassDetects();
+
+    if (!ge->expired)
+        EDDN::getInstance()->event_FSDJump(ge);
 }
 
 void parseEvent_CarrierJump(spGameEvent& ge) {
@@ -691,18 +717,14 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     }
     st::shipAtBody.approachBody = false;
     st::shipAtBody.nearBody = false;
-    st::currentStarSystem = je["StarSystem"].as_string();
-    int64_t address = je["SystemAddress"].as_int();
-    gal::spStarSystem ss = gal::makeStarSystem(st::currentStarSystem, address);
-    if (cv::norm(ss->starPos) == 0 && je["StarPos"].is_array()) {
-        auto& jp = je["StarPos"].as_array();
-        ss->starPos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
-    }
-    gal::setCurrentStarSystem(ss);
+
+    setEddnStarSystem(ge);
+
     st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
     if (carrier) {
+        auto ss = gal::getCurrentStarSystem();
         std::erase_if(ss->stations, [carrier](auto& st)->bool {
             if (st->marketId == carrier->marketId)
                 return true;
@@ -714,6 +736,9 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
         ss->saved = false;
        ss->save();
     }
+
+    if (!ge->expired)
+        EDDN::getInstance()->event_CarrierJump(ge);
 }
 
 void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
@@ -769,6 +794,7 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
         gal::spStarSystem ss = gal::getCurrentStarSystem();
         if (ss && fssSignalSystemAddress && ss->systemAddress == fssSignalSystemAddress && !allFSSSignalEvents.empty()) {
             ss->addFSSSignalDiscovered(allFSSSignalEvents);
+            EDDN::getInstance()->event_FSSSignalDiscovered(allFSSSignalEvents);
         }
         allFSSSignalEvents.clear();
         fssSignalSystemAddress = 0;
@@ -788,6 +814,26 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
         }
         allFSSSignalEvents.push_back(ge);
     }
+}
+
+void parseEvent_NavBeaconScan(spGameEvent& ge) {
+    if (!ge->expired)
+        EDDN::getInstance()->event_NavBeaconScan(ge);
+}
+
+void parseEvent_FSSDiscoveryScan(spGameEvent& ge) {
+    if (!ge->expired)
+        EDDN::getInstance()->event_FSSDiscoveryScan(ge);
+}
+
+void parseEvent_FSSAllBodiesFound(spGameEvent& ge) {
+    if (!ge->expired)
+        EDDN::getInstance()->event_FSSAllBodiesFound(ge);
+}
+
+void parseEvent_FSSBodySignals(spGameEvent& ge) {
+    if (!ge->expired)
+        EDDN::getInstance()->event_FSSBodySignals(ge);
 }
 
 void parseEvent_Scan(spGameEvent& ge) {
@@ -898,6 +944,9 @@ void parseEvent_Scan(spGameEvent& ge) {
     }
     if (!ss->saved)
         ss->save();
+
+    if (!ge->expired)
+        EDDN::getInstance()->event_Scan(ge);
 }
 
 void parseEvent_ScanBaryCentre(spGameEvent& ge) {
@@ -921,6 +970,9 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     }
     if (!ss->saved)
         ss->save();
+
+    if (!ge->expired)
+        EDDN::getInstance()->event_ScanBaryCentre(ge);
 }
 
 void parseEvent_ApproachBody(spGameEvent& ge) {
@@ -963,7 +1015,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
     bool hasRaven = Cfg.isRavenColonialEnabled() && !market->ravenBuildId().empty();
     bool reportToRaven = false;
     if (hasRaven) {
-        if (!scanningOldEvents && market->raven->timestamp.time_since_epoch().count() == 0)
+        if (!ge->expired && market->raven->timestamp.time_since_epoch().count() == 0)
             reportToRaven = true;
         else if (complete && market->raven->status != "complete")
             reportToRaven = true;

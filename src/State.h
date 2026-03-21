@@ -16,10 +16,15 @@ struct NavRoute;
 namespace st {
 
 extern Lang lng;
-extern std::string currentStarSystem;
 
 extern GuiFocus guiFocus;
 extern bool isDead;
+
+extern struct EddnStarSystem {
+    std::string name;
+    int64_t addr;
+    cv::Point3d pos;
+} eddnStarSystem;
 
 extern struct Commander {
     std::string name;
@@ -34,8 +39,8 @@ extern struct Commander {
 } const cmdr;
 
 extern struct GameClient {
-    bool isOdyssey;
-    bool isHorizons;
+    std::optional<bool> isOdyssey;
+    std::optional<bool> isHorizons;
     std::string language;
     std::string gameversion;
     std::string build;
@@ -43,7 +48,7 @@ extern struct GameClient {
 
 extern struct ShipInfo {
     std::string shipType;
-    std::string shipTypeLocalized;
+    std::string shipTypeLocalised;
     std::string shipUserName;
     std::string shipIdent;
     int shipId;
