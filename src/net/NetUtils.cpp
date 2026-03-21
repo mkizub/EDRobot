@@ -182,18 +182,6 @@ js::value CurlWrapper::parse_json() {
 }
 
 
-CurlResp curlRequestEDSM(std::string url, std::string systemName) {
-    CurlWrapper cw(url.c_str());
-    cw.url_append_esc(systemName);
-    if (!cw.curl)
-        return {};
-    if (!cw.perform_get())
-        return {false, cw.http_code};
-    auto resp = cw.parse_json();
-    LOG(INFO) << "EDSM GET resp: " << resp;
-    return {true, cw.http_code, resp};
-}
-
 std::string curlRequestGithubLatest() {
     CurlWrapper cw("https://api.github.com/repos/mkizub/EDRobot/releases/latest");
     //headers = curl_slist_append(headers, "Accept: application/vnd.github+json");

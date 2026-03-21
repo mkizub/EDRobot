@@ -35,5 +35,10 @@
   }, {
     "name" : "cpr",
     "version>=" : "1.14.2"
+  }, {
+    "name" : "spdlog",
+    "version>=" : "1.17.0",
+    "features" : [ "wchar" ],
+    "default-features" : false
   } ]
 }

@@ -41,6 +41,8 @@ using namespace std::chrono_literals;
 #define ELPP_LOG_UNORDERED_MAP
 #include <easylogging/easylogging++.h>
 
+#include "spdlog/spdlog.h"
+
 #include <magic_enum/magic_enum.hpp>
 using namespace magic_enum;
 

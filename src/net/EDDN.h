@@ -8,7 +8,6 @@
 #define EDROBOT_EDDN_H
 
 class EDDN {
-    std::atomic<bool> shipCargoReportEnabled;
     EDDN();
 public:
     static std::shared_ptr<EDDN> getInstance();

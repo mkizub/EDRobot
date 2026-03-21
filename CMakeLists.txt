@@ -16,6 +16,7 @@ find_library(GETTEXT_LIBRARIES intl iconv)
 find_package(CURL REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(cpptrace CONFIG REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
 add_library(vJoyInterface SHARED IMPORTED)
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION_RELEASE "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
@@ -175,6 +176,10 @@ add_executable(EDRobot
         src/ui/wl_ibutton.h
         src/net/EDDN.cpp
         src/net/EDDN.h
+        src/net/HttpInterceptor.cpp
+        src/net/HttpInterceptor.h
+        src/net/EDSM.cpp
+        src/net/EDSM.h
 )
 
 
@@ -189,6 +194,7 @@ target_link_libraries(EDRobot PRIVATE ${OpenCV_LIBS})
 target_link_libraries(EDRobot PRIVATE Tesseract::libtesseract)
 target_link_libraries(EDRobot PRIVATE ZLIB::ZLIB)
 target_link_libraries(EDRobot PRIVATE CURL::libcurl cpr::cpr)
+target_link_libraries(EDRobot PRIVATE spdlog::spdlog)
 target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1 windowsapp)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(EDRobot PRIVATE cpptrace::cpptrace)

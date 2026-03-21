@@ -14,7 +14,6 @@ struct CurlResp {
 };
 
 std::string curlRequestGithubLatest();
-CurlResp curlRequestEDSM(std::string url, std::string systemName);
 CurlResp curlSimpleGet(std::string url);
 CurlResp curlSimpleGetWithHeaders(std::string url, std::vector<std::string> headers);
 CurlResp curlSimplePut(std::string url, std::string data);

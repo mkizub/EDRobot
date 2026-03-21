@@ -5,82 +5,12 @@
 #include "../pch.h"
 
 #include "EDDN.h"
+#include "HttpInterceptor.h"
 #include "../Galaxy.h"
 
-#include <curl/curl.h>
 #include <cpr/cpr.h>
 
-cpr::ConnectionPool eddnPool;
-
 const std::string API = "https://eddn.edcd.io:4430/upload/";
-
-class EDDNInterceptor : public cpr::Interceptor {
-    static std::atomic<int> reqCounter;
-    const int reqId;
-public:
-    EDDNInterceptor() : reqId(++reqCounter) {}
-    cpr::Response intercept(cpr::Session& session) override {
-        // Log the request URL
-        LOG(INFO) << "HTTP["<<reqId<<"] request url: " << session.GetFullRequestUrl();
-        auto& content = session.GetContent();
-        if (std::holds_alternative<cpr::Body>(content))
-            LOG(INFO) << "HTTP["<<reqId<<"] request body: " << std::get<cpr::Body>(content).str();
-        else if (std::holds_alternative<cpr::Body>(content))
-            LOG(INFO) << "HTTP["<<reqId<<"] request body: " << std::get<cpr::BodyView>(content).str();
-
-        static std::string ua;
-        if (ua.empty())
-            ua = std::format("EDRobot {} {}", EDROBOT_VERSION, curl_version());
-        session.SetUserAgent(cpr::UserAgent(ua));
-
-        session.UpdateHeader({{"Content-Type", "application/json; charset: utf-8"}}); // "Accept: application/json" ?
-
-        session.SetTimeout(10s);
-        session.SetConnectionPool(eddnPool);
-        if (Cfg.getCurlInsecure()) {
-            auto curl = session.GetCurlHolder()->handle;
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYSTATUS, 0L);
-            curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYPEER, 0L);
-            curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYHOST, 0L);
-            curl_easy_setopt(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 0L);
-            curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYPEER, 0L);
-            curl_easy_setopt(curl, CURLOPT_PROXY_SSL_VERIFYHOST, 0L);
-        }
-        if (auto& proxy = Cfg.getCurlProxyURL(); !proxy.empty()) {
-            auto curl = session.GetCurlHolder()->handle;
-            curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
-        }
-
-        // Proceed the request and save the response
-        cpr::Response response = proceed(session);
-
-        if (response.status_code == 0) {
-            LOG(ERROR) << "HTTP["<<reqId<<"] request error: " << response.error.message;
-        } else if (response.status_code >= 400) {
-            LOG(ERROR) << "HTTP["<<reqId<<"] error code [" << response.status_code << "] in request to " << response.url;
-        } else {
-            LOG(INFO) << "HTTP["<<reqId<<"] response [" << response.status_code << "] took " << response.elapsed;
-            LOG(INFO) << "HTTP["<<reqId<<"] response body:" << response.text;
-        }
-
-        // Return the stored response
-        return response;
-    }
-};
-
-std::atomic<int> EDDNInterceptor::reqCounter;
-
-namespace cpr::priv {
-
-template <>
-inline void set_option_internal<false, Url>(Session& session, Url&& url) {
-    session.SetUrl(std::forward<Url>(url));
-    session.AddInterceptor(std::shared_ptr<cpr::Interceptor>(new EDDNInterceptor()));
-}
-
-} //namespace cpr::priv
 
 std::shared_ptr<EDDN> EDDN::getInstance() {
     static std::shared_ptr<EDDN> instance = std::shared_ptr<EDDN>(new EDDN);
@@ -356,7 +286,7 @@ void EDDN::event_Market(spGameEvent &ge) {
         name = name.substr(1, name.size() - 7); // "$ ... _name;"
         if (name == "drones")
             continue;
-        auto& el = arr.emplace_back(js::object({
+        arr.emplace_back(js::object({
             {"name", name},
             {"buyPrice", c["BuyPrice"].as_int_or()},
             {"sellPrice", c["SellPrice"].as_int_or()},

@@ -7,7 +7,7 @@
 #include <unordered_set>
 
 #include "Galaxy.h"
-#include "net/NetUtils.h"
+#include "net/EDSM.h"
 
 namespace gal {
 
@@ -362,30 +362,6 @@ void StarSystem::save() {
     saved = true;
 }
 
-static spStarSystem loadStarSystemFromNetwork(const std::string name) {
-
-    CurlResp cr;
-    std::string url = "https://www.edsm.net/api-v1/system?showId=1&showCoordinates=1&systemName=";
-    cr = curlRequestEDSM(url, name);
-    if (!cr.ok || name != cr.body["name"].as_string_or())
-        return {};
-    js::value jsystem = cr.body;
-
-    url = "https://www.edsm.net/api-system-v1/bodies?systemName=";
-    cr = curlRequestEDSM(url, name);
-    if (!cr.ok || name != cr.body["name"].as_string_or())
-        return {};
-    jsystem["bodies"] = cr.body["bodies"].deref();
-
-    url = "https://www.edsm.net/api-system-v1/stations?systemName=";
-    cr = curlRequestEDSM(url, name);
-    if (!cr.ok || name != cr.body["name"].as_string_or())
-        return {};
-    jsystem["stations"] = cr.body["stations"].deref();
-
-    return fromEDDN(jsystem, false);
-}
-
 static spStarSystem loadStarSystem(std::string name) {
     spStarSystem ss;
     std::filesystem::path fp("cache/systems/"+name+".json");
@@ -398,8 +374,11 @@ static spStarSystem loadStarSystem(std::string name) {
             LOG(ERROR) << "Error while loading cached star system: " << name;
         }
     }
-    if (!ss || ss->bodies.empty())
-        ss = loadStarSystemFromNetwork(name);
+    if (!ss || ss->bodies.empty()) {
+        auto jsystem = EDSM::getInstance()->loadStarSystem(name);
+        if (!jsystem.empty())
+            ss = fromEDDN(jsystem, false);
+    }
     return ss;
 }
 
