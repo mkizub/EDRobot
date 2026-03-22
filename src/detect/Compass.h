@@ -12,7 +12,7 @@ namespace detect {
 class CompassDetector : public Detector {
 public:
     CompassDetector();
-    ~CompassDetector() override = default;
+    ~CompassDetector() override;
     void clear() {
         lastHemisphere = 0;
         lastTgtPitch = 0;

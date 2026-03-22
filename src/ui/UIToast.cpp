@@ -11,6 +11,14 @@ static std::weak_ptr<UIToast> gInstance;
 static const wchar_t* gWindowClass = L"ShowPopupMessageWindowClass";
 static const wchar_t* gWindowName = L"EDRobot Toast";
 
+const int TOP = 80;
+const int WIDTH = 400;
+const int HEIGHT = 100;
+
+const int ANIMATION_TIME = 100;
+const int POPUP_TIME = 3000;
+const int TIMER_ID = 1;
+
 bool UIToast::initialize() {
     return UIWindow::registerClass(gWindowClass, true, false);
 }
@@ -46,12 +54,12 @@ bool UIToast::createWindow() {
     hMonitor = MonitorFromWindow(hWndED, MONITOR_DEFAULTTOPRIMARY);
     GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &uiDpi, &uiDpi);
 
-    UIWindow::createWindow(hMonitor, gWindowName, dwExStyle, dwStyle, ALIGN_TOP|ALIGN_RIGHT, {S(40-300), S(80)}, {S(300), S(150)});
+    UIWindow::createWindow(hMonitor, gWindowName, dwExStyle, dwStyle, ALIGN_TOP|ALIGN_RIGHT, {S(40-WIDTH), S(TOP)}, {S(WIDTH), S(HEIGHT)});
     if (!hWnd)
         return false;
 
-    loCreateFont(fontTitle, uiDpi, uiPercent, FW_BOLD);
-    loCreateFont(fontMessage, uiDpi, uiPercent, FW_NORMAL);
+    loCreateFont(fontTitle, uiDpi, 1.4*uiPercent, FW_BOLD);
+    loCreateFont(fontMessage, uiDpi, 1.4*uiPercent, FW_NORMAL);
 
     //set window background to white
     HBRUSH hbr = CreateSolidBrush(RGB(0, 0, 0));
@@ -95,10 +103,6 @@ void UIToast::onPaint() {
     EndPaint(hWnd, &ps);
 }
 
-const int ANIMATION_TIME = 100;
-const int POPUP_TIME = 3000;
-const int TIMER_ID = 1;
-
 void UIToast::showText(const std::wstring& title, const std::wstring& text) {
     mTitle = title;
     mText = text;
@@ -134,8 +138,8 @@ INT_PTR UIToast::onMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
                 mAnimationProgress = ANIMATION_TIME;
                 SetTimer(hWnd, TIMER_ID, 500, nullptr);
             }
-            int x = 300 * mAnimationProgress / ANIMATION_TIME;
-            cv::Rect winRect = calcWindowRect(ALIGN_TOP|ALIGN_RIGHT, {S(40-300+x), S(80)}, {S(300), S(150)});
+            int x = WIDTH * mAnimationProgress / ANIMATION_TIME;
+            cv::Rect winRect = calcWindowRect(ALIGN_TOP|ALIGN_RIGHT, {S(40-WIDTH+x), S(TOP)}, {S(WIDTH), S(HEIGHT)});
             MoveWindow(hWnd, winRect.x, winRect.y, winRect.width, winRect.height, TRUE);
         }
         else if (GetTickCount64() - mAnimationStartTick >= POPUP_TIME) {

@@ -56,9 +56,9 @@ void Configuration::shutdown() {
     if (hShutdownEvent) {
         SetEvent(hShutdownEvent);
         CloseHandle(hShutdownEvent);
+        hShutdownEvent = nullptr;
         if (changeDirThread.joinable())
             changeDirThread.join();
-        hShutdownEvent = nullptr;
     }
 }
 
@@ -270,6 +270,10 @@ bool Configuration::load() {
     mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
     mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
 
+    if (const js::value& ll = Cfg.jprefs["log"]["default"]; ll.is_string())
+        spdlog::default_logger()->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::debug));
+    if (const js::value& ll = Cfg.jprefs["log"]["network"]; ll.is_string())
+        spdlog::get("http")->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::debug));
 
     return true;
 }
@@ -282,6 +286,8 @@ void Configuration::savePrefs() {
     Cfg.jprefs["raven"]["ship"] = mRavenColonialReportShipCargo;
     Cfg.jprefs["eddn"]["systems"] = mEddnSystemsEnabled;
     Cfg.jprefs["eddn"]["markets"] = mEddnMarketsEnabled;
+    Cfg.jprefs["log"]["default"] = enum_name<spdlog::level::level_enum>(spdlog::default_logger()->level());
+    Cfg.jprefs["log"]["network"] = enum_name<spdlog::level::level_enum>(spdlog::get("http")->level());
 
     std::ofstream ofs("prefs.json5", std::ios::trunc | std::ios::binary);
     ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << jprefs;
@@ -1156,7 +1162,7 @@ bool Configuration::loadMarket(spGameEvent ge) {
 
     if (!ge->expired) {
         spGameEvent ge_loaded(new GameEvent{std::move(j_market), timestamp, "Market", false});
-        EDDN::getInstance()->event_Market(ge_loaded);
+        EDDN::event_Market(ge_loaded);
     }
     return true;
 }
@@ -1199,7 +1205,7 @@ bool Configuration::loadNavRoute(spGameEvent& ge) {
 
     if (!ge->expired) {
         const_cast<js::value&>(ge->data) = j_route;
-        EDDN::getInstance()->event_NavRoute(ge);
+        EDDN::event_NavRoute(ge);
     }
     return true;
 }
@@ -1414,7 +1420,7 @@ void Configuration::changeDirThreadLoop() {
                         5000, // wakeup every 5 seconds
                         QS_ALLINPUT,
                         MWMO_INPUTAVAILABLE | MWMO_ALERTABLE);
-        if (rc == WAIT_OBJECT_0) // shutdown
+        if (rc == WAIT_OBJECT_0 || (rc == WAIT_FAILED && !hShutdownEvent)) // shutdown
             break;
         if (!(rc == WAIT_TIMEOUT || rc == (WAIT_OBJECT_0+1))) // timeout or dir listener
             continue;

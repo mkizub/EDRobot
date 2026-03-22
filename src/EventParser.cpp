@@ -10,6 +10,7 @@
 #include "ai/AIManager.h"
 #include "net/RavenColonial.h"
 #include "net/EDDN.h"
+#include "ui/UIManager.h"
 
 namespace st {
 Lang lng {Lang::XX};
@@ -155,6 +156,7 @@ void parseEvent_ApproachSettlement(spGameEvent& ge);
 void parseEvent_SupercruiseExit(spGameEvent& ge);
 void parseEvent_FSSSignalDiscovered(spGameEvent& ge);
 void parseEvent_NavBeaconScan(spGameEvent& ge);
+void parseEvent_SAASignalsFound(spGameEvent& ge);
 void parseEvent_FSSDiscoveryScan(spGameEvent& ge);
 void parseEvent_FSSAllBodiesFound(spGameEvent& ge);
 void parseEvent_FSSBodySignals(spGameEvent& ge);
@@ -199,6 +201,7 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"SupercruiseExit", parseEvent_SupercruiseExit},
         {"FSSSignalDiscovered", parseEvent_FSSSignalDiscovered},
         {"NavBeaconScan", parseEvent_NavBeaconScan},
+        {"SAASignalsFound", parseEvent_SAASignalsFound},
         {"FSSDiscoveryScan", parseEvent_FSSDiscoveryScan},
         {"FSSAllBodiesFound", parseEvent_FSSAllBodiesFound},
         {"FSSBodySignals", parseEvent_FSSBodySignals},
@@ -446,6 +449,7 @@ static void setEddnStarSystem(spGameEvent& ge) {
 void parseEvent_Commander(spGameEvent& ge) {
     auto& je = ge->data;
     setCommander(je["Name"].as_string(), je["FID"].as_string());
+    UIManager::updateCommander();
 }
 
 void parseEvent_LoadGame(spGameEvent& ge) {
@@ -488,6 +492,8 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     set(shipInfo.shipIdent, je.at("ShipIdent",""));
     shipInfo.shipId = je["ShipID"].as_int_or();
     LOG(INFO) << "Ship: " << shipInfo.shipType;
+
+    UIManager::updateCommander();
 }
 
 void parseEvent_CarrierLocation(spGameEvent& ge) {
@@ -508,6 +514,7 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
         cmdr.squadronCarrierAtBodyId = je["BodyID"].as_int_or(-1);
         LOG(INFO) << "Squadron Carrier: " << cmdr.squadronCarrierId << " in system " << cmdr.squadronCarrierInSystem;
     }
+    UIManager::updateCommander();
 }
 
 void parseEvent_Location(spGameEvent& ge) {
@@ -535,7 +542,7 @@ void parseEvent_Location(spGameEvent& ge) {
     }
 
     if (!ge->expired)
-        EDDN::getInstance()->event_Location(ge);
+        EDDN::event_Location(ge);
 }
 
 void parseEvent_Loadout(spGameEvent& ge) {
@@ -621,7 +628,7 @@ void parseEvent_Docked(spGameEvent& ge) {
     st::space = {};
 
     if (!ge->expired)
-        EDDN::getInstance()->event_Docked(ge);
+        EDDN::event_Docked(ge);
 }
 
 void parseEvent_Undocked(spGameEvent& ge) {
@@ -692,7 +699,7 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     ai::resetCompassDetects();
 
     if (!ge->expired)
-        EDDN::getInstance()->event_FSDJump(ge);
+        EDDN::event_FSDJump(ge);
 }
 
 void parseEvent_CarrierJump(spGameEvent& ge) {
@@ -738,7 +745,7 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     }
 
     if (!ge->expired)
-        EDDN::getInstance()->event_CarrierJump(ge);
+        EDDN::event_CarrierJump(ge);
 }
 
 void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
@@ -794,7 +801,7 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
         gal::spStarSystem ss = gal::getCurrentStarSystem();
         if (ss && fssSignalSystemAddress && ss->systemAddress == fssSignalSystemAddress && !allFSSSignalEvents.empty()) {
             ss->addFSSSignalDiscovered(allFSSSignalEvents);
-            EDDN::getInstance()->event_FSSSignalDiscovered(allFSSSignalEvents);
+            EDDN::event_FSSSignalDiscovered(allFSSSignalEvents);
         }
         allFSSSignalEvents.clear();
         fssSignalSystemAddress = 0;
@@ -818,22 +825,27 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
 
 void parseEvent_NavBeaconScan(spGameEvent& ge) {
     if (!ge->expired)
-        EDDN::getInstance()->event_NavBeaconScan(ge);
+        EDDN::event_NavBeaconScan(ge);
+}
+
+void parseEvent_SAASignalsFound(spGameEvent& ge) {
+    if (!ge->expired)
+        EDDN::event_SAASignalsFound(ge);
 }
 
 void parseEvent_FSSDiscoveryScan(spGameEvent& ge) {
     if (!ge->expired)
-        EDDN::getInstance()->event_FSSDiscoveryScan(ge);
+        EDDN::event_FSSDiscoveryScan(ge);
 }
 
 void parseEvent_FSSAllBodiesFound(spGameEvent& ge) {
     if (!ge->expired)
-        EDDN::getInstance()->event_FSSAllBodiesFound(ge);
+        EDDN::event_FSSAllBodiesFound(ge);
 }
 
 void parseEvent_FSSBodySignals(spGameEvent& ge) {
     if (!ge->expired)
-        EDDN::getInstance()->event_FSSBodySignals(ge);
+        EDDN::event_FSSBodySignals(ge);
 }
 
 void parseEvent_Scan(spGameEvent& ge) {
@@ -946,7 +958,7 @@ void parseEvent_Scan(spGameEvent& ge) {
         ss->save();
 
     if (!ge->expired)
-        EDDN::getInstance()->event_Scan(ge);
+        EDDN::event_Scan(ge);
 }
 
 void parseEvent_ScanBaryCentre(spGameEvent& ge) {
@@ -972,7 +984,7 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
         ss->save();
 
     if (!ge->expired)
-        EDDN::getInstance()->event_ScanBaryCentre(ge);
+        EDDN::event_ScanBaryCentre(ge);
 }
 
 void parseEvent_ApproachBody(spGameEvent& ge) {

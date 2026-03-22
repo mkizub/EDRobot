@@ -16,6 +16,7 @@
 #include "widget/EDWidget.h"
 #include "widget/List.h"
 #include "net/NetUtils.h"
+#include "net/RavenColonial.h"
 #include "OCR.h"
 #include <fstream>
 #include <memory>
@@ -444,6 +445,7 @@ Master::~Master() {
 
 void Master::shutdown() {
     UIManager::shutdown();
+    RavenColonial::shutdown();
     kbd::stop();
     kbd::release_vJoy();
     ai::shutdown_ship_tracker();

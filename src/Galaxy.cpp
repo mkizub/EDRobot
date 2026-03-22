@@ -375,7 +375,7 @@ static spStarSystem loadStarSystem(std::string name) {
         }
     }
     if (!ss || ss->bodies.empty()) {
-        auto jsystem = EDSM::getInstance()->loadStarSystem(name);
+        auto jsystem = EDSM::loadStarSystem(name);
         if (!jsystem.empty())
             ss = fromEDDN(jsystem, false);
     }

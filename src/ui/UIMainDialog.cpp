@@ -8,6 +8,7 @@
 #include "UIControl.h"
 #include "UIControlDialog.h"
 #include "UIManager.h"
+#include "UIShowStartup.h"
 #include "UIShowTask.h"
 #include "UIEditTask.h"
 #include "UIShowCargo.h"
@@ -33,7 +34,7 @@ static js::value rect_to_json(const cv::Rect& r) {
     return jr;
 }
 
-#define W(STR) toUtf16(gettext(STR)).c_str()
+#define W(STR) toUtf16(STR).c_str()
 #define S(N) MulDiv((N), uiDpi*uiPercent, 100*USER_DEFAULT_SCREEN_DPI)
 
 UIMainDialog::UIMainDialog()
@@ -72,41 +73,46 @@ UIMainDialog::UIMainDialog()
     setup.position = wndPosition;
     setup.size = wndSize;
     menu = CreateMenu();
-    menu.append_submenu(W("Robot"))
-            .append_item(IDM_TASK_NEW,W("New task"))
-            .append_item(IDM_TASK_STOP,W("Stop"))
-            .append_item(IDM_TASK_REPEAT,W("Repeat"))
-            .append_item(IDM_TASK_PAUSE,W("Pause"))
-            .append_item(IDM_TASK_RESUME,W("Resume"))
+    menu.append_submenu(W(_gt("Robot")))
+            .append_item(IDM_TASK_NEW,W(_gt("New task")))
+            .append_item(IDM_TASK_STOP,W(_gt("Stop task")))
+            .append_item(IDM_TASK_REPEAT,W(_gt("Repeat task")))
+            .append_item(IDM_TASK_PAUSE,W(_gt("Pause task")))
+            .append_item(IDM_TASK_RESUME,W(_gt("Resume task")))
             .append_separator()
-            .append_item(IDC_EXIT,W("Exit"))
+            .append_item(IDC_EXIT,W(_gt("Exit")))
             ;
-    menu.append_submenu(W("Window"))
-            .append_item(IDM_SHOW_TASK_STATUS,W("Show task state"))
-            .append_item(IDM_SHOW_TASK_EDITOR,W("Show task editor"))
-            .append_item(IDM_SHOW_COMMODITIES,W("Show commodities"))
+    menu.append_submenu(W(_gt("Window")))
+            .append_item(IDM_SHOW_TASK_STATUS,W(_gt("Show task state")))
+            .append_item(IDM_SHOW_TASK_EDITOR,W(_gt("Show task editor")))
+            .append_item(IDM_SHOW_COMMODITIES,W(_gt("Show commodities")))
             .append_separator()
-            .append_item(IDM_DETACH,W("Detach"))
-            .append_item(IDM_KEEP_ON_TOP,W("Keep on top")).set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop)
-            .append_item(IDM_MINIMIZE_TO_TRAY,W("Minimize to tray")).set_item_check_by_id(IDM_MINIMIZE_TO_TRAY, minimizeToTray)
+            .append_item(IDM_DETACH,W(_gt("Detach window")))
+            .append_item(IDM_KEEP_ON_TOP,W(_gt("Keep on top"))).set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop)
+            .append_item(IDM_MINIMIZE_TO_TRAY,W(_gt("Minimize to tray"))).set_item_check_by_id(IDM_MINIMIZE_TO_TRAY, minimizeToTray)
             ;
-    menu.append_submenu(W("Network"))
-            .append_item(IDM_NETW_RAVEN_ENABLED,W("Enable RavenColonial"))
+    menu.append_submenu(W(_gt("Network")))
+            .append_item(IDM_NETW_RAVEN_ENABLED,W(_gt("Enable RavenColonial")))
                 .set_item_check_by_id(IDM_NETW_RAVEN_ENABLED, Cfg.isRavenColonialEnabled())
-            .append_item(IDM_NETW_RAVEN_CARRIER_CARGO,W("Report carrier cargo"))
+            .append_item(IDM_NETW_RAVEN_CARRIER_CARGO,W(_gt("Report carrier cargo")))
                 .set_item_check_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialReportCarrierCargo())
                 .enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialEnabled() && st::cmdr.fleetCarrierId != 0)
-            .append_item(IDM_NETW_RAVEN_SHIP_CARGO,W("Report ship cargo"))
+            .append_item(IDM_NETW_RAVEN_SHIP_CARGO,W(_gt("Report ship cargo")))
                 .set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialReportShipCargo())
                 .enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled() && !st::cmdr.ravenKey.empty())
             .append_separator()
-            .append_item(IDM_NETW_EDDN_SYSTEMS,W("Report EDDN star system"))
+            .append_item(IDM_NETW_EDDN_SYSTEMS,W(_gt("Report EDDN star system")))
                 .set_item_check_by_id(IDM_NETW_EDDN_SYSTEMS, Cfg.isEddnSystemsEnabled())
-            .append_item(IDM_NETW_EDDN_MARKETS,W("Report EDDN markets"))
+            .append_item(IDM_NETW_EDDN_MARKETS,W(_gt("Report EDDN markets")))
                 .set_item_check_by_id(IDM_NETW_EDDN_MARKETS, Cfg.isEddnMarketsEnabled())
             ;
-    menu.append_submenu(W("Debug"))
-            .append_item(IDM_DEBUG_WATCH,W("Watch"))
+    menu.append_submenu(W(_gt("Debug")))
+            .append_item(IDM_DEBUG_WATCH,W(_gt("Watch window")))
+            .append_separator()
+            .append_item(IDM_DEBUG_DEFAULT_LOG,W(_gt("Debug log level")))
+                .set_item_check_by_id(IDM_DEBUG_DEFAULT_LOG, spdlog::default_logger()->level() <= spdlog::level::debug)
+            .append_item(IDM_DEBUG_NETWORK_LOG,W(_gt("Debug log level for network")))
+                .set_item_check_by_id(IDM_DEBUG_NETWORK_LOG, spdlog::default_logger()->level() <= spdlog::level::debug)
             ;
 
     setup.menu = menu.hmenu();
@@ -138,7 +144,7 @@ UIMainDialog::UIMainDialog()
             POINT pt;
             GetCursorPos(&pt);
             HMENU hmenu = CreatePopupMenu();
-            InsertMenu(hmenu, 0, MF_BYPOSITION | MF_STRING, IDM_EXIT, W("Exit"));
+            InsertMenu(hmenu, 0, MF_BYPOSITION | MF_STRING, IDM_EXIT, W(_gt("Exit")));
             SetForegroundWindow(this->hwnd());
             BringWindowToTop(this->hwnd());
             int cmd = TrackPopupMenu(hmenu,
@@ -207,8 +213,43 @@ UIMainDialog::UIMainDialog()
             on_command_task_pause();
         return 0;
     });
+    this->base_msg_pubm::on_command(IDC_CURRENT_TASK, [this](wl::params p){
+        if (HIWORD(p.wParam) == STN_CLICKED) {
+            if (!ai::curr_task())
+                on_command_task_new();
+            else if (!ai::active() || ai::isDebugPause())
+                on_command_task_resume();
+            else
+                on_command_task_pause();
+        }
+        return 0;
+    });
     this->base_msg_pubm::on_command({IDC_BUTTON_WATCH,IDM_DEBUG_WATCH}, [](wl::params p){
         UIManager::showDebugWindow();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_DEBUG_DEFAULT_LOG, [this](wl::params p){
+        auto logger = spdlog::default_logger();
+        if (logger->level() <= spdlog::level::debug) {
+            logger->set_level(spdlog::level::info);
+            menu.set_item_check_by_id(IDM_DEBUG_DEFAULT_LOG, false);
+        } else {
+            logger->set_level(spdlog::level::debug);
+            menu.set_item_check_by_id(IDM_DEBUG_DEFAULT_LOG, true);
+        }
+        savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_DEBUG_NETWORK_LOG, [this](wl::params p){
+        auto logger = spdlog::get("http");
+        if (logger->level() <= spdlog::level::debug) {
+            logger->set_level(spdlog::level::info);
+            menu.set_item_check_by_id(IDM_DEBUG_NETWORK_LOG, false);
+        } else {
+            logger->set_level(spdlog::level::debug);
+            menu.set_item_check_by_id(IDM_DEBUG_NETWORK_LOG, true);
+        }
+        savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_KEEP_ON_TOP, [this](wl::params p){
@@ -329,11 +370,11 @@ void UIMainDialog::initialize() {
     BOOL ok = Shell_NotifyIcon(NIM_ADD, &mNotifyIconData);
     LOG_IF(!ok,ERROR) << "Failed to set tray icon";
 
-    lbl_task.create(hwnd(), IDC_STATIC, W("Task:"), {10, 10}, {80, 20})
+    lbl_task.create(hwnd(), IDC_STATIC, W(_gt("Task:")), {10, 10}, {80, 20})
             .style.set_style(true, SS_RIGHT);
 
     lbl_curr_task.create(hwnd(), IDC_CURRENT_TASK, L"", {100, 10}, {324, 20})
-            .style.set_style(true, WS_BORDER | SS_CENTER);
+            .style.set_style(true, WS_BORDER | SS_CENTER | SS_NOTIFY);
 
     btn_stop_new.create(hwnd(), IDC_BUTTON_STOP_NEW, "task-new", S(LO_ICN_S), {244,32}, {24,24});
     btn_pause_resume.create(hwnd(), IDC_BUTTON_PAUSE_RESUME, "task-repeat", S(LO_ICN_S), {344,32}, {24,24});
@@ -366,10 +407,10 @@ void UIMainDialog::savePrefs() {
 bool UIMainDialog::show_startup(const std::string &message, const std::string& latest_version, const std::string& latest_url) {
     show();
     run_thread_ui([=, this](){
-        control = std::unique_ptr<UIControl>(new UIShowTask(message, latest_version, latest_url));
+        control = std::unique_ptr<UIControl>(new UIShowStartup(message, latest_version, latest_url));
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_TASK_STATUS);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, 0);
     });
     return true;
 }
@@ -434,6 +475,18 @@ bool UIMainDialog::hide(bool force_close) {
         mUpdateTimerId = {};
     }
     return true;
+}
+
+void UIMainDialog::updateCommander() {
+    menu.set_item_check_by_id(IDM_NETW_RAVEN_ENABLED, Cfg.isRavenColonialEnabled());
+    menu.set_item_check_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialReportCarrierCargo());
+    menu.set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialReportShipCargo());
+    menu.enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialEnabled() && st::cmdr.fleetCarrierId != 0);
+    menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled() && !st::cmdr.ravenKey.empty());
+    menu.set_item_check_by_id(IDM_NETW_EDDN_SYSTEMS, Cfg.isEddnSystemsEnabled());
+    menu.set_item_check_by_id(IDM_NETW_EDDN_MARKETS, Cfg.isEddnMarketsEnabled());
+    menu.set_item_check_by_id(IDM_DEBUG_DEFAULT_LOG, spdlog::default_logger()->level() <= spdlog::level::debug);
+    menu.set_item_check_by_id(IDM_DEBUG_NETWORK_LOG, spdlog::default_logger()->level() <= spdlog::level::debug);
 }
 
 void UIMainDialog::on_command_task_new() {

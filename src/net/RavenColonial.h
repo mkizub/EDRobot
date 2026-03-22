@@ -15,6 +15,7 @@ class RavenColonial {
 public:
     static std::shared_ptr<RavenColonial> getInstance();
     static std::shared_ptr<RavenColonial> newInstance();
+    static void shutdown();
 
     virtual ~RavenColonial();
 

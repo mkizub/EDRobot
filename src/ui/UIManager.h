@@ -26,6 +26,7 @@ public:
     static bool showMainDialog();
     static bool hideMainDialog();
     static bool toggleMainDialog();
+    static bool updateCommander();
     static bool showToast(const std::string& title, const std::string& text);
     static bool hasDebugWindow();
     static bool showDebugWindow();

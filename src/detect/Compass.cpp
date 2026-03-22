@@ -64,6 +64,20 @@ CompassDetector::CompassDetector()
     distOCRFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
 }
 
+CompassDetector::~CompassDetector() {
+    navTargetRemapXY.release();
+    navTargetRemap1.release();
+    navTargetRemap2.release();
+    compassDetector.reset();
+    dotsFilters.clear();
+    navTargetFilters.clear();
+    distOCRFilters.clear();
+    compassDotsPrepared.clear();
+    compassDotsOrig.clear();
+    navTargetPrepared.clear();
+    navTargetOrig.clear();
+}
+
 void CompassDetector::loadCompass() {
     preprocessedShip = toLower(st::shipInfo.shipType);
     const widget::Screen *scr_cockpit = (const widget::Screen *) Master::getInstance().getCfgItem("scr-cockpit");

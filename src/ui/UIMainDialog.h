@@ -30,6 +30,7 @@ public:
     bool show();
     bool hide(bool force_close);
     bool toggle();
+    void updateCommander();
     void initialize();
     void savePrefs();
     void relayout();

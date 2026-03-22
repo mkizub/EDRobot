@@ -10,19 +10,9 @@
 
 #include <cpr/cpr.h>
 
+namespace EDDN {
+
 const std::string API = "https://eddn.edcd.io:4430/upload/";
-
-std::shared_ptr<EDDN> EDDN::getInstance() {
-    static std::shared_ptr<EDDN> instance = std::shared_ptr<EDDN>(new EDDN);
-    return instance;
-}
-
-
-EDDN::EDDN() {
-}
-
-EDDN::~EDDN() {
-}
 
 void cleanupLocalised(js::value& j) {
     if (!j.is_object())
@@ -102,7 +92,7 @@ std::string packMessage(const char* schema, js::value& orig_msg) {
     return os.str();
 }
 
-void EDDN::event_Location(spGameEvent &ge) {
+void event_Location(spGameEvent &ge) {
     if (!Cfg.isEddnSystemsEnabled() || ge->event != "Location")
         return;
     js::value j = ge->data;
@@ -119,7 +109,7 @@ void EDDN::event_Location(spGameEvent &ge) {
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
 
-void EDDN::event_FSDJump(spGameEvent &ge) {
+void event_FSDJump(spGameEvent &ge) {
     if (!Cfg.isEddnSystemsEnabled() || ge->event != "FSDJump")
         return;
     js::value j = ge->data;
@@ -138,7 +128,7 @@ void EDDN::event_FSDJump(spGameEvent &ge) {
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
 
-void EDDN::event_CarrierJump(spGameEvent &ge) {
+void event_CarrierJump(spGameEvent &ge) {
     if (!Cfg.isEddnSystemsEnabled() || ge->event != "CarrierJump")
         return;
     js::value j = ge->data;
@@ -153,7 +143,7 @@ void EDDN::event_CarrierJump(spGameEvent &ge) {
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
 
-void EDDN::event_Docked(spGameEvent &ge) {
+void event_Docked(spGameEvent &ge) {
     if (!Cfg.isEddnSystemsEnabled() || ge->event != "Docked")
         return;
     js::value j = ge->data;
@@ -179,7 +169,7 @@ void EDDN::event_Docked(spGameEvent &ge) {
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
 
-void EDDN::event_NavRoute(spGameEvent& ge) {
+void event_NavRoute(spGameEvent& ge) {
     if (!Cfg.isEddnSystemsEnabled() || ge->event != "NavRoute" || ge->data["Route"].as_array_or().empty())
         return;
     js::value j = ge->data;
@@ -189,7 +179,7 @@ void EDDN::event_NavRoute(spGameEvent& ge) {
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
 
-void EDDN::event_FSSSignalDiscovered(const std::vector<spGameEvent> &events) {
+void event_FSSSignalDiscovered(const std::vector<spGameEvent> &events) {
     if (!Cfg.isEddnSystemsEnabled() || events.empty())
         return;
     gal::spStarSystem ss = gal::getCurrentStarSystem();
@@ -224,47 +214,60 @@ void EDDN::event_FSSSignalDiscovered(const std::vector<spGameEvent> &events) {
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
 
-void EDDN::scanEvent(spGameEvent& ge, const char* event, const char* schema) {
-    if (!Cfg.isEddnSystemsEnabled() || ge->event != event)
+void scanEvent(spGameEvent& ge, const char* sysNameFld, const char* schema) {
+    if (!Cfg.isEddnSystemsEnabled())
         return;
     js::value j = ge->data;
-    if (j["SystemAddress"].empty() || j["SystemAddress"].as_int() != st::eddnStarSystem.addr)
+    if (ge->event == "FSSDiscoveryScan")
+        j.erase("Progress");
+
+    auto eddnSS = st::eddnStarSystem;
+    if (j["SystemAddress"].as_int_or() != eddnSS.addr)
         return;
-    if (!j["StarSystem"].empty() && j["StarSystem"].as_string() != st::eddnStarSystem.name)
+    if (!j[sysNameFld].empty() && j[sysNameFld].as_string_or() != eddnSS.name)
         return;
 
     cleanupLocalised(j);
+    if (j[sysNameFld].empty() || !j[sysNameFld].is_string())
+        j[sysNameFld] = eddnSS.name;
+    if (j["StarPos"].empty() || !j["StarPos"].is_array())
+        j["StarPos"] = js::array({eddnSS.pos.x, eddnSS.pos.y, eddnSS.pos.z});
 
     auto json_data = packMessage(schema, j);
-    LOG(INFO) << "EDDN post " << event;
+    LOG(INFO) << "EDDN post " << ge->event;
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
 
-void EDDN::event_NavBeaconScan(spGameEvent& ge) {
-    scanEvent(ge, "NavBeaconScan", "https://eddn.edcd.io/schemas/navbeaconscan/1");
+void event_FSSDiscoveryScan(spGameEvent& ge) {
+    scanEvent(ge, "SystemName", "https://eddn.edcd.io/schemas/fssdiscoveryscan/1");
 }
 
-void EDDN::event_FSSDiscoveryScan(spGameEvent& ge) {
-    scanEvent(ge, "FSSDiscoveryScan", "https://eddn.edcd.io/schemas/fssdiscoveryscan/1");
+void event_FSSAllBodiesFound(spGameEvent& ge) {
+    scanEvent(ge, "SystemName", "https://eddn.edcd.io/schemas/fssallbodiesfound/1");
 }
 
-void EDDN::event_FSSAllBodiesFound(spGameEvent& ge) {
-    scanEvent(ge, "FSSAllBodiesFound", "https://eddn.edcd.io/schemas/fssallbodiesfound/1");
+void event_NavBeaconScan(spGameEvent& ge) {
+    scanEvent(ge, "StarSystem", "https://eddn.edcd.io/schemas/navbeaconscan/1");
 }
 
-void EDDN::event_FSSBodySignals(spGameEvent &ge) {
-    scanEvent(ge, "FSSBodySignals", "https://eddn.edcd.io/schemas/fssbodysignals/1");
+void event_SAASignalsFound(spGameEvent& ge) {
+    scanEvent(ge, "StarSystem", "https://eddn.edcd.io/schemas/journal/1");
 }
 
-void EDDN::event_Scan(spGameEvent &ge) {
-    scanEvent(ge, "Scan", "https://eddn.edcd.io/schemas/journal/1");
+void event_FSSBodySignals(spGameEvent &ge) {
+    scanEvent(ge, "StarSystem", "https://eddn.edcd.io/schemas/fssbodysignals/1");
 }
 
-void EDDN::event_ScanBaryCentre(spGameEvent &ge) {
-    scanEvent(ge, "ScanBaryCentre", "https://eddn.edcd.io/schemas/scanbarycentre/1");
+void event_Scan(spGameEvent &ge) {
+    scanEvent(ge, "StarSystem", "https://eddn.edcd.io/schemas/journal/1");
 }
 
-void EDDN::event_Market(spGameEvent &ge) {
+void event_ScanBaryCentre(spGameEvent &ge) {
+    scanEvent(ge, "StarSystem", "https://eddn.edcd.io/schemas/scanbarycentre/1");
+}
+
+
+void event_Market(spGameEvent &ge) {
     if (!Cfg.isEddnMarketsEnabled() || ge->event != "Market")
         return;
 
@@ -302,3 +305,5 @@ void EDDN::event_Market(spGameEvent &ge) {
     LOG(INFO) << "EDDN post Market";
     cpr::PostAsync(cpr::Url{API}, cpr::Body{json_data});
 }
+
+} // namespace EDDN

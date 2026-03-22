@@ -97,6 +97,12 @@ bool UIManager::toggleMainDialog() {
     return mgr.uiMain.toggle();
 }
 
+bool UIManager::updateCommander() {
+    UIManager& mgr = getInstance();
+    mgr.uiMain.updateCommander();
+    return true;
+}
+
 bool UIManager::showToast(const std::string &title, const std::string &text) {
     std::shared_ptr<UIToast> wnd = UIToast::getInstance();
     if (!wnd)

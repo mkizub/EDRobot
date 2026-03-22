@@ -16,14 +16,6 @@ UIShowTask::UIShowTask() : UIControl(false)
 {
 }
 
-UIShowTask::UIShowTask(const std::string &message, std::string latest_version, std::string latest_url)
-    : UIControl(false)
-    , startup_message(message)
-    , latest_version(latest_version)
-    , latest_url(latest_url)
-{
-}
-
 UIShowTask::~UIShowTask() {
 }
 
@@ -32,7 +24,7 @@ void UIShowTask::initialize() {
             .style.set_style(true, WS_BORDER);
 
     lbl_status.create(hwnd(), IDC_STATUS, L"", {0,411}, {404,20})
-            .style.set_style(true, WS_BORDER | WS_EX_TRANSPARENT);
+            .style.set_style(true, WS_BORDER);
 
     on_timer_update();
 }
@@ -66,29 +58,6 @@ void UIShowTask::relayout(bool scroll_to_top) {
 }
 
 void UIShowTask::on_timer_update() {
-    if (!ai::curr_task() && !ai::last_task() && !startup_message.empty()) {
-        if (startup_shown)
-            return;
-        lbl_task_status.set_text(toUtf16("\n\n\n"+startup_message));
-        lbl_task_status.style.set_style(true, SS_CENTER);
-
-        std::string version;
-        if (latest_version == EDROBOT_VERSION)
-            version = lc_format("Version: {}", EDROBOT_VERSION);
-        else
-            version = lc_format("Version: {}, available {}", EDROBOT_VERSION, latest_version);
-
-        lbl_status.set_text(toUtf16(version));
-        lbl_status.style.set_style(true, SS_CENTER);
-        startup_shown = true;
-        return;
-    }
-    else if (!startup_message.empty()) {
-        startup_message.clear();
-        lbl_task_status.style.set_style(false, SS_CENTER);
-        lbl_status.style.set_style(false, SS_CENTER);
-    }
-
     bool completed = false;
     bool failed = false;
     ai::spTask task = ai::curr_task();

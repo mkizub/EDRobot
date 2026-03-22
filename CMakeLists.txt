@@ -140,8 +140,8 @@ add_executable(EDRobot
         src/ui/UIShowCargo.h
         src/ui/UIShowTask.cpp
         src/ui/UIShowTask.h
-        src/ui/UIStartupDialog.cpp
-        src/ui/UIStartupDialog.h
+        src/ui/UIShowStartup.cpp
+        src/ui/UIShowStartup.h
         src/ui/UIToast.cpp
         src/ui/UIToast.h
         src/ui/UIWindow.cpp
@@ -240,7 +240,6 @@ install(FILES
         config/commodity-database.json5
         config/default-configuration.json5
         config/screens.json5
-        config/logging.conf
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 install(FILES README.md DESTINATION ".")

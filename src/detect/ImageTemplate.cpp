@@ -21,6 +21,11 @@ ImageTemplate::ImageTemplate(
 {
     setTemplate(filename);
 }
+ImageTemplate::~ImageTemplate() {
+    imagesPrepared.clear();
+    imagesOrig.clear();
+}
+
 
 void ImageTemplate::setTemplate(const std::string& filename) {
     imagesOrig.clear();

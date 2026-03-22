@@ -53,12 +53,14 @@
 #define IDM_SHOW_TASK_EDITOR            32798
 #define IDM_SHOW_COMMODITIES            32799
 #define IDM_DETACH                      32800
-#define IDM_DEBUG_WATCH                 32801
 #define IDM_NETW_RAVEN_ENABLED          32802
 #define IDM_NETW_RAVEN_CARRIER_CARGO    32803
 #define IDM_NETW_RAVEN_SHIP_CARGO       32804
 #define IDM_NETW_EDDN_SYSTEMS           32805
 #define IDM_NETW_EDDN_MARKETS           32806
+#define IDM_DEBUG_WATCH                 32810
+#define IDM_DEBUG_DEFAULT_LOG           32811
+#define IDM_DEBUG_NETWORK_LOG           32812
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

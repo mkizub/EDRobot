@@ -26,6 +26,9 @@ std::shared_ptr<RavenColonial> RavenColonial::newInstance() {
     gInstance = std::shared_ptr<RavenColonial>(new RavenColonial);
     return gInstance;
 }
+void RavenColonial::shutdown() {
+    gInstance.reset();
+}
 
 RavenColonial::RavenColonial() {
     setShipCargoReport(Cfg.isRavenColonialReportShipCargo());

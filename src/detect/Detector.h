@@ -105,6 +105,10 @@ public:
 class ImageTemplate : public Detector {
 public:
     struct ImageMatrix {
+        ~ImageMatrix() {
+            templImageF.release();
+            templImageU.release();
+        }
         double scale;
         double angle;
         std::string name;
@@ -129,7 +133,7 @@ public:
     };
 
     ImageTemplate(const std::string& filename, spEvalRect rect);
-    ~ImageTemplate() override = default;
+    ~ImageTemplate() override;
     void setTemplate(const std::string& filename);
 
     double match(ClassifyEnv& env) override;

@@ -341,6 +341,18 @@ void task_step() {
             lastTask.swap(activeTask);
         }
     }
+    if (ok || reason == TaskExitReason::COMPLETE) {
+        std::string title;
+        if (lastTask)
+            title = lastTask->getTitle();
+        UIManager::showToast(_gt("EDRobot complete"), lc_format("Completed task '{}'", title));
+    }
+    else if (reason == TaskExitReason::FAILED) {
+        std::string title;
+        if (lastTask)
+            title = lastTask->getTitle();
+        UIManager::showToast(_gt("EDRobot failed"), lc_format("Failed task '{}'", title));
+    }
     LOG(INFO) << "ai::task_loop(): active task: " << (
             isInterrupted ? "interrupted" :
             reason == TaskExitReason::FAILED ? "failed" :
