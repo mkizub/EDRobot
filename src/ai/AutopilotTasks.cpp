@@ -751,10 +751,11 @@ bool TaskDebugShipStats::accelForward() {
         setSpeed(speed.value_or(50), true, "accelForward start");
         LOG(INFO) << "Start forward acceleration";
         ai::sleep(int(seconds * 1000), true);
-        setSpeed(0, true, "accelForward stop");
-        LOG(INFO) << "End acceleration";
+        kbd::send("Z"); //setSpeed(0, true, "accelForward stop");
+        LOG(INFO) << "End acceleration (enter FA-OFF)";
         ai::sleep(1000);
-        LOG(INFO) << std::format("Expected max speed: {}", int(fwdacc * seconds));
+        double max_speed = ship->getThrustSpeed();
+        LOG(INFO) << std::format("Expected speed (max {}): {}", int(max_speed), int(fwdacc * seconds));
     }
     return true;
 }
@@ -775,16 +776,17 @@ bool TaskDebugShipStats::accelReverse() {
         LOG(INFO) << "End acceleration";
         ai::sleep(1000);
         double max_speed = ship->getThrustSpeed();
-        LOG(INFO) << std::format("Expected speed (if dropped from max): {}", int(max_speed - revacc * seconds));
+        LOG(INFO) << std::format("Expected speed (if dropped from max {}): {}", int(max_speed), int(max_speed - revacc * seconds));
     } else {
         LOG(ERROR) << "FA-ON mode";
-        setSpeed(-speed.value_or(100), true, "accelReverse start");
-        LOG(INFO) << "Start reverse acceleration";
+        setSpeed(0, true, "accelReverse start"); //setSpeed(-speed.value_or(100), true, "accelReverse start");
+        LOG(INFO) << "Start reverse acceleration (set speed 0)";
         ai::sleep(int(seconds * 1000), true);
-        setSpeed(0, true, "accelReverse stop");
-        LOG(INFO) << "End acceleration";
+        kbd::send("Z"); //setSpeed(0, true, "accelReverse stop");
+        LOG(INFO) << "End acceleration (enter FA-OFF)";
         ai::sleep(1000);
-        LOG(INFO) << std::format("Expected max reverse speed: {}", int(revacc * seconds));
+        double max_speed = ship->getThrustSpeed();
+        LOG(INFO) << std::format("Expected speed (if dropped from max {}): {}", int(max_speed), int(max_speed - revacc * seconds));
     }
     return true;
 }
@@ -2231,7 +2233,7 @@ void BaseDockStep::sleep_waiting_dist(int milliseconds) {
         return;
     auto& dd = st::autopilot.distanceToDock;
     int prev_dist = 100000;
-    if (dd <= safe_dist)
+    if (dd <= 7400_m)
         prev_dist = (int)dd.get_m();
     //LOG(INFO) << "sleep_waiting_dist, safe dist " << safe_dist;
     auto now = std::chrono::high_resolution_clock::now();
@@ -2250,10 +2252,10 @@ void BaseDockStep::sleep_waiting_dist(int milliseconds) {
             std::this_thread::sleep_for(left);
         }
         now = std::chrono::high_resolution_clock::now();
-        if (dd <= safe_dist) {
+        if (dd <= 7400_m) {
             //LOG(INFO) << "sleep_waiting_dist, maybe stop, dist " << dd << " and prev " << prev_dist;
             int dist = (int)dd.get_m();
-            if (dist < prev_dist && prev_dist <= safe_dist.get_m())
+            if (dist < prev_dist && prev_dist <= 7400)
                 return;
             prev_dist = dist;
         }

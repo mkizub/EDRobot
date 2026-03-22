@@ -225,8 +225,11 @@ void ShipSlot::setEngineering(const std::string& bp, int level, float quality, c
             effect = nullptr;
     }
 
-    if (blueprint) {
-        auto mtype = gEDDBFull["mtype"][(*module)["mtype"].as_string_or()];
+    auto module_mtype = (*module)["mtype"].as_string_or();
+    //if (module_mtype.empty())
+    //    LOG(ERROR) << "module_mtype.empty()"; // armour? not interested
+    if (blueprint && !module_mtype.empty()) {
+        const auto& mtype = gEDDBFull["mtype"][module_mtype].deref();
         //if (!mtype["modifiable"] || !mtype["blueprints"] || mtype["blueprints"].indexOf(blueprint->at("bpid").as_string()) < 0)
         //    return false;
         if (blueprintQuality > 0) {
@@ -650,7 +653,7 @@ double ShipStats::getForwardAccel() const {
         return DNaN;
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
     double massSpdMul = getMassSpdMultiplier();
-    double value = stats[int(Attr::fwdacc)] * (pipsEngMul + stats[int(Attr::minthrust)] * (1 - pipsEngMul));
+    double value = stats[int(Attr::fwdacc)]; // * (pipsEngMul + stats[int(Attr::minthrust)] * (1 - pipsEngMul));
     return value * massSpdMul;
 }
 double ShipStats::getReverseAccel() const {
@@ -658,7 +661,7 @@ double ShipStats::getReverseAccel() const {
         return DNaN;
     double pipsEngMul = st::ship.pips[1] / MAX_POWER_DIST;
     double massSpdMul = getMassSpdMultiplier();
-    double value = stats[int(Attr::revacc)] * (pipsEngMul + stats[int(Attr::minthrust)] * (1 - pipsEngMul));
+    double value = stats[int(Attr::revacc)]; // * (pipsEngMul + stats[int(Attr::minthrust)] * (1 - pipsEngMul));
     return value * massSpdMul;
 }
 

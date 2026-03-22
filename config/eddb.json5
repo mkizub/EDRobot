@@ -862,7 +862,7 @@
 		{
 			fdid:129030680, fdname:'Mandalay',
 			id:46, stype:'ex', name:'Mandalay', class:2, cost:16527690, retail:17639220,
-			topspd:280, bstspd:350, mnv:5, shields:220, armour:230, mass:230, fwdacc:NaN, revacc:NaN, latacc:NaN, // TODO: *acc
+			topspd:280, bstspd:350, mnv:5, shields:220, armour:230, mass:230, fwdacc:35, revacc:30, latacc:NaN, // TODO: *acc
 			minthrust:71.5, boostcost:14, boostint:5, pitch:35, yaw:28, roll:96, pitchacc:NaN, yawacc:NaN, rollacc:NaN, minpitch:24.5, minyaw:16, // verify: minpitch // TODO: *acc
 			heatcap:245, heatdismin:NaN, heatdismax:51.00, fuelcost:50, fuelreserve:0.5, hardness:55, masslock:11, crew:2, // TODO: heatdismin
 			pitch_cruise: [20,40,24.5], pitch_space: [0.4,1,0.32],
@@ -928,7 +928,7 @@
 		{
 			fdid:129034269, fdname:'PantherMkII', eddbid:null,
 			id:63, stype:'sh', name:'Panther Clipper Mk II', class:3, cost:286906165, retail:301348585,
-			topspd:180, bstspd:250, mnv:0, shields:350, armour:620, mass:1200, fwdacc:40, revacc:23, latacc:NaN, // TODO: *acc
+			topspd:180, bstspd:250, mnv:0, shields:350, armour:620, mass:1200, fwdacc:15, revacc:9, latacc:NaN, // TODO: *acc
 			minthrust:33.3, boostcost:19, boostint:6.5, pitch:18, yaw:10, roll:20, pitchacc:NaN, yawacc:NaN, rollacc:NaN, minpitch:14, // TODO: *acc
 			heatcap:329, heatdismin:NaN, heatdismax:62.50, fuelcost:50, fuelreserve:1.11, hardness:70, masslock:25, crew:4, // verify: masslock // TODO: heatdismin
 			pitch_cruise: [8,16,9.6], pitch_space: [0.8,1,0.72],
