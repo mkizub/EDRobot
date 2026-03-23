@@ -203,7 +203,7 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
         int toBuy = 0;
         if (demands.toBuy.contains(c))
             toBuy = demands.toBuy[c];
-        LOG(INFO) << std::format("Demand for '{}' ({}): {} to deliver, {} to buy", c->name, c->nameId, toDeliver, toBuy);
+        LOG_INFO("Demand for '{}' ({}): {} to deliver, {} to buy", c->name, c->nameId, toDeliver, toBuy);
     }
     return demands;
 }

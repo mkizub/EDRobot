@@ -149,7 +149,7 @@ bool setAxisBindings(Axis& axis, bool invert) {
     const KeyBindings& orig = Cfg.getGameKeyBindings(std::string(axis.name()) + "AxisRaw");
     axis.bindings = orig;
     if (!(orig.mode == KeyBindings::Axis || orig.mode == KeyBindings::AxisInv)) {
-        LOG(ERROR) << std::format("Bad bindings for {}, vJoy axis required", axis.name());
+        LOG_ERROR("Bad bindings for {}, vJoy axis required", axis.name());
         return false;
     }
     if (invert) {
@@ -174,7 +174,7 @@ bool init_ship_tracker() {
     else if (kb.secondary.device == GameKey::vJoy)
         mouseResetKey = kb.secondary;
     else {
-        LOG(ERROR) << "Bad bindings for MouseReset, vJoy button required";
+        LOG_ERROR("Bad bindings for MouseReset, vJoy button required");
         ok = false;
     }
     if (!ok)
@@ -274,20 +274,20 @@ void approximateCompassDistance(CompassInfo& compass) {
 
         if (in_prev_range || buffer_rate >= 0) {
             if (in_prev_range && buffer_rate > 0)
-                LOG(INFO) << std::format("Target dist (both ): {} (conf {})", d.to_string(), int(d.conf));
+                LOG_DEBUG("Target dist (both ): {} (conf {})", d.to_string(), int(d.conf));
             else if (buffer_rate > 0) {
                 //std::string history;
                 //history += d2t.to_string();
                 //for (int i=int(buffer.size())-1; i >= 0; i--) {
                 //    history += " " + buffer[i].dist.to_string();
                 //}
-                //LOG(INFO) << std::format("Target dist history: {}", history);
-                LOG(INFO) << std::format("Target dist (ACCUM): {} (conf {})", d.to_string(), int(d.conf));
+                //LOG_INFO("Target dist history: {}", history);
+                LOG_DEBUG("Target dist (ACCUM): {} (conf {})", d.to_string(), int(d.conf));
             }
             else if (in_prev_range)
-                LOG(INFO) << std::format("Target dist (prev ): {} (conf {})", d.to_string(), int(d.conf));
+                LOG_DEBUG("Target dist (prev ): {} (conf {})", d.to_string(), int(d.conf));
             else
-                LOG(INFO) << std::format("Target dist (first): {} (conf {})", d.to_string(), int(d.conf));
+                LOG_DEBUG("Target dist (first): {} (conf {})", d.to_string(), int(d.conf));
 
             d2t = d; // st::autopilot.distanceToTarget = d;
 
@@ -296,7 +296,7 @@ void approximateCompassDistance(CompassInfo& compass) {
             else if (st::autopilot.destBody && st::autopilot.destBody->nameEq(buffer_target_name))
                 st::autopilot.distanceToBody = d2t;
         } else {
-            LOG(INFO) << std::format("Target dist (ignored): {} (conf {})", d.to_string(), int(d.conf));
+            LOG_DEBUG("Target dist (ignored): {} (conf {})", d.to_string(), int(d.conf));
         }
     }
 }
@@ -312,7 +312,7 @@ static int compassLostCounter;
 void turn_loop() {
     SetThreadDescription(GetCurrentThread(), L"ShipTracker loop");
 
-    LOG(INFO) << "Starting ship tracker";
+    LOG_INFO("Starting ship tracker");
     std::chrono::duration<double> wait_dur = 0ms;
     while (isWorking) {
         {
@@ -338,16 +338,16 @@ void turn_loop() {
         } catch(const std::exception& ex) {
             kbd::reset_vJoy();
             if (dynamic_cast<const interrupted_error*>(&ex)) {
-                LOG(ERROR) << "Ship tracker interrupted";
+                LOG_ERROR("Ship tracker interrupted");
                 isActive = false;
                 Axis::resetAll(true);
                 compassLostCounter = 0;
             } else {
-                LOG(ERROR) << "Exception in ship tracker: " << ex.what();
+                LOG_ERROR("Exception in ship tracker: {}", ex.what());
             }
         }
     }
-    LOG(INFO) << "Exiting ship tracker";
+    LOG_INFO("Exiting ship tracker");
 }
 
 inline double normalizeAngle(double angle) {
@@ -370,7 +370,7 @@ double update_axis(Axis& axis, double delta, double max_speed) {
     if (!axis.active() || std::signbit(delta) != std::signbit(axis.value) || time < 0) {
         time = std::max({2.0, time_at_max_speed});
         double value = std::copysign(time_at_max_speed / time, delta);
-//        LOG(INFO) << std::format("KeepCourse: set {} {:.3f}, start seconds {:.2f}", axis.name, value, time);
+//        LOG_INFO("KeepCourse: set {} {:.3f}, start seconds {:.2f}", axis.name, value, time);
         axis.set(value, int(time * 1000));
         return time;
     }
@@ -384,7 +384,7 @@ double update_axis(Axis& axis, double delta, double max_speed) {
     double new_speed = delta / time;
     if (std::abs(new_speed) <= (max_speed*max_value)) {
         double value = std::clamp(new_speed / max_speed, -max_value, +max_value);
-//        LOG(INFO) << std::format("KeepCourse: set {} {:.3f}, keep seconds {:.2f}", axis.name, value, time);
+//        LOG_INFO("KeepCourse: set {} {:.3f}, keep seconds {:.2f}", axis.name, value, time);
         axis.set(value, int(time * 1000));
         return time;
     }
@@ -392,7 +392,7 @@ double update_axis(Axis& axis, double delta, double max_speed) {
     time = std::abs(delta) / (max_speed * max_value);
     new_speed = delta / time;
     double value = std::clamp(new_speed / max_speed, -max_value, +max_value);
-//    LOG(INFO) << std::format("KeepCourse: set {} {:.3f}, seconds {:.2f}", axis.name, value, time);
+//    LOG_INFO("KeepCourse: set {} {:.3f}, seconds {:.2f}", axis.name, value, time);
     axis.set(value, int(time * 1000));
     return time;
 }
@@ -409,7 +409,7 @@ repeat_step:
 
     auto shipStats = eddb::getShipStats();
     if (!shipStats) {
-        LOG(ERROR) << "Unsupported or unknown ship";
+        LOG_ERROR("Unsupported or unknown ship");
         isActive = false;
         Axis::resetAll();
         compassLostCounter = 0;
@@ -437,7 +437,7 @@ repeat_step:
         Mgr.pushDetectRequest(std::move(promise), { DetectLevel::Screen });
         auto status = future.wait_for(max_wait_age);
         if (status != std::future_status::ready) {
-            LOG(WARNING) << "KeepCourse: screen detect request status: " << enum_name<std::future_status>(status);
+            LOG_WARNING("KeepCourse: screen detect request status: {}", status);
             Axis::resetAll();
             return compass_age;
         }
@@ -445,14 +445,14 @@ repeat_step:
     }
     CompassInfo compass = st::compass;
     auto compassElapsed = utc_now - compass.timestamp;
-//    LOG(INFO) << std::format("KeepCourse: time delta: {}ms, hemispere {}",
+//    LOG_INFO("KeepCourse: time delta: {}ms, hemispere {}",
 //                             std::chrono::duration_cast<std::chrono::milliseconds>(compassElapsed).count(),
 //                             compass.hemisphere);
     if (!compass.hemisphere || compassElapsed > max_wait_age) {
         compassLostCounter += 1;
-        //LOG(INFO) << std::format("KeepCourse: compass trouble {}",compassLostCounter);
+        //LOG_INFO("KeepCourse: compass trouble {}",compassLostCounter);
         if (compassLostCounter >= 3) {
-            LOG(WARNING) << "KeepCourse: compass lost";
+            LOG_WARNING("KeepCourse: compass lost");
             Axis::resetAll();
             compassLostCounter = 1;
         }
@@ -493,12 +493,12 @@ repeat_step:
             yawDelta = 0;
     }
 
-//    LOG(INFO) << std::format("KeepCourse: time delta: {}ms, {}/{}, p {:.1f}, y {:.1f}, r {:.1f}, a {:.1f}",
+//    LOG_INFO("KeepCourse: time delta: {}ms, {}/{}, p {:.1f}, y {:.1f}, r {:.1f}, a {:.1f}",
 //                             int(timeDelta*1000), (compass.hemisphere > 0 ? "front" : "back"), compass.has_nav_target,
 //                             compass.targetPitch, compass.targetYaw, compass.targetRoll, compass.targetAngle);
-//    LOG(INFO) << std::format("KeepCourse: pitch from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
+//    LOG_INFO("KeepCourse: pitch from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
 //                             compass.targetPitch, expectedPitch, pitchSpeed, pitchAxis.value);
-//    LOG(INFO) << std::format("KeepCourse: yaw   from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
+//    LOG_INFO("KeepCourse: yaw   from compass {:.1f}, approximated value {:.1f} with speed {:.1f}/{:.3f}",
 //                             compass.targetYaw, expectedYaw, yawSpeed, yawAxis.value);
 
     double pitchSleep = update_axis(pitchAxis, pitchDelta, pitchSpeed);

@@ -346,9 +346,9 @@ bool acquire_vJoy() {
     };
     WORD VerDll, VerDrv;
     if (!DriverMatch(&VerDll, &VerDrv))
-        LOG(WARNING) << std::format("vJoy Driver (version {:04x}) does not match vJoyInterface DLL (version {:04x})", VerDrv,VerDll);
+        LOG_WARNING("vJoy Driver (version {:04x}) does not match vJoyInterface DLL (version {:04x})", VerDrv,VerDll);
     else
-        LOG(INFO) << std::format("vJoy Driver and vJoyInterface DLL match vJoyInterface DLL (version {:04x})", VerDrv);
+        LOG_INFO("vJoy Driver and vJoyInterface DLL match vJoyInterface DLL (version {:04x})", VerDrv);
 
     if (!isVJDExists(rID)) {
         LOG(ERROR) << "vJoy device " << rID << " not exists";
@@ -474,7 +474,7 @@ int getScanCode(std::string key_name) {
             }
             if (mapped_vk >= 0 && mapped_vk == vk)
                 continue;
-            LOG(ERROR) << std::format("Umbigous key mapping for Key_{}", key_name);
+            LOG_ERROR("Umbigous key mapping for Key_{}", key_name);
         }
         if (mapped_vk >= 0) {
             char k = mapped_vk & 0x7F;

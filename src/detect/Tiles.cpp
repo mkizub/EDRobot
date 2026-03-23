@@ -61,11 +61,11 @@ double TilesDetector::match(ClassifyEnv &env) {
                 env.classified.emplace_back(ClsDetType::Tile, name + ":" + ir.im->name, detectedRect);
                 env.classified.back().u.tile.capturedRect = tile + captureRect.tl();
                 env.classified.back().u.tile.ws = ws;
-                LOG(DEBUG) << std::format("TilesDetector matched result: {:.3f} for {} rect [{}:{},{}x{}]",
+                LOG_DEBUG("TilesDetector matched result: {:.3f} for {} rect [{}:{},{}x{}]",
                                           ir.value, ir.im->name,
                                           detectedRect.x, detectedRect.y, detectedRect.width, detectedRect.height);
             } else {
-                LOG(DEBUG) << std::format("TilesDetector matched failed: {:.3f} for {} rect [{}:{},{}x{}]",
+                LOG_DEBUG("TilesDetector matched failed: {:.3f} for {} rect [{}:{},{}x{}]",
                                           ir.value, icons_detector->filename,
                                           tile.x, tile.y, tile.width, tile.height);
             }
@@ -99,11 +99,11 @@ double TilesDetector::match(ClassifyEnv &env) {
                 env.classified.emplace_back(ClsDetType::Tile, name + ":" + *bestLabel, detectedRect);
                 env.classified.back().u.tile.capturedRect = tile;
                 env.classified.back().u.tile.ws = ws;
-                LOG(DEBUG) << std::format("TilesDetector matched result: {}% for {} rect [{}:{},{}x{}]",
+                LOG_DEBUG("TilesDetector matched result: {}% for {} rect [{}:{},{}x{}]",
                                           int(bestRatio), *bestLabel,
                                           detectedRect.x, detectedRect.y, detectedRect.width, detectedRect.height);
             } else {
-                LOG(DEBUG) << std::format("TilesDetector matched failed: {}% for {} rect [{}:{},{}x{}]",
+                LOG_DEBUG("TilesDetector matched failed: {}% for {} rect [{}:{},{}x{}]",
                                           int(bestRatio), text,
                                           tile.x, tile.y, tile.width, tile.height);
             }

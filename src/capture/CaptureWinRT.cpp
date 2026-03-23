@@ -235,14 +235,14 @@ upFrame CapturerWinRT::capture(upFrame&& recycle) {
         auto frame_srt = nextFrame.SystemRelativeTime() - startTimeSpan;
         auto utc_tp = utcStartTimestamp + frame_srt;
         if (utc_tp >= utc_now || utc_now-utc_tp < 20ms) {
-            //LOG(INFO) << std::format("CapturerWinRT: next frame capture took {}ms frame age {}ms",
+            //LOG_INFO("CapturerWinRT: next frame capture took {}ms frame age {}ms",
             //                         std::chrono::duration_cast<std::chrono::milliseconds>(Timestamp::clock::now()-utc_now).count(),
             //                         std::chrono::duration_cast<std::chrono::milliseconds>(Timestamp::clock::now()-utc_tp).count());
             capturedFrame = nextFrame;
         }
     }
     if (!capturedFrame) {
-        LOG(WARNING) << "CapturerWinRT no next frame";
+        LOG_WARNING("CapturerWinRT no next frame");
         Mgr.pushCommand(Command::ResetCapturer);
         return {};
     }

@@ -296,7 +296,7 @@ void ImageTemplate::matchTemplates(int method, const XMat& image, std::vector<Im
             minVal /= use_float ? im.f_norm : im.u_norm;
             maxVal /= use_float ? im.f_norm : im.u_norm;
         }
-        //LOG(DEBUG) << "ImageTemplate match result: " << std::setprecision(4) << maxVal << " for " << im.name << " scale:" << im.scale;
+        //LOG_DEBUG("ImageTemplate match result: {:.4f} for {} scale:{:.4f}", maxVal, im.name, im.scale);
         if (method == cv::TM_SQDIFF || method == cv::TM_SQDIFF_NORMED) {
             if ((1-minVal) > out.value) {
                 out.value = (1-minVal);
@@ -360,7 +360,7 @@ double ImageTemplate::match(ClassifyEnv &env) {
     matchTemplates(matchMethod, gameImagePrepared, imagesPrepared, mr);
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
     if (mr.value >= threshold_min) {
-        LOG(DEBUG) << std::format("ImageTemplate match result: {:.4f} ({:.4f}) for {} scale {:.4f}, took {}us (prep {}us)", mr.value, toResult(mr.value), mr.im->name, mr.im->scale,
+        LOG_DEBUG("ImageTemplate match result: {:.4f} ({:.4f}) for {} scale {:.4f}, took {}us (prep {}us)", mr.value, toResult(mr.value), mr.im->name, mr.im->scale,
                                   elapsedTime.count(), prepareTime.count());
         matchedCaptureOffset = mr.loc - (captureRect.tl() - matchRect.tl());
         captureRect = {matchRect.tl()+mr.loc, cv::Size(mr.im->opt_w,mr.im->opt_h)};
@@ -369,7 +369,7 @@ double ImageTemplate::match(ClassifyEnv &env) {
             captureRect.height = (int)std::round(captureRect.height * mr.im->scale);
         }
     } else {
-        LOG(DEBUG) << std::format("ImageTemplate not found: {:.4f} ({:.4f}) for '{}', took {}us (prep {}us)", mr.value, toResult(mr.value), filename,
+        LOG_DEBUG("ImageTemplate not found: {:.4f} ({:.4f}) for '{}', took {}us (prep {}us)", mr.value, toResult(mr.value), filename,
                                   elapsedTime.count(), prepareTime.count());
     }
     lastMatch = mr.value;

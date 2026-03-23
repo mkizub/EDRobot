@@ -78,10 +78,12 @@ public:
     static const wchar_t ED_WINDOW_NAME[];
     static const wchar_t ED_WINDOW_CLASS[];
     static const wchar_t ED_WINDOW_EXE[];
+    static const wchar_t ROBOT_WINDOW_NAME[];
+    static const wchar_t ROBOT_WINDOW_CLASS[];
 
     static Master& getInstance();
 
-    bool initialize(int argc, char* argv[]);
+    bool initialize();
     void shutdown();
     void loop();
     bool isGameForeground() const;

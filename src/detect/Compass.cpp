@@ -249,7 +249,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         //LOG(INFO) << "Compass dot detect took: " << elapsedTime.count() << "us";
         if (dr.value >= threshold_dot) {
-            LOG(DEBUG) << std::format("compass dot match result: {:.3f} for {}", dr.value,
+            LOG_DEBUG("compass dot match result: {:.3f} for {}", dr.value,
                                       ((dr.index & 1) ? "backward" : "forward"));
             cv::Size dotSize = {dr.im->org_w, dr.im->org_h};
             lastHemisphere = dr.index & 1 ? -1 : +1;
@@ -290,11 +290,11 @@ double CompassDetector::match(ClassifyEnv &env) {
             lastTgtRoll = roll;
             lastTgtAngle = angle;
 
-            LOG(DEBUG) << std::format("Compass dot dir={}", ((lastHemisphere < 0) ? "bwd" : "fwd"))
-                       << ", sphere pos=" << dotSpherePosition
-                       << std::format(" pitch:{}, yaw:{}, roll:{}", int(pitch), int(yaw), int(roll));
+            LOG_DEBUG("Compass dot dir={}, sphere pos=[{:3f},{:3f}] pitch:{}, yaw:{}, roll:{}",
+                      ((lastHemisphere < 0) ? "bwd" : "fwd"), dotSpherePosition.x, dotSpherePosition.y,
+                      int(pitch), int(yaw), int(roll));
         } else {
-            LOG(WARNING) << std::format("compass dot failed, match result: {:.3f}", dr.value);
+            LOG_WARNING("compass dot failed, match result: {:.3f}", dr.value);
         }
     }
 
@@ -326,7 +326,7 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
     ImageTemplate::matchTemplates(cv::TM_CCORR_NORMED, imagePrepared, navTargetPrepared, nr);
     cv::Point2f navCapturePos;
     if (nr.value > 0.5 && nr.im) {
-        LOG(DEBUG) << std::format("compass target match result: {:.3f}", nr.value);
+        LOG_DEBUG("compass target match result: {:.3f}", nr.value);
         cv::Point foundPos = nr.loc + cv::Point(nr.im->org_w, nr.im->org_h) / 2;
         navCapturePos = navTargetRemapXY.at<cv::Point2f>(foundPos);
         cv::Point referencePos = env.cvtCapturedToReference(navCapturePos);
@@ -352,10 +352,10 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
         if (lastHemisphere < 0)
             angle = 180 - angle;
         if (afterCompass) {
-            LOG(DEBUG) << std::format("Update compass from nav target: pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f} (delta: {:+.1f}; {:+.1f}; {:+.1f})",
+            LOG_DEBUG("Update compass from nav target: pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f} (delta: {:+.1f}; {:+.1f}; {:+.1f})",
                                       pitch, yaw, roll, pitch - lastTgtPitch, yaw - lastTgtYaw, roll - lastTgtRoll);
         } else {
-            LOG(DEBUG) << std::format("Detected nav target: pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f}", pitch, yaw, roll);
+            LOG_DEBUG("Detected nav target: pitch:{:+.1f} yaw:{:+.1f} roll:{:+.1f}", pitch, yaw, roll);
         }
         lastTgtPitch = pitch;
         lastTgtYaw = yaw;

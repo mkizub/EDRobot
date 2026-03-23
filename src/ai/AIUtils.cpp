@@ -248,7 +248,7 @@ void gotoContactsScreen(const std::string& dlg) {
 
 void gotoLandingPad(bool refuel) {
     if (st::guiFocus != GuiFocus::None) {
-        LOG(INFO) << "Going to landing pad.";
+        LOG_INFO("Going to landing pad.");
         for (int i = 0; i < 10 && st::guiFocus != GuiFocus::None; i++) {
             if (ai::uiState.guiFocus == GuiFocus::GalaxyMap || ai::uiState.match("scr-galaxy")) {
                 leaveScrGalaxy();
@@ -267,7 +267,7 @@ void gotoLandingPad(bool refuel) {
         kbd::send("UI_Up");
 
     if (refuel || st::shipStats.fuelMain < st::shipStats.fuelCapacityMain || (st::ship.health > 0 && st::ship.health < 1)) {
-        LOG(INFO) << "Refuel...";
+        LOG_INFO("Refuel...");
         kbd::send("UI_Select", 0, 500); // refuel
         kbd::send("UI_Right");
         kbd::send("UI_Select", 0, 500); // repair

@@ -235,7 +235,7 @@ spGameEvent Configuration::parseEvent(Timestamp& latest_log_timestamp, const std
     }
 
     auto& event = gameEvent->event;
-    LOG(DEBUG) << "Journal event: " << event;
+    LOG_DEBUG("Journal event: {}", event);
 
     if (fssSignalSystemAddress) {
         if (event != "FSSSignalDiscovered") {
@@ -280,7 +280,7 @@ void Configuration::readJournalChanges(std::ifstream& journalStream, Timestamp& 
 
 bool Configuration::loadGameStatus() {
     static std::ifstream ifs;
-    //LOG(DEBUG) << "Loading Status.json";
+    //LOG_DEBUG("Loading Status.json");
     if (!ifs.is_open()) {
         std::wstring filename = mEDLogsPath + L"\\Status.json";
         ifs.open(filename);

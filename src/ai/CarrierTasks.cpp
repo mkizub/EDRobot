@@ -37,7 +37,7 @@ int getShipPageIndex(const std::string &page_name) {
     else if (page_name == "mod-playlist")
         pageIndex = 7;
     else
-        LOG(ERROR) << "Ship page '" << page_name << "' not known";
+        LOG_ERROR("Ship page '{}' not known", page_name);
     return pageIndex;
 }
 
@@ -48,10 +48,10 @@ bool gotoShipPage(const std::string &page_name, bool required) {
 
     for (int i = 0; i < 6 && !ai::uiState.match("scr-right-panel:" + page_name); i++) {
         ai::detectEDState(DetectLevel::Buttons);
-        LOG(DEBUG) << "Goto '" << page_name << "'...";
+        LOG_DEBUG("Goto '{}'...", page_name);
 
         if (ai::uiState.guiFocus == GuiFocus::None) {
-            LOG(DEBUG) << "FocusRightPanel...";
+            LOG_DEBUG("FocusRightPanel...");
             kbd::send("FocusRightPanel", 0, 1500);
             continue;
         }
@@ -63,7 +63,7 @@ bool gotoShipPage(const std::string &page_name, bool required) {
             continue;
         }
         if (!ai::uiState.match("scr-right-panel:*")) {
-            LOG(DEBUG) << "FocusRightPanel...";
+            LOG_DEBUG("FocusRightPanel...");
             kbd::send("FocusRightPanel", 0, 1500);
             continue;
         }

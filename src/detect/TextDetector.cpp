@@ -53,7 +53,7 @@ double TextDetector::match(ClassifyEnv &env) {
     cv::Rect detectedRect = env.cvtCapturedToReference(bestRect + captureRect.tl());
     double matchValue = bestRatio * 0.01;
     if (matchValue < mThresholdMin || !bestLabel) {
-        LOG(DEBUG) << std::format("TextDetector matched failed: {:.3f} ({:.3f}) for {} rect [{}:{},{}x{}]",
+        LOG_DEBUG("TextDetector matched failed: {:.3f} ({:.3f}) for {} rect [{}:{},{}x{}]",
                                   matchValue, toResult(matchValue), bestLabel ? *bestLabel : "?",
                                   detectedRect.x, detectedRect.y, detectedRect.width, detectedRect.height);
         return 0;
@@ -66,7 +66,7 @@ double TextDetector::match(ClassifyEnv &env) {
     tdet.angle = 0;
     tdet.match = matchValue;
     tdet.matchRect = bestRect + captureRect.tl();
-    LOG(DEBUG) << std::format("TextDetector matched result: {:.3f} ({:.3f}) for {} rect [{}:{},{}x{}]",
+    LOG_DEBUG("TextDetector matched result: {:.3f} ({:.3f}) for {} rect [{}:{},{}x{}]",
                               matchValue, toResult(matchValue), *bestLabel,
                               detectedRect.x, detectedRect.y, detectedRect.width, detectedRect.height);
 

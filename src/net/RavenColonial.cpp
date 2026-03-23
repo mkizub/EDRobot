@@ -384,7 +384,7 @@ spMarket RavenColonial::updateConstructionDepot(spMarket market) {
                 int demandOld = ml.demand - ml.stock;
                 int demandNew = cr_body["commodities"][c->nameId].as_int_or();
                 if (demandNew != demandOld) {
-                    LOG(INFO) << std::format("Demand update from RavenColonial: '{}' {} => {}",
+                    LOG_INFO("Demand update from RavenColonial: '{}' {} => {}",
                                              c->name, demandOld, demandNew);
                     ml.stock = std::clamp(ml.demand-demandNew, 0, ml.demand);
                 }

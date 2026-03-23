@@ -100,7 +100,7 @@ bool active() {
 void stop() {
     if (!activeTask)
         return;
-    LOG(INFO) << "ai::stop() task " << activeTask->getTitle();
+    LOG_INFO("ai::stop() task {}", activeTask->getTitle());
     UIManager::showToast(_gt("EDRobot stop"), lc_format("Stop task '{}'", activeTask->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     interruptReason = InterruptReason::UNKNOWN;
@@ -118,7 +118,7 @@ void interrupt(InterruptReason reason) {
     interruptReason = reason;
     if (isInterrupted || !activeTask)
         return;
-    LOG(INFO) << "AIManager::interrupt() task " << activeTask->getTitle();
+    LOG_INFO("AIManager::interrupt() task {}", activeTask->getTitle());
     UIManager::showToast(_gt("EDRobot paused"), lc_format("Paused task '{}'", activeTask->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
@@ -131,11 +131,11 @@ void interrupt(InterruptReason reason) {
 void resume() {
     isDebugPaused = false;
     if (!activeTask) {
-        LOG(INFO) << "AIManager::resume() - no paused task";
+        LOG_INFO("AIManager::resume() - no paused task");
         UIManager::showToast(_gt("EDRobot resume"), _gt("No paused task"));
         return;
     }
-    LOG(INFO) << "AIManager::resume() resuming task " << activeTask->getTitle();
+    LOG_INFO("AIManager::resume() resuming task {}", activeTask->getTitle());
     UIManager::showToast(_gt("EDRobot resume"), lc_format("Resuming task '{}'", activeTask->getTitle()));
     if (isInterrupted) {
         std::unique_lock<std::mutex> lock(taskMutex);
@@ -183,16 +183,16 @@ void notify_progress_(MessageSeverity severity, std::string_view msg) {
         curr->addMessage(severity, msg);
     switch (severity) {
     case MSG_INFO:
-        LOG(INFO) << msg;
+        LOG_INFO(msg);
         break;
     case MSG_WARN:
-        LOG(WARNING) << msg;
+        LOG_WARNING(msg);
         break;
     case MSG_ERROR:
-        LOG(ERROR) << msg;
+        LOG_ERROR(msg);
         break;
     case MSG_FATAL:
-        LOG(ERROR) << msg;
+        LOG_ERROR(msg);
         break;
     }
 }
@@ -203,7 +203,7 @@ void throw_trouble_(const string_view msg) {
         spStep curr = curr_step();
         if (curr)
             curr->addMessage(MSG_WARN, msg);
-        LOG(WARNING) << msg;
+        LOG_WARNING(msg);
     }
     throw nonlocal_return(TaskExitReason::ONGOING, msg);
 }
@@ -215,7 +215,7 @@ void throw_failed_(const string_view msg) {
             curr->progress = TaskExitReason::FAILED;
             curr->addMessage(MSG_FATAL, msg);
         }
-        LOG(ERROR) << msg;
+        LOG_ERROR(msg);
     }
     throw nonlocal_return(TaskExitReason::FAILED, msg);
 }
@@ -227,7 +227,7 @@ void throw_complete_(const string_view msg) {
             curr->progress = TaskExitReason::COMPLETE;
             curr->addMessage(MSG_FATAL, msg);
         }
-        LOG(ERROR) << msg;
+        LOG_ERROR(msg);
     }
     throw nonlocal_return(TaskExitReason::COMPLETE, msg);
 }
@@ -236,7 +236,7 @@ void throw_complete_(const string_view msg) {
 bool new_task(spTask&& task) {
     if (!task)
         return false;
-    LOG(INFO) << "AIManager::new_task()";
+    LOG_INFO("AIManager::new_task()");
     UIManager::showToast(_gt("EDRobot start"), lc_format("Starting task '{}'", task->getTitle()));
     std::unique_lock<std::mutex> lock(taskMutex);
     isInterrupted = true;
@@ -246,7 +246,7 @@ bool new_task(spTask&& task) {
     taskCond.wait_for(lock, std::chrono::milliseconds(1000)/*::max()*/, []() {
         return !isWorking || isLoopWaiting;
     });
-    LOG(INFO) << "AIManager::new_task(): activating " << task->getTitle();
+    LOG_INFO("AIManager::new_task(): activating {}", task->getTitle());
     lastTask.swap(activeTask);
     activeTask.swap(task);
     isInterrupted = false;
@@ -272,7 +272,7 @@ bool new_task(const TaskTemplate& templ) {
 void task_loop() {
     SetThreadDescription(GetCurrentThread(), L"AIManager task loop");
 
-    LOG(INFO) << "Starting ai task loop";
+    LOG_INFO("Starting ai task loop");
     while (isWorking) {
         {
             std::unique_lock<std::mutex> lock(taskMutex);
@@ -299,7 +299,7 @@ void task_loop() {
                 interruptReason = InterruptReason::UNKNOWN;
             }
             if (isInterrupted) {
-                LOG(INFO) << "ai::task_loop(): steel interrupted";
+                LOG_INFO("ai::task_loop(): steel interrupted");
                 continue;
             }
         }
@@ -307,17 +307,17 @@ void task_loop() {
         if (activeTask) {
             task_step();
         } else {
-            LOG(INFO) << "ai::task_loop(): no active task";
+            LOG_INFO("ai::task_loop(): no active task");
         }
     }
-    LOG(INFO) << "Exiting ai task loop";
+    LOG_INFO("Exiting ai task loop");
 }
 
 
 void task_step() {
     Mgr.setGameForeground();
     disableAutoTurn();
-    LOG(INFO) << "ai::task_loop(): executing active task: " << activeTask->getTitle();
+    LOG_INFO("ai::task_loop(): executing active task: {}", activeTask->getTitle());
     bool ok = false;
     TaskExitReason reason = TaskExitReason::ONGOING;
     TRY {
@@ -353,11 +353,11 @@ void task_step() {
             title = lastTask->getTitle();
         UIManager::showToast(_gt("EDRobot failed"), lc_format("Failed task '{}'", title));
     }
-    LOG(INFO) << "ai::task_loop(): active task: " << (
+    LOG_INFO("ai::task_loop(): active task: {}", (
             isInterrupted ? "interrupted" :
             reason == TaskExitReason::FAILED ? "failed" :
             ok || reason == TaskExitReason::COMPLETE ? "passed" :
-            "not complete");
+            "not complete"));
     kbd::reset_vJoy();
     disableAutoTurn();
     st::autopilot = {};

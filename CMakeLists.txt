@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release)
 
-project(EDRobot VERSION 0.9.2)
+project(EDRobot LANGUAGES CXX VERSION 0.9.2)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,7 +31,7 @@ add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
 add_compile_options(/Zc:__cplusplus /await:strict /utf-8 /Zi)
 add_link_options(/DEBUG /PDBCOMPRESS)
 
-add_executable(EDRobot
+add_executable(EDRobot WIN32
         EDRobot.manifest
         src/pch.cpp
         src/pch.h
@@ -180,6 +180,8 @@ add_executable(EDRobot
         thirdparty/xml/xml.h
 )
 
+
+set_target_properties(EDRobot PROPERTIES WIN32_EXECUTABLE TRUE)
 
 target_precompile_headers(EDRobot PUBLIC src/pch.h)
 target_compile_definitions(EDRobot PUBLIC "EDROBOT_VERSION=\"${PROJECT_VERSION}\"" )

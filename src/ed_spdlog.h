@@ -15,6 +15,8 @@
 #endif
 #define SPDLOG_WCHAR_TO_UTF8_SUPPORT 1
 #include "spdlog/spdlog.h"
+#include "spdlog/sinks/sink.h"
+extern spdlog::sink_ptr console_sink;
 
 class streamable_logger_t {
     spdlog::level::level_enum log_level_;

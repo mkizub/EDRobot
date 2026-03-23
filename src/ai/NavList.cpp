@@ -360,11 +360,11 @@ gal::spEntity NavList::guessNavItem(int idx) {
     list[idx].txt_conf = bestMatch;
     list[idx].conf = list[idx].ocr_conf * bestMatch/100;
     if (bestItem) {
-        LOG(DEBUG) << std::format("NavList guess '{}' => '{}'({}) match {}%, entry {} indent {}", toUtf8(nle.name),
+        LOG_DEBUG("NavList guess '{}' => '{}'({}) match {}%, entry {} indent {}", toUtf8(nle.name),
                                   bestItem->name, enum_name<TypeNav>(bestItem->type), int(bestMatch), nle.index,
                                   nle.indent);
     } else {
-        LOG(DEBUG) << std::format("NavList guess '{}' => nothing found, entry {} indent {}", toUtf8(nle.name),
+        LOG_DEBUG("NavList guess '{}' => nothing found, entry {} indent {}", toUtf8(nle.name),
                                   nle.index, nle.indent);
     }
     return bestItem;
@@ -392,12 +392,12 @@ bool NavList::fixupNavList() {
                     if (item && item2 && item == item2.get()) {
                         list[bodyIdx].ocr_conf = std::max(list[idx].ocr_conf, list[bodyIdx].ocr_conf);
                         list[bodyIdx].confirmed += 1;
-                        LOG(DEBUG) << std::format("NavList '{}'({} id ) confirmed by '{}'({})",
+                        LOG_DEBUG("NavList '{}'({} id ) confirmed by '{}'({})",
                                                   item->name, enum_name<TypeNav>(item->type), item->bodyId,
                                                   list[idx].item->name, enum_name<TypeNav>(list[idx].item->type));
                     }
                     else if (item2) {
-                        LOG(DEBUG) << std::format("NavList fixup '{}' => '{}'({}) by '{}({})'",
+                        LOG_DEBUG("NavList fixup '{}' => '{}'({}) by '{}({})'",
                                                   item ? item->name : "",
                                                   item2->name, enum_name<TypeNav>(item2->type),
                                                   list[idx].item->name, enum_name<TypeNav>(list[idx].item->type));
@@ -423,7 +423,7 @@ static inline void nextIdx(int& idx, int incr, size_t size) {
         idx = 0;
 }
 bool NavList::focusDestDock(int* conf) {
-    LOG(DEBUG) << "NavList::focusDestDock";
+    LOG_DEBUG("NavList::focusDestDock");
     auto destBody = st::autopilot.destBody;
     auto destDock = st::autopilot.destDock;
     if (!destDock)
@@ -543,7 +543,7 @@ bool NavList::focusDestDock(int* conf) {
 }
 
 bool NavList::focusDestBody(int* conf) {
-    LOG(DEBUG) << "NavList::focusDestBody";
+    LOG_DEBUG("NavList::focusDestBody");
     auto destBody = st::autopilot.destBody;
     auto destDock = st::autopilot.destDock;
     if (!destBody)
@@ -697,7 +697,7 @@ bool NavList::focusDestBody(int* conf) {
 }
 
 bool NavList::focusDestination(int& focusIdx) {
-    LOG(DEBUG) << "NavList::focusDestination";
+    LOG_DEBUG("NavList::focusDestination");
     if (st::destination.name.empty())
         return false;
     cv::Mat grayImage;
@@ -766,7 +766,7 @@ bool NavList::focusDestination(int& focusIdx) {
 }
 
 gal::spEntity NavList::focusNearestBody(dist_t* dist) {
-    LOG(DEBUG) << "NavList::focusNearestBody";
+    LOG_DEBUG("NavList::focusNearestBody");
     if (!focusTopEntry())
         return {};
 
@@ -838,7 +838,7 @@ gal::spEntity NavList::focusNearestBody(dist_t* dist) {
 }
 
 bool NavList::focusDockBody(int* conf) {
-    LOG(DEBUG) << "NavList::focusDockBody";
+    LOG_DEBUG("NavList::focusDockBody");
     if (!st::autopilot.destDock)
         return false;
     st::autopilot.isDestDockFocused = false;
@@ -902,7 +902,7 @@ bool NavList::focusDockBody(int* conf) {
 }
 
 bool NavList::focusTopEntry() {
-    LOG(DEBUG) << "NavList::focusTopEntry";
+    LOG_DEBUG("NavList::focusTopEntry");
     st::autopilot.isDestDockFocused = false;
     st::autopilot.isDestBodyFocused = false;
     for (int retry=0; retry < 3; retry++) {
@@ -945,28 +945,28 @@ bool NavList::focusTopEntry() {
 }
 
 bool NavList::selectFocused(gal::Entity* dest) {
-    LOG(DEBUG) << "NavList::selectFocused";
+    LOG_DEBUG("NavList::selectFocused");
     for (int retry=0; retry < 3; retry++) {
         int focusIdx;
         cv::Mat grayImage;
         std::vector<ClassifiedRect *> rows = initNavList(grayImage, focusIdx);
         if (rows.empty() || focusIdx < 0) {
-            LOG(DEBUG) << "NavList::selectFocused no focus, " << retry;
+            LOG_DEBUG("NavList::selectFocused no focus, {}", retry);
             continue;
         }
 
         if (!parseNavRow(grayImage, ai::rEnv, *rows[focusIdx], focusIdx)) {
-            LOG(DEBUG) << "NavList::selectFocused failed to parseNavRow, " << retry;
+            LOG_DEBUG("NavList::selectFocused failed to parseNavRow, {}", retry);
             continue;
         }
         if (list[focusIdx].isTarget) {
-            LOG(DEBUG) << "NavList::selectFocused already selected, " << retry;
+            LOG_DEBUG("NavList::selectFocused already selected, {}", retry);
             return true;
         }
 
         kbd::send("UI_Select");
         kbd::send("UI_Select");
-        LOG(DEBUG) << "NavList::selectFocused: selected, " << retry;
+        LOG_DEBUG("NavList::selectFocused: selected, {}", retry);
         return true;
     }
     return false;
@@ -992,7 +992,7 @@ bool NavList::discoverSelected() {
             for (auto &cr: ai::rEnv.classified) {
                 if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nav-line:")) {
                     nav_icon = cr.text.substr(7);
-                    LOG(INFO) << "NavType icon: '" << nav_icon << "'";
+                    LOG_INFO("NavType icon: '{}", nav_icon);
                     break;
                 }
             }
@@ -1078,11 +1078,11 @@ bool NavListScanTask::run() {
         for (auto& cr : ai::rEnv.classified) {
             if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
                 std::string lbl_anchor = cr.text.substr(7);
-                LOG(INFO) << "NavType icon: '" << lbl_anchor << "'";
+                LOG_INFO("NavType icon: '{}'", lbl_anchor);
                 for (auto nt : gal::ALL_NAV_TYPES) {
                     if (contains(nt->navIcons, lbl_anchor)) {
                         navType = nt;
-                        LOG(INFO) << "NavType from icon: poi=" << enum_name<TypeNav>(navType->type);
+                        LOG_INFO("NavType from icon: poi={}", navType->type);
                         break;
                     }
                 }

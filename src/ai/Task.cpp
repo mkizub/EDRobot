@@ -137,7 +137,7 @@ bool Task::decodePosition(const js::value& pos, cv::Point& point, const js::valu
 }
 
 bool Task::executeWait(const js::value& step, const js::value& args) {
-    LOG(DEBUG) << "action task_step wait: " << step;
+    LOG_DEBUG("action task_step wait: {}", step);
     const js::value& state = step.at("wait");
     const js::value& focus = step.at("focus");
     const js::value& disabled = step.at("disabled");
@@ -199,7 +199,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
     }
     if (step.is_object()) {
         if (step.has_key("task_loop")) {
-            LOG(DEBUG) << "action task_step task_loop: " << step;
+            LOG_DEBUG("action task_step task_loop: {}", step);
             const js::value& loop = step.at("task_loop");
             const js::value& action = step.at("action");
             int count = get_int(loop, args);
@@ -220,7 +220,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             return executeWait(step, args);
         }
         if (step.has_key("check")) {
-            LOG(DEBUG) << "action task_step check: " << step;
+            LOG_DEBUG("action task_step check: {}", step);
             const js::value& state = step.at("check");
             ai::detectEDState(DetectLevel::Buttons);
             bool ok = ai::uiState.match(state.as_string());
@@ -237,7 +237,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             return ok;
         }
         if (step.has_key("key")) {
-            LOG(DEBUG) << "action task_step key: " << step;
+            LOG_DEBUG("action task_step key: {}", step);
             const js::value& key = step.at("key");
             bool ok;
             if (step.at("hold").is_object() || step.at("hold").is_array()) {
@@ -248,7 +248,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
                 else if (keyBindings.secondary.device != GameKey::Void)
                     gk = &keyBindings.secondary;
                 else {
-                    LOG(DEBUG) << "key '" << key.as_string() << "' not bound, action failed";
+                    LOG_DEBUG("key '{}' not bound, action failed", key.as_string());
                     return false;
                 }
                 unsigned inputId = kbd::post(*gk, 60000);
@@ -267,7 +267,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             return ok;
         }
         if (step.has_key("goto")) {
-            LOG(DEBUG) << "action goto: " << step;
+            LOG_DEBUG("action goto: {}", step);
             const js::value& widget = step.at("goto");
             cv::Point pos;
             if (!decodePosition(widget, pos, args)) {
@@ -280,7 +280,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             return ok;
         }
         if (step.has_key("click")) {
-            LOG(DEBUG) << "action click: " << step;
+            LOG_DEBUG("action click: {}", step);
             const js::value& widget = step.at("click");
             cv::Point pos;
             if (!decodePosition(widget, pos, args)) {
@@ -294,7 +294,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             return ok;
         }
         if (step.has_key("sleep")) {
-            LOG(DEBUG) << "action task_step sleep: " << step;
+            LOG_DEBUG("action task_step sleep: {}", step);
             int duration = get_int(step.at("sleep"), args);
             sleep(duration);
             return true;

@@ -133,9 +133,33 @@ struct dist_t {
     double get_km() const;
     double get_ls() const;
     std::string to_string() const;
-};
+
+    auto format_as(Unit u) -> std::string_view {
+    }};
 std::ostream& operator<<(std::ostream& os, const dist_t& obj);
 
+template <>
+struct std::formatter<dist_t::Unit> : std::formatter<std::string_view> {
+    auto format(dist_t::Unit u, format_context& ctx) const {
+        std::string_view sv;
+        switch (u) {
+        default:
+        case dist_t::Unit::X: sv = ""; break;
+        case dist_t::Unit::M: sv = "m"; break;
+        case dist_t::Unit::KM: sv = "km"; break;
+        case dist_t::Unit::MM: sv = "mm"; break;
+        case dist_t::Unit::LS: sv = "ls"; break;
+        case dist_t::Unit::LY: sv = "ly"; break;
+        }
+        return std::formatter<std::string_view>::format(sv, ctx);
+    }
+};
+template <>
+struct std::formatter<dist_t> : std::formatter<std::string> {
+    auto format(const dist_t& d, std::format_context& ctx) const {
+        return std::format_to(ctx.out(), "{}{}", d.dist, d.unit);
+    }
+};
 constexpr inline dist_t operator""_m(uint64_t val) noexcept { return dist_t(dist_t::M, val); }
 constexpr inline dist_t operator""_m(long double val) noexcept { return dist_t(dist_t::M, val); }
 constexpr inline dist_t operator""_km(uint64_t val) noexcept { return dist_t(dist_t::KM, val); }

@@ -97,7 +97,7 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
             }
             c->ship.count = item.at("Count").as_int_or();
             c->ship.stolen = item.at("Stolen").as_int_or();
-            LOG(DEBUG) << std::format("Ship cargo: '{}' count {} stolen {}", name, c->ship.count, c->ship.stolen);
+            LOG_DEBUG("Ship cargo: '{}' count {} stolen {}", name, c->ship.count, c->ship.stolen);
             eventCargo.insert(c);
         }
         for (auto &c: Cfg.allKnownCommodities) {
@@ -160,7 +160,7 @@ bool CargoManager::loadCarrierCargo() {
             if (!c)
                 continue;
             c->fc.count = item.at("Count").as_int_or();
-            LOG(DEBUG) << std::format("Carrier cargo: '{}' count {}", name, c->fc.count);
+            LOG_DEBUG("Carrier cargo: '{}' count {}", name, c->fc.count);
             savedCargo.insert(c);
         }
         int countTotal = 0;
@@ -248,11 +248,11 @@ bool CargoManager::processMarketBuy(spGameEvent ge) {
         std::scoped_lock<std::mutex> lock(cargoMutex);
         if (timestampShip < ge->timestamp) {
             commodity->ship.count += count;
-            LOG(DEBUG) << std::format("Market buy '{}': {} ship cargo {}", commodity->nameId, count, commodity->ship.count);
+            LOG_DEBUG("Market buy '{}': {} ship cargo {}", commodity->nameId, count, commodity->ship.count);
         }
         if (market && market->marketId == st::cmdr.fleetCarrierId && timestampFC < ge->timestamp) {
             commodity->fc.count = std::max(0, commodity->fc.count - count);
-            LOG(DEBUG) << std::format("Carrier sell '{}': {} carrier cargo {}", commodity->nameId, count, commodity->fc.count);
+            LOG_DEBUG("Carrier sell '{}': {} carrier cargo {}", commodity->nameId, count, commodity->fc.count);
             saveCarrier = true;
         }
         if (market && market->timestamp < ge->timestamp) {
@@ -260,7 +260,7 @@ bool CargoManager::processMarketBuy(spGameEvent ge) {
             if (it != market->items.end()) {
                 MarketLine &ml = it->second;
                 ml.stock = std::max(0, ml.stock - count);
-                LOG(DEBUG) << std::format("Market '{}': stock {} demand {}", commodity->nameId, ml.stock, ml.demand);
+                LOG_DEBUG("Market '{}': stock {} demand {}", commodity->nameId, ml.stock, ml.demand);
             }
         }
     }
@@ -287,11 +287,11 @@ bool CargoManager::processMarketSell(spGameEvent ge) {
         std::scoped_lock<std::mutex> lock(cargoMutex);
         if (timestampShip < ge->timestamp) {
             commodity->ship.count = std::max(0, commodity->ship.count-count);
-            LOG(DEBUG) << std::format("Market sell '{}': {} ship cargo {}", commodity->nameId, count, commodity->ship.count);
+            LOG_DEBUG("Market sell '{}': {} ship cargo {}", commodity->nameId, count, commodity->ship.count);
         }
         if (market && market->marketId == st::cmdr.fleetCarrierId && timestampFC < ge->timestamp) {
             commodity->fc.count += count;
-            LOG(DEBUG) << std::format("Carrier buy '{}': {} carrier cargo {}", commodity->nameId, count, commodity->fc.count);
+            LOG_DEBUG("Carrier buy '{}': {} carrier cargo {}", commodity->nameId, count, commodity->fc.count);
             saveCarrier = true;
         }
         if (market->timestamp < ge->timestamp) {
@@ -301,7 +301,7 @@ bool CargoManager::processMarketSell(spGameEvent ge) {
                 if (market->stationType != "FleetCarrier" && !ml.isConsumer)
                     ml.stock += count;
                 ml.demand = std::max(0, ml.demand - count);
-                LOG(DEBUG) << std::format("Market '{}': stock {} demand {}", commodity->nameId, ml.stock, ml.demand);
+                LOG_DEBUG("Market '{}': stock {} demand {}", commodity->nameId, ml.stock, ml.demand);
             }
         }
     }
@@ -339,12 +339,12 @@ bool CargoManager::processColonisationContribution(spGameEvent ge) {
             if (market->items.contains(c)) {
                 MarketLine& ml = market->items.at(c);
                 ml.stock += amount;
-                LOG(DEBUG) << std::format("Colonization contribution '{}': market stock {} demand {}", c->nameId, ml.stock, ml.demand);
+                LOG_DEBUG("Colonization contribution '{}': market stock {} demand {}", c->nameId, ml.stock, ml.demand);
             }
         }
         if (timestampShip < ge->timestamp) {
             c->ship.count = std::max(0, c->ship.count - amount);
-            LOG(DEBUG) << std::format("Colonization contribution '{}': ship {}", c->nameId, c->ship.count);
+            LOG_DEBUG("Colonization contribution '{}': ship {}", c->nameId, c->ship.count);
         }
     }
     return true;
@@ -373,7 +373,7 @@ bool CargoManager::processCargoTransfer(spGameEvent ge) {
             if (direction == "toship") {
                 if (timestampShip < ge->timestamp) {
                     commodity->ship.count += count;
-                    LOG(DEBUG) << std::format("Cargo transfer '{}': {} to ship {}", commodity->nameId, count, commodity->ship.count);
+                    LOG_DEBUG("Cargo transfer '{}': {} to ship {}", commodity->nameId, count, commodity->ship.count);
                 }
                 if (atMyCarrier && (timestampFC < ge->timestamp || fcPatch.contains(commodity))) {
                     if (fcPatch.contains(commodity))
@@ -381,7 +381,7 @@ bool CargoManager::processCargoTransfer(spGameEvent ge) {
                     else
                         fcPatch[commodity] = -count;
                     commodity->fc.count = std::max(0, commodity->fc.count - count);
-                    LOG(DEBUG) << std::format("Cargo transfer '{}': {} from carrier {}", commodity->nameId, count, commodity->fc.count);
+                    LOG_DEBUG("Cargo transfer '{}': {} from carrier {}", commodity->nameId, count, commodity->fc.count);
                 }
             } else if (direction == "tocarrier") {
                 atMyCarrier = true;
@@ -391,7 +391,7 @@ bool CargoManager::processCargoTransfer(spGameEvent ge) {
                     else
                         fcPatch[commodity] = count;
                     commodity->fc.count += count;
-                    LOG(DEBUG) << std::format("Cargo transfer '{}': {} to carrier {}", commodity->nameId, count, commodity->fc.count);
+                    LOG_DEBUG("Cargo transfer '{}': {} to carrier {}", commodity->nameId, count, commodity->fc.count);
                 }
                 if (timestampShip < ge->timestamp) {
                     if (count <= commodity->ship.count) {
@@ -401,7 +401,7 @@ bool CargoManager::processCargoTransfer(spGameEvent ge) {
                         commodity->ship.count = std::max(0, commodity->ship.count - count);
                         commodity->ship.stolen = std::max(0, commodity->ship.stolen - stolen);
                     }
-                    LOG(DEBUG) << std::format("Cargo transfer '{}': {} from ship {}", commodity->nameId, count, commodity->ship.count);
+                    LOG_DEBUG("Cargo transfer '{}': {} from ship {}", commodity->nameId, count, commodity->ship.count);
                 }
             } else if (direction == "tosrv") {
                 if (timestampShip < ge->timestamp) {
@@ -412,7 +412,7 @@ bool CargoManager::processCargoTransfer(spGameEvent ge) {
                         commodity->ship.count = std::max(0, commodity->ship.count - count);
                         commodity->ship.stolen = std::max(0, commodity->ship.stolen - stolen);
                     }
-                    LOG(DEBUG) << std::format("Cargo transfer '{}': to SRV {} from ship {}", commodity->nameId, count, commodity->ship.count);
+                    LOG_DEBUG("Cargo transfer '{}': to SRV {} from ship {}", commodity->nameId, count, commodity->ship.count);
                 }
             }
         }

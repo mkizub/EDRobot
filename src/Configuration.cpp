@@ -66,6 +66,39 @@ static void debugNavPanel();
 
 bool Configuration::load() {
 
+    LOG(INFO) << "Loading preferences";
+    try {
+        std::ifstream prefsFile("prefs.json5", std::ifstream::in);
+        if (prefsFile.fail()) {
+            LOG(ERROR) << "Cannot read file: prefs.json5";
+        } else {
+            jprefs = js::parse5(prefsFile);
+        }
+    } catch (...) {
+        LOG(ERROR) << "Failed to read/parse prefs.json5";
+    }
+    mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
+    mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
+    mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
+    mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
+    mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
+
+    if (const js::value& ll = Cfg.jprefs["log"]["default"]; ll.is_string())
+        spdlog::default_logger()->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::info));
+    if (const js::value& ll = Cfg.jprefs["log"]["network"]; ll.is_string())
+        spdlog::get("http")->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::info));
+    if (const js::value& ll = Cfg.jprefs["log"]["console"]; ll.is_string())
+        console_sink->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::info));
+
+    if (auto consoleWindow = GetConsoleWindow()) {
+        if (auto hMenu = GetSystemMenu(consoleWindow, FALSE))
+            EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+        if (Cfg.jprefs["console"].as_bool_or(true))
+            ShowWindow(consoleWindow, SW_SHOW);
+        else
+            ShowWindow(consoleWindow, SW_HIDE);
+    }
+
     // initialize default keymapping
     keyMapping = {
             {{"printscreen", 0},                      Command::Start},
@@ -253,28 +286,6 @@ bool Configuration::load() {
         }
     }
 
-    LOG(INFO) << "Loading preferences";
-    try {
-        std::ifstream prefsFile("prefs.json5", std::ifstream::in);
-        if (prefsFile.fail()) {
-            LOG(ERROR) << "Cannot read file: prefs.json5";
-        } else {
-            jprefs = js::parse5(prefsFile);
-        }
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse prefs.json5";
-    }
-    mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
-    mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
-    mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
-    mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
-    mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
-
-    if (const js::value& ll = Cfg.jprefs["log"]["default"]; ll.is_string())
-        spdlog::default_logger()->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::debug));
-    if (const js::value& ll = Cfg.jprefs["log"]["network"]; ll.is_string())
-        spdlog::get("http")->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::debug));
-
     return true;
 }
 
@@ -288,6 +299,7 @@ void Configuration::savePrefs() {
     Cfg.jprefs["eddn"]["markets"] = mEddnMarketsEnabled;
     Cfg.jprefs["log"]["default"] = enum_name<spdlog::level::level_enum>(spdlog::default_logger()->level());
     Cfg.jprefs["log"]["network"] = enum_name<spdlog::level::level_enum>(spdlog::get("http")->level());
+    Cfg.jprefs["log"]["console"] = enum_name<spdlog::level::level_enum>(console_sink->level());
 
     std::ofstream ofs("prefs.json5", std::ios::trunc | std::ios::binary);
     ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << jprefs;
@@ -497,7 +509,7 @@ bool Configuration::loadGameSettings(bool initial) {
     }
     if (!initial) {
         if (displaySettingsBuffer.crc32 == mDisplaySettingsCRC32 && settingsBuffer.crc32 == mSettingsCRC32) {
-            LOG(DEBUG) << "Settings not changed";
+            LOG_DEBUG("Settings not changed");
             return true;
         }
     }
@@ -579,7 +591,7 @@ bool Configuration::loadGameSettings(bool initial) {
                 croppedScreenRect = {tl, br};
             }
             if (initial || needCapturerReset)
-                LOG(INFO) << std::format("Screen: config {}x{}; scaled to {}x{}; cropped to [{}:{},{}x{}]",
+                LOG_INFO("Screen: config {}x{}; scaled to {}x{}; cropped to [{}:{},{}x{}]",
                                          configScreenWidth, configScreenHeight,
                                          scaledScreenWidth, scaledScreenHeight,
                                          croppedScreenRect.x, croppedScreenRect.y,
@@ -600,11 +612,11 @@ bool Configuration::loadGameSettings(bool initial) {
         if (rootNode) {
             if (auto node = xml_node_find_tag(rootNode, "FOV", true); node && node->text) {
                 configFOV = atof(node->text);
-                LOG_IF(initial,INFO) << std::format("FOV: {:.4f}°", configFOV);
+                if (initial) LOG_INFO("FOV: {:.4f}°", configFOV);
             }
             if (auto node = xml_node_find_tag(rootNode, "GammaOffset", true); node && node->text) {
                 configGammaOffset = atof(node->text);
-                LOG_IF(initial,INFO) << std::format("Gamma offset: {:.4f}", configGammaOffset);
+                if (initial) LOG_INFO("Gamma offset: {:.4f}", configGammaOffset);
             }
             xml_node_free(rootNode);
             rootNode = nullptr;
@@ -646,7 +658,7 @@ bool Configuration::loadPlayerOptions(bool initial) {
         if (auto node = xml_node_find_tag(rootNode, "DashboardGUIBrightness", true)) {
             if (auto val = xml_node_attr(node, "Value")) {
                 configDashboardGUIBrightness = atof(val);
-                LOG_IF(initial,INFO) << std::format("UI Brightness: {:.4f}", configDashboardGUIBrightness);
+                if (initial) LOG_INFO("UI Brightness: {:.4f}", configDashboardGUIBrightness);
             }
         }
         if (auto filters = xml_node_find_tag(rootNode, "LocationPanelFilters", true)) {

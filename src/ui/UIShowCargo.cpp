@@ -233,7 +233,7 @@ void UIShowCargo::on_cargo_load() {
     }
     // {"marketId":3708647424,"name":"VFT-85B","displayName":"Daimonio tou Sokrati","owner":"mkzu","cargo":{"agronomictreatment":32,"bertrandite":234,"cobalt":403,"drones":11,"titanium":587,"tritium":1337}}
     if (jv["marketId"].as_int_or() != st::cmdr.fleetCarrierId || jv["owner"].as_string_or() != st::cmdr.name) {
-        LOG(ERROR) << std::format("Bad carrier id from RavenColonial: {}:{}, expected {}:{}",
+        LOG_ERROR("Bad carrier id from RavenColonial: {}:{}, expected {}:{}",
                                   jv["owner"].as_string_or(), jv["marketId"].as_int(),
                                   st::cmdr.name, st::cmdr.fleetCarrierId);
         return;
@@ -268,7 +268,7 @@ void UIShowCargo::on_cargo_save() {
         return;
     }
     if (jv["marketId"].as_int_or() != st::cmdr.fleetCarrierId || jv["owner"].as_string_or() != st::cmdr.name) {
-        LOG(ERROR) << std::format("Bad carrier id from RavenColonial: {}:{}, expected {}:{}",
+        LOG_ERROR("Bad carrier id from RavenColonial: {}:{}, expected {}:{}",
                                   jv["owner"].as_string_or(), jv["marketId"].as_int(),
                                   st::cmdr.name, st::cmdr.fleetCarrierId);
         return;

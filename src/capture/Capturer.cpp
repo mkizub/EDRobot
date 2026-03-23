@@ -83,7 +83,7 @@ bool Capturer::InitD3DDevice() {
                     continue;
                 uniqueGPUs.insert(desc.DeviceId);
                 bool forced = !dxgiAdapter1 && (forcedId == desc.DeviceId || forcedName == desc.Description);
-                LOG(INFO) << std::format(L"DXGI adapter[{}]: device id: {}, name: '{}'{}", i,
+                LOG_INFO(L"DXGI adapter[{}]: device id: {}, name: '{}'{}", i,
                                          desc.DeviceId, desc.Description,
                                          (forced ? L" (force use this device)" : L""));
                 CComPtr<IDXGIOutput> dxgiOutput;
@@ -93,7 +93,7 @@ bool Capturer::InitD3DDevice() {
                         break;
                     DXGI_OUTPUT_DESC odesc {};
                     if (SUCCEEDED(output->GetDesc(&odesc)))
-                        LOG(INFO) << std::format(L"     output monitor {}", odesc.DeviceName);
+                        LOG_INFO(L"     output monitor {}", odesc.DeviceName);
                 }
 
                 if (forced)
@@ -127,13 +127,13 @@ bool Capturer::InitD3DDevice() {
                     for (int j = 0; j < sdk.deviceNumber(); j++) {
                         cv::ocl::Device oclDevice;
                         sdk.getDevice(oclDevice, j);
-                        LOG(INFO) << std::format("    Device[{}/{}]: '{}', version: '{}' {}",
+                        LOG_INFO("    Device[{}/{}]: '{}', version: '{}' {}",
                                                  i, j, oclDevice.name(), oclDevice.version(),
                                                  (oclDevice.available() ? "(available)" : "(not available)"));
                     }
                 }
                 cv::ocl::Context& cl_context = cv::directx::ocl::initializeContextFromD3D11Device(D3dDevice);
-                LOG(INFO) << std::format("Using OpenCL device: name='{}', version='{}'",
+                LOG_INFO("Using OpenCL device: name='{}', version='{}'",
                                          cl_context.device(0).name(), cl_context.device(0).version());
             } else {
                 cv::ocl::setUseOpenCL(false);

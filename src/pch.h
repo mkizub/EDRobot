@@ -48,6 +48,7 @@ using namespace std::chrono_literals;
 #include "ed_spdlog.h"
 
 #include <magic_enum/magic_enum.hpp>
+#include <magic_enum/magic_enum_format.hpp>
 using namespace magic_enum;
 
 #include "js/value.h"

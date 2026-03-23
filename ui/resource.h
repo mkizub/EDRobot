@@ -58,9 +58,11 @@
 #define IDM_NETW_RAVEN_SHIP_CARGO       32804
 #define IDM_NETW_EDDN_SYSTEMS           32805
 #define IDM_NETW_EDDN_MARKETS           32806
-#define IDM_DEBUG_WATCH                 32810
-#define IDM_DEBUG_DEFAULT_LOG           32811
-#define IDM_DEBUG_NETWORK_LOG           32812
+#define IDM_DEBUG_CONSOLE               32810
+#define IDM_DEBUG_WATCH                 32811
+#define IDM_DEBUG_DEFAULT_LOG           32812
+#define IDM_DEBUG_NETWORK_LOG           32813
+#define IDM_DEBUG_CONSOLE_LOG           32814
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

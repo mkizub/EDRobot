@@ -193,7 +193,7 @@ int ocrLine(TextType type, int psm, const char* dbg, const cv::Mat& grayImage, i
     auto endTime = std::chrono::high_resolution_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
 
-    LOG(DEBUG) << "OCR Output ("<<dbg<<"): '" << text << "' words conf=" << conf << "% took=" << elapsedTime.count() << "us";
+    LOG_DEBUG("OCR Output ({}): '{}' words conf={}% took={}us", dbg, text, conf, elapsedTime.count());
 
     return conf;
 }

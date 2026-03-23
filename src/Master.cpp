@@ -27,7 +27,6 @@
 #include <CLI11/CLI11.hpp>
 #include <magic_enum/magic_enum.hpp>
 
-
 #ifndef NDEBUG
 #include <cpptrace/cpptrace.hpp>
 #include "cpptrace/from_current.hpp"
@@ -50,6 +49,8 @@ Master& Mgr = Master::getInstance();
 const wchar_t Master::ED_WINDOW_NAME[] = L"Elite - Dangerous (CLIENT)";
 const wchar_t Master::ED_WINDOW_CLASS[] = L"FrontierDevelopmentsAppWinClass";
 //const wchar_t Master::ED_WINDOW_EXE[] = L"EliteDangerous64.exe";
+const wchar_t Master::ROBOT_WINDOW_NAME[] = L"EDRobot";
+const wchar_t Master::ROBOT_WINDOW_CLASS[] = L"EDRobotMainAppWinClass";
 
 using namespace widget;
 
@@ -334,7 +335,7 @@ Master& Master::getInstance() {
     return master;
 }
 
-bool Master::initialize(int argc, char* argv[]) {
+bool Master::initialize() {
     CLI::App options;
     options.allow_windows_style_options();
 
@@ -344,7 +345,7 @@ bool Master::initialize(int argc, char* argv[]) {
     options.add_flag("--kwd,--keep-working-dir", kwd, "Keep working directory (do not change on start)");
     options.add_option("--lang,--language", lang, "Language (ru for russian)");
 
-    CLI11_PARSE(options, argc, argv)
+    options.parse(GetCommandLine(), true);
     if (!kwd) {
         wchar_t buffer[MAX_PATH] = {0};
         GetModuleFileName(nullptr, buffer, MAX_PATH);
@@ -359,7 +360,6 @@ bool Master::initialize(int argc, char* argv[]) {
         }
     }
 
-    SetConsoleOutputCP(CP_UTF8);
     setlocale(LC_ALL, "");
     if (lang.empty() && GetUserDefaultUILanguage() == 0x0419) // ru-RU
         lang = "ru";
@@ -586,7 +586,7 @@ void Master::tradingKbHook(int code, int scancode, int flags, const std::string&
     auto keyMapping = Cfg.keyMapping;
     auto key_map_it = keyMapping.find(std::make_pair(toLower(name),flags));
     if (key_map_it != keyMapping.end()) {
-        LOG(DEBUG) << "Key '"+encodeShortcut(name,flags)+"' pressed";
+        LOG_DEBUG("Key '{}' pressed", encodeShortcut(name,flags));
         Command cmd = key_map_it->second;
         switch (cmd) {
         // not expected as keyboard shortcuts
@@ -702,10 +702,10 @@ const Commodity* Master::getLabelCommodity(ResolvedEnv& rEnv, const cv::Mat& gra
     int ocr_conf = ocr::ocrMarketLblText(grayImage, rEnv, *cr, text);
     const Commodity* commodity = nullptr;
     if (ocr_conf > 30) {
-        LOG(DEBUG) << "Label text OCR: '" << text << "' conf=" << ocr_conf << "%";
+        LOG_DEBUG("Label text OCR: '{}' conf={}%", text, ocr_conf);
         commodity = Cfg.getCommodityByName(text, true);
     }
-    LOG_IF(!commodity,ERROR) << "Commodity '" << text << "' not found";
+    if (!commodity) LOG_ERROR("Commodity '{}' not found", text);
     return commodity;
 }
 
@@ -988,14 +988,7 @@ bool Master::debugWindowUpdate(ClassifyEnv& cEnv, ClassifyEnv& wEnv, UIState& ui
         streamFPS = mStreamFramePoints.size() / elapsed.count();
         static int fps_counter;
         fps_counter = (fps_counter + 1) % 60;
-        if (fps_counter == 0) {
-            std::string text;
-            //if (streamFPS > 5)
-            //    text = std::format("Stream FPS: {}", int(std::round(streamFPS)));
-            //else
-                text = std::format("Stream FPS: {:.1f}", streamFPS);
-            LOG(INFO) << text;
-        }
+        if (fps_counter == 0) LOG_INFO("Stream FPS: {:.1f}", streamFPS);
     }
 
     mDuplicateToDebugWindow = UIManager::hasDebugWindow();
@@ -1320,7 +1313,7 @@ bool Master::detectEDState(DetectLevel level) {
     }
     //auto utc_now = std::chrono::utc_clock::now();
     //auto time_delta = std::chrono::duration_cast<std::chrono::milliseconds>(utc_now - mClassifyEnv.mFrame->timestamp);
-    //LOG(INFO) << std::format("Captured frame delta: {}ms", time_delta.count());
+    //LOG_INFO("Captured frame delta: {}ms", time_delta.count());
     mLastUIState.timestamp = mClassifyEnv.mFrame->timestamp;
     mLastUIState.guiFocus = st::guiFocus;
     mLastUIState.valid = true;
@@ -1418,7 +1411,7 @@ bool Master::captureWindow(ClassifyEnv& env) {
         return false;
 
     //if (!isForeground()) {
-    //    LOG(WARNING) << "Elite Dangerous is not foreground; hWndED=" << std::format("{}", (void*)hWndED);
+    //    LOG_WARNING("Elite Dangerous is not foreground; hWndED={}", (void*)hWndED);
     //    //return false;
     //}
 

@@ -44,10 +44,10 @@ UIMainDialog::UIMainDialog()
 
     setup.wndClassEx.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_DIALOGS));
     setup.wndClassEx.hIconSm = setup.wndClassEx.hIcon;
-    setup.wndClassEx.lpszClassName = L"EDRobotMain";
+    setup.wndClassEx.lpszClassName = Master::ROBOT_WINDOW_CLASS;
     setup.style |= WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
     setup.exStyle |= WS_EX_APPWINDOW;
-    setup.title = L"EDRobot";
+    setup.title = Master::ROBOT_WINDOW_NAME;
 
     keepOnTop = Cfg.jprefs["ui"]["main"]["keepOnTop"].as_bool_or();
     minimizeToTray = Cfg.jprefs["ui"]["main"]["minimizeToTray"].as_bool_or();
@@ -69,6 +69,10 @@ UIMainDialog::UIMainDialog()
         wndPosition = {l, t};
         wndSize = {w, h};
     }
+
+    bool consoleVisible = false;
+    if (HWND consoleWindow = GetConsoleWindow())
+        consoleVisible = IsWindowVisible(consoleWindow);
 
     setup.position = wndPosition;
     setup.size = wndSize;
@@ -107,12 +111,16 @@ UIMainDialog::UIMainDialog()
                 .set_item_check_by_id(IDM_NETW_EDDN_MARKETS, Cfg.isEddnMarketsEnabled())
             ;
     menu.append_submenu(W(_gt("Debug")))
+            .append_item(IDM_DEBUG_CONSOLE,W(_gt("Console window")))
+                .set_item_check_by_id(IDM_DEBUG_CONSOLE, consoleVisible)
             .append_item(IDM_DEBUG_WATCH,W(_gt("Watch window")))
             .append_separator()
             .append_item(IDM_DEBUG_DEFAULT_LOG,W(_gt("Debug log level")))
                 .set_item_check_by_id(IDM_DEBUG_DEFAULT_LOG, spdlog::default_logger()->level() <= spdlog::level::debug)
             .append_item(IDM_DEBUG_NETWORK_LOG,W(_gt("Debug log level for network")))
                 .set_item_check_by_id(IDM_DEBUG_NETWORK_LOG, spdlog::default_logger()->level() <= spdlog::level::debug)
+            .append_item(IDM_DEBUG_CONSOLE_LOG,W(_gt("Debug log level for console")))
+                .set_item_check_by_id(IDM_DEBUG_CONSOLE_LOG, console_sink->level() <= spdlog::level::debug)
             ;
 
     setup.menu = menu.hmenu();
@@ -224,6 +232,22 @@ UIMainDialog::UIMainDialog()
         }
         return 0;
     });
+    this->base_msg_pubm::on_command(IDM_DEBUG_CONSOLE, [this](wl::params p){
+        if (HWND consoleWindow = GetConsoleWindow()) {
+            if (IsWindowVisible(consoleWindow)) {
+                Cfg.jprefs["console"] = false;
+                ShowWindow(consoleWindow, SW_HIDE);
+                menu.set_item_check_by_id(IDM_DEBUG_CONSOLE, false);
+            } else {
+                Cfg.jprefs["console"] = true;
+                menu.set_item_check_by_id(IDM_DEBUG_CONSOLE, true);
+                ShowWindow(consoleWindow, SW_RESTORE);
+                BringWindowToTop(consoleWindow);
+            }
+            this->savePrefs();
+        }
+        return 0;
+    });
     this->base_msg_pubm::on_command({IDC_BUTTON_WATCH,IDM_DEBUG_WATCH}, [](wl::params p){
         UIManager::showDebugWindow();
         return 0;
@@ -237,7 +261,7 @@ UIMainDialog::UIMainDialog()
             logger->set_level(spdlog::level::debug);
             menu.set_item_check_by_id(IDM_DEBUG_DEFAULT_LOG, true);
         }
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_DEBUG_NETWORK_LOG, [this](wl::params p){
@@ -249,7 +273,18 @@ UIMainDialog::UIMainDialog()
             logger->set_level(spdlog::level::debug);
             menu.set_item_check_by_id(IDM_DEBUG_NETWORK_LOG, true);
         }
-        savePrefs();
+        this->savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_DEBUG_CONSOLE_LOG, [this](wl::params p){
+        if (console_sink->level() <= spdlog::level::debug) {
+            console_sink->set_level(spdlog::level::info);
+            menu.set_item_check_by_id(IDM_DEBUG_CONSOLE_LOG, false);
+        } else {
+            console_sink->set_level(spdlog::level::debug);
+            menu.set_item_check_by_id(IDM_DEBUG_CONSOLE_LOG, true);
+        }
+        this->savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_KEEP_ON_TOP, [this](wl::params p){
@@ -257,17 +292,18 @@ UIMainDialog::UIMainDialog()
         menu.set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop);
         if (keepOnTop) {
             this->style.set_style_ex(true, WS_EX_TOPMOST);
+            SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         } else {
             this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
             SetWindowPos(this->hwnd(), HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_MINIMIZE_TO_TRAY, [this](wl::params p){
         minimizeToTray = !minimizeToTray;
         menu.set_item_check_by_id(IDM_MINIMIZE_TO_TRAY, minimizeToTray);
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_NETW_RAVEN_ENABLED, [this](wl::params p){
@@ -280,7 +316,7 @@ UIMainDialog::UIMainDialog()
         menu.set_item_check_by_id(IDM_NETW_RAVEN_ENABLED, on);
         menu.enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, on && st::cmdr.fleetCarrierId != 0);
         menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on && !st::cmdr.ravenKey.empty());
-        savePrefs();
+        this->savePrefs();
         if (Cfg.isRavenColonialEnabled()) {
             if (auto rc = RavenColonial::getInstance())
                 rc->setShipCargoReport(Cfg.isRavenColonialReportShipCargo());
@@ -291,14 +327,14 @@ UIMainDialog::UIMainDialog()
         bool on = !Cfg.isRavenColonialReportCarrierCargo();
         Cfg.setRavenColonialReportCarrierCargo(on);
         menu.set_item_check_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, on);
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_NETW_RAVEN_SHIP_CARGO, [this](wl::params p){
         bool on = !Cfg.isRavenColonialReportShipCargo();
         Cfg.setRavenColonialReportShipCargo(on);
         menu.set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on);
-        savePrefs();
+        this->savePrefs();
         if (auto rc = RavenColonial::getInstance())
             rc->setShipCargoReport(on);
         return 0;
@@ -307,14 +343,14 @@ UIMainDialog::UIMainDialog()
         bool on = !Cfg.isEddnSystemsEnabled();
         Cfg.setEddnSystemsEnabled(on);
         menu.set_item_check_by_id(IDM_NETW_EDDN_SYSTEMS, on);
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_NETW_EDDN_MARKETS, [this](wl::params p){
         bool on = !Cfg.isEddnMarketsEnabled();
         Cfg.setEddnMarketsEnabled(on);
         menu.set_item_check_by_id(IDM_NETW_EDDN_MARKETS, on);
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
     this->base_msg_pubm::on_command({IDC_EXIT,IDM_FILE_EXIT}, [](wl::params p){
@@ -330,7 +366,7 @@ UIMainDialog::UIMainDialog()
         SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, r.width, r.height, SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);
         LOG(INFO) << "on_dpi_change: DPI " << LOWORD(params.wParam) << " size " << r.size();
         relayout();
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
     on_message(WM_SIZE, [this](wl::params params) {
@@ -344,7 +380,7 @@ UIMainDialog::UIMainDialog()
         return 0;
     });
     on_message(WM_EXITSIZEMOVE, [this](wl::params params) {
-        savePrefs();
+        this->savePrefs();
         return 0;
     });
 }
@@ -459,12 +495,15 @@ bool UIMainDialog::hide(bool force_close) {
         if ((fromRECT(rectED) & fromRECT(rectRobot)).empty())
             return false;
         this->style.set_style_ex(true, WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT);
+        SetWindowPos(this->hwnd(), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         float transparency_percentage = 0.6f;
         SetLayeredWindowAttributes(hwnd(), 0, (BYTE) (255 * transparency_percentage), LWA_ALPHA);
         return false;
     }
-    if (this->style.has_style_ex(WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT))
-        this->style.set_style_ex(false, WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT);
+    if (this->style.has_style_ex(WS_EX_LAYERED|WS_EX_TOPMOST|WS_EX_TRANSPARENT)) {
+        this->style.set_style_ex(false, WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT);
+        SetWindowPos(this->hwnd(), HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 
     if (!force_close && !minimizeToTray) {
         ShowWindow(this->hwnd(), SW_MINIMIZE);

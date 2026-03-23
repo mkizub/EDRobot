@@ -1360,7 +1360,13 @@ template<unsigned N, bool M>
     return v->key_value();
 }
 
-
 } // namespace js
+
+template <>
+struct std::formatter<js::value> : std::formatter<std::string> {
+    auto format(const js::value& v, std::format_context& ctx) const {
+        return std::formatter<std::string>::format(v.stringify(), ctx);
+    }
+};
 
 #endif //EDROBOT_VALUE_H

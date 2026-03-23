@@ -121,7 +121,7 @@ double LineDetector::match(ClassifyEnv &env) {
                 (expAngle - extendAngleMin) * CV_PI / 180, (expAngle + extendAngleMax) * CV_PI / 180
         );
 #endif
-        //LOG(DEBUG) << "LineDetector '" << name << "' found " << lines.rows << " lines";
+        //LOG_DEBUG"LineDetector '{}' found {} lines", name, lines.rows);
         for (int ln = 0; ln < lines.rows; ln++) {
             auto &lv = lines.at<cv::Vec2f>(ln);
             float rho = lv[0];

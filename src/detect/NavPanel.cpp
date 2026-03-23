@@ -20,7 +20,7 @@ void NavPanelDetector::standaloneTest(std::string image_filename, std::string sc
     const widget::Screen *screen = (const widget::Screen *) Master::getInstance().getCfgItem(screen_name);
     auto det = dynamic_cast<NavPanelDetector*>(screen->oracle.get());
     double match = det->match(debugEnv);
-    LOG(INFO) << std::format("NavPanelDetector::standaloneTest: {:.1f}", match);
+    LOG_INFO("NavPanelDetector::standaloneTest: {:.1f}", match);
 }
 
 NavPanelDetector::NavPanelDetector(
@@ -140,9 +140,9 @@ double NavPanelDetector::match(ClassifyEnv &env) {
                 cv::line(debugImage, line.p0(), line.p1(), {128,128,128}, 1, cv::LINE_AA);
             }
 #endif
-            LOG(DEBUG) << std::format("Pre-detected panel angle: {:.1f}deg", roughAngle);
+            LOG_DEBUG("Pre-detected panel angle: {:.1f}deg", roughAngle);
         } else {
-            LOG(WARNING) << "Panel lines not found";
+            LOG_WARNING("Panel lines not found");
             return 0;
         }
     }
@@ -222,7 +222,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
                 anchorMatch = checkAnchors(roughEnv, 0.4, lan, ran, offset);
             }
             if (!anchorMatch) {
-                LOG(WARNING) << "Anchors for top line not found";
+                LOG_WARNING("Anchors for top line not found");
                 return 0;
             }
         }
@@ -253,7 +253,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
             deltaAngle = roughAngle + roughTopLine.angle() - topCaptLine.angle();
         }
         else {
-            LOG(WARNING) << "Anchors for top line not found";
+            LOG_WARNING("Anchors for top line not found");
             return 0;
         }
 #ifdef DEBUG_DETECTOR
@@ -297,7 +297,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
 #endif
             }
             if (!lastSelectedTab)
-                LOG(WARNING) << "Nav panel tab not recognized";
+                LOG_WARNING("Nav panel tab not recognized");
         }
         cv::Matx23d backMatrix;
         cv::invertAffineTransform(roughAffineMatrix, backMatrix);

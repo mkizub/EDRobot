@@ -512,12 +512,12 @@ bool TaskDebugFindAllNavPoints::run() {
             throw_failed_("Cannot recognize nav list");
         for (auto &nle: nl.list) {
             if (checkOcrError(nle)) {
-                LOG(INFO) << std::format("Checking nav-point at offset {}, ocr conf={}%, text conf={}%",
+                LOG_INFO("Checking nav-point at offset {}, ocr conf={}%, text conf={}%",
                                          offset, nle.ocr_conf, nle.txt_conf);
                 saveOcrNavigationRow(grayImage, *rows[nle.index], offset, nle);
                 offset += 1;
             } else {
-                LOG(INFO) << std::format("Skip nav-point at offset {}, ocr conf={}%, text conf={}%: {} {}",
+                LOG_INFO("Skip nav-point at offset {}, ocr conf={}%, text conf={}%: {} {}",
                                          offset, nle.ocr_conf, nle.txt_conf,
                                          toUtf8(&nle.icon, 1), toUtf8(nle.name));
             }
@@ -535,20 +535,20 @@ bool TaskDebugFindAllNavPoints::run() {
             }
             nl.parseNavRow(grayImage, ai::rEnv, *rows[focusIdx], focusIdx);
             if (focusIdx == 0 && !first) {
-                LOG(INFO) << std::format("Nav list wrapped at offset {}; finishing task", offset);
+                LOG_INFO("Nav list wrapped at offset {}; finishing task", offset);
                 break;
             }
             nl.guessNavItem(focusIdx);
             auto& nle = nl.list[focusIdx];
             if (checkOcrError(nle)) {
-                LOG(INFO) << std::format("Checking nav-point at offset {}, ocr conf={}%, text conf={}%",
+                LOG_INFO("Checking nav-point at offset {}, ocr conf={}%, text conf={}%",
                                          offset, nle.ocr_conf, nle.txt_conf);
                 saveOcrNavigationRow(grayImage, *rows[nle.index], offset, nle);
                 offset += 1;
                 kbd::send("UI_Down", 0, 100);
                 continue;
             }
-            LOG(INFO) << std::format("Skip nav-point at offset {}, ocr conf={}%",
+            LOG_INFO("Skip nav-point at offset {}, ocr conf={}%",
                                      offset, nle.ocr_conf, nle.txt_conf);
             kbd::send("UI_Down", 0, 100);
         }
@@ -742,7 +742,7 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
 //    if (!j)
 //        return false;
 //    spanshSystemInfo = std::move(j);
-//    LOG(DEBUG) << "Got system info: " << spanshSystemInfo;
+//    LOG_DEBUG("Got system info: {}", spanshSystemInfo);
 
     const gal::spStarSystem& ss = gal::getCurrentStarSystem();
     std::string systemName = ss->systemName;
@@ -762,7 +762,7 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
         systems.push_back(s["name"].as_string());
     nl.setNearestSystems(systemName, systems);
     spanshNearSystems = std::move(jn);
-    LOG(DEBUG) << "Got near systems: " << spanshNearSystems;
+    LOG_DEBUG("Got near systems: {}", spanshNearSystems);
 
     return true;
 }
@@ -891,11 +891,11 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     if (best_name.empty())
         best_rate = 0;
     if (best_rate < 60) {
-        LOG(WARNING) << "Station not found for: '" << text << "'";
+        LOG_WARNING("Station not found for: '{}'", text);
         return best_rate;
     }
     text = best_name;
-    LOG(INFO) << "Guessed station name: '" << text << "' with conf rate: " << best_rate;
+    LOG_INFO("Guessed station name: '{}' with conf rate: {}", text, best_rate);
     return best_rate;
 }
 

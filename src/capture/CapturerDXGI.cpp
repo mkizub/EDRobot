@@ -300,7 +300,7 @@ upFrame CapturerDXGI::capture(upFrame&& recycle) {
             auto elapsed_since_start = frame_tp - hpcStartTimestamp;
             auto utc_tp = utcStartTimestamp + elapsed_since_start;
             frame->timestamp = std::chrono::time_point_cast<Timestamp::duration>(utc_tp);
-            //LOG(INFO) << std::format("CapturerDXGI: next frame age {}ms",
+            //LOG_INFO("CapturerDXGI: next frame age {}ms",
             //                         std::chrono::duration_cast<std::chrono::milliseconds>(Timestamp::clock::now()-utc_tp).count());
             break;
         }

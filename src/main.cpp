@@ -1,17 +1,43 @@
 #include "pch.h"
 
-#include <cstdlib>
-#include "ui/UIManager.h"
 #include "Configuration.h"
-#include "Galaxy.h"
 
-#include "spdlog/sinks/stdout_color_sinks.h"
-#include "spdlog/sinks/basic_file_sink.h"
+#include <spdlog/sinks/ansicolor_sink.h>
+#include "spdlog/sinks/ansicolor_sink-inl.h"
 #include "spdlog/sinks/rotating_file_sink.h"
-#include "spdlog/sinks/wincolor_sink.h"
 #include "spdlog/pattern_formatter.h"
+#include <io.h>
+#include <fcntl.h>
 
 std::thread::id main_thread_id;
+spdlog::sink_ptr console_sink;
+
+BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
+    static bool shutdownCalled = false;
+    static bool exitCalled = false;
+    if (dwCtrlType == CTRL_C_EVENT) {
+        if (!shutdownCalled) {
+            LOG(ERROR) << "Ctrl-C received. Performing shutdown...";
+            Mgr.pushCommand(Command::Shutdown);
+            shutdownCalled = true;
+            return TRUE; // Indicate that we've handled the event
+        }
+        if (!exitCalled) {
+            LOG(ERROR) << "Ctrl-C received. Performing ExitProcess...";
+            ExitProcess(1);
+            exitCalled = true;
+            return TRUE; // Indicate that we've handled the event
+        }
+        LOG(ERROR) << "Ctrl-C received. Performing TerminateProcess...";
+        HANDLE hProcess = GetCurrentProcess();
+        if (!TerminateProcess(hProcess, 1)) {
+            CloseHandle(hProcess);
+            LOG(ERROR) << "Ctrl-C received. TerminateProcess failed!!!";
+        }
+        return FALSE;
+    }
+    return FALSE;
+}
 
 class maybe_name_flag : public spdlog::custom_flag_formatter
 {
@@ -26,14 +52,41 @@ public:
     }
 };
 
-int main(int argc, char *argv[]) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, int nCmdShow) {
+    HWND hRobotWnd = FindWindow(Master::ROBOT_WINDOW_CLASS,Master::ROBOT_WINDOW_NAME);
+    if (hRobotWnd) {
+        ShowWindow(hRobotWnd, SW_RESTORE);
+        SetForegroundWindow(hRobotWnd);
+        BringWindowToTop(hRobotWnd);
+        return 0;
+    }
+
     main_thread_id = std::this_thread::get_id();
 
-    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    console_sink->set_level(spdlog::level::info);
-    console_sink->set_color(spdlog::level::info, 0);
-    console_sink->set_color(spdlog::level::warn, BACKGROUND_RED | BACKGROUND_GREEN | BACKGROUND_INTENSITY);
-    console_sink->set_color(spdlog::level::err, FOREGROUND_BLUE | FOREGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY);
+    AllocConsole();
+    if (auto consoleWindow = GetConsoleWindow()) {
+        ShowWindow(consoleWindow, SW_HIDE);
+        if (HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE); hOut != INVALID_HANDLE_VALUE) {
+            DWORD dwMode = 0;
+            GetConsoleMode(hOut, &dwMode);
+            dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(hOut, dwMode);
+        }
+    }
+    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+    SetConsoleOutputCP(CP_UTF8);
+
+    {
+        HANDLE hConsole = CreateFile(L"CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+        FILE *fpConsole = _fdopen(_open_osfhandle((intptr_t) hConsole, _O_TEXT), "w");
+        auto c_sink = new spdlog::sinks::ansicolor_sink<spdlog::details::console_mutex>(fpConsole,
+                                                                                        spdlog::color_mode::always);
+        c_sink->set_level(spdlog::level::info);
+        c_sink->set_color(spdlog::level::info, "\033[38;5;7m");
+        c_sink->set_color(spdlog::level::debug, "\033[38;5;8m");
+        c_sink->set_color(spdlog::level::trace, "\033[38;5;6m");
+        console_sink.reset(c_sink);
+    }
 
     auto http_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("cache/network.log", 5*1024*1024, 3, true);
     http_file_sink->set_level(spdlog::level::debug);
@@ -56,11 +109,12 @@ int main(int argc, char *argv[]) {
     spdlog::flush_every(std::chrono::seconds(3));
 
     Master& master = Master::getInstance();
-    if (master.initialize(argc, argv))
+    if (master.initialize())
         master.loop();
     master.shutdown();
     LOG(INFO) << "Shutdown";
     spdlog::shutdown();
+    FreeConsole();
     return 0;
 }
 
