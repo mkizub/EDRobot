@@ -631,7 +631,6 @@ js::value TaskDebugFindAllNavPoints::curlGetRequest(const char* base_url) {
     if (res != CURLE_OK)
         return {};
 
-    //LOG(INFO) << "EDSM responce: " << resp.str();
     try {
         auto jresp = js::parse5(readBuffer);
         if (!jresp["record"]) {

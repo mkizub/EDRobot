@@ -39,6 +39,24 @@ BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
     return FALSE;
 }
 
+void GlobalTerminateHandler() {
+    std::cerr << "Global terminate handler." << std::endl;
+    // Dump the stored backtrace messages to the log sink immediately
+    SPDLOG_CRITICAL("--- CRASH DETECTED ---");
+    spdlog::dump_backtrace();
+    spdlog::shutdown();
+    std::abort(); // Must terminate without returning
+}
+
+LONG WINAPI UnhandledExceptionHandler(struct _EXCEPTION_POINTERS* ExceptionInfo) {
+    std::cerr << "Global unhandled exception filter caught an exception." << std::endl;
+    // Dump the stored backtrace messages to the log sink immediately
+    SPDLOG_CRITICAL("--- CRASH DETECTED ---");
+    spdlog::dump_backtrace();
+    spdlog::shutdown();
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
 class maybe_name_flag : public spdlog::custom_flag_formatter
 {
 public:
@@ -107,6 +125,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     spdlog::set_formatter(std::move(formatter));
 
     spdlog::flush_every(std::chrono::seconds(3));
+    spdlog::flush_on(spdlog::level::err);
+    SetUnhandledExceptionFilter(UnhandledExceptionHandler);
+    std::set_terminate(GlobalTerminateHandler);
 
     Master& master = Master::getInstance();
     if (master.initialize())

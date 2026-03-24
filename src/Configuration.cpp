@@ -67,16 +67,7 @@ static void debugNavPanel();
 bool Configuration::load() {
 
     LOG(INFO) << "Loading preferences";
-    try {
-        std::ifstream prefsFile("prefs.json5", std::ifstream::in);
-        if (prefsFile.fail()) {
-            LOG(ERROR) << "Cannot read file: prefs.json5";
-        } else {
-            jprefs = js::parse5(prefsFile);
-        }
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse prefs.json5";
-    }
+    jprefs = parseJsonFile("prefs.json5");
     mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
     mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
     mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
@@ -127,15 +118,7 @@ bool Configuration::load() {
         } else if (!dirUserProfile.empty()) {
             mEDSettingsPath = dirUserProfile + LR"(\AppData\Local\Frontier Developments\Elite Dangerous)";
         }
-        js::value j_config;
-        try {
-            std::ifstream ifs_config("configuration.json5");
-            j_config = js::parse5(ifs_config);
-        } catch (const js::syntax_error& ex) {
-            LOG(ERROR) << ex.what();
-        }
-        if (!j_config)
-            LOG(ERROR) << "Error loading configuration.json5";
+        js::value j_config = parseJsonFile("configuration.json5");
         if (auto& tm = j_config.at("ui-scale-percents"); tm.is_int()) {
             if (tm.as_int() >= 25 && tm.as_int() <= 400)
                 mUiScalePercents = tm.as_int();
@@ -253,9 +236,10 @@ bool Configuration::load() {
     {
         LOG(INFO) << "Setting screens.json5";
         widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
-        std::ifstream ifs_config("screens.json5");
-        const auto j_screens = js::parse5(ifs_config).as_array();
-        for (auto& s: j_screens) {
+        const auto j_screens = parseJsonFile("screens.json5");
+        if (j_screens.empty())
+            errorMessage = _gt("Failed to load screens");
+        for (auto& s : j_screens.as_array_or()) {
             screensRoot->addSubItem(widget_from_json(s, screensRoot, nullptr));
         }
 #ifndef NDEBUG
@@ -282,7 +266,12 @@ bool Configuration::load() {
             changeDirListener->AddDirectory(mEDSettingsPath + LR"(\Options\Player\)", false, dirNotificationFlags);
             changeDirListener->AddDirectory(mEDLogsPath, false, dirNotificationFlags);
             hShutdownEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-            changeDirThread = std::thread(&Configuration::changeDirThreadLoop, this);
+            changeDirThread = std::thread([this] {
+                try { changeDirThreadLoop(); } catch (...) {
+                    SPDLOG_CRITICAL("Unhandled exception in event thread");
+                    std::terminate();
+                }
+            });
         }
     }
 
@@ -1104,19 +1093,7 @@ bool Configuration::loadMarket(spGameEvent ge) {
         return false;
 
     LOG(INFO) << "Loading Market.json";
-    js::value j_market;
-    try {
-        std::ifstream marketFile(mEDLogsPath + L"/Market.json", std::ifstream::in);
-        if (marketFile.fail()) {
-            LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/Market.json");
-            return false;
-        }
-        j_market = js::parse5(marketFile);
-        marketFile.close();
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse Market.json";
-        return false;
-    }
+    js::value j_market = parseJsonFile(mEDLogsPath + L"/Market.json");
     if (!j_market)
         return false;
     Timestamp timestamp;
@@ -1180,19 +1157,7 @@ bool Configuration::loadMarket(spGameEvent ge) {
 }
 
 bool Configuration::loadNavRoute(spGameEvent& ge) {
-    js::value j_route;
-    try {
-        std::ifstream routeFile(mEDLogsPath + L"/NavRoute.json", std::ifstream::in);
-        if (routeFile.fail()) {
-            LOG(ERROR) << "Cannot read file: " << (mEDLogsPath + L"/NavRoute.json");
-            return false;
-        }
-        j_route = js::parse5(routeFile);
-        routeFile.close();
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse NavRoute.json";
-        return false;
-    }
+    js::value j_route = parseJsonFile(mEDLogsPath + L"/NavRoute.json");
     if (!j_route)
         return false;
     Timestamp timestamp;
@@ -1248,18 +1213,9 @@ void Configuration::updateLanguage(Lang lng) {
 
 bool Configuration::loadCommodityDatabase() {
     LOG(INFO) << "Loading commodity database";
-    js::value j;
-    try {
-        std::ifstream dbf("commodity-database.json5");
-        if (!dbf)
-            return false;
-        std::stringstream buffer;
-        buffer << dbf.rdbuf();
-        j = js::parse5(buffer.str());
-    } catch (const js::syntax_error& ex) {
-        LOG(ERROR) << "Error loading commodity-database.json5: " << ex.what();
+    js::value j = parseJsonFile("commodity-database.json5");
+    if (!j)
         return false;
-    }
     for (auto [cc_nameId, jcc] : j.key_value()) {
         if (cc_nameId.contains("-order-"))
             continue;
@@ -1406,8 +1362,7 @@ void Configuration::changeDirThreadLoop() {
     Timestamp latest_log_timestamp {};
     Timestamp dumped_log_timestamp {};
     try {
-        std::ifstream ifs_latest_log("cache/journal.json5");
-        js::value j_log = js::parse5(ifs_latest_log);
+        js::value j_log = parseJsonFile("cache/journal.json5");
         std::filesystem::path log_path = std::filesystem::path(mEDLogsPath) / toUtf16(j_log["file"].as_string_or());
         if (log_path == mEDCurrentJournalFile) {
             latest_log_timestamp = Timestamp(std::chrono::seconds(j_log["ts"].as_int_or()));

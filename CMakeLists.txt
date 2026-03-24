@@ -28,7 +28,9 @@ find_package(ZLIB REQUIRED)
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
-add_compile_options(/Zc:__cplusplus /await:strict /utf-8 /Zi)
+string(REPLACE "/EHsc" "/EHa" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+string(REPLACE "/EHs" "/EHa" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+add_compile_options(/Zc:__cplusplus /await:strict /utf-8 /Zi /EHa)
 add_link_options(/DEBUG /PDBCOMPRESS)
 
 add_executable(EDRobot WIN32

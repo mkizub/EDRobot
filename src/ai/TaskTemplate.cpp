@@ -578,19 +578,8 @@ TaskTemplate TaskTemplate::loadTask(const js::value& j_task) {
 
 void TaskTemplate::loadUserTasks() {
     LOG(INFO) << "Loading tasks.json5";
-    js::value j_tasks;
-    try {
-        std::ifstream tasksFile("tasks.json5", std::ifstream::in);
-        if (tasksFile.fail()) {
-            LOG(ERROR) << "Cannot read file: tasks.json5";
-        } else {
-            j_tasks = js::parse5(tasksFile);
-        }
-        tasksFile.close();
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse tasks.json5";
-    }
-    if (!j_tasks || !j_tasks.is_array())
+    js::value j_tasks = parseJsonFile("tasks.json5");
+    if (!j_tasks.is_array())
         return;
     for (const auto& jtt : j_tasks.as_array()) {
         TaskTemplate task = loadTask(jtt);

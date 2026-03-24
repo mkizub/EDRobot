@@ -67,4 +67,7 @@ extern dist_t parseDist(std::wstring dist, int conf);
 extern bool parseInt(const std::string& str, int64_t& out);
 extern bool parseReal(const std::string& str, double& out);
 
+extern js::value parseJsonFile(std::wstring_view file);
+extern js::value parseJsonFile(std::string_view file);
+
 #endif //EDROBOT_UTILS_H

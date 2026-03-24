@@ -94,14 +94,7 @@ spMarket loadMarket(int64_t marketId) {
     if (!marketId)
         return {};
 
-    const js::value jm;
-    try {
-        std::filesystem::path fp("cache/markets/"+std::to_string(marketId)+".json");
-        std::ifstream ifs(fp);
-        const_cast<js::value&>(jm) = js::parse5(ifs);
-    } catch (...) {
-        return {};
-    }
+    const js::value jm = parseJsonFile("cache/markets/"+std::to_string(marketId)+".json");
 
     Timestamp timestamp;
     if (!parseTimestamp(jm["timestamp"], timestamp))
@@ -366,13 +359,9 @@ static spStarSystem loadStarSystem(std::string name) {
     spStarSystem ss;
     std::filesystem::path fp("cache/systems/"+name+".json");
     if (std::filesystem::exists(fp)) {
-        try {
-            std::ifstream ifs(fp);
-            auto jsystem = js::parse5(ifs);
+        auto jsystem = parseJsonFile(fp.string());
+        if (!jsystem.empty())
             ss = fromEDDN(jsystem, true);
-        } catch (...) {
-            LOG(ERROR) << "Error while loading cached star system: " << name;
-        }
     }
     if (!ss || ss->bodies.empty()) {
         auto jsystem = EDSM::loadStarSystem(name);

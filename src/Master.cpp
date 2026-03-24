@@ -107,10 +107,8 @@ static std::pair<std::string,std::string> getLatestVersionAndUrl() {
         auto file_sys_tp = std::chrono::clock_cast<std::chrono::system_clock>(file_file_tp);
         std::chrono::sys_days file_days{std::chrono::floor<std::chrono::days>(file_sys_tp)};
         std::chrono::sys_days now_days{std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())};
-        if (file_days >= now_days) {
-            std::ifstream ifs_latest(path.string());
-            latest = js::parse(ifs_latest);
-        }
+        if (file_days >= now_days)
+            latest = parseJsonFile(path.string());
     }
 
     if (latest.empty()) {

@@ -3213,7 +3213,7 @@ bool DiveUnderPlanetStep::run() {
             // oriented towards body, but dock is selected target
             ai::detectEDState(DetectLevel::Screen);
             bool dockIsVisible = ai::compassInfo.has_nav_target;
-            LOG_WARNING("DiveUnderPlanet, dockIsVisible={}", dockIsVisible);
+            LOG_DEBUG("DiveUnderPlanet, dockIsVisible={}", dockIsVisible);
             float visible_body_angle = std::numeric_limits<float>::quiet_NaN();
             if (dist_body)
                 visible_body_angle = std::asin(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;

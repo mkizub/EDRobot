@@ -44,19 +44,7 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
 
     Timestamp file_timestamp = ge->timestamp;
     if ((ge->data["Count"].is_int() && ge->data["Count"].as_int() != 0) || ge->data["Inventory"].empty()) {
-        js::value jv;
-        try {
-            std::ifstream cargoFile(Cfg.mEDLogsPath + L"/Cargo.json", std::ifstream::in);
-            if (cargoFile.fail()) {
-                LOG(ERROR) << "Cannot read file: " << (Cfg.mEDLogsPath + L"/Cargo.json");
-                return false;
-            }
-            jv = js::parse5(cargoFile);
-            cargoFile.close();
-        } catch (...) {
-            LOG(ERROR) << "Failed to read/parse Cargo.json";
-            return false;
-        }
+        js::value jv = parseJsonFile(Cfg.mEDLogsPath + L"/Cargo.json");
         if (jv.empty())
             return false;
         Timestamp timestamp;
@@ -124,20 +112,7 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
 bool CargoManager::loadCarrierCargo() {
     if (!st::cmdr.fleetCarrierId || Cfg.allKnownCommodities.empty())
         return false;
-    std::string fname = std::format("cache/carriers/{}.json", st::cmdr.fleetCarrierId);
-    js::value j_cargo;
-    try {
-        std::ifstream cargoFile(fname, std::ifstream::in);
-        if (cargoFile.fail()) {
-            LOG(ERROR) << "Cannot read file: " << fname;
-            return false;
-        }
-        j_cargo = js::parse5(cargoFile);
-        cargoFile.close();
-    } catch (...) {
-        LOG(ERROR) << "Failed to read/parse file: " << fname;
-        return false;
-    }
+    js::value j_cargo = parseJsonFile(std::format("cache/carriers/{}.json", st::cmdr.fleetCarrierId));
     if (!j_cargo)
         return false;
     Timestamp timestamp;
@@ -294,7 +269,7 @@ bool CargoManager::processMarketSell(spGameEvent ge) {
             LOG_DEBUG("Carrier buy '{}': {} carrier cargo {}", commodity->nameId, count, commodity->fc.count);
             saveCarrier = true;
         }
-        if (market->timestamp < ge->timestamp) {
+        if (market && market->timestamp < ge->timestamp) {
             auto it = market->items.find(commodity);
             if (it != market->items.end()) {
                 MarketLine &ml = it->second;

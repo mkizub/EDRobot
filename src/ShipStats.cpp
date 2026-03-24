@@ -54,18 +54,9 @@ spShipStats getShipStats() {
 
 bool loadEDDB() {
     LOG(INFO) << "Loading EDDB";
-    std::ifstream dbf("eddb.json5");
-    if (!dbf)
+    gEDDBFull = parseJsonFile("eddb.json5");
+    if (!gEDDBFull)
         return false;
-    try {
-        gEDDBFull = js::parse5(dbf);
-    } catch (const js::syntax_error& ex) {
-        LOG(ERROR) << ex.what();
-    }
-    if (!gEDDBFull) {
-        LOG(ERROR) << "Error loading eddb.json5";
-        return false;
-    }
     for (auto& ship : gEDDBFull["ship"].as_array()) {
         std::string fdname = toLower(ship["fdname"].as_string());
         gEDDBShips.emplace(fdname, ship);

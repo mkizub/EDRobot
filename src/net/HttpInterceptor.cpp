@@ -44,7 +44,7 @@ HttpInterceptor::HttpInterceptor(cpr::Session& session)
 cpr::Response HttpInterceptor::intercept(cpr::Session &session) {
     auto logger = spdlog::get("http");
     // Log the request URL
-    logger->info("{}[{}] request   url: {}", mode, reqId, session.GetFullRequestUrl());
+    logger->debug("{}[{}] request   url: {}", mode, reqId, session.GetFullRequestUrl());
     auto& content = session.GetContent();
     if (std::holds_alternative<cpr::Body>(content))
         logger->debug("{}[{}] request  body: {}", mode, reqId, std::get<cpr::Body>(content).str());
@@ -87,7 +87,7 @@ cpr::Response HttpInterceptor::intercept(cpr::Session &session) {
     } else if (response.status_code >= 400) {
         logger->error("{}[{}] error    code: {}, took {}", mode, reqId, response.status_code, response.elapsed);
     } else {
-        logger->info("{}[{}] response code: {}, took {}", mode, reqId, response.status_code, response.elapsed);
+        logger->debug("{}[{}] response code: {}, took {}", mode, reqId, response.status_code, response.elapsed);
         logger->debug("{}[{}] response body: {}", mode, reqId, response.text);
     }
 
