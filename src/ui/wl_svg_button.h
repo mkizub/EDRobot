@@ -4,11 +4,10 @@
 
 #pragma once
 
-#ifndef EDROBOT_WL_IBUTTON_H
-#define EDROBOT_WL_IBUTTON_H
+#ifndef EDROBOT_WL_SVG_BUTTON_H
+#define EDROBOT_WL_SVG_BUTTON_H
 
 #include <winlamb/button.h>
-#include <winlamb/icon.h>
 
 #include "UIManager.h"
 
@@ -77,4 +76,4 @@ public:
 
 }
 
-#endif //EDROBOT_WL_IBUTTON_H
+#endif //EDROBOT_WL_SVG_BUTTON_H

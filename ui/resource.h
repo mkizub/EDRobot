@@ -52,7 +52,8 @@
 #define IDM_SHOW_TASK_STATUS            32797
 #define IDM_SHOW_TASK_EDITOR            32798
 #define IDM_SHOW_COMMODITIES            32799
-#define IDM_DETACH                      32800
+#define IDM_SHOW_BOOKMARKS              32800
+#define IDM_DETACH                      32801
 #define IDM_NETW_RAVEN_ENABLED          32802
 #define IDM_NETW_RAVEN_CARRIER_CARGO    32803
 #define IDM_NETW_RAVEN_SHIP_CARGO       32804

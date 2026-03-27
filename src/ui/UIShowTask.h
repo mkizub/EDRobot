@@ -20,7 +20,7 @@ public:
     void initialize() override;
     void relayout(bool scroll_to_top=false) override;
     bool need_timer_update() const override { return true; }
-    void on_timer_update() override;
+    void on_update() override;
     void on_ctrl_edit(int id, WORD msg) {};
     bool validate() const { return true; };
 

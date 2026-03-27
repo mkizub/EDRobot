@@ -69,25 +69,6 @@ public:
 
 
 UIShowCargo::UIShowCargo() : UIControl(true) {
-    for (int i=0; i < usedIds.size(); i++) {
-        on_command(ctrlIdBase + i, [this](wl::params p) {
-            on_ctrl_change(p);
-            return 0;
-        });
-    }
-
-//    on_command(ID_RUN, [this](wl::params params) {
-//        updateCargo();
-//        return 0;
-//    });
-//    on_command(ID_SAVE, [this](wl::params params) {
-//        on_cargo_save();
-//        return 0;
-//    });
-//    on_command(ID_LOAD, [this](wl::params params) {
-//        on_cargo_load();
-//        return 0;
-//    });
 }
 
 UIShowCargo::~UIShowCargo() {
@@ -185,36 +166,19 @@ void UIShowCargo::relayout(bool scroll_to_top) {
     reset_scroll(false);
 }
 
-void UIShowCargo::on_ctrl_change(wl::params& p) {
-    if (initializing)
-        return;
-    auto hw = HIWORD(p.wParam);
-    if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELENDOK && hw != CBN_EDITCHANGE)
-        return;
-    int id = LOWORD(p.wParam);
-    if (id < ctrlIdBase)
-        return;
-    on_ctrl_edit(id, hw);
-
-    bool changed = false;
-    bool valid = validate(&changed);
-    if (new_control)
-        new_control->btn_fc_save.set_enabled(valid && changed);
-}
-
 bool UIShowCargo::validate() const {
-    return validate(nullptr);
-}
-bool UIShowCargo::validate(bool* changed) const {
-    bool valid = true;
+    changed = false;
+    valid = true;
     for (auto& cc : controls) {
-        bool cc_changed = false;
-        if (!cc->validate(&cc_changed))
+        if (!cc->validate(&changed))
             valid = false;
-        if (changed && cc_changed)
-            *changed = true;
     }
     return valid;
+}
+
+void UIShowCargo::on_update() {
+    if (new_control)
+        new_control->btn_fc_save.set_enabled(valid && changed);
 }
 
 void UIShowCargo::on_ctrl_edit(int id, WORD msg) {
@@ -253,7 +217,7 @@ void UIShowCargo::on_cargo_load() {
 }
 
 void UIShowCargo::on_cargo_save() {
-    if (!validate(nullptr))
+    if (!validate())
         return;
     for (auto& cc : controls)
         cc->save();
@@ -444,8 +408,9 @@ void NewCargoCtrl::layout(UILayout& lo) {
     if (lo.font) {
         lo.font->set_on(dl);
         lo.font->set_on(btn_add);
-        btn_add.set_icon_size(lo.icsz);
     }
+    btn_add.set_icon_size(lo.icsz);
+
     int w_txt = lo.txt6w;
     int w_lbl = lo.width - 3*w_txt - 3*lo.hgap;
     if (w_lbl > lo.txt50w)

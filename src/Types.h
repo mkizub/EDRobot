@@ -282,4 +282,118 @@ extern Axis pitchAxis;
 extern Axis yawAxis;
 extern Axis rollAxis;
 
+class CommodityCategory {
+    friend class Configuration;
+public:
+    int intId; // from market filter
+    std::string nameId;
+    std::string name;   // current localization
+    std::wstring wide;  // same as 'name'
+    std::array<std::string,2> translation;
+};
+
+struct MarketLine {
+    int buyPrice;
+    int sellPrice;
+    int meanPrice;
+    int stock;
+    int demand;
+    uint8_t stockBracket;
+    uint8_t demandBracket;
+    bool isConsumer;
+    bool isProducer;
+};
+
+struct Commodity {
+    friend class Configuration;
+public:
+    int intId;
+    std::string nameId;
+    CommodityCategory* category;
+    std::string name;   // current localization
+    std::wstring wide;  // same as 'name'
+    std::wstring wocr;  // same as 'wide' but with OCR chars
+    std::array<std::string,2> translation;
+    int carrierSortingOrder[2];
+
+    bool rare;
+
+    struct {
+        int count;
+        int stolen;
+    } ship;
+
+    struct {
+        int count;
+    } fc;
+};
+
+struct RavenProj {
+    struct CmdrInfo {
+        Timestamp timestamp; // contribution timestamp
+        int deliveries; // number of deliveries
+        int contributed; // total cargo contributed
+    };
+    std::string buildId;
+    std::string status;
+    Timestamp timestamp {}; // project timestamp
+    std::map<std::string,CmdrInfo> commanders;
+};
+
+typedef std::shared_ptr<RavenProj> spRavenProj;
+
+struct Market {
+    const Timestamp timestamp;
+    const int64_t marketId;
+    const std::string stationName;
+    const std::string stationType;
+    const std::string starSystem;
+    spRavenProj raven;
+    std::unordered_map<Commodity*,MarketLine> items;
+
+    std::string_view ravenBuildId() {
+        if (!raven)
+            return {};
+        return raven->buildId;
+    }
+};
+
+struct ShipCargo {
+    const std::vector<Commodity*> cargo;
+    const Timestamp timestamp;
+    const int count {0};
+    const std::string vessel;
+};
+
+struct NavRoute {
+    struct Entry {
+        std::string starSystem;
+        int64_t systemAddress;
+        cv::Point3d starpos;
+        std::string starClass;
+    };
+    const Timestamp timestamp;
+    const std::vector<Entry> route;
+};
+
+struct GameEvent {
+    const js::value data;
+    const Timestamp timestamp;
+    const std::string event;
+    const bool expired;
+};
+
+typedef std::shared_ptr<Market> spMarket;
+typedef std::shared_ptr<ShipCargo> spShipCargo;
+typedef std::shared_ptr<NavRoute> spNavRoute;
+typedef std::shared_ptr<GameEvent> spGameEvent;
+
+struct Bookmark {
+    const std::string name;
+    const std::string system;
+    const std::string dock;
+    const std::string comment;
+};
+typedef std::shared_ptr<Bookmark> spBookmark;
+
 #endif //EDROBOT_TYPES_H

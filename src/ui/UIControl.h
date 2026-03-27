@@ -12,6 +12,9 @@
 #include <winlamb/font.h>
 #include <winlamb/scrollinfo.h>
 
+#include "wl_popup_menu.h"
+#include "wl_tooltip.h"
+
 class UIControl : public wl::window_control {
 public:
     UIControl(bool scrollable);
@@ -23,7 +26,7 @@ public:
     virtual void initialize() = 0;
     virtual void relayout(bool scroll_to_top=false) = 0;
     virtual bool need_timer_update() const { return false; }
-    virtual void on_timer_update() {};
+    virtual void on_update() {};
     virtual void on_ctrl_change(wl::params& params);
     virtual void on_ctrl_edit(int id, WORD msg) = 0;
     virtual bool validate() const = 0;
@@ -35,6 +38,7 @@ public:
 
     wl::font font;
     wl::scrollinfo scrollinfo;
+    wl::tooltip tooltip;
 
     const int ctrlIdBase = 0x8100;
     int panel_width = 0;

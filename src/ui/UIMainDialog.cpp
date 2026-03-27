@@ -12,6 +12,7 @@
 #include "UIShowTask.h"
 #include "UIEditTask.h"
 #include "UIShowCargo.h"
+#include "UIEditBookmarks.h"
 #include "UILayout.h"
 #include "../net/RavenColonial.h"
 #include "../../ui/resource.h"
@@ -90,6 +91,7 @@ UIMainDialog::UIMainDialog()
             .append_item(IDM_SHOW_TASK_STATUS,W(_gt("Show task state")))
             .append_item(IDM_SHOW_TASK_EDITOR,W(_gt("Show task editor")))
             .append_item(IDM_SHOW_COMMODITIES,W(_gt("Show commodities")))
+            .append_item(IDM_SHOW_BOOKMARKS,W(_gt("Edit bookmarks")))
             .append_separator()
             .append_item(IDM_DETACH,W(_gt("Detach window")))
             .append_item(IDM_KEEP_ON_TOP,W(_gt("Keep on top"))).set_item_check_by_id(IDM_KEEP_ON_TOP, keepOnTop)
@@ -183,6 +185,10 @@ UIMainDialog::UIMainDialog()
     });
     this->base_msg_pubm::on_command(IDM_SHOW_COMMODITIES, [this](wl::params p){
         on_command_show_cargo();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_SHOW_BOOKMARKS, [this](wl::params p){
+        on_command_show_bookmarks();
         return 0;
     });
     this->base_msg_pubm::on_command(IDM_TASK_NEW, [this](wl::params p){
@@ -605,7 +611,7 @@ void UIMainDialog::on_command_task_pause() {
 
 void UIMainDialog::on_command_show_detach() {
     for (auto& d : detached) {
-        if (d->control->title() == control->title()) {
+        if (typeid(d->control.get()) == typeid(control.get())) {
             ShowWindow(d->hwnd(), SW_RESTORE);
             SetForegroundWindow(d->hwnd());
             BringWindowToTop(d->hwnd());
@@ -649,7 +655,7 @@ void UIMainDialog::on_command_edit_task() {
         control = std::unique_ptr<UIControl>(new UIEditTask);
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_TASK_EDITOR);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 4, IDM_SHOW_TASK_EDITOR);
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -666,13 +672,30 @@ void UIMainDialog::on_command_show_cargo() {
         control = std::unique_ptr<UIControl>(new UIShowCargo);
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_COMMODITIES);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 4, IDM_SHOW_COMMODITIES);
         ((UIShowCargo*)control.get())->initControls();
 
         //if (auto dlg = UIShowCargo::getInstance())
         //    SetForegroundWindow(dlg->hwnd());
         //else
         //    UIShowCargo::makeInstance();
+    } catch (const std::system_error& ex) {
+        LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << ex.what();
+    }
+}
+
+void UIMainDialog::on_command_show_bookmarks() {
+    try {
+        if (dynamic_cast<UIEditBookmarks*>(control.get()))
+            return;
+        if (control)
+            DestroyWindow(control->hwnd());
+        control = std::unique_ptr<UIControl>(new UIEditBookmarks);
+        control->create(hwnd(), 0, {10,10}, {400,400});
+        relayout();
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 4, IDM_SHOW_BOOKMARKS);
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -702,7 +725,7 @@ void UIMainDialog::update_curr_task() {
 
     bool needUpdate = false;
     if (control) {
-        control->on_timer_update();
+        control->on_update();
         needUpdate = control->need_timer_update();
     }
 
@@ -740,9 +763,9 @@ void UIMainDialog::relayout() {
     if (lo.font) {
         lo.font->set_on(lbl_task);
         lo.font->set_on(lbl_curr_task);
-        btn_stop_new.set_icon_size(lo.icsz);
-        btn_pause_resume.set_icon_size(lo.icsz);
     }
+    btn_stop_new.set_icon_size(lo.icsz);
+    btn_pause_resume.set_icon_size(lo.icsz);
 
     int x = lo.left;
     int w = lo.txt6w + lo.hgap/2;

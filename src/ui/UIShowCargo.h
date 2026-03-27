@@ -26,10 +26,9 @@ public:
     void clear();
     bool updateCargo();
 
-    void on_ctrl_change(wl::params& params) override;
+    void on_update() override;
     void on_ctrl_edit(int id, WORD msg) override;
     bool validate() const override;
-    bool validate(bool* changed) const;
     void on_cargo_load();
     void on_cargo_save();
 
@@ -37,9 +36,8 @@ public:
     std::unique_ptr<NewCargoCtrl> new_control;
 
 private:
-    bool initializing {};
-    int nextTryId;
-    std::array<bool, 100> usedIds;
+    mutable bool changed = false;
+    mutable bool valid = true;
 };
 
 

@@ -26,7 +26,7 @@ void UIShowTask::initialize() {
     lbl_status.create(hwnd(), IDC_STATUS, L"", {0,411}, {404,20})
             .style.set_style(true, WS_BORDER);
 
-    on_timer_update();
+    on_update();
 }
 
 void UIShowTask::relayout(bool scroll_to_top) {
@@ -57,7 +57,7 @@ void UIShowTask::relayout(bool scroll_to_top) {
     EndDeferWindowPos(lo.wpi);
 }
 
-void UIShowTask::on_timer_update() {
+void UIShowTask::on_update() {
     bool completed = false;
     bool failed = false;
     ai::spTask task = ai::curr_task();

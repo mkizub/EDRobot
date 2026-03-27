@@ -239,6 +239,34 @@ std::map<std::string,const std::string> UIManager::iconSVG
 </svg>)SVG"
         },
 
+        {"icon-bookmark",
+                R"SVG(<?xml version="1.0" encoding="utf-8"?>
+<svg fill="none" stroke="black" stroke-width="3" width="800px" height="800px" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4v24l-8-8-8 8v-24h16z"/>
+</svg>)SVG"
+        },
+
+        {"icon-bookmark-fill",
+                R"SVG(<?xml version="1.0" encoding="utf-8"?>
+<svg fill="black" stroke="black" stroke-width="3" width="800px" height="800px" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 4v24l-8-8-8 8v-24h16z"/>
+</svg>)SVG"
+        },
+
+        {"icon-expanded",
+                R"SVG(<?xml version="1.0" encoding="utf-8"?>
+<svg fill="#000000" width="800px" height="800px" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0 0l4 4 4-4h-8z" transform="translate(0 2)" />
+</svg>)SVG"
+        },
+
+        {"icon-collapsed",
+                R"SVG(<?xml version="1.0" encoding="utf-8"?>
+<svg fill="#000000" width="800px" height="800px" viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg">
+  <path d="M0 0v8l4-4-4-4z" transform="translate(2)" />
+</svg>)SVG"
+        },
+
 };
 
 HBITMAP UIManager::makeIconBitmap(const std::string& icon, int size) {

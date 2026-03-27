@@ -14,9 +14,9 @@
 #include <winlamb/textbox.h>
 #include <winlamb/menu.h>
 
-namespace wl {
+#include "wl_popup_menu.h"
 
-const int cargobox_menu_id = 0x1001;
+namespace wl {
 
 class cargobox :
         public wnd,
@@ -27,8 +27,8 @@ class cargobox :
 private:
     HWND                   _hWnd = nullptr;
     _wli::base_native_ctrl _baseNativeCtrl{_hWnd};
-    std::vector<std::wstring> _entries;
-    wl::menu               _menu;
+    wl::popup_menu         _menu;
+    std::function<void(int)> _apply;
 
 public:
     // Wraps window style changes done by Get/SetWindowLongPtr.
@@ -61,51 +61,44 @@ public:
         _menu.destroy();
     }
 
-    bool apply_menu(int idx) {
-        if (idx < 0 || idx >= _entries.size())
-            return false;
-        auto len = _entries[idx].size();
-        set_text(_entries[idx]);
-        SendMessage(hwnd(), EM_SETSEL, (WPARAM)len, (LPARAM)len);
-        return true;
-    }
-
     cargobox& auto_drop(HWND parent) noexcept {
+        _menu.destroy();
         std::wstring text = get_text();
-        if (text.size() < 2) {
-            _menu.destroy();
+        if (text.size() < 2)
             return *this;
-        }
 
-        std::set<std::wstring> new_set;
+        std::set<Commodity*> commodities;
         std::wstring text_l = toLower(text);
         for (auto* c : Cfg.getAllKnownCommodities()) {
             if (toUtf16(c->nameId).starts_with(text_l))
-                new_set.insert(c->wide);
+                commodities.insert(c);
             else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
-                new_set.insert(c->wide);
+                commodities.insert(c);
             else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
-                new_set.insert(c->wide);
+                commodities.insert(c);
         }
-        if (new_set.size() == 0 || new_set.size() == 0 > 10) {
-            _entries.clear();
-            _menu.destroy();
+        if (commodities.size() == 0 || commodities.size() == 0 > 10)
             return *this;
-        }
-        _entries.assign(new_set.begin(), new_set.end());
-        if (new_set.size() == 1 && text == _entries[0]) {
-            _menu.destroy();
+        if (commodities.size() == 1 && text == (*commodities.begin())->wide)
             return *this;
+        for (auto* c : commodities) {
+            std::string tooltip = c->category->name;
+            if (st::lng != Lang::EN && !c->category->translation[int(Lang::EN)].empty())
+                tooltip += "\r\n(" + c->category->translation[int(Lang::EN)]+")";
+            for (auto& tr : c->translation) {
+                if (!tr.empty()) {
+                    tooltip += "\r\n";
+                    tooltip += tr;
+                }
+            }
+            _menu.append_item(c, c->wide, toUtf16(tooltip));
         }
-        _menu = CreatePopupMenu();
-        int idx = 0;
-        for (auto& s : new_set)
-            _menu.append_item(idx++, s);
-        MENUINFO mi {sizeof(MENUINFO), MIM_STYLE|MIM_HELPID|MIM_MENUDATA, MNS_AUTODISMISS|MNS_NOCHECK|MNS_NOTIFYBYPOS};
-        mi.dwContextHelpID = cargobox_menu_id;
-        mi.dwMenuData = (ULONG_PTR)this;
-        SetMenuInfo(_menu.hmenu(), &mi);
-        _menu.show_at_point(parent, {0,20}, hwnd());
+        _menu.show_at_point(parent, hwnd(), {0,20}, [this](int idx, wl::popup_menu::item& item) {
+            auto& name = ((Commodity*)item.data)->wide;
+            this->set_text(name);
+            SendMessage(this->hwnd(), EM_SETSEL, (WPARAM)name.length(), (LPARAM)name.length());
+            return true;
+        });
         return *this;
     }
 };

@@ -223,6 +223,8 @@ bool Configuration::load() {
             errorMessage = _gt("Error initializing DirectX");
     }
 
+    cpr::GlobalThreadPool::GetInstance()->SetMaxThreadNum(1);
+
     {
         if (!eddb::loadEDDB())
             errorMessage = _gt("Failed to load ship database");
@@ -254,7 +256,18 @@ bool Configuration::load() {
         if (st::cmdr.fleetCarrierId)
             CM.loadCarrierCargo();
 
-        cpr::GlobalThreadPool::GetInstance()->SetMaxThreadNum(1);
+        js::value j_bookmarks = parseJsonFile("bookmarks.json5");
+        for (auto& jbm : j_bookmarks.as_array_or()) {
+            auto name = jbm["name"].as_string_or();
+            auto dock = jbm["dock"].as_string_or();
+            auto system = jbm["system"].as_string_or();
+            auto comment = jbm["comment"].as_string_or();
+            if (system.empty() || dock.empty())
+                continue;
+            if (name.empty())
+                name = dock;
+            mBookmarks.emplace_back(new Bookmark{name, system, dock, comment});
+        }
 
         LOG(INFO) << "Setting journal directory listener";
         if (!changeDirListener) {
@@ -295,6 +308,60 @@ void Configuration::savePrefs() {
     ofs.close();
 }
 
+void Configuration::saveBookmarks() {
+    js::value j_bookmarks = js::array({});
+    auto& arr = j_bookmarks.as_array();
+    for (auto& bm : mBookmarks) {
+        auto& jbm = arr.emplace_back(js::object({
+            {"system", bm->system},
+            {"dock", bm->dock},
+            }));
+        if (!bm->name.empty() && bm->name != bm->dock)
+            jbm["name"] = bm->name;
+        if (!bm->comment.empty())
+            jbm["comment"] = bm->comment;
+    }
+
+    std::ofstream ofs("bookmarks.json5", std::ios::trunc | std::ios::binary);
+    ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << j_bookmarks;
+    ofs.close();
+}
+
+spBookmark Configuration::addBookmark(int idx, std::string system, std::string dock) {
+    auto where = mBookmarks.begin();
+    if (idx > 0) {
+        if (idx >= mBookmarks.size())
+            where = mBookmarks.end();
+        else
+            where += idx;
+    }
+    auto bm = *mBookmarks.emplace(where, new Bookmark{dock, system, dock});
+    saveBookmarks();
+    return bm;
+}
+void Configuration::delBookmark(int idx) {
+    if (idx >= 0 && idx < mBookmarks.size()) {
+        mBookmarks.erase(mBookmarks.begin()+idx);
+        saveBookmarks();
+    }
+}
+void Configuration::delBookmark(std::string system, std::string dock) {
+    auto count = std::erase_if(mBookmarks, [&](auto& bm) {
+        return bm->system == system && bm->dock == dock;
+    });
+    if (count > 0)
+        saveBookmarks();
+}
+void Configuration::setBookmarks(std::vector<spBookmark> bookmarks) {
+    mBookmarks = bookmarks;
+    saveBookmarks();
+}
+bool Configuration::isBookmarked(const std::string& system, const std::string& dock) const {
+    auto it = std::find_if(mBookmarks.begin(), mBookmarks.end(), [&](auto& bm) {
+        return bm->system == system && bm->dock == dock;
+    });
+    return it != mBookmarks.end();
+};
 
 void Configuration::parseShortcutConfig(Command command, const std::string& name, js::value cfg) {
     if (cfg.has_key(name)) {

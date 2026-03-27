@@ -10,6 +10,7 @@
 #include "UIMainDialog.h"
 
 #include "wl_cargobox.h"
+#include "wl_bookmark.h"
 
 #include "../../ui/resource.h"
 
@@ -93,6 +94,7 @@ public:
 
     wl::textbox tb_system;
     wl::textbox tb_dock;
+    wl::bookmark btn_bookmark;
 };
 
 class CargoCtrl : public ParamCtrl {
@@ -370,10 +372,10 @@ void UIEditTask::relayout(bool scroll_to_top) {
         loCreateFont(font, uiDpi, uiPercent);
         lo.font = &font;
         font.set_on(cb_tasks);
-        font.set_on(btn_run);
-        font.set_on(btn_save);
-        font.set_on(btn_del);
     }
+    btn_run.set_icon_size(lo.icsz);
+    btn_save.set_icon_size(lo.icsz);
+    btn_del.set_icon_size(lo.icsz);
 
     panel_width = lo.width;
     panel_height = lo.height;
@@ -664,6 +666,7 @@ SiteCtrl::SiteCtrl(UIEditTask* ui, ai::Param& param)
 SiteCtrl::~SiteCtrl() {
     ui->freeCtrl(tb_system);
     ui->freeCtrl(tb_dock);
+    ui->freeCtrl(btn_bookmark);
 }
 void SiteCtrl::create() {
     if (!name.empty())
@@ -679,6 +682,9 @@ void SiteCtrl::create() {
     Edit_SetCueBannerText(tb_dock.hwnd(), toUtf16(_gt("Dock")).c_str());
     tb_dock.set_text(dock_text);
 
+    btn_bookmark.create(ui->hwnd(), ui->nextID(), "icon-bookmark", LO_ICN_S, {280, 20}, {20,20});
+    btn_bookmark.style.set_style(TRUE, WS_TABSTOP | SS_NOTIFY);
+
     ui->font.set_on(label);
     ui->font.set_on(tb_system);
     ui->font.set_on(tb_dock);
@@ -689,6 +695,8 @@ void SiteCtrl::layout(UILayout& lo) {
         lo.font->set_on(tb_system);
         lo.font->set_on(tb_dock);
     }
+    btn_bookmark.set_icon_size(lo.icsz);
+
     const int lw = lo.width / 3 - lo.vgap;
     const int rw = lo.width * 2 / 3;
     const int cx = lo.left + lo.width / 3;
@@ -697,7 +705,11 @@ void SiteCtrl::layout(UILayout& lo) {
         lo.wpi = DeferWindowPos(lo.wpi, label.hwnd(), nullptr, lo.left, lo.top, lw, 2*lo.vrow, SWP_NOZORDER);
     lo.wpi = DeferWindowPos(lo.wpi, tb_system.hwnd(), nullptr, cx, lo.top, rw, lo.vrow, SWP_NOZORDER);
     lo.top += lo.vrow;
-    lo.wpi = DeferWindowPos(lo.wpi, tb_dock.hwnd(), nullptr, cx, lo.top, rw, lo.vrow, SWP_NOZORDER);
+    const int bw = lo.icsz + lo.hgap;
+    int x = cx;
+    lo.wpi = DeferWindowPos(lo.wpi, tb_dock.hwnd(), nullptr, x, lo.top, rw-bw, lo.vrow, SWP_NOZORDER);
+    x += rw - bw + lo.hgap;
+    lo.wpi = DeferWindowPos(lo.wpi, btn_bookmark.hwnd(), nullptr, x, lo.top, lo.icsz, lo.vrow, SWP_NOZORDER);
     lo.top += lo.vrow + lo.vgap;
 }
 void SiteCtrl::on_ctrl_edit(HWND changed, WORD msg) {
@@ -705,13 +717,15 @@ void SiteCtrl::on_ctrl_edit(HWND changed, WORD msg) {
         system_text = tb_system.get_text();
     if (changed == tb_dock.hwnd())
         dock_text = tb_dock.get_text();
+    if (changed == btn_bookmark.hwnd())
+        btn_bookmark.show_drop(ui, tb_system, tb_dock);
 }
 bool SiteCtrl::validate() {
     ai::Param param{ai::Param::Site, "", "", meta};
-    js::value v = js::object({
-                                     {"system", toUtf8(trimTextLine(system_text))},
-                                     {"dock", toUtf8(trimTextLine(dock_text))}
-                             });
+    std::string system = toUtf8(trimTextLine(system_text));
+    std::string dock = toUtf8(trimTextLine(dock_text));
+    js::value v = js::object({{"system", system},{"dock", dock}});
+    btn_bookmark.set_icon(Cfg.isBookmarked(system, dock) ? "icon-bookmark-fill" : "icon-bookmark");
     param.set(v, true);
     return param.valid();
 }
@@ -719,9 +733,9 @@ js::value SiteCtrl::value() {
     if (system_text.empty() && dock_text.empty())
         return {};
     js::value v = js::object({
-                                     {"system", toUtf8(trimTextLine(system_text))},
-                                     {"dock", toUtf8(trimTextLine(dock_text))}
-                             });
+        {"system", toUtf8(trimTextLine(system_text))},
+        {"dock", toUtf8(trimTextLine(dock_text))}
+    });
     return v;
 }
 

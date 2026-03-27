@@ -6,7 +6,6 @@
 
 #include "UIControl.h"
 #include "UILayout.h"
-#include "wl_cargobox.h"
 
 void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent, LONG weight) {
     NONCLIENTMETRICS ncm{};
@@ -70,10 +69,34 @@ UIControl::UIControl(bool scrollable) {
         HMENU hMenu = (HMENU)params.lParam;
         MENUINFO mi {sizeof(MENUINFO), MIM_MENUDATA|MIM_HELPID|MIM_STYLE};
         BOOL ok = GetMenuInfo(hMenu, &mi);
-        if (!ok || mi.dwContextHelpID != wl::cargobox_menu_id || !mi.dwMenuData)
+        if (!ok || mi.dwContextHelpID != wl::popup_menu_id || !mi.dwMenuData)
             return 0;
-        wl::cargobox* cb = (wl::cargobox*)mi.dwMenuData;
-        cb->apply_menu(idx);
+        auto* pm = reinterpret_cast<wl::popup_menu*>(mi.dwMenuData);
+        pm->apply(idx);
+        return 0;
+    });
+    on_message(WM_MENUSELECT, [this](wl::params params) {
+        UINT idx = LOWORD(params.wParam);
+        UINT flags = HIWORD(params.wParam);
+        HMENU hMenu = (HMENU)params.lParam;
+        if ((flags == 0xFFFF && hMenu == NULL) || flags & MF_SEPARATOR) {
+            // No menu item selected (menu closed).
+            tooltip.hide();
+            return 0;
+        }
+        MENUINFO mi {sizeof(MENUINFO), MIM_MENUDATA|MIM_HELPID|MIM_STYLE};
+        BOOL ok = GetMenuInfo(hMenu, &mi);
+        if (!ok || mi.dwContextHelpID != wl::popup_menu_id || !mi.dwMenuData) {
+            tooltip.hide();
+            return 0;
+        }
+        auto* pm = reinterpret_cast<wl::popup_menu*>(mi.dwMenuData);
+        auto tt = pm->tooltip(idx);
+        if (tt.empty()) {
+            tooltip.hide();
+            return 0;
+        }
+        tooltip.create(this->hwnd()).show(tt);
         return 0;
     });
     for (int i=0; i < usedIds.size(); i++) {
@@ -209,4 +232,6 @@ void UIControl::on_ctrl_change(wl::params& p) {
     if (id < ctrlIdBase)
         return;
     on_ctrl_edit(id, hw);
+    validate();
+    on_update();
 }

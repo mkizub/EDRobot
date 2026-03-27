@@ -95,7 +95,7 @@ void UIControlDialog::relayout() {
 }
 
 void UIControlDialog::update_control() {
-    control->on_timer_update();
+    control->on_update();
     if (IsWindowVisible(hwnd()) && control->need_timer_update()) {
         mUpdateTimerId = SetTimer(this->hwnd(), mUpdateTimerId, 800, NULL);
     } else {

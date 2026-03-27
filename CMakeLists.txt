@@ -180,6 +180,10 @@ add_executable(EDRobot WIN32
         thirdparty/glob/glob.h
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
+        src/ui/wl_tooltip.h
+        src/ui/wl_popup_menu.h
+        src/ui/UIEditBookmarks.cpp
+        src/ui/UIEditBookmarks.h
 )
 
 
