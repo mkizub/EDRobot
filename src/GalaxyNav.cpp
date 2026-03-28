@@ -124,7 +124,7 @@ NavType ODYSSEY_SETTLEMENT {
         u'\u2616', // ☖
         TypeNav::Settlement,
         {"nav_select_icon_settlement.png"},
-        {"Settlement","Odyssey Settlement"}
+        {"OnFootSettlement","Settlement","Odyssey Settlement"}
 };
 NavType FLEET_CARRIER {
         u'\u2708', // ✈

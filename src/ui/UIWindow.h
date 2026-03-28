@@ -44,6 +44,7 @@ protected:
     HWND hWnd;
     cv::Rect mMonitorFullRect;
     cv::Rect mMonitorWorkRect;
+    bool showNoActivate {};
 
 private:
     struct StartLock {

@@ -991,12 +991,14 @@ bool DepartureStep::run() {
     if ((fromDock && isPlanetarySite(fromDock->type)) || st::shipAtBody.nearBody) {
         fromPlaneraryPort = true;
     }
-    switch (fromDock->type) {
-    case TypeNav::StationMegaShip:
-    case TypeNav::FleetCarrier:
-    case TypeNav::SquadronCarrier:
-    case TypeNav::ColonisationShip:
-        fromSimpleMegaship = true;
+    if (fromDock) {
+        switch (fromDock->type) {
+        case TypeNav::StationMegaShip:
+        case TypeNav::FleetCarrier:
+        case TypeNav::SquadronCarrier:
+        case TypeNav::ColonisationShip:
+            fromSimpleMegaship = true;
+        }
     }
     if (!st::dockedAt.stationType.empty()) {
         if (gal::PLANETARY_CONSTR_DEPOT.match_type(st::dockedAt.stationType)) {
@@ -4474,7 +4476,7 @@ bool Autopilot::run() {
         }
     }
 
-    initNavFilter();
+    nl.init(st::navFilters);
 
     if (!st::autopilot.destDock && !st::autopilot.destBody) {
         if (!run_sub_step(new CruiseToSignal(0.9_ls)))

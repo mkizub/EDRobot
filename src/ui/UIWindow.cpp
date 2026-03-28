@@ -114,6 +114,8 @@ HWND UIWindow::createWindow(HMONITOR hMon, const wchar_t *windowName, DWORD dwEx
     GetMonitorInfo(hMonitor, &monitorInfo);
     mMonitorFullRect = fromRECT(monitorInfo.rcMonitor);
     mMonitorWorkRect = fromRECT(monitorInfo.rcWork);
+    if ((dwExStyle & WS_EX_NOACTIVATE) == WS_EX_NOACTIVATE)
+        showNoActivate = true;
 
     cv::Rect winRect = calcWindowRect(align, winOffset, winSize);
 
@@ -193,8 +195,9 @@ INT_PTR UIWindow::onMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 void UIWindow::show() {
     if (hWnd) {
         if (!IsWindowVisible(hWnd))
-            ShowWindow(hWnd, SW_SHOW);
-        SetForegroundWindow(hWnd);
+            ShowWindow(hWnd, showNoActivate ? SW_SHOWNOACTIVATE : SW_SHOW);
+        if (!showNoActivate)
+            SetForegroundWindow(hWnd);
         return;
     }
 
@@ -214,7 +217,7 @@ void UIWindow::windowLoopProc(std::shared_ptr<UIWindow> spWnd, StartLock* startL
         return;
     }
 
-    ShowWindow(spWnd->hWnd, SW_SHOW);
+    ShowWindow(spWnd->hWnd, spWnd->showNoActivate ? SW_SHOWNOACTIVATE : SW_SHOW);
     {
         std::lock_guard<std::mutex> lock(startLock->mMutex);
         startLock->started = true;
