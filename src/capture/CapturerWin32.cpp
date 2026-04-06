@@ -184,7 +184,7 @@ upFrame CapturerWin32::capture(upFrame&& recycle) {
         }
     }
     LOG_IF(lines != blitRect.height, ERROR) << "GetDIBits failed: " << getErrorMessage();
-    //cv::imwrite("captured-screen.png", frame->colorImage);
+    //cv::imwrite("cache/captured-screen.png", frame->colorImage);
 
     SelectObject(hdcMem, hOldBitmap);
     return upFrame(frame);

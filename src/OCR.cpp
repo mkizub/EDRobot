@@ -18,6 +18,12 @@ namespace ocr {
 static std::mutex tesseractMutex;
 
 static tesseract::TessBaseAPI* tesseractApi;
+static cv::Mat sharpenKernel5x5 = (cv::Mat_<float>(5, 5) <<
+                                        -1, -1, -1, -1, -1,
+        -1,  2,  2,  2, -1,
+        -1,  2,  8,  2, -1,
+        -1,  2,  2,  2, -1,
+        -1, -1, -1, -1, -1) / 8.0;
 
 //#define DEBUG_OCR 1
 #if defined(DEBUG_OCR) && defined(NDEBUG)
@@ -64,6 +70,13 @@ bool init(const std::string& tessdata) {
     tesseractApi->SetVariable("debug_file", "cache/tesseract.log");
     tesseractApi->SetVariable("tessedit_do_invert", "0");
     tesseractApi->SetPageSegMode(tesseract::PSM_SINGLE_LINE); // PSM_RAW_LINE
+
+    sharpenKernel5x5 = (cv::Mat_<float>(5, 5) <<
+            -1, -1, -1, -1, -1,
+            -1,  2,  2,  2, -1,
+            -1,  2,  8,  2, -1,
+            -1,  2,  2,  2, -1,
+            -1, -1, -1, -1, -1) / 8.0;
     return true;
 }
 
@@ -514,7 +527,6 @@ cv::Mat normalizeTargetDistText(cv::Mat& grayImage) {
 #endif
 
     int blackIdx=-1, whiteIdx=-1;
-    float blackVal=0, whiteVal=0;
     // first, locate maximum, the background - white value
     for (int i=10; i < 240; i++) {
         float val = hist.at<float>(i);
@@ -522,7 +534,6 @@ cv::Mat normalizeTargetDistText(cv::Mat& grayImage) {
             blackIdx = i;
         }
         if (val > 0) {
-            whiteVal = val;
             whiteIdx = i;
         }
     }
@@ -538,6 +549,7 @@ cv::Mat normalizeTargetDistText(cv::Mat& grayImage) {
 
 int ocrTargetDistText(cv::Mat grayImage, std::string& text) {
     cv::Mat ocrImage = normalizeTargetDistText(grayImage);
+    cv::filter2D(grayImage, ocrImage, -1, sharpenKernel5x5);
     int conf = ocr::ocrLine(ocr::DISTANCE, 7, "(nav dist)", ocrImage, 30, text, nullptr);
     return conf;
 }

@@ -480,7 +480,7 @@
         ],
         lines: [
           {
-            name: "detect-angle", line: [570,293, 970,285], ext: [2,150], delta: 10, prec: 1, votes: 350,
+            name: "detect-angle", line: [570,293, 970,285], ext: [2,150], delta: 10, prec: 0.5, votes: 350,
             filter: [{ hsv_crop: { h: [10,40], s:[63,255], v:[128,255] } }, { channel: 'red' }, { lines: { thr: 40, scale: 1.5 } }]
           },{
             name: "top-line", line: [194,235, 1320,219, 54.32], ext: [300,120], delta: 2, prec: 0.125,

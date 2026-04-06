@@ -120,6 +120,8 @@ private:
     void readJournalChanges(std::ifstream& journalStream, Timestamp& latest_log_timestamp, std::string& journalLine);
     spGameEvent parseEvent(Timestamp& latest_log_timestamp, const std::string& line);
 
+    void debugStaticTests();
+
     std::string errorMessage;
 
     std::unique_ptr<CReadDirectoryChanges> changeDirListener;

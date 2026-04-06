@@ -13,9 +13,6 @@
 #include "ShipStats.h"
 #include "Galaxy.h"
 #include "OCR.h"
-#include "ui/UIManager.h"
-#include "net/NetUtils.h"
-#include "net/RavenColonial.h"
 #include "net/EDDN.h"
 
 #include <cpr/cpr.h>
@@ -245,7 +242,7 @@ bool Configuration::load() {
             screensRoot->addSubItem(widget_from_json(s, screensRoot, nullptr));
         }
 #ifndef NDEBUG
-        widget::debugNavPanel();
+        debugStaticTests();
 #endif
     }
     {

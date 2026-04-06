@@ -11,6 +11,8 @@ namespace detect {
 
 class CompassDetector : public Detector {
 public:
+    static void standaloneTest(std::string image);
+
     CompassDetector();
     ~CompassDetector() override;
     void clear() {
@@ -38,6 +40,7 @@ public:
     std::string compassImageName;
 
     std::unique_ptr<ImageTemplate>  compassDetector;
+    std::unique_ptr<LineDetector> lineDetector;
 
     std::vector<std::unique_ptr<ImageFilter>> dotsFilters;
     std::vector<std::unique_ptr<ImageFilter>> navTargetFilters;

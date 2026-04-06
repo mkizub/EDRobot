@@ -12,6 +12,7 @@
 #include "../detect/Tiles.h"
 #include "../detect/NavPanel.h"
 #include "../detect/TextDetector.h"
+#include "../detect/Compass.h"
 
 #include "../ClassifyEnv.h"
 #include "../FuzzyMatch.h"
@@ -19,16 +20,18 @@
 using namespace widget;
 using namespace detect;
 
-namespace widget {
-
-void debugNavPanel() {
+void Configuration::debugStaticTests() {
 #ifndef NDEBUG
     //detect::NavPanelDetectLock lock("flt-line");
     //detect::NavPanelDetector::standaloneTest("nav-panel-test-9.png", "scr-left-panel");
     //detect::NavPanelDetectLock lock("flt-line");
     //detect::NavPanelDetector::standaloneTest("nav-panel-left-filter.png", "scr-left-panel");
+    //updateLanguage(Lang::RU);
+    //detect::CompassDetector::standaloneTest("compass-test-3.png");
 #endif
 }
+
+namespace widget {
 
 static cv::Vec3b color_from_json(const js::value& v) {
     unsigned bgr = 0;

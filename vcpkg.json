@@ -3,13 +3,18 @@
   "version-string" : "1.0.0",
   "builtin-baseline" : "9eb6e4b60ea5bdd60a87e8d2353d53882a32a3f3",
   "configuration" : {
-    "overlay-ports" : [ "./overlay-ports/opencv4" ]
+    "overlay-ports" : [ "./overlay-ports/opencl", "./overlay-ports/opencv4" ]
   },
   "dependencies" : [ {
     "name" : "cpptrace",
     "version>=" : "1.0.0"
   }, {
+    "name" : "opencl",
+    "version>=" : "2024.10.24#2",
+    "default-features" : false
+  }, {
     "name" : "opencv4",
+    "version>=" : "4.13.0",
     "features" : [ "win32ui", "highgui", "dnn", "opencl", "intrinsics", "thread", "jpeg", "png", "ipp", "fs", "world" ],
     "default-features" : false
   }, {

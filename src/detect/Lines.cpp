@@ -109,28 +109,18 @@ double LineDetector::match(ClassifyEnv &env) {
         threshold = captureWidth * 0.95;
     double expAngle = 90+referenceAngle;
     {
-#ifdef EDROBOT_USE_OPENCL
         XMat linesX;
-        cv::HoughLines(imagePrepared, linesX, 1, angleStep * CV_PI / 180, threshold, 0, 0, 0, CV_PI);
+        cv::HoughLines(imagePrepared, linesX, 1, angleStep * CV_PI / 180, threshold, 0, 0,
+                       (expAngle - extendAngleMin) * CV_PI / 180, (expAngle + extendAngleMax) * CV_PI / 180);
         if (linesX.rows <= 0)
             return 0;
         cv::Mat lines = toMat(linesX);
-#else
-        cv::Mat lines;
-        cv::HoughLines(imagePrepared, lines, 1, angleStep * CV_PI / 180, threshold, 0, 0,
-                (expAngle - extendAngleMin) * CV_PI / 180, (expAngle + extendAngleMax) * CV_PI / 180
-        );
-#endif
         //LOG_DEBUG"LineDetector '{}' found {} lines", name, lines.rows);
         for (int ln = 0; ln < lines.rows; ln++) {
             auto &lv = lines.at<cv::Vec2f>(ln);
             float rho = lv[0];
             float angle = lv[1]; // radians, perpendicular to line
             float angleDeg = angle * 180 / CV_PI; // degree of line perpendicular
-#ifdef EDROBOT_USE_OPENCL
-            if (angleDeg < (expAngle - extendAngleMin) || angleDeg > (expAngle + extendAngleMax))
-                continue;
-#endif
             double cos_a = cos(angle);
             double sin_a = sin(angle);
             double x0 = cos_a * rho;

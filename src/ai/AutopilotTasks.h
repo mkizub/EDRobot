@@ -239,6 +239,7 @@ public:
     BaseCruiseStep() = default;
 
     bool gotDistance(dist_t dist);
+    void checkExitSCO(bool exitSCO);
 
     std::string getTitle() override;
     std::string getStatus() override;

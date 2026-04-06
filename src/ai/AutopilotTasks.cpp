@@ -158,17 +158,11 @@ int getNavRoutePosition(const std::shared_ptr<NavRoute>& navRoute) {
     if (!starSystem)
         throw_failed("Current star system not known");
 
-    int currIdx = -1;
     for (int i = 0; i < navRoute->route.size(); i++) {
-        if (navRoute->route[i].systemAddress == starSystem->systemAddress) {
-            currIdx = i;
-            break;
-        }
+        if (navRoute->route[i].systemAddress == starSystem->systemAddress)
+            return i;
     }
-    currIdx += 1;
-    if (currIdx >= navRoute->route.size())
-        return -1;
-    return currIdx;
+    return -1;
 }
 
 BaseAutopilotStep::BaseAutopilotStep()
@@ -1571,7 +1565,7 @@ bool HyperJumpStep::run() {
 }
 
 std::string HyperJumpStep::getTitle() {
-    if (status == DONE)
+    if (status >= AVOID_STAR)
         return lc_format("Jumped to: {}", destSystem);
     return lc_format("Jumping to: {}", destSystem);
 }
@@ -2672,6 +2666,32 @@ bool BaseCruiseStep::gotDistance(dist_t dist) {
     return false;
 }
 
+void BaseCruiseStep::checkExitSCO(bool exitSCO) {
+    if (!st::ship.flags2.supercruise_overcharge)
+        return;
+    if (st::ship.flags.overheating)
+        exitSCO = true;
+    if (st::shipStats.fuelMain < 0.25f*st::shipStats.fuelCapacityMain)
+        exitSCO = true;
+    if (st::compass.hemisphere < 0 || std::abs(st::compass.targetAngle) > 20)
+        exitSCO = true;
+
+    if (!exitSCO)
+        return;
+
+    kbd::send("UseBoostJuice", 100, 100);
+    while (st::ship.flags2.supercruise_overcharge) {
+        utc_timer timer = 1s;
+        while (!timer.expired()) {
+            if (!st::ship.flags2.supercruise_overcharge)
+                return;
+            sleep(250);
+        }
+        // stop cruise overcharge
+        kbd::send("UseBoostJuice", 100, 100);
+    }
+}
+
 bool CruiseToSignal::run() {
     LOG_DEBUG("CruiseToSignal run");
     // select destination dock or body
@@ -2929,6 +2949,8 @@ bool CruiseToDistStep::run() {
     failCount = 0;
     int noCompassCount = 0;
 
+    bool useFsdOvercharge = false;
+    auto shipStats = eddb::getShipStats();
     CourseLocker course(flyAway ? 180 : 0);
     // wait until we get to required distance
     for (;;) {
@@ -2986,6 +3008,7 @@ bool CruiseToDistStep::run() {
                 if (ai::compassInfo.has_nav_target) {
                     if (failCount >= 15) {
                         notify_warn("Bad dist in target mark");
+                        checkExitSCO(true);
                         useNavList = true;
                         failCount = 0;
                     } else if (failCount % 5 == 0) {
@@ -2997,17 +3020,20 @@ bool CruiseToDistStep::run() {
                 else if (!flyAway) {
                     if (failCount >= 3) {
                         notify_warn("Cannot see target mark");
+                        checkExitSCO(true);
                         useNavList = true;
                         failCount = 0;
                         setSpeed(25, false, "CruiseToDist: !flyAway && failCount >= 3");
                     }
-                    else if (ai::compassInfo.hemisphere < 0 || std::abs(ai::compassInfo.targetAngle) > 10) {
+                    else if (ai::compassInfo.hemisphere < 0 || std::abs(ai::compassInfo.targetAngle) > 20) {
+                        checkExitSCO(true);
                         setSpeed(0, false, "CruiseToDist: too big angle to course");
                         task->orientTowardTarget(5);
                     }
                 }
                 else { // flyAway
                     LOG_DEBUG("CruiseToDist: useNavList because of flyAway");
+                    checkExitSCO(true);
                     useNavList = true;
                     failCount = 0;
                 }
@@ -3017,6 +3043,7 @@ bool CruiseToDistStep::run() {
         if (currentDist >= minDist && currentDist <= maxDist) {
             LOG_DEBUG("CruiseToDist stop");
             status = DIST_STOP;
+            checkExitSCO(true);
             setSpeed(0, true, "CruiseToDist: stop");
             if (useNavList)
                 sendUiBack();
@@ -3027,6 +3054,7 @@ bool CruiseToDistStep::run() {
             status = DONE;
             return true;
         }
+        checkExitSCO(false);
         if (currentDist < minDist) {
             if (!flyAway) {
                 if (ai::uiState.guiFocus != GuiFocus::None) {
@@ -3067,12 +3095,15 @@ bool CruiseToDistStep::run() {
                 sleep(100);
             }
             else if (currentDist <= 500_ls) {
+                checkExitSCO(true);
                 status = DIST_FAR;
                 setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls");
                 sleep(500);
             }
             else {
                 status = DIST_HUGE;
+                if (currentDist <= 12000_ls)
+                    checkExitSCO(true);
                 setSpeed(100, false, "CruiseToDist: !flyAway && currentDist > 1000_ls");
                 sleep(1000);
             }
@@ -3875,14 +3906,15 @@ std::string ExitCruiseToPlanet::getStatus() {
 
 bool CompleteNavRoute::run() {
     lastNavRoute = st::currentNavRoute;
-    int routeIdx = getNavRoutePosition(st::currentNavRoute);
-    if (routeIdx < 0) {
+    int routeIdx = getNavRoutePosition(lastNavRoute);
+    if (routeIdx < 0 || routeIdx+1 >= lastNavRoute->route.size()) {
         LOG_DEBUG("CompleteNavRoute, route empty, done");
         prevSubStep.reset();
         currSubStep.reset();
         status = DONE;
         return true;
     }
+    routeIdx += 1;
     targetNextNavRoute(routeIdx);
 
     bool try_fast_jump = false;
@@ -3924,7 +3956,13 @@ bool CompleteNavRoute::run() {
     }
 
     int orientAvoid = 60;
-    while ((routeIdx = getNavRoutePosition(st::currentNavRoute)) > 0) {
+    for (;;) {
+        routeIdx = getNavRoutePosition(st::currentNavRoute);
+        if (routeIdx < 0)
+            break;
+        routeIdx += 1;
+        if (routeIdx >= lastNavRoute->route.size())
+            break;
         lastNavRoute = st::currentNavRoute;
         targetNextNavRoute(routeIdx);
         for (int retry=0; retry < 5; retry++) {
@@ -3968,7 +4006,8 @@ bool CompleteNavRoute::run() {
                 sleep(250);
             }
         }
-        lastNavRoute = st::currentNavRoute;
+        if (lastNavRoute != st::currentNavRoute && st::currentNavRoute && st::currentNavRoute->route.size())
+            lastNavRoute = st::currentNavRoute;
         status = JUMP;
         if (!run_sub_step(new HyperJumpStep))
             return false;
@@ -4006,12 +4045,19 @@ std::string CompleteNavRoute::getTitle() {
         name = nr->route.back().starSystem;
         count = nr->route.size()-1;
         step = getNavRoutePosition(nr);
-        if (st::ship.flags.fsd_jump)
-            step -= 1;
-        step = std::clamp(step,0,count);
+        bool jumping = false;
+        if (st::ship.flags.fsd_jump) {
+            jumping = true;
+        }
+        else if (auto* sub=dynamic_cast<HyperJumpStep*>(currSubStep.get())) {
+            if (sub->status == HyperJumpStep::HYPERSPACE || sub->status == HyperJumpStep::AVOID_STAR)
+                jumping = true;
+        }
+        if (!jumping)
+            step += 1;
     }
-    if (status == DONE || count < 1)
-        return lc_format("Routed to: {}", name);
+    if (status == DONE || count < 1 || step > count)
+        return lc_format("Arrived {0}/{1} to: {2}", count, count, name);
     return lc_format("Routing {0}/{1} to: {2}", step, count, name);
 }
 
@@ -4425,7 +4471,7 @@ bool Autopilot::run() {
     st::autopilot = {};
     resetCompassDetects();
     LOG_INFO("Autopilot, start");
-    if (getNavRoutePosition(st::currentNavRoute) >= 0) {
+    if (int ri=getNavRoutePosition(st::currentNavRoute); ri >= 0 && ri+1 < st::currentNavRoute->route.size()) {
         nl.init(st::navFilters);
         if (!run_sub_step(new CompleteNavRoute))
             throw_trouble("Cannot reach destination system");

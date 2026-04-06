@@ -443,11 +443,11 @@ Master::~Master() {
 
 void Master::shutdown() {
     UIManager::shutdown();
-    RavenColonial::shutdown();
     kbd::stop();
     kbd::release_vJoy();
     ai::shutdown_ship_tracker();
     ai::shutdown();
+    RavenColonial::shutdown();
     mCompassDetector.reset();
     mWarpedEnv.clear();
     mClassifyEnv.clear();
@@ -1190,8 +1190,8 @@ bool Master::debugRectScreenshot(pCommand& cmd) {
     //cv::Vec4b color = debugEnv.getColorImage().at<cv::Vec4b>( (rect.tl() + rect.br())/2 );
     //LOG(INFO) << "Selected rect BGRA color (center dot): " << color;
 
-    //cv::imwrite("debug-rect-gray.png", cv::Mat(debugEnv.getGrayImage(), rect));
-    cv::imwrite("debug-rect-color.png", debugEnv.getColorImage()(rect));
+    //cv::imwrite("cache/debug-rect-gray.png", cv::Mat(debugEnv.getGrayImage(), rect));
+    cv::imwrite("cache/debug-rect-color.png", debugEnv.getColorImage()(rect));
 
 //    std::string text;
 //    if (Master::ocrMarketText(debugEnv.getGrayImage(), rect, text) > 50) {

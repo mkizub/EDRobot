@@ -1,11 +1,52 @@
 set(USE_QT_VERSION "6")
 
-vcpkg_from_github(
+#vcpkg_from_github(
+#    OUT_SOURCE_PATH SOURCE_PATH
+#    REPO opencv/opencv
+#    REF "${VERSION}"
+#    SHA512 8ac63ddd61e22cc0eaeafee4f30ae6e1cab05fc4929e2cea29070203b9ca8dfead12cc0fd7c4a87b65c1e20ec6b9ab4865a1b83fad33d114fc0708fdf107c51b
+#    HEAD_REF master
+#    PATCHES
+#      0001-disable-downloading.patch
+#      0002-install-options.patch
+#      0003-force-package-requirements.patch
+#      0004-opencl.diff
+#      0005-vulkan.diff
+#      0008-devendor-quirc.patch
+#      0009-fix-protobuf.patch
+#      0010-fix-uwp-tiff-imgcodecs.patch
+#      0012-miss-openexr.patch
+#      0015-fix-freetype.patch
+#      0017-fix-flatbuffers.patch
+#      0020-fix-narrow-filesystem.diff
+#      0021-fix-qt-gen-def.patch
+#      0022-android-use-vcpkg-cpu-features.patch
+#)
+#set(SOURCE_PATH "D:/Work/opencv")
+#message(STATUS "Applying patch ${CMAKE_CURRENT_LIST_DIR}/0001-disable-downloading.patch to source ${SOURCE_PATH}")
+#vcpkg_apply_patches(
+#    SOURCE_PATH <${SOURCE_PATH}>
+#    PATCHES
+#       0001-disable-downloading.patch
+#      0002-install-options.patch
+#      0003-force-package-requirements.patch
+#      0004-opencl.diff
+#      0005-vulkan.diff
+#      0008-devendor-quirc.patch
+#      0009-fix-protobuf.patch
+#      0010-fix-uwp-tiff-imgcodecs.patch
+#      0012-miss-openexr.patch
+#      0015-fix-freetype.patch
+#      0017-fix-flatbuffers.patch
+#      0020-fix-narrow-filesystem.diff
+#      0021-fix-qt-gen-def.patch
+#      0022-android-use-vcpkg-cpu-features.patch
+#)
+vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
-    REPO opencv/opencv
-    REF "${VERSION}"
-    SHA512 8ac63ddd61e22cc0eaeafee4f30ae6e1cab05fc4929e2cea29070203b9ca8dfead12cc0fd7c4a87b65c1e20ec6b9ab4865a1b83fad33d114fc0708fdf107c51b
-    HEAD_REF master
+    URL "https://github.com/mkizub/opencv.git"
+    REF "4c16ea166f5165fefc5345db399359896dd83159"
+    #HEAD_REF master
     PATCHES
       0001-disable-downloading.patch
       0002-install-options.patch
@@ -22,6 +63,7 @@ vcpkg_from_github(
       0021-fix-qt-gen-def.patch
       0022-android-use-vcpkg-cpu-features.patch
 )
+
 # Disallow accidental build of vendored copies
 file(GLOB third_party "${SOURCE_PATH}/3rdparty/*")
 list(FILTER third_party EXCLUDE REGEX "/ippicv\$")
@@ -309,9 +351,9 @@ if("ipp" IN_LIST FEATURES)
     endif()
     if(VCPKG_TARGET_IS_WINDOWS OR VCPKG_OPENCV4_UPDATE)
       vcpkg_download_distfile(OCV_DOWNLOAD
-          URLS "https://raw.githubusercontent.com/opencv/opencv_3rdparty/767426b2a40a011eb2fa7f44c677c13e60e205ad/ippicv/ippicv_2022.1.0_win_intel64_20250130_general.zip"
-          FILENAME "opencv-cache/ippicv/67a611ab22410f392239bddff6f91df7-ippicv_2022.1.0_win_intel64_20250130_general.zip"
-          SHA512 3a3d8a0aa4279dcbede489039eee3effea5263575fdd0a2d79dd14c0af48f90680fa7ce8567cbc47e9fec88e21d3d674a53c5939ded2d065b07e25fdefa690aa
+          URLS "https://raw.githubusercontent.com/opencv/opencv_3rdparty/e6154bd971073bc60f7141e5373108501b0310a9/ippicv/ippicv_2022.3.0_win_intel64_20250919_general.zip"
+          FILENAME "opencv-cache/ippicv/27575d20636f76cb81dcf3898cfe6837-ippicv_2022.3.0_win_intel64_20250919_general.zip"
+          SHA512 ea6054235a75470e886c420372eaad65536ca8c54f06639aa3956b59c148c75d71130722254f898dc8d72ccd745fad6b6621e31faf8a0016cb8abcc0561957f0
       )
     endif()
     if(NOT (VCPKG_TARGET_IS_APPLE OR VCPKG_TARGET_IS_WINDOWS) OR VCPKG_OPENCV4_UPDATE)

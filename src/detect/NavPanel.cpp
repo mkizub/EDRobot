@@ -129,7 +129,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
 #endif
         if (lineMatch > 0) {
             auto& dl = detect_angle->detectedLines[0];
-            roughAngle = dl.angle;
+            roughAngle = detect_angle->lastAvrgAngle;
             cv::Line2f line = dl.line;
             line += cv::Point2f(detect_angle->lineMatchRect.tl());
             roughCenter = (line.p0() + line.p1()) * 0.5f;

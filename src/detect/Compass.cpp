@@ -5,6 +5,7 @@
 
 #include "Detector.h"
 #include "Compass.h"
+#include "Lines.h"
 #include "../widget/EDWidget.h"
 #include "../OCR.h"
 
@@ -12,6 +13,17 @@
 #include <glob/glob.h>
 
 namespace detect {
+
+void CompassDetector::standaloneTest(std::string image_filename) {
+    cv::Mat fileImage = cv::imread(image_filename, cv::IMREAD_UNCHANGED); // assume GRAY/BGR/BGRA
+    XMat debugImage = toXMat(fileImage);
+    ClassifyEnv debugEnv;
+    debugEnv.init(debugImage, 1);
+
+    auto det = std::make_unique<detect::CompassDetector>();
+    double match = det->match(debugEnv);
+    LOG_INFO("CompassDetector::standaloneTest: {:.1f}", match);
+}
 
 CompassDetector::CompassDetector()
         : Detector()
@@ -58,9 +70,18 @@ CompassDetector::CompassDetector()
     //navTargetFilters.push_back(std::unique_ptr<ImageFilter>(new DilateFilter(3, 3, 2)));
     navTargetFilters.push_back(std::unique_ptr<ImageFilter>(new DilateFilter(3, 3, 1)));
 
+    lineDetector = std::make_unique<detect::LineDetector>(nullptr);
+    lineDetector->filters.push_back(std::unique_ptr<ImageFilter>(new ChannelFilter(ChannelFilter::gray)));
+    lineDetector->filters.push_back(std::unique_ptr<ImageFilter>(new LinesFilter(false, 1, 10, 1, 0, 0)));
+    lineDetector->extendLT = {1, 110};
+    lineDetector->extendRB = {1, 110};
+    lineDetector->extendAngleMin = 15;
+    lineDetector->extendAngleMax = 15;
+    lineDetector->angleStep = 1;
+    lineDetector->houghThreshold = 60;
+
     hsvFilter = new HsvGrayCropFilter();
     hsvFilter->rangesU.emplace_back(cv::Vec3b(15,120,200),cv::Vec3b(35,255,255));
-    //distOCRFilters.push_back(std::unique_ptr<ImageFilter>(new GainBiasFilter(1.2, 0)));
     distOCRFilters.push_back(std::unique_ptr<ImageFilter>(hsvFilter));
 }
 
@@ -313,7 +334,7 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
     XMat correctedColorImage;
     cv::remap(env.getColorImage(), correctedColorImage, navTargetRemap1, navTargetRemap2, cv::INTER_LINEAR);
     if (env.isDebugMatch()) {
-        cv::imwrite("undistorted-screen-color.png", correctedColorImage);
+        cv::imwrite("cache/undistorted-screen-color.png", correctedColorImage);
     }
     XMat imagePrepared = ImageTemplate::applyFilters(navTargetFilters, correctedColorImage);
 
@@ -366,18 +387,8 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
     if (navTargetFound && lastTgtPitch >= -10 && lastTgtPitch <= +20 && lastTgtYaw >= -25 && lastTgtYaw <= +25) {
         //auto startTime = std::chrono::high_resolution_clock::now();
 
-//            float cx = env.ReferenceScreenCenter.x;
-//            float cy = env.ReferenceScreenCenter.y;
-//            cv::Point foundPos = nr.loc + cv::Point(nr.im->org_w, nr.im->org_h) / 2;
-//            double dx = (foundPos.x + targetRemapRect.x - cx) / cx;
-//            double dy = (foundPos.y + targetRemapRect.y - cy) / cx;
-//            double sin_a = 0.3 * std::pow(std::abs(dx*dx*dy) + std::abs(dy*dy*dx), 0.8);
-//            if (dx*dy < 0)
-//                sin_a *= -1;
-//            double cos_a = std::sqrt(1 - sin_a*sin_a);
-//            double angle = std::asin(sin_a) * 180 / M_PI;
-//
         int scaledSz = 210; // 420x210
+        cv::Rect lineRect {200, 0, 210, 210};
         cv::Rect ocrRect {210, 114, 170, ocr::LINE_HEIGHT};
 
         int sz = nr.im->org_h;
@@ -398,12 +409,29 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
 //                cv::warpAffine(targetImage, normImage, affineMatrix, {2 * scaledSz, scaledSz}, cv::INTER_LINEAR, cv::BORDER_TRANSPARENT);
 //            } else {
         cv::resize(targetImage, normImage, {2 * scaledSz, scaledSz}, cv::INTER_LINEAR);
-//            }
+        {
+            XMat lineImage = normImage(lineRect);
+            ClassifyEnv lineEnv;
+            lineEnv.init(lineImage, 1);
+            lineDetector->withRefLine = cv::Line(0, 105, lineRect.width, 105);
+            double ln_match = lineDetector->match(lineEnv);
+            if (ln_match > 0.5 && std::abs(lineDetector->lastAvrgAngle) > 2) {
+                cv::Size size = {2 * scaledSz, scaledSz};
+                cv::Point2f center {navCapturePos.x, navCapturePos.y};
+                double scale = double(scaledSz) / sz;
+                cv::Matx23d rotationMatrix = cv::getRotationMatrix2D_(center, lineDetector->lastAvrgAngle, scale);
+                rotationMatrix.val[2] -= navCapturePos.x-scaledSz*0.5*env.getScale();
+                rotationMatrix.val[5] -= navCapturePos.y-scaledSz*0.5*env.getScale();
+                XMat out;
+                cv::warpAffine(env.getColorImage(), out, rotationMatrix, size, cv::INTER_LINEAR, cv::BORDER_TRANSPARENT);
+                normImage = out;
+            }
+        }
         if (env.isDebugMatch()) {
             cv::Mat debugImage;
             normImage.copyTo(debugImage);
             cv::rectangle(debugImage, ocrRect, {255,255,255});
-            cv::imwrite("nav-target-screen-color.png", debugImage);
+            cv::imwrite("cache/nav-target-screen-color.png", debugImage);
         }
         XMat ocrImage = ImageTemplate::applyFilters(distOCRFilters, normImage(ocrRect));
         cv::bitwise_not(ocrImage, ocrImage);

@@ -274,7 +274,7 @@ void approximateCompassDistance(CompassInfo& compass) {
 
         if (in_prev_range || buffer_rate >= 0) {
             if (in_prev_range && buffer_rate > 0)
-                LOG_DEBUG("Target dist (both ): {} (conf {})", d.to_string(), int(d.conf));
+                LOG_INFO("Target dist (both ): {} (conf {})", d.to_string(), int(d.conf));
             else if (buffer_rate > 0) {
                 //std::string history;
                 //history += d2t.to_string();
@@ -282,12 +282,12 @@ void approximateCompassDistance(CompassInfo& compass) {
                 //    history += " " + buffer[i].dist.to_string();
                 //}
                 //LOG_INFO("Target dist history: {}", history);
-                LOG_DEBUG("Target dist (ACCUM): {} (conf {})", d.to_string(), int(d.conf));
+                LOG_INFO("Target dist (ACCUM): {} (conf {})", d.to_string(), int(d.conf));
             }
             else if (in_prev_range)
-                LOG_DEBUG("Target dist (prev ): {} (conf {})", d.to_string(), int(d.conf));
+                LOG_INFO("Target dist (prev ): {} (conf {})", d.to_string(), int(d.conf));
             else
-                LOG_DEBUG("Target dist (first): {} (conf {})", d.to_string(), int(d.conf));
+                LOG_INFO("Target dist (first): {} (conf {})", d.to_string(), int(d.conf));
 
             d2t = d; // st::autopilot.distanceToTarget = d;
 
@@ -296,7 +296,7 @@ void approximateCompassDistance(CompassInfo& compass) {
             else if (st::autopilot.destBody && st::autopilot.destBody->nameEq(buffer_target_name))
                 st::autopilot.distanceToBody = d2t;
         } else {
-            LOG_DEBUG("Target dist (ignored): {} (conf {})", d.to_string(), int(d.conf));
+            LOG_INFO("Target dist (ignored): {} (conf {})", d.to_string(), int(d.conf));
         }
     }
 }

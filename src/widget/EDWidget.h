@@ -87,7 +87,6 @@ struct Root : public Widget {
 };
 
 extern Widget* widget_from_json(const js::value& j, Widget* parent, FovScale* fov_scale);
-extern void debugNavPanel();
 
 };
 
