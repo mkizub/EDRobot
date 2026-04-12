@@ -98,6 +98,8 @@ bool Capturer::InitD3DDevice() {
 
                 if (forced)
                     dxgiAdapter1.Attach(dxgiAdapterTmp.Detach());
+                else if (!dxgiAdapter1 && std::wstring(desc.Description).starts_with(L"Intel(R)"))
+                    dxgiAdapter1.Attach(dxgiAdapterTmp.Detach());
             }
             numGPUs = uniqueGPUs.size();
         }
@@ -214,25 +216,17 @@ Capturer* Capturer::getEDCapturer(HWND hwnd) {
             captureRect = monitorInfo.rcMonitor;
         }
     }
-    // for window or multiple GPUs, try WinRT capturer first
-    if ((!fullscreen || numGPUs > 1) && !Cfg.isCapturerWinRTDisabled()) {
-        auto c = std::unique_ptr<Capturer>(new CapturerWinRT(hMonitor, &monitorInfo));
-        if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
-            TheCapturer.swap(c);
-            return TheCapturer.get();
-        }
-    }
-    // otherwise try DXGI capturer as fast and releable
-    if (!Cfg.isCapturerDXGIDisabled()) {
-        auto c = std::unique_ptr<Capturer>(new CapturerDXGI(hMonitor, &monitorInfo));
-        if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
-            TheCapturer.swap(c);
-            return TheCapturer.get();
-        }
-    }
-    // less optimal for fullscreen
+    // try WinRT capturer first
     if (!Cfg.isCapturerWinRTDisabled()) {
         auto c = std::unique_ptr<Capturer>(new CapturerWinRT(hMonitor, &monitorInfo));
+        if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
+            TheCapturer.swap(c);
+            return TheCapturer.get();
+        }
+    }
+    // otherwise try DXGI capturer
+    if (!Cfg.isCapturerDXGIDisabled()) {
+        auto c = std::unique_ptr<Capturer>(new CapturerDXGI(hMonitor, &monitorInfo));
         if (c->trySetup(hwnd, fromRECT(windowRect), fromRECT(captureRect))) {
             TheCapturer.swap(c);
             return TheCapturer.get();

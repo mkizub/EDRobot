@@ -712,7 +712,7 @@ int Master::canSell(Commodity* commodity) const {
         return 0;
     if (commodity->ship.count <= commodity->ship.stolen)
         return 0;
-    spMarket market = st::currentMarket;
+    auto market = gal::getMarket(st::dockedAt.marketId);
     if (!market || market->items.empty())
         return 0;
     if (market->stationType == "FleetCarrier") {
@@ -728,7 +728,7 @@ int Master::canSell(Commodity* commodity) const {
 int Master::canBuy(Commodity* commodity) const {
     if (!commodity)
         return 0;
-    spMarket market = st::currentMarket;
+    auto market = gal::getMarket(st::dockedAt.marketId);
     if (!market || market->items.empty())
         return 0;
     auto it = market->items.find(commodity);

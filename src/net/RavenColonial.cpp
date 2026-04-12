@@ -39,6 +39,21 @@ RavenColonial::~RavenColonial() {
         setShipCargoReport(false);
 }
 
+bool RavenColonial::linkCmdr(int64_t marketId) {
+    auto market = gal::getMarket(marketId);
+    if (!market || !market->raven || market->raven->buildId.empty())
+        return false;
+    auto raven = market->raven;
+    if (raven->commanders.contains(st::cmdr.name))
+        return true;
+    std::string cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
+    cpr::Response cr = cpr::Put(cpr::Url{RCAPI_PRJ + raven->buildId + "/link/" + cmdr_esc_name});
+    if (!isOK(cr))
+        return false;
+    raven->commanders[st::cmdr.name] = {};
+    return true;
+}
+
 gal::spEntity RavenColonial::importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName) {
     // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
     auto starSystem = gal::getStarSystem(systemName);
@@ -278,12 +293,7 @@ void RavenColonial::reportContribution(spGameEvent& ge) {
     }
     if (raven->buildId.empty())
         return;
-    std::string cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
-    if (!raven->commanders.contains(st::cmdr.name)) {
-        cpr::Response cr = cpr::Put(cpr::Url{RCAPI_PRJ + raven->buildId + "/link/" + cmdr_esc_name});
-        if (isOK(cr))
-            raven->commanders[st::cmdr.name] = {};
-    }
+    linkCmdr(marketId);
 
     auto& rci = raven->commanders[st::cmdr.name];
     if (rci.timestamp >= ge->timestamp)
@@ -301,6 +311,7 @@ void RavenColonial::reportContribution(spGameEvent& ge) {
     }
     std::string json_data = js::stringify(post_json);
     LOG(INFO) << "RavenColonial contribution post: " << json_data;
+    std::string cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
     cpr::PostAsync(cpr::Url{RCAPI_PRJ + raven->buildId + "/contribute/" + cmdr_esc_name},
                    cpr::Body{json_data});
     rci.timestamp = ge->timestamp;

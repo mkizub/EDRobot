@@ -31,7 +31,6 @@ Destination destination {};
 ShipStatus ship {};
 ShipAtBody shipAtBody {};
 
-spMarket currentMarket;
 spNavRoute currentNavRoute;
 CompassInfo compass;
 Autopilot autopilot;
@@ -527,8 +526,6 @@ void parseEvent_Location(spGameEvent& ge) {
         set(st::dockedAt.stationName, je["StationName"]);
         set(st::dockedAt.stationType, je["StationType"]);
         gal::getCurrentStarSystem()->addStation(ge);
-        auto market = gal::getMarket(st::dockedAt.marketId);
-        st::currentMarket.swap(market);
         st::space = {};
     } else {
         if (je["Body"].is_string()) {
@@ -623,8 +620,6 @@ void parseEvent_Docked(spGameEvent& ge) {
     set(st::dockedAt.stationName, je["StationName"]);
     set(st::dockedAt.stationType, je["StationType"]);
     gal::getCurrentStarSystem()->addStation(ge);
-    auto market = gal::getMarket(st::dockedAt.marketId);
-    st::currentMarket.swap(market);
     st::space = {};
 
     if (!ge->expired)
@@ -633,7 +628,6 @@ void parseEvent_Docked(spGameEvent& ge) {
 
 void parseEvent_Undocked(spGameEvent& ge) {
     Cfg.dockingEvent.reset();
-    st::currentMarket.reset();
     auto& je = ge->data;
     st::space.marketId = je["MarketID"].as_int_or(st::dockedAt.marketId);
     st::space.stationName = je["StationName"].as_string_or(st::dockedAt.stationName);
@@ -1078,10 +1072,9 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
         else
             market->raven->timestamp = ge->timestamp;
     }
-    st::currentMarket.swap(market);
-    gal::setMarketData(st::currentMarket);
+    gal::setMarketData(market);
     if (hasRaven && reportToRaven)
-        RavenColonial::reportConstructionDepot(ge, st::currentMarket);
+        RavenColonial::reportConstructionDepot(ge, market);
  }
 
 void parseEvent_ColonisationContribution(spGameEvent& ge) {

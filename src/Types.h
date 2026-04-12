@@ -102,6 +102,8 @@ inline bool isConstrDepot(TypeNav type) {
 namespace gal {
     class Entity;
     typedef std::shared_ptr<Entity> spEntity;
+    class StarSystem;
+    typedef std::shared_ptr<StarSystem> spStarSystem;
 }
 
 namespace ai {

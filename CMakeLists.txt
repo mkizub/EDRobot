@@ -184,6 +184,8 @@ add_executable(EDRobot WIN32
         src/ui/wl_popup_menu.h
         src/ui/UIEditBookmarks.cpp
         src/ui/UIEditBookmarks.h
+        src/ui/UIEditSystem.cpp
+        src/ui/UIEditSystem.h
 )
 
 

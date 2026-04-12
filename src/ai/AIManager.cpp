@@ -90,6 +90,8 @@ bool shutdown() {
     taskCond.notify_all();
     if (taskThread.joinable())
         taskThread.join();
+    activeTask.reset();
+    lastTask.reset();
     return true;
 }
 

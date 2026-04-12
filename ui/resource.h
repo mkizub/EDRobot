@@ -49,21 +49,22 @@
 #define IDM_TASK_PAUSE                  32794
 #define IDM_TASK_RESUME                 32795
 #define IDM_FILE_EXIT                   32796
-#define IDM_SHOW_TASK_STATUS            32797
-#define IDM_SHOW_TASK_EDITOR            32798
-#define IDM_SHOW_COMMODITIES            32799
-#define IDM_SHOW_BOOKMARKS              32800
-#define IDM_DETACH                      32801
-#define IDM_NETW_RAVEN_ENABLED          32802
-#define IDM_NETW_RAVEN_CARRIER_CARGO    32803
-#define IDM_NETW_RAVEN_SHIP_CARGO       32804
-#define IDM_NETW_EDDN_SYSTEMS           32805
-#define IDM_NETW_EDDN_MARKETS           32806
-#define IDM_DEBUG_CONSOLE               32810
-#define IDM_DEBUG_WATCH                 32811
-#define IDM_DEBUG_DEFAULT_LOG           32812
-#define IDM_DEBUG_NETWORK_LOG           32813
-#define IDM_DEBUG_CONSOLE_LOG           32814
+#define IDM_SHOW_TASK_STATUS            32800
+#define IDM_SHOW_TASK_EDITOR            32801
+#define IDM_SHOW_COMMODITIES            32802
+#define IDM_SHOW_BOOKMARKS              32803
+#define IDM_SHOW_STAR_SYSTEM            32804
+#define IDM_DETACH                      32811
+#define IDM_NETW_RAVEN_ENABLED          32812
+#define IDM_NETW_RAVEN_CARRIER_CARGO    32813
+#define IDM_NETW_RAVEN_SHIP_CARGO       32814
+#define IDM_NETW_EDDN_SYSTEMS           32815
+#define IDM_NETW_EDDN_MARKETS           32816
+#define IDM_DEBUG_CONSOLE               32820
+#define IDM_DEBUG_WATCH                 32821
+#define IDM_DEBUG_DEFAULT_LOG           32822
+#define IDM_DEBUG_NETWORK_LOG           32823
+#define IDM_DEBUG_CONSOLE_LOG           32824
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

@@ -22,6 +22,7 @@ public:
     static gal::spEntity importConstructionProject(
             const std::string& systemName, const std::string& fullName, const std::string& shortName);
 
+    static bool linkCmdr(int64_t marketId);
     static js::value carrierGetCargo(int64_t marketId);
     static void carrierPostCargo(int64_t marketId, js::value& j);
     static void carrierPatchCargo(int64_t marketId, const std::map<Commodity*,int>& patch);

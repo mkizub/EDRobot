@@ -44,6 +44,7 @@ public:
     void on_command_edit_task();
     void on_command_show_cargo();
     void on_command_show_bookmarks();
+    void on_command_edit_star_system();
 
     void update_curr_task();
 

@@ -1043,7 +1043,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
     std::vector<Commodity*> out;
     if (st::lng == Lang::XX)
         return out;
-    spMarket market = st::currentMarket;
+    auto market = gal::getMarket(st::dockedAt.marketId);
     if (!market)
         return out;
     // check filters are supported
@@ -1095,7 +1095,7 @@ std::vector<Commodity*> Configuration::getMarketInBuyOrder() {
     std::vector<Commodity*> out;
     if (st::lng == Lang::XX)
         return out;
-    spMarket market = st::currentMarket;
+    auto market = gal::getMarket(st::dockedAt.marketId);
     if (!market)
         return out;
     // check filters are supported
@@ -1210,8 +1210,7 @@ bool Configuration::loadMarket(spGameEvent ge) {
     if (mCommodityDatabaseUpdated)
         dumpCommodityDatabase();
 
-    st::currentMarket.swap(market);
-    gal::setMarketData(st::currentMarket);
+    gal::setMarketData(market);
 
     if (!ge->expired) {
         spGameEvent ge_loaded(new GameEvent{std::move(j_market), timestamp, "Market", false});

@@ -206,7 +206,6 @@ extern struct ShipAtBody {
     double gravity; // in G
 } shipAtBody;
 
-extern std::shared_ptr<Market> currentMarket;
 extern std::shared_ptr<NavRoute> currentNavRoute;
 
 extern CompassInfo compass;

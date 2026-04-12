@@ -437,6 +437,9 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
             btn_add.set_enabled(false);
         }
     }
+    if (changed == btn_fc_save.hwnd() && msg == BN_CLICKED) {
+        ui->on_cargo_save();
+    }
     if (changed != dl.hwnd())
         return;
     if (msg == CBN_SELENDOK)

@@ -9,7 +9,6 @@
 #include "AIUtils.h"
 
 #include "../Keyboard.h"
-#include "../Galaxy.h"
 #include "../net/RavenColonial.h"
 
 namespace ai {
@@ -35,21 +34,29 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
     auto starSystem = gal::getStarSystem(systemName);
     if (!starSystem)
         throw_failed("Star system '{}' not known", systemName);
+    bool depotImported = false;
     auto depot = starSystem->getDock(fullName);
     if (!depot) {
         depot = RavenColonial::importConstructionProject(systemName, fullName, shortName);
         if (!depot)
             throw_failed("Construction depot '{}' not known", fullName);
+        depotImported = true;
     }
     spMarket depotMarket = gal::getMarket(depot->marketId);
-    if (!depotMarket|| depotMarket->items.empty()) {
+    if (!depotMarket || depotMarket->items.empty()) {
         RavenColonial::importConstructionProject(systemName, fullName, shortName);
         depotMarket = gal::getMarket(depot->marketId);
         if (!depotMarket|| depotMarket->items.empty())
             throw_failed("Construction depot '{}' demand is not known", fullName);
+        depotImported = true;
     }
     if (!(depot->type == TypeNav::SpaceConstrDepot || depot->type == TypeNav::PlanetaryConstrDepot || depot->type == TypeNav::ColonisationShip || depotMarket->stationType == "ConstrDepot"))
         throw_failed("Site '{}' is not a construction depot", fullName);
+    if (!depotImported) {
+        RavenColonial::importConstructionProject(systemName, fullName, shortName);
+        depotMarket = gal::getMarket(depot->marketId);
+        depotImported = true;
+    }
     auto& depotInfo = depots.emplace_back(systemName, fullName, shortName);
     depotInfo.marketId = depot->marketId;
     if (depotMarket && depotMarket->raven) {
@@ -455,6 +462,8 @@ bool TaskConstruction::run() {
         const Param &p_depot = templ.get("depot");
         addDepotInfo(p_depot.value);
     }
+    for (auto& di : depots)
+        RavenColonial::linkCmdr(di.marketId);
 
     travelResume();
 

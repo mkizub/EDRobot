@@ -202,19 +202,16 @@ bool CargoManager::saveCarrierCargo(Timestamp timestamp, const std::map<Commodit
     ofs << js::rule::ecma404() << js::rule::space_indent<1>() << j_cargo;
     ofs.close();
 
-    if (auto rc = RavenColonial::getInstance())
-        rc->carrierPatchCargo(st::cmdr.fleetCarrierId, patch);
+    RavenColonial::carrierPatchCargo(st::cmdr.fleetCarrierId, patch);
     return true;
 }
 
 bool CargoManager::processMarketBuy(spGameEvent ge) {
     auto& je = ge->data;
 
-    auto market = st::currentMarket;
-    if (!market || market->marketId != je["MarketID"].as_int_or()) {
-        int64_t marketId = je["MarketID"].as_int_or();
-        market = gal::getMarket(marketId);
-    }
+    auto market = gal::getMarket(je["MarketID"].as_int_or());
+    if (!market)
+        return false;
 
     bool saveCarrier = false;
     auto* commodity = Cfg.getCommodityById(je["Type"].as_string_or());
@@ -249,11 +246,9 @@ bool CargoManager::processMarketBuy(spGameEvent ge) {
 bool CargoManager::processMarketSell(spGameEvent ge) {
     auto& je = ge->data;
 
-    auto market = st::currentMarket;
-    if (!market || market->marketId != je["MarketID"].as_int_or()) {
-        int64_t marketId = je["MarketID"].as_int_or();
-        market = gal::getMarket(marketId);
-    }
+    auto market = gal::getMarket(je["MarketID"].as_int_or());
+    if (!market)
+        return false;
 
     bool saveCarrier = false;
     auto* commodity = Cfg.getCommodityById(je["Type"].as_string_or());
@@ -292,11 +287,7 @@ bool CargoManager::processColonisationContribution(spGameEvent ge) {
     if (timestampShip >= ge->timestamp)
         return false;
     //{ "timestamp":"2026-02-11T18:55:36Z", "event":"ColonisationContribution", "MarketID":3955958274, "Contributions":[ { "Name":"$ComputerComponents_name;", "Name_Localised":"Компьютерные компоненты", "Amount":62 }, { "Name":"$FruitAndVegetables_name;", "Name_Localised":"Фрукты и овощи", "Amount":50 }, { "Name":"$InsulatingMembrane_name;", "Name_Localised":"Изолирующая мембрана", "Amount":347 }, { "Name":"$PowerGenerators_name;", "Name_Localised":"Электрогенераторы", "Amount":19 }, { "Name":"$Steel_name;", "Name_Localised":"Сталь", "Amount":13 }, { "Name":"$Water_name;", "Name_Localised":"Вода", "Amount":741 } ] }
-    auto market = st::currentMarket;
-    if (!market || market->marketId != je["MarketID"].as_int_or()) {
-        int64_t marketId = je["MarketID"].as_int_or();
-        market = gal::getMarket(marketId);
-    }
+    auto market = gal::getMarket(je["MarketID"].as_int_or());
     if (!market || market->timestamp > ge->timestamp || timestampShip >= ge->timestamp)
         return false;
 
