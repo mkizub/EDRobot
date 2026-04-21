@@ -58,6 +58,7 @@ struct StarSystem {
     spEntity addStation(spEntity station);
     spEntity addSignal(spEntity signal);
     void addDestination();
+    void removeEntity(const spEntity& entity);
 
 private:
     void checkType(spEntity& site, TypeNav type, Timestamp timestamp);

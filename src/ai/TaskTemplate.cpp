@@ -474,7 +474,8 @@ void initTemplates() {
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
     templates.emplace_back(ED_TASK_CONSTR_BUILD, _lc("Build constructions"), FACTORY(TaskConstruction), P{
-            { Param::Site,     "depot",   _lc("Construction depot") },
+            { Param::Array,    "depots",  _lc("Construction depots"), META(
+                    R"({elements:{type:'Site'}})")},
             { Param::Array,    "markets", _lc("Markets"), META(
                     R"({elements:{type:'Site'}})")},
             { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({

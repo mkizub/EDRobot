@@ -556,7 +556,7 @@ void parseEvent_Loadout(spGameEvent& ge) {
     {
         auto& ss = st::shipStats;
         ss.unladenMass = je["UnladenMass"].as_real_or();
-        ss.cargoCapacity = je["CargoCapacity"].as_real_or();
+        ss.cargoCapacity = je["CargoCapacity"].as_int_or();
         ss.fuelCapacityMain = je["FuelCapacity"]["Main"].as_real_or();
         ss.fuelCapacityReservoir = je["FuelCapacity"]["Reserve"].as_real_or();
         ss.totalMass = ss.unladenMass + ss.fuelMain + ss.fuelReservoir + ss.cargo;

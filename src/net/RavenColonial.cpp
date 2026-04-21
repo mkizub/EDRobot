@@ -66,13 +66,16 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
     if (cr_body.empty())
         return {};
     std::string buildId;
-    for (auto& site : cr_body["sites"].as_array_or()) {
-        if (depot && depot->marketId) {
-            if (depot && depot->marketId && site["marketId"].is_int() && site["marketId"].as_int() == depot->marketId) {
+    if (depot && depot->marketId) {
+        for (auto &site: cr_body["sites"].as_array_or()) {
+            if (site["marketId"].as_int_or() == depot->marketId) {
                 buildId = site["buildId"].as_string_or();
                 break;
             }
-        } else {
+        }
+    }
+    if (buildId.empty()) {
+        for (auto &site: cr_body["sites"].as_array_or()) {
             if (site["status"].as_string_or() != "build")
                 continue;
             if (site["name"].as_string_or() == shortName) {
@@ -83,16 +86,19 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
     }
     if (buildId.empty()) {
         // check (the only) primary port
-        if (!depot || !depot->marketId) {
-            std::vector<std::string> active_builds;
-            for (auto &site: cr_body["sites"].as_array_or()) {
-                if (site["buildId"].empty() || site["status"].as_string_or() != "build")
-                    continue;
-                active_builds.push_back(site["buildId"].as_string_or());
-            }
-            if (active_builds.size() == 1) {
+        std::vector<std::string> active_builds;
+        for (auto &site: cr_body["sites"].as_array_or()) {
+            if (site["buildId"].empty() || site["status"].as_string_or() != "build")
+                continue;
+            active_builds.push_back(site["buildId"].as_string_or());
+        }
+        if (active_builds.size() == 1) {
+            cr = cpr::Get(cpr::Url{RCAPI_PRJ + buildId});
+            cr_body = getJS(cr);
+            if (cr_body.empty())
+                return {};
+            if (cr_body["isPrimaryPort"].as_bool_or())
                 buildId = active_builds.front();
-            }
         }
     }
     if (buildId.empty())
@@ -140,6 +146,10 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
         market->raven = std::make_shared<RavenProj>();
     market->raven->timestamp = timestamp;
     market->raven->buildId = buildId;
+    if (auto jst = cr_body["complete"]; jst.is_bool() && jst.as_bool())
+        market->raven->status = "complete";
+    if (market->raven->status.empty())
+        market->raven->status = "build";
     for (auto [key,count] : cr_body["commodities"].key_value()) {
         Commodity* c = Cfg.getCommodityById(key);
         if (!c)
@@ -156,6 +166,18 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
                 ml.demand = ml.stock + (int) count.as_int_or();
             }
         }
+    }
+    for (auto [key,val] : cr_body["commanders"].key_value()) {
+        std::string cmdr(key);
+        std::vector<Commodity*> assigned;
+        for (auto& jc : val.as_array_or()) {
+            auto* c = Cfg.getCommodityById(jc.as_string_or());
+            if (c)
+                assigned.push_back(c);
+        }
+        auto& ci = market->raven->commanders[cmdr];
+        if (assigned != ci.assigned)
+            ci.assigned.swap(assigned);
     }
     gal::setMarketData(market);
 
@@ -389,6 +411,8 @@ spMarket RavenColonial::updateConstructionDepot(spMarket market) {
             }
             raven->status = "complete";
         } else {
+            if (raven->status.empty())
+                raven->status = "build";
             for (auto& it : market->items) {
                 Commodity* c = it.first;
                 auto& ml = it.second;
@@ -399,6 +423,18 @@ spMarket RavenColonial::updateConstructionDepot(spMarket market) {
                                              c->name, demandOld, demandNew);
                     ml.stock = std::clamp(ml.demand-demandNew, 0, ml.demand);
                 }
+            }
+            for (auto [key,val] : cr_body["commanders"].key_value()) {
+                std::string cmdr(key);
+                std::vector<Commodity*> assigned;
+                for (auto& jc : val.as_array_or()) {
+                    auto* c = Cfg.getCommodityById(jc.as_string_or());
+                    if (c)
+                        assigned.push_back(c);
+                }
+                auto& ci = market->raven->commanders[cmdr];
+                if (assigned != ci.assigned)
+                    ci.assigned.swap(assigned);
             }
         }
         gal::setMarketData(market);

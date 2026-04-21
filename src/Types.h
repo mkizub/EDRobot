@@ -65,9 +65,7 @@ enum class TypeNav {
     SquadronCarrier         = 0x33,
     StrongholdCarrier       = 0x34,
     ColonisationShip        = 0x35,
-    //TrailblazerDream        = 0x36,
     PlanetaryThing          = 0x40,   // generic type
-    PlanetaryStation        = 0x41,   // generic type
     PlanetaryPort           = 0x42,
     EngineerPort            = 0x43,
     Settlement              = 0x44,   // odyssey settlement
@@ -332,9 +330,10 @@ public:
 
 struct RavenProj {
     struct CmdrInfo {
-        Timestamp timestamp; // contribution timestamp
-        int deliveries; // number of deliveries
-        int contributed; // total cargo contributed
+        Timestamp timestamp {}; // contribution timestamp
+        int deliveries {}; // number of deliveries
+        int contributed {}; // total cargo contributed
+        std::vector<Commodity*> assigned; // commodities assigned to this commander
     };
     std::string buildId;
     std::string status;

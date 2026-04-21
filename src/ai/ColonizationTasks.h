@@ -30,33 +30,53 @@ protected:
         std::string ravenBuildId;
     };
     struct Demands {
-        std::set<Commodity*> specialCommodityList;
+        struct BuyCounts {
+            int* count {};  // first depot
+            int total {};   // total of all depots
+            int bought {};  // already have in ship of carrier
+        };
+        struct Depot {
+            DepotInfo* info;
+            spMarket market;
+            std::set<Commodity*> assignedCommodities; // assigned to me
+            std::set<Commodity*> ignoreCommodities; // assigned to others
+            std::set<Commodity*> buyCommodities; // commodities we can try to buy
+        };
+        std::vector<Depot> allDepots;
+        std::vector<Commodity*> specialCommoditiesList;
+        std::set<Commodity*> specialCommodities;
         std::map<Commodity*, int> othersShipsCargo;
-        std::map<Commodity*, int> toDeliver;
-        std::map<Commodity*, int> toDeliverListed;
-        std::map<Commodity*, int> toBuy;
-        std::map<Commodity*, int> toBuyListed;
+        std::map<Commodity*, BuyCounts> toDeliver;
+        bool needToBuy {false};
         bool firstListed {false};
         bool exceptListed {false};
         bool onlyListed {false};
+        std::vector<int> countsBuffer; // size = allDepots.size()*toDeliver.size()
     };
+    enum MarketState { MARKET_INVALID, MARKET_UNKNOWN, MARKET_VALID };
     struct MarketInfo {
+        MarketState state;
         std::string systemName;
         std::string dockName;
         gal::spEntity dock;
         spMarket dockMarket;
-        int canBuy {};
-        int canBuyListed {};
+        std::vector<int> canBuy;
+        std::vector<int> canBuyListed;
+        int sumCanBuy;
+        int sumCanBuyListed;
     };
 
-    gal::spEntity getCurrDock();
-    gal::spEntity travelTo(std::string systemName, std::string dockName);
+    static gal::spEntity getCurrDock();
+    virtual bool ignoreCarrier(gal::spEntity& dock) { return false; }
+    gal::spEntity travelTo(const std::string& systemName, const std::string& dockName);
     void travelResume();
     void addDemands(DepotInfo& depot, Demands& demands);
+    void fillDemands(Demands& demands);
     Demands calcDemands();
 
     MarketInfo checkMarketCanBuy(const std::string& systemName, const std::string& dockName,
                                  const Demands& demands);
+    MarketInfo chooseBestMarket(const Demands& demands);
     void tradeCommodities(const gal::spEntity& currDock, const Demands& demands,
                           const std::vector<Commodity*>* unnecessaryCargo = nullptr);
 
@@ -73,9 +93,11 @@ class TaskMyCarrierReserve final : public BaseColonizationTask {
 public:
     explicit TaskMyCarrierReserve(const TaskTemplate& templ);
     bool run() final;
+    virtual bool ignoreCarrier(gal::spEntity& dock) {
+        return dock && (dock->marketId == st::cmdr.fleetCarrierId || dock->nameEq(myCarrierName));
+    }
 
 private:
-    MarketInfo chooseBestMarket(const Demands& demands);
     bool deliverToCarrier();
 
     std::string myCarrierName;
@@ -88,8 +110,7 @@ public:
     bool run() final;
 
 private:
-    MarketInfo chooseBestMarket(const Demands& demands);
-    bool deliverToDepot();
+    bool deliverToDepot(BaseColonizationTask::Demands& demands);
 
     std::vector<Commodity*> unnecessaryCargo;
 };

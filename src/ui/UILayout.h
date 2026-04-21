@@ -27,9 +27,12 @@ extern void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent, LONG weight
 
 struct UILayout {
     UILayout(int uiDpi, int uiPercent, RECT& rect);
+    UILayout(HWND hWnd);
+    void init(int uiDpi, int uiPercent, RECT& rect);
     int hgap, vgap, xgap, vrow, icsz, btnh, btnw, txt6w, txt20w, txt50w, border;
     int width, height;
     int left, top;
+    int uiDpi, uiPercent;
     wl::font *font;
     HDWP wpi;
 };

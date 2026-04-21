@@ -52,7 +52,7 @@ public:
     bool initializing {};
     bool detached {};
     int nextTryId;
-    std::bitset<256> usedIds;
+    std::bitset<1024> usedIds;
 };
 
 

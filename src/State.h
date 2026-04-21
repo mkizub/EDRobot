@@ -60,11 +60,11 @@ extern struct ShipStats {
 
     float fuelCapacityMain;
     float fuelCapacityReservoir;
-    float cargoCapacity;
+    int cargoCapacity;
 
     float fuelMain;
     float fuelReservoir;
-    float cargo;
+    int cargo;
 } shipStats;
 
 extern struct DockedAt {

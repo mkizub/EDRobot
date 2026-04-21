@@ -12,6 +12,7 @@
 #define IDD_ED_ROBOT                    138
 #define IDR_MENU                        139
 #define IDD_SHOW_CARGO                  139
+#define IDD_EDIT_SYSTEM_ENTRY           140
 #define IDC_STATIC_1                    1011
 #define IDC_STATIC_2                    1012
 #define IDC_STATIC_AMOUNT               1014
@@ -33,6 +34,13 @@
 #define IDC_CHECK1                      1029
 #define IDM_KEEP_ON_TOP                 1029
 #define IDM_MINIMIZE_TO_TRAY            1030
+#define IDC_NAME                        1030
+#define IDC_COMBO_TYPE                  1031
+#define IDC_COMBO_PARENT                1032
+#define IDC_EDIT_INFO                   1033
+#define IDC_STATIC_NAME                 1034
+#define IDC_STATIC_TYPE                 1035
+#define IDC_STATIC_PARENT               1036
 #define ID_SHOW_TOAST                   32781
 #define ID_TRAY_ICON                    32782
 #define ID_FILE_COMMODITY               32783
@@ -74,7 +82,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        140
 #define _APS_NEXT_COMMAND_VALUE         32797
-#define _APS_NEXT_CONTROL_VALUE         1030
+#define _APS_NEXT_CONTROL_VALUE         1037
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

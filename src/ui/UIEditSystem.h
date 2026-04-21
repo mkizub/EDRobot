@@ -48,6 +48,8 @@ public:
     gal::spStarSystem currStarSystem;
 
 private:
+    friend class EntityDialog;
+    friend class EntityCtrl;
     std::vector<std::string> starSystems;
 
     wl::starbox cb_system;

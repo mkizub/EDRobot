@@ -537,7 +537,6 @@ void BaseAutopilotTask::initNavFilter() {
 
     case TypeNav::SpaceThing:
     case TypeNav::SpaceInstallation:
-    //case TypeNav::TrailblazerDream:
     case TypeNav::Megaship:
     case TypeNav::TouristBeacon:
         filters.pointOfInterest = true;
@@ -551,7 +550,6 @@ void BaseAutopilotTask::initNavFilter() {
             filters.fleetCarrier = true;
         break;
     case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
     case TypeNav::Settlement:
@@ -1771,7 +1769,6 @@ bool BaseDockStep::canDock() {
     case TypeNav::SquadronCarrier:
     case TypeNav::StrongholdCarrier:
     case TypeNav::ColonisationShip:
-    case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
     case TypeNav::Settlement:
@@ -1931,7 +1928,6 @@ void DockSpaceStation::updateSafeDist() {
         case TypeNav::SquadronCarrier:
         case TypeNav::ColonisationShip:
         case TypeNav::Megaship:
-        //case TypeNav::TrailblazerDream:
         case TypeNav::SpaceConstrDepot:
             LOG_DEBUG("DockSpaceStation: safe dist 6500");
             safe_dist = 6500_m;
@@ -1943,7 +1939,6 @@ void DockSpaceStation::updateSafeDist() {
         }
     }
     if (st::space.stationType == "SpaceConstructionDepot" ||
-        st::space.stationType == "TrailblazerDream" ||
         st::space.stationType == "FleetCarrier")
     {
         LOG_DEBUG("DockSpaceStation: safe dist 6500 for type ", st::space.stationType);

@@ -79,6 +79,20 @@ BEGIN
     PUSHBUTTON      "Load",ID_LOAD,150,157,31,14
 END
 
+IDD_EDIT_SYSTEM_ENTRY DIALOGEX 0, 0, 209, 178
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "EDRobot Cargo"
+FONT 10, "Microsoft Sans Serif", 400, 0, 0xCC
+BEGIN
+    LTEXT           "Name",IDC_STATIC_NAME,7,9,21,8
+    EDITTEXT        IDC_NAME,54,7,147,12,ES_AUTOHSCROLL | WS_DISABLED
+    LTEXT           "Type",IDC_STATIC_TYPE,7,27,21,8
+    COMBOBOX        IDC_COMBO_TYPE,54,25,147,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Parent",IDC_STATIC_PARENT,7,45,21,8
+    COMBOBOX        IDC_COMBO_PARENT,54,43,147,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_EDIT_INFO,7,64,194,94,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -116,6 +130,14 @@ BEGIN
     BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 202
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 171
+    END
+
+    IDD_EDIT_SYSTEM_ENTRY, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 201
         TOPMARGIN, 7
         BOTTOMMARGIN, 171
     END
@@ -168,8 +190,9 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_DIALOGS             ICON                    "spaceship.ico" //"robot-assistant.ico"
-IDI_SMALL               ICON                    "spaceship.ico" //"small.ico"
+IDI_DIALOGS             ICON                    "spaceship.ico"
+
+IDI_SMALL               ICON                    "spaceship.ico"
 
 
 /////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,13 @@ std::string BaseColonizationTask::constructionPrefixes[] {
 
 void BaseColonizationTask::addDepotInfo(const js::value& dv) {
     auto systemName = dv["system"].as_string_or();
+    auto starSystem = gal::getStarSystem(systemName);
+    if (!starSystem)
+        throw_failed("Star system '{}' not known", systemName);
     auto fullName = dv["dock"].as_string_or();
+    //if (fullName == "*") {
+    //    RavenColonial::carrierGetCargo()
+    //}
     std::string shortName;
     for (auto& pr : constructionPrefixes) {
         if (fullName.starts_with(pr)) {
@@ -31,9 +37,6 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
             break;
         }
     }
-    auto starSystem = gal::getStarSystem(systemName);
-    if (!starSystem)
-        throw_failed("Star system '{}' not known", systemName);
     bool depotImported = false;
     auto depot = starSystem->getDock(fullName);
     if (!depot) {
@@ -74,7 +77,7 @@ gal::spEntity BaseColonizationTask::getCurrDock() {
     return dock;
 }
 
-gal::spEntity BaseColonizationTask::travelTo(std::string systemName, std::string dockName) {
+gal::spEntity BaseColonizationTask::travelTo(const std::string& systemName, const std::string& dockName) {
     auto currDock = getCurrDock();
     if (currDock && gal::getCurrentStarSystem()->systemName == systemName && currDock->nameEq(dockName)) {
         destSystemName.clear();
@@ -111,10 +114,10 @@ void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
     if (Cfg.isRavenColonialEnabled()) {
         Timestamp tm_now = Timestamp::clock::now();
         if (!dv.ravenBuildId.empty() && (!depotMarket || (depotMarket->timestamp+30s) < tm_now) && (dv.ravenProjectTimestamp+30s) < tm_now) {
-            if (rcInstance) {
-                depotMarket = rcInstance->updateConstructionDepot(depotMarket);
-                dv.ravenProjectTimestamp = depotMarket->raven->timestamp;
-            }
+            depotMarket = RavenColonial::updateConstructionDepot(depotMarket);
+            if (!depotMarket || !depotMarket->raven)
+                return;
+            dv.ravenProjectTimestamp = depotMarket->raven->timestamp;
         }
         if (ravenShipsCargo.empty() || (timestampRavenShipsCargo + 30s) < tm_now) {
             if (rcInstance) {
@@ -130,33 +133,110 @@ void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
                 for (auto [cid,count] : record["cargo"].key_value()) {
                     Commodity* c = Cfg.getCommodityById(cid);
                     if (c)
-                        demands.othersShipsCargo[c] += count.as_int_or();
+                        demands.othersShipsCargo[c] += (int)count.as_int_or();
                 }
             }
         }
     }
-    for (auto& item : depotMarket->items) {
-        Commodity* c = item.first;
-        if (!demands.specialCommodityList.empty()) {
-            if (demands.onlyListed) {
-                if (!demands.specialCommodityList.contains(c))
-                    continue;
-            }
-            else if (demands.exceptListed) {
-                if (demands.specialCommodityList.contains(c))
-                    continue;
-            }
-        }
-        int demand = item.second.demand - item.second.stock;
-        if (demands.othersShipsCargo.contains(c))
-            demand -= demands.othersShipsCargo[c];
-        if (demand > 0) {
-            demands.toDeliver[c] += demand;
-            if (!demands.specialCommodityList.empty() && demands.specialCommodityList.contains(c))
-                demands.toDeliverListed[c] += demand;
+    if (!depotMarket->raven || depotMarket->raven->status == "complete")
+        return;
+    Demands::Depot& ddp = demands.allDepots.emplace_back(&dv, depotMarket);
+    for (auto& [cmdr, info]: depotMarket->raven->commanders) {
+        for (auto c : info.assigned) {
+            const auto& ml = ddp.market->items[c];
+            if (ml.demand <= ml.stock)
+                continue;
+            if (cmdr == st::cmdr.name)
+                ddp.assignedCommodities.insert(info.assigned.begin(), info.assigned.end());
+            else
+                ddp.ignoreCommodities.insert(info.assigned.begin(), info.assigned.end());
         }
     }
+    for (auto &item: depotMarket->items) {
+        Commodity *c = item.first;
+        if (demands.onlyListed) {
+            if (!demands.specialCommodities.contains(c) && !ddp.assignedCommodities.contains(c))
+                continue;
+        } else if (demands.exceptListed) {
+            if (demands.specialCommodities.contains(c) && !ddp.assignedCommodities.contains(c))
+                continue;
+        } else {
+            if (!ddp.assignedCommodities.contains(c) && ddp.ignoreCommodities.contains(c))
+                continue; // assigned to someone else
+        }
+        ddp.buyCommodities.insert(c);
+        demands.toDeliver.try_emplace(c);
+    }
 }
+
+void BaseColonizationTask::fillDemands(Demands& demands) {
+    // sort depots, move to front depots with assigned commodities, then with listed commodities
+    std::stable_sort(demands.allDepots.begin(), demands.allDepots.end(), [demands](const auto& dp1, const auto& dp2)->bool {
+        if (!dp1.assignedCommodities.empty() && dp2.assignedCommodities.empty()) {
+            for (auto c : dp1.assignedCommodities)
+                if (dp1.buyCommodities.contains(c))
+                    return true;
+        }
+        if (dp1.assignedCommodities.empty() && !dp2.assignedCommodities.empty()) {
+            for (auto c : dp2.assignedCommodities)
+                if (dp1.buyCommodities.contains(c))
+                    return true;
+        }
+        if (demands.onlyListed || demands.firstListed) {
+            bool x1 = false;
+            bool x2 = false;
+            for (auto c : demands.specialCommoditiesList) {
+                if (dp1.buyCommodities.contains(c))
+                    x1 = true;
+                if (dp2.buyCommodities.contains(c))
+                    x2 = true;
+            }
+            if (x1 && !x2)
+                return true;
+            if (x2 && !x1)
+                return false;
+        }
+        return false;
+    });
+    demands.countsBuffer.resize(demands.allDepots.size()*demands.toDeliver.size());
+    {
+        int idx = 0;
+        for (auto& [c,cnt] : demands.toDeliver) {
+            cnt.bought = 0;
+            cnt.total = 0;
+            cnt.count = demands.countsBuffer.data() + idx * demands.allDepots.size();
+            idx += 1;
+        }
+    }
+    for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
+        auto& ddp = demands.allDepots[depotIdx];
+        for (auto &item: ddp.market->items) {
+            Commodity *c = item.first;
+            if (!ddp.buyCommodities.contains(c))
+                continue;
+            int demand = item.second.demand - item.second.stock;
+            if (demands.othersShipsCargo.contains(c))
+                demand -= demands.othersShipsCargo[c];
+            if (demand > 0) {
+                Demands::BuyCounts &bc = demands.toDeliver[c];
+                bc.total += demand;
+                bc.count[depotIdx] += demand;
+            }
+        }
+    }
+    bool considerCarrier = (templ.id == ED_TASK_CONSTR_RESERVE);
+    for (auto& d : demands.toDeliver) {
+        Commodity* c = d.first;
+        auto& demand = d.second;
+        if (c->ship.count > 0)
+            demand.bought += c->ship.count;
+        if (considerCarrier && c->fc.count > 0)
+            demand.bought += c->fc.count;
+        if (demand.total > demand.bought)
+            demands.needToBuy = true;
+    }
+}
+
 BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
     Demands demands;
     {
@@ -164,12 +244,13 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
         if (p_commodity.value.is_array()) {
             for (auto &jc: p_commodity.value.as_array()) {
                 Commodity *c = Cfg.getCommodityById(jc.as_string_or());
-                if (c)
-                    demands.specialCommodityList.insert(c);
+                if (c && !contains(demands.specialCommoditiesList, c))
+                    demands.specialCommoditiesList.push_back(c);
             }
         }
     }
-    if (!demands.specialCommodityList.empty()) {
+    if (!demands.specialCommoditiesList.empty()) {
+        demands.specialCommodities.insert(demands.specialCommoditiesList.begin(), demands.specialCommoditiesList.end());
         auto mode = templ.get("mode").as_string();
         if (mode == "FirstListed")
             demands.firstListed = true;
@@ -182,35 +263,28 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
     for (auto& di : depots) {
         addDemands(di, demands);
     }
+    fillDemands(demands);
 
-    bool considerCarrier = (templ.id == ED_TASK_CONSTR_RESERVE);
-    for (auto& d : demands.toDeliver) {
-        Commodity* c = d.first;
-        int demand = d.second;
-        if (c->ship.count > 0)
-            demand -= c->ship.count;
-        if (considerCarrier && c->fc.count > 0)
-            demand -= c->fc.count;
-        if (demand > 0)
-            demands.toBuy[c] = demand;
-    }
-    for (auto& d : demands.toDeliverListed) {
-        Commodity* c = d.first;
-        int demand = d.second;
-        if (c->ship.count > 0)
-            demand -= c->ship.count;
-        if (considerCarrier && c->fc.count > 0)
-            demand -= c->fc.count;
-        if (demand > 0)
-            demands.toBuyListed[c] = demand;
+    for (int i=0; i < demands.allDepots.size(); i++) {
+        auto& ddp = demands.allDepots[i];
+        LOG_INFO("Demand depot {}: {}", i, ddp.info->fullName);
     }
     for (auto& d : demands.toDeliver) {
         Commodity* c = d.first;
-        int toDeliver = d.second;
-        int toBuy = 0;
-        if (demands.toBuy.contains(c))
-            toBuy = demands.toBuy[c];
-        LOG_INFO("Demand for '{}' ({}): {} to deliver, {} to buy", c->name, c->nameId, toDeliver, toBuy);
+        Demands::BuyCounts toDeliver = d.second;
+        std::string counts;
+        for (int i=0; i < depots.size(); i++) {
+            auto& ddp = demands.allDepots[i];
+            counts += std::format(" {:5}", toDeliver.count[i]);
+            if (ddp.assignedCommodities.contains(c) || (!demands.exceptListed && demands.specialCommodities.contains(c)))
+                counts += "*";
+            else if (ddp.ignoreCommodities.contains(c) || (demands.exceptListed && demands.specialCommodities.contains(c)))
+                counts += "x";
+            else
+                counts += " ";
+        }
+        LOG_INFO("Demand for {:>36}: {} to deliver, {:5} to buy ({} - {})", c->name,
+                 counts, std::max(0, toDeliver.total-toDeliver.bought), toDeliver.total, toDeliver.bought);
     }
     return demands;
 }
@@ -218,13 +292,19 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
 BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
         const std::string& systemName, const std::string& dockName, const Demands& demands)
 {
+    BaseColonizationTask::MarketInfo mi {MARKET_INVALID, systemName, dockName};
     auto starSystem = gal::getStarSystem(systemName);
-    if (!starSystem)
-        throw_failed("Star system '{}' not known", systemName);
-    auto dock = starSystem->getDock(dockName);
-    if (!dock)
-        throw_failed("Market '{}' not known", dockName);
-    switch (dock->type) {
+    if (!starSystem) {
+        notify_warn("Star system '{}' not known", systemName);
+        return mi;
+    }
+    mi.dock = starSystem->getDock(dockName);
+    if (!mi.dock) {
+        notify_warn("Market '{}' not known", dockName);
+        mi.state = MARKET_UNKNOWN;
+        return mi;
+    }
+    switch (mi.dock->type) {
     case TypeNav::SpaceStation:
     case TypeNav::Orbis:
     case TypeNav::Ocellus:
@@ -236,42 +316,82 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
     case TypeNav::FleetCarrier:
     case TypeNav::SquadronCarrier:
     case TypeNav::StrongholdCarrier:
-    case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
     case TypeNav::Settlement:
         break;
+    case TypeNav::Other:
+    case TypeNav::Error:
+    case TypeNav::NotExplored:
+        notify_warn("Site '{}' type is not known", dockName);
+        mi.state = MARKET_UNKNOWN;
+        return mi;
     default:
-        notify_error("Site '{}' is not a market", dockName);
-        return {};
+        notify_warn("Site '{}' is not a market", dockName);
+        return {MARKET_INVALID};
     }
-    spMarket dockMarket = gal::getMarket(dock->marketId);
-    if (!dockMarket || dockMarket->items.empty()) {
-        return {systemName, dockName, dock, dockMarket, 0, 0};
+    mi.dockMarket = gal::getMarket(mi.dock->marketId);
+    if (!mi.dockMarket || mi.dockMarket->items.empty()) {
+        mi.state = MARKET_UNKNOWN;
+        return mi;
     }
-    int canBuy = 0;
-    int canBuyListed = 0;
-    for (auto& dp : demands.toBuy) {
-        Commodity* c = dp.first;
-        int demand = dp.second;
-        if (!dockMarket->items.contains(c))
-            continue;
-        auto& ml = dockMarket->items[c];
-        if (ml.isConsumer)
-            continue;
-        if (ml.stock <= 0)
-            continue;
-        canBuy += std::min(demand, ml.stock);
-        if (!demands.specialCommodityList.empty() && (demands.firstListed || demands.onlyListed)) {
-            if (demands.specialCommodityList.contains(c))
-                canBuyListed += std::min(demand, ml.stock);
+    std::map<Commodity*,int> need;
+    for (auto &[c, counts] : demands.toDeliver) {
+        need[c] = counts.total - counts.bought;
+    }
+    mi.canBuy.resize(demands.allDepots.size(), 0);
+    mi.canBuyListed.resize(demands.allDepots.size(), 0);
+    for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
+        auto& ddp = demands.allDepots[depotIdx];
+        for (auto &[c, counts] : demands.toDeliver) {
+            if (!mi.dockMarket->items.contains(c))
+                continue;
+            auto &ml = mi.dockMarket->items[c];
+            if (ml.isConsumer)
+                continue;
+            if (ml.stock <= 0)
+                continue;
+            int toBuy = std::min(need[c], ml.stock);
+            if (toBuy <= 0)
+                continue;
+            bool listed = false;
+            if (ddp.assignedCommodities.contains(c))
+                listed = true;
+            else if (ddp.ignoreCommodities.contains(c))
+                continue;
+            if ((demands.firstListed || demands.onlyListed) && demands.specialCommodities.contains(c))
+                listed = true;
+            need[c] -= toBuy;
+            mi.canBuy[depotIdx] = toBuy;
+            if (listed)
+                mi.canBuyListed[depotIdx] = toBuy;
         }
     }
     int freeCargoSpace = st::shipStats.cargoCapacity - st::shipStats.cargo;
-    canBuy = std::clamp(canBuy, 0, freeCargoSpace);
-    canBuyListed = std::clamp(canBuyListed, 0, freeCargoSpace);
-    if (canBuy <= 0)
-        return {};
-    return {systemName, dockName, dock, dockMarket, canBuy, canBuyListed};
+    for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
+        if (mi.canBuy[depotIdx] > freeCargoSpace)
+            mi.canBuy[depotIdx] = freeCargoSpace;
+        if (mi.canBuyListed[depotIdx] > freeCargoSpace)
+            mi.canBuyListed[depotIdx] = freeCargoSpace;
+        mi.sumCanBuy += mi.canBuy[depotIdx];
+        mi.sumCanBuyListed += mi.canBuyListed[depotIdx];
+    }
+    if (mi.sumCanBuy > freeCargoSpace)
+        mi.sumCanBuy = freeCargoSpace;
+    if (mi.sumCanBuyListed > freeCargoSpace)
+        mi.sumCanBuyListed = freeCargoSpace;
+    if (mi.sumCanBuy > 0)
+        mi.state = MARKET_VALID;
+    return mi;
+}
+
+int canBuyAtMarket(spMarket& market, Commodity* c) {
+    auto it = market->items.find(c);
+    if (it == market->items.end())
+        return 0;
+    auto &ml = it->second;
+    if (!ml.isProducer || ml.stock < 0)
+        return 0;
+    return ml.stock;
 }
 
 void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const Demands& demands,
@@ -291,26 +411,63 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
     spMarket market = gal::getMarket(currDock->marketId);
     struct BuyInfo {
         Commodity* commodity;
-        int toBuy;
-        int listedOrder;
+        int buy;
+        int order;
+        int dp_buy;
     };
+    // first buy assigned or listed commodities
+    // then buy others
     std::vector<BuyInfo> list;
-    for (auto &d: demands.toBuy) {
-        BuyInfo bi {d.first, d.second, 1000};
-        if ((demands.firstListed || demands.onlyListed) && !demands.specialCommodityList.empty()) {
-            auto it = std::find(demands.specialCommodityList.begin(), demands.specialCommodityList.end(), bi.commodity);
-            if (it != demands.specialCommodityList.end())
-                bi.listedOrder = std::distance(demands.specialCommodityList.begin(), it);
-        }
+    for (auto& [commodity, buy]: demands.toDeliver) {
+        if (buy.total <= buy.bought)
+            continue;
+        BuyInfo bi {commodity};
         list.push_back(bi);
     }
-    std::sort(list.begin(),list.end(),[](const auto& a, const auto& b){
-        if (a.listedOrder != b.listedOrder)
-            return a.listedOrder < b.listedOrder;
-        return a.toBuy < b.toBuy;
+    int freeCargoSpace = st::shipStats.cargoCapacity - st::shipStats.cargo;
+    for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
+        auto& ddp = demands.allDepots[depotIdx];
+        for (auto& bi : list) {
+            if (ddp.assignedCommodities.contains(bi.commodity))
+                bi.order = 0;
+            else if (!demands.exceptListed && demands.specialCommodities.contains(bi.commodity)) {
+                auto it = std::find(demands.specialCommoditiesList.begin(), demands.specialCommoditiesList.end(), bi.commodity);
+                bi.order = 1 + (int)std::distance(demands.specialCommoditiesList.begin(), it);
+            }
+            else if (!ddp.ignoreCommodities.contains(bi.commodity))
+                bi.order = 1000;
+            else
+                bi.order = 2000;
+            bi.dp_buy = demands.toDeliver.at(bi.commodity).count[depotIdx];
+            if (bi.dp_buy <= 0)
+                bi.dp_buy = INT_MAX;
+        }
+        std::stable_sort(list.begin(),list.end(),[demands,depotIdx](const auto& a, const auto& b){
+            if (a.order != b.order)
+                return a.order < b.order;
+            return a.dp_buy < b.dp_buy;
+        });
+        for (auto &bi: list) {
+            if (freeCargoSpace <= 0)
+                break;
+            int canBuy = canBuyAtMarket(market, bi.commodity);
+            int buyMore = std::min({canBuy, freeCargoSpace, demands.toDeliver.at(bi.commodity).count[depotIdx]});
+            if (buyMore > 0) {
+                bi.buy += buyMore;
+                freeCargoSpace -= buyMore;
+            }
+        }
+        if (freeCargoSpace <= 0.75 * st::shipStats.cargoCapacity)
+            break;
+    }
+    std::erase_if(list, [](const auto& bi) {
+        return bi.buy <= 0;
+    });
+    std::stable_sort(list.begin(),list.end(),[](const auto& a, const auto& b){
+        return a.buy < b.buy;
     });
     for (auto &d: list) {
-        int freeCargoSpace = st::shipStats.cargoCapacity - st::shipStats.cargo;
+        freeCargoSpace = st::shipStats.cargoCapacity - st::shipStats.cargo;
         if (freeCargoSpace <= 0)
             break;
         Commodity *c = d.commodity;
@@ -319,22 +476,16 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
             continue;
         TaskTemplate impl = getTemplate(ED_TASK_MARKET_BUY);
         impl.set("commodity", c->nameId);
-        impl.set("amount", d.toBuy);
+        impl.set("amount", d.buy);
         run_sub_step(impl.factory(impl));
     }
 }
 
-TaskMyCarrierReserve::TaskMyCarrierReserve(const TaskTemplate &templ_)
-        : BaseColonizationTask(templ_)
-{
-    assert (templ.id == ED_TASK_CONSTR_RESERVE);
-}
-
-BaseColonizationTask::MarketInfo TaskMyCarrierReserve::chooseBestMarket(const Demands& demands) {
+BaseColonizationTask::MarketInfo BaseColonizationTask::chooseBestMarket(const Demands& demands) {
     gal::spEntity currDock = getCurrDock();
-    if (currDock && currDock->marketId != st::cmdr.fleetCarrierId && !currDock->nameEq(myCarrierName)) {
+    if (currDock && !isConstrDepot(currDock->type) && !ignoreCarrier(currDock)) {
         MarketInfo mi = checkMarketCanBuy(gal::getCurrentStarSystem()->systemName, currDock->name, demands);
-        if (mi.dock)
+        if (mi.state != MARKET_INVALID && mi.sumCanBuy > 0)
             return mi;
     }
 
@@ -345,49 +496,55 @@ BaseColonizationTask::MarketInfo TaskMyCarrierReserve::chooseBestMarket(const De
             auto systemName = dv["system"].as_string_or();
             auto dockName = dv["dock"].as_string_or();
             MarketInfo mi = checkMarketCanBuy(systemName, dockName, demands);
-            if (mi.dock)
+            if (mi.state != MARKET_INVALID)
                 markets.push_back(mi);
         }
     }
     if (markets.empty())
-        return {};
+        return {MARKET_INVALID};
 
-    int freeCargoSpace = st::shipStats.cargoCapacity - st::shipStats.cargo;
+    // first, unload from carriers
+    for (auto& mi : markets) {
+        if (mi.dock && mi.dock->type == TypeNav::FleetCarrier && !ignoreCarrier(mi.dock))
+            return mi;
+    }
 
-    // process first-listed commodities
-    if (!demands.specialCommodityList.empty() && demands.firstListed) {
-        // the first market that can fill full cargo capacity of listed commodities
-        for (auto &m: markets) {
-            if (m.canBuyListed >= freeCargoSpace)
-                return m;
-        }
+    MarketInfo* bestMarket {};
+    // process assigned/listed commodities
+    if (!demands.specialCommodities.empty() && demands.firstListed) {
         // then the market that provides more listed goods
-        MarketInfo* bestMarket {};
-        for (auto& m : markets) {
-            if (m.canBuyListed <= 0)
+        for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
+            for (auto& mi : markets) {
+                if (mi.canBuyListed[depotIdx] <= 0)
+                    continue;
+                if (!bestMarket || bestMarket->canBuyListed[depotIdx] < mi.canBuyListed[depotIdx])
+                    bestMarket = &mi;
+            }
+            if (bestMarket)
+                return *bestMarket;
+        }
+    }
+    // process all commodities
+    for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
+        for (auto& mi : markets) {
+            if (mi.state == MARKET_UNKNOWN)
+                return mi; // investigate this dock
+            if (mi.canBuy[depotIdx] <= 0)
                 continue;
-            if (!bestMarket || bestMarket->canBuyListed < m.canBuyListed)
-                bestMarket = &m;
+            if (!bestMarket || bestMarket->canBuy[depotIdx] < mi.canBuy[depotIdx])
+                bestMarket = &mi;
         }
         if (bestMarket)
             return *bestMarket;
     }
 
-    for (auto& m : markets) {
-        if (m.canBuy >= freeCargoSpace)
-            return m;
-    }
-    MarketInfo* bestMarket {};
-    for (auto& m : markets) {
-        if (m.canBuy <= 0)
-            continue;
-        if (!bestMarket || bestMarket->canBuy < m.canBuy)
-            bestMarket = &m;
-    }
-    if (bestMarket)
-        return *bestMarket;
+    return {MARKET_INVALID};
+}
 
-    return {};
+TaskMyCarrierReserve::TaskMyCarrierReserve(const TaskTemplate &templ_)
+        : BaseColonizationTask(templ_)
+{
+    assert (templ.id == ED_TASK_CONSTR_RESERVE);
 }
 
 bool TaskMyCarrierReserve::deliverToCarrier() {
@@ -418,7 +575,7 @@ bool TaskMyCarrierReserve::run() {
     auto demands = calcDemands();
     gal::spEntity currDock = getCurrDock();
     if (st::shipStats.cargo > 0) {
-        if (!currDock || demands.toBuy.empty() || (st::shipStats.cargo >= st::shipStats.cargoCapacity)) {
+        if (!currDock || !demands.needToBuy || (st::shipStats.cargo >= st::shipStats.cargoCapacity)) {
             deliverToCarrier();
         }
     }
@@ -428,7 +585,7 @@ bool TaskMyCarrierReserve::run() {
             return true;
 
         MarketInfo mi = chooseBestMarket(demands);
-        if (!mi.dock) {
+        if (mi.state == MARKET_INVALID) {
             if (!demands.toDeliver.empty() && st::shipStats.cargo > 0) {
                 deliverToCarrier();
                 continue;
@@ -455,31 +612,31 @@ TaskConstruction::TaskConstruction(const TaskTemplate &templ)
 }
 
 bool TaskConstruction::run() {
-    if (!rcInstance)
-        rcInstance = RavenColonial::newInstance();
-
     if (depots.empty()) {
-        const Param &p_depot = templ.get("depot");
-        addDepotInfo(p_depot.value);
+        const Param &p_depots = templ.get("depots");
+        for (auto &dv: p_depots.value.as_array_or())
+            addDepotInfo(dv);
     }
     for (auto& di : depots)
         RavenColonial::linkCmdr(di.marketId);
+    if (!rcInstance)
+        rcInstance = RavenColonial::newInstance();
 
     travelResume();
 
     auto demands = calcDemands();
     gal::spEntity currDock = getCurrDock();
     if (st::shipStats.cargo > 0) {
-        if (!currDock || demands.toBuy.empty() || (st::shipStats.cargo >= st::shipStats.cargoCapacity)) {
-            deliverToDepot();
+        if (!currDock || !demands.needToBuy || (st::shipStats.cargo >= st::shipStats.cargoCapacity)) {
+            deliverToDepot(demands);
         }
     }
 
     while (!demands.toDeliver.empty()) {
         MarketInfo mi = chooseBestMarket(demands);
-        if (!mi.dock) {
+        if (mi.state == MARKET_INVALID) {
             if (!demands.toDeliver.empty() && st::shipStats.cargo > 0) {
-                deliverToDepot();
+                deliverToDepot(demands);
                 continue;
             }
             break;
@@ -493,103 +650,49 @@ bool TaskConstruction::run() {
         demands = calcDemands();
 
         if (!demands.toDeliver.empty() && st::shipStats.cargo > 0) {
-            deliverToDepot();
+            deliverToDepot(demands);
             demands = calcDemands();
         }
     }
     return true;
 }
 
-BaseColonizationTask::MarketInfo TaskConstruction::chooseBestMarket(const Demands& demands) {
-    gal::spEntity currDock = getCurrDock();
-    if (currDock && !isConstrDepot(currDock->type)) {
-        MarketInfo mi = checkMarketCanBuy(gal::getCurrentStarSystem()->systemName, currDock->name, demands);
-        if (mi.dock)
-            return mi;
-    }
-
-    std::vector<MarketInfo> markets;
-    Param &p = templ.get("markets");
-    if (p.value.is_array()) {
-        for (auto &dv: p.value.as_array()) {
-            auto systemName = dv["system"].as_string_or();
-            auto dockName = dv["dock"].as_string_or();
-            MarketInfo mi = checkMarketCanBuy(systemName, dockName, demands);
-            if (mi.dock)
-                markets.push_back(mi);
-        }
-    }
-    if (markets.empty())
-        return {};
-
-    // first, unload from my carrier
-    for (auto& m : markets) {
-        if (m.dock->marketId == st::cmdr.fleetCarrierId)
-            return m;
-    }
-
-    int freeCargoSpace = st::shipStats.cargoCapacity - st::shipStats.cargo;
-
-    // process first-listed commodities
-    if (!demands.specialCommodityList.empty() && demands.firstListed) {
-        // the first market that can fill full cargo capacity of listed commodities
-        for (auto &m: markets) {
-            if (m.canBuyListed >= freeCargoSpace)
-                return m;
-        }
-        // then the market that provides more listed goods
-        MarketInfo* bestMarket {};
-        for (auto& m : markets) {
-            if (m.canBuyListed <= 0)
-                continue;
-            if (!bestMarket || bestMarket->canBuyListed < m.canBuyListed)
-                bestMarket = &m;
-        }
-        if (bestMarket)
-            return *bestMarket;
-    }
-
-    // then first market that can fill full cargo capacity
-    for (auto& m : markets) {
-        if (m.canBuy >= freeCargoSpace)
-            return m;
-    }
-
-    // then the market that provides more goods
-    MarketInfo* bestMarket {};
-    for (auto& m : markets) {
-        if (m.canBuy <= 0)
-            continue;
-        if (!bestMarket || bestMarket->canBuy < m.canBuy)
-            bestMarket = &m;
-    }
-    if (bestMarket)
-        return *bestMarket;
-
-    // then unknown market
-    for (auto& m : markets) {
-        if (!m.dockMarket)
-            return m;
-    }
-
-    return {};
-}
-
-bool TaskConstruction::deliverToDepot() {
+bool TaskConstruction::deliverToDepot(BaseColonizationTask::Demands& demands) {
     if (st::shipStats.cargo <= 0)
         return false;
 
-    Param &p = templ.get("depot");
-    travelTo(p.value["system"].as_string_or(), p.value["dock"].as_string_or());
-
-    TaskTemplate unloadImpl = getTemplate(ED_TASK_CONSTR_UNLOAD);
-    run_sub_step(unloadImpl.factory(unloadImpl));
-
-    for (int i=0; i < 5; i++) {
-        sleep(1000);
-        if (CM.getShipCargo()->count)
+    for (auto& dp : demands.allDepots) {
+        auto market = dp.market;
+        if (!market)
+            market = gal::getMarket(dp.info->marketId);
+        if (!market || !market->raven || !(market->raven->status.empty() || market->raven->status == "build"))
             continue;
+        bool hasCommodityToDeliver = false;
+        for (auto& p : market->items) {
+            auto commodity = p.first;
+            if (commodity->ship.count <= 0)
+                continue;
+            auto& ml = p.second;
+            if (ml.demand <= ml.stock)
+                continue;
+            hasCommodityToDeliver = true;
+            break;
+        }
+        if (!hasCommodityToDeliver)
+            continue;
+
+        travelTo(dp.info->systemName, dp.info->fullName);
+
+        TaskTemplate unloadImpl = getTemplate(ED_TASK_CONSTR_UNLOAD);
+        run_sub_step(unloadImpl.factory(unloadImpl));
+
+        for (int i=0; i < 5; i++) {
+            sleep(1000);
+            if (CM.getShipCargo()->count)
+                continue;
+        }
     }
+
     unnecessaryCargo = CM.getShipCargo()->cargo;
 
     return true;

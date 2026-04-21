@@ -158,14 +158,6 @@ NavType MEGASHIP {
         {"nav_select_icon_megaship.png"},
         {"Megaship"}
 };
-//NavType TRAILBLAZER_DREAM {
-//        u'\u0000',
-//        TypeNav::TrailblazerDream,
-//        {},
-//        {"TrailblazerDream","Trailblazer Dream"},
-//        false,
-//        {{Lang::XX,"Trailblazer Dream"}}
-//};
 NavType COLONIZATION_SHIP {
         u'\u267B', // ♻
         TypeNav::ColonisationShip,

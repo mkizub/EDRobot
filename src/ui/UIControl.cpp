@@ -18,6 +18,18 @@ void loCreateFont(wl::font& font, UINT uiDpi, UINT uiPercent, LONG weight) {
 }
 
 UILayout::UILayout(int uiDpi, int uiPercent, RECT& rect) {
+    init(uiDpi, uiPercent, rect);
+}
+
+UILayout::UILayout(HWND hWnd) {
+    RECT rect{};
+    GetClientRect(hWnd, &rect);
+    int uiPercent = Cfg.getUiScalePercents();
+    int uiDpi = GetDpiForWindow(hWnd);
+    init(uiDpi, uiPercent, rect);
+}
+
+void UILayout::init(int uiDpi, int uiPercent, RECT& rect) {
     hgap = MulDiv(LO_H_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
     vgap = MulDiv(LO_V_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
     xgap = MulDiv(LO_X_GAP, uiDpi * uiPercent, 100 * USER_DEFAULT_SCREEN_DPI);
@@ -33,6 +45,8 @@ UILayout::UILayout(int uiDpi, int uiPercent, RECT& rect) {
     height = rect.bottom - rect.top;
     left = rect.left;
     top = rect.top;
+    this->uiDpi = uiDpi;
+    this->uiPercent = uiPercent;
     font = nullptr;
     wpi = nullptr;
 }
@@ -47,6 +61,19 @@ UIControl::UIControl(bool scrollable) {
         setup.style |= WS_VSCROLL;
         on_message(WM_VSCROLL, [this](wl::params params) {
             on_scrollbar(params);
+            return 0;
+        });
+        on_message(WM_MOUSEWHEEL, [this](wl::params params) {
+            int zDelta = GET_WHEEL_DELTA_WPARAM(params.wParam);
+            // Default WHEEL_DELTA is 120. Standard scrolling is 3 lines per delta
+            int linesToScroll = (zDelta / WHEEL_DELTA) * 3;
+            wl::params scroll_params {WM_VSCROLL};
+            if (linesToScroll > 0)
+                scroll_params.wParam = SB_LINEUP;
+            else
+                scroll_params.wParam = SB_LINEDOWN;
+            for (int i=0; i < std::abs(linesToScroll); i++)
+                on_scrollbar(scroll_params);
             return 0;
         });
     }

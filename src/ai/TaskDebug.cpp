@@ -862,9 +862,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::SquadronCarrier:
     case TypeNav::StrongholdCarrier:
     case TypeNav::ColonisationShip:
-    //case TypeNav::TrailblazerDream:
     case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
     case TypeNav::Settlement:

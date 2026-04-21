@@ -59,6 +59,12 @@ void saveMarket(Market* market) {
                     jcmdr["deliveries"] = ci.deliveries;
                 if (ci.contributed)
                     jcmdr["contributed"] = ci.contributed;
+                if (!ci.assigned.empty()) {
+                    js::value ja = js::array({});
+                    for (Commodity* c : ci.assigned)
+                        ja.as_array().push_back(c->nameId);
+                    jcmdr["assigned"] = ja;
+                }
                 jcmdr.add_flags(js::force::no_indent);
             }
         }
@@ -120,6 +126,13 @@ spMarket loadMarket(int64_t marketId) {
                 parseTimestamp(jcmdr["timestamp"], ci.timestamp);
             ci.deliveries = jcmdr["deliveries"].as_int_or();
             ci.contributed = jcmdr["contributed"].as_int_or();
+            if (jcmdr["assigned"].is_array()) {
+                for (auto& jc : jcmdr["assigned"].as_array()) {
+                    Commodity* c = Cfg.getCommodityById(jc.as_string_or());
+                    if (c)
+                        ci.assigned.push_back(c);
+                }
+            }
             market->raven->commanders.emplace(name, ci);
         }
     }
@@ -430,6 +443,21 @@ spEntity StarSystem::getEntity(const std::string& nm) {
     return {};
 }
 
+void StarSystem::removeEntity(const spEntity& entity) {
+    if (!entity)
+        return;
+    std::erase_if(this->bodies, [entity](const auto& e) {
+        return e.get() == entity.get();
+    });
+    std::erase_if(this->stations, [entity](const auto& e) {
+        return e.get() == entity.get();
+    });
+    std::erase_if(this->signals, [entity](const auto& e) {
+        return e.get() == entity.get();
+    });
+}
+
+
 spEntity StarSystem::getBodyById(int bodyId) {
     if (bodyId < 0)
         return {};
@@ -510,9 +538,7 @@ void StarSystem::addDestination() {
             case TypeNav::StrongholdCarrier:
             case TypeNav::ColonisationShip:
             case TypeNav::Megaship:
-            //case TypeNav::TrailblazerDream:
             case TypeNav::PlanetaryThing:
-            case TypeNav::PlanetaryStation:
             case TypeNav::PlanetaryPort:
             case TypeNav::PlanetaryInstallation:
             case TypeNav::EngineerPort:
@@ -897,7 +923,6 @@ bool Entity::nameEq(const std::string& nm) const {
     case TypeNav::SpaceInstallation:
     case TypeNav::SquadronCarrier:
     case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
     case TypeNav::Settlement:
@@ -941,8 +966,6 @@ bool Entity::nameEq(const std::string& nm) const {
         }
         return false;
     }
-    //case TypeNav::TrailblazerDream:
-    //    navType = &TRAILBLAZER_DREAM;
     }
     for (auto& p : navType->name_loc) {
         if (p.second == nm)
@@ -980,7 +1003,6 @@ bool Entity::setName(const std::string& nm) {
     case TypeNav::Megaship:
     case TypeNav::StationMegaShip:
     case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryStation:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
     case TypeNav::Settlement:
@@ -1021,9 +1043,6 @@ bool Entity::setName(const std::string& nm) {
     case TypeNav::StrongholdCarrier:
         navType = &STRONGHOLD_CARRIER;
         break;
-    //case TypeNav::TrailblazerDream:
-    //    navType = &TRAILBLAZER_DREAM;
-    //    break;
     case TypeNav::ColonisationShip:
         if (NavType::expandName(nm, xx_name, ru_name)) {
             if (name == xx_name && nloc == ru_name)
