@@ -207,6 +207,8 @@ static spStarSystem fromEDDN(const js::value& jsystem, bool saved) {
         parseUpdated(body, jb);
         parseBodyId(ss, body, jb);
 
+        if (ss->getBodyById(body->bodyId))
+            continue;
         if (jb["name"].is_string()) {
             auto& name = jb["name"].as_string();
             if (ss->getBody(name))
@@ -265,6 +267,8 @@ static spStarSystem fromEDDN(const js::value& jsystem, bool saved) {
         }
         parseUpdated(site, jb);
         parseBodyId(ss, site, jb);
+        if (ss->getBodyById(site->bodyId))
+            continue;
         site->setName(name);
         if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_pattern && !nt->name_loc.empty())
             site->nloc = nt->get_nloc();
@@ -687,11 +691,12 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
     std::string stype;
     int64_t marketId = je["MarketID"].as_int_or();
     if (ge->event=="ApproachSettlement") {
-        sname = st::space.stationName;
-        stype = st::space.stationType;
+        sname = je["Name"].as_string_or();
+        if (sname.starts_with("Planetary Construction Site"))
+            stype = "PlanetaryConstructionDepot";
     } else {
-        sname = je.at("StationName","").as_string();
-        stype = je.at("StationType","").as_string();
+        sname = je["StationName"].as_string_or();
+        stype = je["StationType"].as_string_or();
     }
 
     spEntity dock = getDock(marketId);

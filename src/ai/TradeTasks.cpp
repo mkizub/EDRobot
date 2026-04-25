@@ -875,13 +875,20 @@ TaskConstrUnload::TaskConstrUnload(const TaskTemplate& templ_)
         : BaseMarketTask(templ_)
 {
     assert (templ.id == ED_TASK_CONSTR_UNLOAD);
+    for (auto& p : templ.params) {
+        if (p.id == "continue")
+            continue_on_complete = p.as_boolean();
+    }
 }
 
 bool TaskConstrUnload::run() {
     Cfg.marketEvent.reset();
 
-    if (spMarket market = gal::getMarket(st::dockedAt.marketId); market && market->raven && market->raven->status == "complete")
-        throw_complete("Construction complete");
+    if (spMarket market = gal::getMarket(st::dockedAt.marketId); market && market->raven && market->raven->status == "complete") {
+        on_complete();
+        status = DONE_NOTHING;
+        return true;
+    }
     if (st::shipStats.cargo <= 0) {
         status = DONE_NOTHING;
         return true;
@@ -912,8 +919,33 @@ bool TaskConstrUnload::run() {
 
     spMarket marketAfter = gal::getMarket(st::dockedAt.marketId);
     if (marketAfter && marketAfter->raven && marketAfter->raven->status == "complete")
-        throw_complete("Construction complete");
+        on_complete();
     return true;
+}
+
+void TaskConstrUnload::on_complete() {
+    ExpectSceeenLocker lock("scr-building-complete");
+    int max_wait = 5;
+    bool was_scr_complete = false;
+    for (int i=0; i < max_wait; i++) {
+        sleep(1000);
+        ai::detectEDState(DetectLevel::Buttons);
+        if (ai::uiState.match("scr-building-complete")) {
+            was_scr_complete = true;
+            max_wait = 15;
+            if (i >= 5 || ai::uiState.focused_name() == "btn-confirm") {
+                clickButton("btn-confirm", 0.25);
+                kbd::send("UI_Select");
+            }
+            continue;
+        }
+        else if (was_scr_complete) {
+            sleep(2000);
+            break;
+        }
+    }
+    if (!continue_on_complete)
+        throw_complete("Construction complete");
 }
 
 std::string TaskConstrUnload::getStatus() {

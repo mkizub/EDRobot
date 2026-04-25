@@ -41,6 +41,7 @@ protected:
             std::set<Commodity*> assignedCommodities; // assigned to me
             std::set<Commodity*> ignoreCommodities; // assigned to others
             std::set<Commodity*> buyCommodities; // commodities we can try to buy
+            int needToDeliver;
         };
         std::vector<Depot> allDepots;
         std::vector<Commodity*> specialCommoditiesList;

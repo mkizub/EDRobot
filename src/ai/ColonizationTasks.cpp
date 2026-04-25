@@ -37,6 +37,8 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
             break;
         }
     }
+    if (starSystem->getDock(shortName))
+        return; // construction complete
     bool depotImported = false;
     auto depot = starSystem->getDock(fullName);
     if (!depot) {
@@ -221,6 +223,7 @@ void BaseColonizationTask::fillDemands(Demands& demands) {
                 Demands::BuyCounts &bc = demands.toDeliver[c];
                 bc.total += demand;
                 bc.count[depotIdx] += demand;
+                ddp.needToDeliver += demand;
             }
         }
     }
@@ -273,7 +276,7 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
         Commodity* c = d.first;
         Demands::BuyCounts toDeliver = d.second;
         std::string counts;
-        for (int i=0; i < depots.size(); i++) {
+        for (int i=0; i < demands.allDepots.size(); i++) {
             auto& ddp = demands.allDepots[i];
             counts += std::format(" {:5}", toDeliver.count[i]);
             if (ddp.assignedCommodities.contains(c) || (!demands.exceptListed && demands.specialCommodities.contains(c)))
@@ -457,7 +460,10 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
                 freeCargoSpace -= buyMore;
             }
         }
-        if (freeCargoSpace <= 0.75 * st::shipStats.cargoCapacity)
+        int nextDemand = 1000000;
+        if (depotIdx+1 < demands.allDepots.size())
+            nextDemand = demands.allDepots[depotIdx+1].needToDeliver;
+        if (freeCargoSpace > nextDemand && freeCargoSpace <= 0.25 * st::shipStats.cargoCapacity)
             break;
     }
     std::erase_if(list, [](const auto& bi) {
@@ -617,8 +623,10 @@ bool TaskConstruction::run() {
         for (auto &dv: p_depots.value.as_array_or())
             addDepotInfo(dv);
     }
-    for (auto& di : depots)
-        RavenColonial::linkCmdr(di.marketId);
+    if (Cfg.isRavenColonialEnabled()) {
+        for (auto &di: depots)
+            RavenColonial::linkCmdr(di.marketId);
+    }
     if (!rcInstance)
         rcInstance = RavenColonial::newInstance();
 
@@ -627,9 +635,10 @@ bool TaskConstruction::run() {
     auto demands = calcDemands();
     gal::spEntity currDock = getCurrDock();
     if (st::shipStats.cargo > 0) {
-        if (!currDock || !demands.needToBuy || (st::shipStats.cargo >= st::shipStats.cargoCapacity)) {
+        if (currDock && isConstrDepot(currDock->type))
             deliverToDepot(demands);
-        }
+        else if (!currDock || !demands.needToBuy || (st::shipStats.cargo >= st::shipStats.cargoCapacity))
+            deliverToDepot(demands);
     }
 
     while (!demands.toDeliver.empty()) {
@@ -684,6 +693,7 @@ bool TaskConstruction::deliverToDepot(BaseColonizationTask::Demands& demands) {
         travelTo(dp.info->systemName, dp.info->fullName);
 
         TaskTemplate unloadImpl = getTemplate(ED_TASK_CONSTR_UNLOAD);
+        unloadImpl.set("continue", true);
         run_sub_step(unloadImpl.factory(unloadImpl));
 
         for (int i=0; i < 5; i++) {

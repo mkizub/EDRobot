@@ -40,6 +40,8 @@ RavenColonial::~RavenColonial() {
 }
 
 bool RavenColonial::linkCmdr(int64_t marketId) {
+    if (!Cfg.isRavenColonialEnabled())
+        return false;
     auto market = gal::getMarket(marketId);
     if (!market || !market->raven || market->raven->buildId.empty())
         return false;
@@ -55,6 +57,8 @@ bool RavenColonial::linkCmdr(int64_t marketId) {
 }
 
 gal::spEntity RavenColonial::importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName) {
+    if (!Cfg.isRavenColonialEnabled())
+        return {};
     // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
     auto starSystem = gal::getStarSystem(systemName);
     if (!starSystem)
@@ -93,7 +97,7 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
             active_builds.push_back(site["buildId"].as_string_or());
         }
         if (active_builds.size() == 1) {
-            cr = cpr::Get(cpr::Url{RCAPI_PRJ + buildId});
+            cr = cpr::Get(cpr::Url{RCAPI_PRJ + active_builds[0]});
             cr_body = getJS(cr);
             if (cr_body.empty())
                 return {};

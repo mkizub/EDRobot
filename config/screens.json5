@@ -449,6 +449,17 @@
     detect: true,
   },
   {
+    name: 'scr-building-complete',
+    status: { gui: 'Services', docked: true, expect: true },
+    detect: [
+      { img: "at_building_complete1.png", t: [0.5, 0.8], rect:[240,110,260,70] },
+      { img: "at_building_complete2.png", t: [0.5, 0.8], rect:[700,400,560,260] },
+    ],
+    have: [
+      { name: 'btn-confirm', rect: [1202,851,492,47] }
+    ],
+  },
+  {
     name: 'scr-left-panel', // warped reference size: 1086x657
     status: { gui: 'Left' },
     fov_size: 0.857, // numbers for fov=56.249

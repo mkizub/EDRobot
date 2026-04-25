@@ -120,7 +120,9 @@ class TaskConstrUnload final : public BaseMarketTask {
 public:
     explicit TaskConstrUnload(const TaskTemplate& templ);
     bool run() final;
+    void on_complete();
 
+    bool continue_on_complete {};
     int contributed {};
 
     std::string getStatus() override;

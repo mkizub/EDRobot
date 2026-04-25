@@ -765,13 +765,21 @@ void parseEvent_ApproachSettlement(spGameEvent& ge) {
     // "SystemAddress":2381282543995, "BodyID":3, "BodyName":"Col 285 Sector XK-O d6-69 A 1", "Latitude":48.513012, "Longitude":119.000992 }
     auto& je = ge->data;
 
-    st::dockedAt = {};
-    st::space.marketId = je["MarketID"].as_int_or();
-    set(st::space.stationName, je["Name"]);
-    st::space.stationType.clear();
-    st::space.bodyId = je["BodyID"].as_int_or();
-    set(st::space.bodyName, je["BodyName"]);
-    set(st::space.bodyType, "Planet");
+    int64_t marketId = je["MarketID"].as_int_or();
+    if (st::ship.flags.docked && st::dockedAt.marketId == marketId) {
+        // construction complete?
+        set(st::dockedAt.stationName, je["Name"]);
+        if (st::dockedAt.stationType == "PlanetaryConstructionDepot")
+            st::dockedAt.stationType.clear();
+    } else {
+        st::dockedAt = {};
+        st::space.marketId = marketId;
+        set(st::space.stationName, je["Name"]);
+        st::space.stationType.clear();
+        st::space.bodyId = je["BodyID"].as_int_or();
+        set(st::space.bodyName, je["BodyName"]);
+        set(st::space.bodyType, "Planet");
+    }
 
     if (st::space.stationType.empty() && st::space.stationName.starts_with("Planetary Construction Site"))
         st::space.stationType = "PlanetaryConstructionDepot";

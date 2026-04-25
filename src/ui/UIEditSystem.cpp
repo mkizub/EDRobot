@@ -123,7 +123,7 @@ void UIEditSystem::initialize() {
     x += cb_w + lo.xgap;
     btn_import.create(hwnd(), ID_RUN, "task-run", lo.icsz, {x,y}, {lo.btnh,lo.btnh});
     x += cb_w + lo.xgap;
-    btn_save.create(hwnd(), ID_SAVE, "icon-save", lo.icsz, {x,y}, {lo.btnh,lo.btnh}).set_enabled(false);
+    btn_save.create(hwnd(), ID_SAVE, "icon-save", lo.icsz, {x,y}, {lo.btnh,lo.btnh});
     x += cb_w + lo.xgap;
     btn_del.create(hwnd(), ID_DELETE, "icon-del", lo.icsz, {x,y}, {lo.btnh,lo.btnh}).set_enabled(false);
 
@@ -164,6 +164,8 @@ void UIEditSystem::on_system_import() {
 }
 
 void UIEditSystem::on_system_save() {
+    if (currStarSystem && !currStarSystem->saved)
+        currStarSystem->save();
     return;
 }
 
@@ -604,27 +606,31 @@ void EntityDialog::relayout() {
 }
 
 void EntityDialog::on_save() {
-    TypeNav tp = TypeNav::Other;
-    auto t_idx = cbx_type.get_selected_index();
-    if (t_idx >= 0 && t_idx < typeNavEntries.size())
-        tp = typeNavEntries[t_idx].first;
-    if (tp != ctrl->entity->type) {
-        ctrl->entity->type = tp;
-        ctrl->ui->currStarSystem->saved = false;
-        ctrl->icon_site.set_icon(ctrl->icon_name());
-        UILayout lo(ctrl->ui->hwnd());
-        ctrl->icon_site.set_icon_size(lo.vrow * ctrl->icon_scale / 100);
+    {
+        TypeNav tp = TypeNav::Other;
+        auto t_idx = cbx_type.get_selected_index();
+        if (t_idx >= 0 && t_idx < typeNavEntries.size())
+            tp = typeNavEntries[t_idx].first;
+        if (tp != ctrl->entity->type) {
+            ctrl->entity->type = tp;
+            ctrl->ui->currStarSystem->saved = false;
+            ctrl->icon_site.set_icon(ctrl->icon_name());
+            UILayout lo(ctrl->ui->hwnd());
+            ctrl->icon_site.set_icon_size(lo.vrow * ctrl->icon_scale / 100);
+        }
     }
 
-    short parentBodyId = -1;
-    auto p_idx = cbx_parent.get_selected_index();
-    if (p_idx >= 0 && p_idx < parentEntries.size())
-        parentBodyId = parentEntries[t_idx]->entity->bodyId;
-    if (parentBodyId != ctrl->entity->parentBodyId) {
-        ctrl->entity->parentBodyId = parentBodyId;
-        ctrl->ui->currStarSystem->saved = false;
-        ctrl->ui->sort_controls();
-        ctrl->ui->relayout();
+    {
+        short parentBodyId = -1;
+        auto p_idx = cbx_parent.get_selected_index();
+        if (p_idx >= 0 && p_idx < parentEntries.size())
+            parentBodyId = parentEntries[p_idx]->entity->bodyId;
+        if (parentBodyId != ctrl->entity->parentBodyId) {
+            ctrl->entity->parentBodyId = parentBodyId;
+            ctrl->ui->currStarSystem->saved = false;
+            ctrl->ui->sort_controls();
+            ctrl->ui->relayout();
+        }
     }
 
     EndDialog(hwnd(), IDOK);

@@ -459,7 +459,9 @@ void initTemplates() {
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
     templates.emplace_back(ED_TASK_CARRIER_UNLOAD, _lc("Unload cargo to own carrier"), FACTORY(TaskMyCarrierUnload));
-    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload));
+    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload), P{
+            { Param::Bool,     "continue", _lc("Continue task on build complete") },
+    });
     templates.emplace_back(ED_TASK_CONSTR_RESERVE, _lc("Fill carrier for constructions"), FACTORY(TaskMyCarrierReserve), P{
             { Param::Site,     "carrier",_lc("My carrier location") },
             { Param::Array,    "depots",  _lc("Construction depots"), META(

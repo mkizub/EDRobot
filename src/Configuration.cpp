@@ -63,14 +63,6 @@ static void debugNavPanel();
 
 bool Configuration::load() {
 
-    LOG(INFO) << "Loading preferences";
-    jprefs = parseJsonFile("prefs.json5");
-    mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
-    mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
-    mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
-    mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
-    mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
-
     if (const js::value& ll = Cfg.jprefs["log"]["default"]; ll.is_string())
         spdlog::default_logger()->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::info));
     if (const js::value& ll = Cfg.jprefs["log"]["network"]; ll.is_string())
@@ -214,6 +206,14 @@ bool Configuration::load() {
 
         LOG(INFO) << "ED log files path: " << mEDLogsPath;
         LOG(INFO) << "ED settings  path: " << mEDSettingsPath;
+
+        LOG(INFO) << "Loading preferences";
+        jprefs = parseJsonFile("prefs.json5");
+        mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
+        mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
+        mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
+        mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
+        mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
 
         LOG(INFO) << "Initializing D3D device";
         if (!Capturer::InitD3DDevice())
