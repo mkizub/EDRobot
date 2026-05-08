@@ -149,9 +149,9 @@ void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
             if (ml.demand <= ml.stock)
                 continue;
             if (cmdr == st::cmdr.name)
-                ddp.assignedCommodities.insert(info.assigned.begin(), info.assigned.end());
+                ddp.assignedCommodities.insert(c);
             else
-                ddp.ignoreCommodities.insert(info.assigned.begin(), info.assigned.end());
+                ddp.ignoreCommodities.insert(c);
         }
     }
     for (auto &item: depotMarket->items) {
@@ -163,8 +163,8 @@ void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
             if (demands.specialCommodities.contains(c) && !ddp.assignedCommodities.contains(c))
                 continue;
         } else {
-            if (!ddp.assignedCommodities.contains(c) && ddp.ignoreCommodities.contains(c))
-                continue; // assigned to someone else
+            //if (!ddp.assignedCommodities.contains(c) && ddp.ignoreCommodities.contains(c))
+            //    continue; // assigned to someone else
         }
         ddp.buyCommodities.insert(c);
         demands.toDeliver.try_emplace(c);
@@ -403,8 +403,11 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
     if (unnecessaryCargo && !unnecessaryCargo->empty()) {
         gotoMarketScreen(false);
         for (auto* c: *unnecessaryCargo) {
-            if (demands.toDeliver.contains(c))
-                continue;
+            if (demands.toDeliver.contains(c)) {
+                auto& bc = demands.toDeliver.at(c);
+                if (bc.total != 0)
+                    continue;
+            }
             TaskTemplate impl = getTemplate(ED_TASK_MARKET_SELL);
             impl.set("commodity", c->nameId);
             run_sub_step(impl.factory(impl));
@@ -517,7 +520,7 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::chooseBestMarket(const De
 
     MarketInfo* bestMarket {};
     // process assigned/listed commodities
-    if (!demands.specialCommodities.empty() && demands.firstListed) {
+    /*if (!demands.specialCommodities.empty() && demands.firstListed)*/ {
         // then the market that provides more listed goods
         for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
             for (auto& mi : markets) {

@@ -640,23 +640,18 @@ std::string utc_timer::left() const {
     return std::format("{0:%T}", dur);
 }
 
-js::value parseJsonFile(std::wstring_view wfile) {
-    std::string file = toUtf8(wfile.data(), wfile.size());
-    return parseJsonFile(file);
-}
-
-js::value parseJsonFile(std::string_view file) {
+js::value parseJsonFile(std::wstring_view file) {
     if (std::filesystem::exists(file)) {
         try {
-            std::ifstream ifs(std::string(file), std::ifstream::in);
+            std::ifstream ifs(std::wstring(file), std::ifstream::in);
             return js::parse5(ifs);
         } catch (const js::syntax_error& ex) {
-            LOG_ERROR("Failed to parse file {}: {}", file, ex.what());
+            LOG_ERROR(L"Failed to parse file {}: {}", file, toUtf16(ex.what()));
         } catch (...) {
-            LOG_ERROR("Failed to read/parse file {}", file);
+            LOG_ERROR(L"Failed to read/parse file {}", file);
         }
     } else {
-        LOG_WARNING("File {} not found", file);
+        LOG_WARNING(L"File {} not found", file);
     }
     return nullptr;
 }

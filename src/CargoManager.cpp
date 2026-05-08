@@ -112,7 +112,7 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
 bool CargoManager::loadCarrierCargo() {
     if (!st::cmdr.fleetCarrierId || Cfg.allKnownCommodities.empty())
         return false;
-    js::value j_cargo = parseJsonFile(std::format("cache/carriers/{}.json", st::cmdr.fleetCarrierId));
+    js::value j_cargo = parseJsonFile(std::format(L"cache/carriers/{}.json", st::cmdr.fleetCarrierId));
     if (!j_cargo)
         return false;
     Timestamp timestamp;
@@ -197,7 +197,7 @@ bool CargoManager::saveCarrierCargo(Timestamp timestamp, const std::map<Commodit
         timestampFC = timestamp;
     }
 
-    std::filesystem::path fp("cache/carriers/"+std::to_string(st::cmdr.fleetCarrierId)+".json");
+    std::filesystem::path fp(std::format(L"cache/carriers/{}.json", st::cmdr.fleetCarrierId));
     std::ofstream ofs(fp);
     ofs << js::rule::ecma404() << js::rule::space_indent<1>() << j_cargo;
     ofs.close();

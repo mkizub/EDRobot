@@ -54,7 +54,7 @@ spShipStats getShipStats() {
 
 bool loadEDDB() {
     LOG(INFO) << "Loading EDDB";
-    gEDDBFull = parseJsonFile("eddb.json5");
+    gEDDBFull = parseJsonFile(L"eddb.json5");
     if (!gEDDBFull)
         return false;
     for (auto& ship : gEDDBFull["ship"].as_array()) {

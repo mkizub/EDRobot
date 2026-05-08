@@ -70,15 +70,6 @@ bool Configuration::load() {
     if (const js::value& ll = Cfg.jprefs["log"]["console"]; ll.is_string())
         console_sink->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::info));
 
-    if (auto consoleWindow = GetConsoleWindow()) {
-        if (auto hMenu = GetSystemMenu(consoleWindow, FALSE))
-            EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-        if (Cfg.jprefs["console"].as_bool_or(true))
-            ShowWindow(consoleWindow, SW_SHOW);
-        else
-            ShowWindow(consoleWindow, SW_HIDE);
-    }
-
     // initialize default keymapping
     keyMapping = {
             {{"printscreen", 0},                      Command::Start},
@@ -107,7 +98,7 @@ bool Configuration::load() {
         } else if (!dirUserProfile.empty()) {
             mEDSettingsPath = dirUserProfile + LR"(\AppData\Local\Frontier Developments\Elite Dangerous)";
         }
-        js::value j_config = parseJsonFile("configuration.json5");
+        js::value j_config = parseJsonFile(L"configuration.json5");
         if (auto& tm = j_config.at("ui-scale-percents"); tm.is_int()) {
             if (tm.as_int() >= 25 && tm.as_int() <= 400)
                 mUiScalePercents = tm.as_int();
@@ -139,11 +130,6 @@ bool Configuration::load() {
             mEDSettingsPath = toUtf16(tm.as_string());
         if (auto& tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
             mEDLogsPath = toUtf16(tm.as_string());
-        if (auto& tm = j_config.at("tesseract-data-path"); tm.is_string()) {
-            mTesseractDataPath = tm.as_string();
-        } else {
-            mTesseractDataPath = "tessdata";
-        }
         if (auto& tm = j_config.at("force-dxgi-device")) {
             if (tm.is_string())
                 forceDXGIDevice = tm.as_string();
@@ -208,12 +194,21 @@ bool Configuration::load() {
         LOG(INFO) << "ED settings  path: " << mEDSettingsPath;
 
         LOG(INFO) << "Loading preferences";
-        jprefs = parseJsonFile("prefs.json5");
+        jprefs = parseJsonFile(L"prefs.json5");
         mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
         mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
         mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
         mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
         mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
+
+        if (auto consoleWindow = GetConsoleWindow()) {
+            if (auto hMenu = GetSystemMenu(consoleWindow, FALSE))
+                EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+            if (jprefs["console"].as_bool_or(true))
+                ShowWindow(consoleWindow, SW_SHOW);
+            else
+                ShowWindow(consoleWindow, SW_HIDE);
+        }
 
         LOG(INFO) << "Initializing D3D device";
         if (!Capturer::InitD3DDevice())
@@ -235,7 +230,7 @@ bool Configuration::load() {
     {
         LOG(INFO) << "Setting screens.json5";
         widget::Root* screensRoot = Master::getInstance().mScreensRoot.get();
-        const auto j_screens = parseJsonFile("screens.json5");
+        const auto j_screens = parseJsonFile(L"screens.json5");
         if (j_screens.empty())
             errorMessage = _gt("Failed to load screens");
         for (auto& s : j_screens.as_array_or()) {
@@ -253,7 +248,7 @@ bool Configuration::load() {
         if (st::cmdr.fleetCarrierId)
             CM.loadCarrierCargo();
 
-        js::value j_bookmarks = parseJsonFile("bookmarks.json5");
+        js::value j_bookmarks = parseJsonFile(L"bookmarks.json5");
         for (auto& jbm : j_bookmarks.as_array_or()) {
             auto name = jbm["name"].as_string_or();
             auto dock = jbm["dock"].as_string_or();
@@ -300,7 +295,7 @@ void Configuration::savePrefs() {
     Cfg.jprefs["log"]["network"] = enum_name<spdlog::level::level_enum>(spdlog::get("http")->level());
     Cfg.jprefs["log"]["console"] = enum_name<spdlog::level::level_enum>(console_sink->level());
 
-    std::ofstream ofs("prefs.json5", std::ios::trunc | std::ios::binary);
+    std::ofstream ofs(L"prefs.json5", std::ios::trunc | std::ios::binary);
     ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << jprefs;
     ofs.close();
 }
@@ -319,7 +314,7 @@ void Configuration::saveBookmarks() {
             jbm["comment"] = bm->comment;
     }
 
-    std::ofstream ofs("bookmarks.json5", std::ios::trunc | std::ios::binary);
+    std::ofstream ofs(L"bookmarks.json5", std::ios::trunc | std::ios::binary);
     ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << j_bookmarks;
     ofs.close();
 }
@@ -381,7 +376,7 @@ void Configuration::parseShortcutConfig(Command command, const std::string& name
     }
 }
 
-static std::string filenameFromPreset(const std::string& dir, const std::string& preset, const char* ext) {
+static std::wstring filenameFromPreset(const std::wstring& dir, const std::wstring& preset, const wchar_t* ext) {
     namespace fs = std::filesystem;
 
     fs::path latestFilePath;
@@ -391,7 +386,7 @@ static std::string filenameFromPreset(const std::string& dir, const std::string&
         if (!fs::is_regular_file(entry.status()))
             continue;
         auto nm = entry.path().filename();
-        if (!nm.string().starts_with(preset) && nm.extension().string() == ext)
+        if (!nm.wstring().starts_with(preset) && nm.extension().wstring() == ext)
             continue;
         try {
             auto currentWriteTime = fs::last_write_time(entry.path());
@@ -404,7 +399,7 @@ static std::string filenameFromPreset(const std::string& dir, const std::string&
         }
     }
 
-    return latestFilePath.string();
+    return latestFilePath.wstring();
 }
 
 const KeyBindings& Configuration::getGameKeyBindings(const std::string& name) const {
@@ -527,9 +522,9 @@ struct XmlBuffer {
             free(buffer);
     }
 };
-bool load_file(const std::string& path, XmlBuffer& b) {
-    b = {path};
-    FILE *file = fopen(path.c_str(), "rb");
+bool load_file(const std::wstring& path, XmlBuffer& b) {
+    b = {toUtf8(path)};
+    FILE *file = _wfopen(path.c_str(), L"rb");
     if (!file) return false;
     fseek(file, 0, SEEK_END);
     long file_size = ftell(file);
@@ -552,11 +547,11 @@ bool load_file(const std::string& path, XmlBuffer& b) {
 
 bool Configuration::loadGameSettings(bool initial) {
     XmlBuffer settingsBuffer, displaySettingsBuffer;
-    if (!load_file(toUtf8(mEDSettingsPath) + R"(\Options\Graphics\DisplaySettings.xml)", displaySettingsBuffer)) {
+    if (!load_file(mEDSettingsPath + LR"(\Options\Graphics\DisplaySettings.xml)", displaySettingsBuffer)) {
         LOG(ERROR) << "Filed to load " << displaySettingsBuffer.path;
         return false;
     }
-    if (!load_file(toUtf8(mEDSettingsPath) + R"(\Options\Graphics\Settings.xml)", settingsBuffer)) {
+    if (!load_file(mEDSettingsPath + LR"(\Options\Graphics\Settings.xml)", settingsBuffer)) {
         LOG(ERROR) << "Filed to load " << settingsBuffer.path;
         return false;
     }
@@ -693,7 +688,7 @@ bool Configuration::loadGameSettings(bool initial) {
 bool Configuration::loadPlayerOptions(bool initial) {
     LOG(INFO) << "Loading player options";
     if (initial) {
-        std::string filename = toUtf8(mEDSettingsPath) + R"(\Options\Player\StartPreset.start)";
+        std::wstring filename = mEDSettingsPath + LR"(\Options\Player\StartPreset.start)";
         std::ifstream ifs(filename, std::ifstream::in);
         if (!ifs.is_open()) {
             LOG(ERROR) << "Cannot parse " << filename;
@@ -702,7 +697,7 @@ bool Configuration::loadPlayerOptions(bool initial) {
 
         std::string preset;
         std::getline(ifs, preset);
-        filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Player\)", preset, "misc");
+        filename = filenameFromPreset(mEDSettingsPath + LR"(\Options\Player\)", toUtf16(preset), L"misc");
         mEDCurrentPlayerOptionsFile = filename;
     }
 
@@ -759,18 +754,18 @@ bool Configuration::loadInputBindings() {
     LOG(INFO) << "Loading input bindings";
     bool ok = true;
     mKeyBindingsMap.clear();
-    std::string filename = toUtf8(mEDSettingsPath) + R"(\Options\Bindings\StartPreset.4.start)";
+    std::wstring filename = mEDSettingsPath + LR"(\Options\Bindings\StartPreset.4.start)";
     std::ifstream ifs(filename, std::ifstream::in);
     if (ifs.is_open()) {
         XMLNode * rootNode = nullptr;
         std::string preset;
         std::getline(ifs, preset);
-        if (preset == "KeyboardMouseOnlyYaw") filename = "ControlSchemes\\KeyboardMouseOnlyYaw.binds";
-        else if (preset == "KeyboardMouseOnly") filename = "ControlSchemes\\KeyboardMouseOnly.binds";
-        else if (preset == "ClassicKeyboardOnly") filename = "ControlSchemes\\ClassicKeyboardOnly.binds";
-        else if (preset == "Empty") filename = "ControlSchemes\\Empty.binds";
+        if (preset == "KeyboardMouseOnlyYaw") filename = L"ControlSchemes\\KeyboardMouseOnlyYaw.binds";
+        else if (preset == "KeyboardMouseOnly") filename = L"ControlSchemes\\KeyboardMouseOnly.binds";
+        else if (preset == "ClassicKeyboardOnly") filename = L"ControlSchemes\\ClassicKeyboardOnly.binds";
+        else if (preset == "Empty") filename = L"ControlSchemes\\Empty.binds";
         else
-            filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
+            filename = filenameFromPreset(mEDSettingsPath + LR"(\Options\Bindings\)", toUtf16(preset), L"binds");
         rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "UI_Up");
@@ -792,12 +787,12 @@ bool Configuration::loadInputBindings() {
         }
 
         std::getline(ifs, preset);
-        if (preset == "KeyboardMouseOnlyYaw") filename = "ControlSchemes\\KeyboardMouseOnlyYaw.binds";
-        else if (preset == "KeyboardMouseOnly") filename = "ControlSchemes\\KeyboardMouseOnly.binds";
-        else if (preset == "ClassicKeyboardOnly") filename = "ControlSchemes\\ClassicKeyboardOnly.binds";
-        else if (preset == "Empty") filename = "ControlSchemes\\Empty.binds";
+        if (preset == "KeyboardMouseOnlyYaw") filename = L"ControlSchemes\\KeyboardMouseOnlyYaw.binds";
+        else if (preset == "KeyboardMouseOnly") filename = L"ControlSchemes\\KeyboardMouseOnly.binds";
+        else if (preset == "ClassicKeyboardOnly") filename = L"ControlSchemes\\ClassicKeyboardOnly.binds";
+        else if (preset == "Empty") filename = L"ControlSchemes\\Empty.binds";
         else
-            filename = filenameFromPreset(toUtf8(mEDSettingsPath) + R"(\Options\Bindings\)", preset, "binds");
+            filename = filenameFromPreset(mEDSettingsPath + LR"(\Options\Bindings\)", toUtf16(preset), L"binds");
         rootNode = xml_parse_file(filename.c_str());
         if (rootNode) {
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "Pause");
@@ -1271,12 +1266,12 @@ void Configuration::updateLanguage(Lang lng) {
         c.wocr = fm.toOCR(c.wide);
     }
     ocr::shutdown();
-    ocr::init(mTesseractDataPath);
+    ocr::init();
 }
 
 bool Configuration::loadCommodityDatabase() {
     LOG(INFO) << "Loading commodity database";
-    js::value j = parseJsonFile("commodity-database.json5");
+    js::value j = parseJsonFile(L"commodity-database.json5");
     if (!j)
         return false;
     for (auto [cc_nameId, jcc] : j.key_value()) {
@@ -1318,7 +1313,7 @@ bool Configuration::loadCommodityDatabase() {
 }
 
 bool Configuration::dumpCommodityDatabase() {
-    std::ofstream wf("commodity-database.json5", std::ios::trunc | std::ios::binary);
+    std::ofstream wf(L"commodity-database.json5", std::ios::trunc | std::ios::binary);
     wf << "{" << std::endl;
     for (auto& ccit : commodityCategoryMap) {
         auto& cc = *ccit.second;
@@ -1376,7 +1371,7 @@ const char* Configuration::makeTesseractWordsFile() {
             allWords.insert(ocr);
         }
     }
-    std::ofstream wf("tesseract-words.txt", std::ios::out | std::ios::trunc | std::ios::binary);
+    std::ofstream wf(L"tesseract-words.txt", std::ios::out | std::ios::trunc | std::ios::binary);
     for (auto& w : allWords) {
         wf << toUtf8(w) << '\n';
     }
@@ -1425,7 +1420,7 @@ void Configuration::changeDirThreadLoop() {
     Timestamp latest_log_timestamp {};
     Timestamp dumped_log_timestamp {};
     try {
-        js::value j_log = parseJsonFile("cache/journal.json5");
+        js::value j_log = parseJsonFile(L"cache/journal.json5");
         std::filesystem::path log_path = std::filesystem::path(mEDLogsPath) / toUtf16(j_log["file"].as_string_or());
         if (log_path == mEDCurrentJournalFile) {
             latest_log_timestamp = Timestamp(std::chrono::seconds(j_log["ts"].as_int_or()));

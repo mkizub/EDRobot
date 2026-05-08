@@ -29,6 +29,7 @@ extern struct EddnStarSystem {
 extern struct Commander {
     std::string name;
     std::string fid;
+    std::string uploaderId;
     int64_t fleetCarrierId;
     std::string fleetCarrierInSystem;
     int fleetCarrierAtBodyId;

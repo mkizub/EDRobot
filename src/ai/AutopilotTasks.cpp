@@ -1472,7 +1472,7 @@ bool HyperJumpStep::run() {
 
     LOG_DEBUG("HyperJump: hyperspace");
     status = HYPERSPACE;
-    timer = utc_timer(20s);
+    timer = utc_timer(60s);
     for (;;) {
         if (!st::ship.flags.fsd_jump) {
             LOG_DEBUG("HyperJump: fsd jump finished");
@@ -1578,7 +1578,7 @@ std::string HyperJumpStep::getStatus() {
     case CHARGE:
         return lc_format("Charging: {}", timer.passed());
     case HYPERSPACE:
-        return lc_format("Hyperspace: {}", timer.left());
+        return lc_format("Hyperspace: {}", timer.passed());
     case AVOID_STAR:
         return _gt("Avoid star");
     case FLY_AWAY:
@@ -2437,7 +2437,7 @@ bool DockPlanetPort::normalizeOrientation() {
         }
         float roll = ai::compassInfo.targetRoll;
         float pitch = ai::compassInfo.targetPitch;
-        if (std::abs(roll) <= 165) {
+        if (ai::compassInfo.targetAngle > 10 && std::abs(roll) <= 165) {
             task->orientRollStep(roll-180, 5000);
             continue;
         }

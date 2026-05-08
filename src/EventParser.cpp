@@ -12,6 +12,9 @@
 #include "net/EDDN.h"
 #include "ui/UIManager.h"
 
+#include <openssl/md5.h>
+#include <openssl/evp.h>
+
 namespace st {
 Lang lng {Lang::XX};
 
@@ -430,6 +433,15 @@ static void setCommander(const std::string& name, const std::string& fid) {
         cmdr.name = name;
         cmdr.fid = fid;
         cmdr.ravenKey = Cfg.getRavenColonialKey(name);
+        {
+            std::string key = name + ":" + fid;
+            unsigned char digestMD5[MD5_DIGEST_LENGTH];
+            MD5((unsigned char*)key.data(), key.size(), digestMD5);
+            char output[((MD5_DIGEST_LENGTH + 2) / 3 * 4) + 1];
+            EVP_EncodeBlock((unsigned char*)output, digestMD5, MD5_DIGEST_LENGTH);
+            cmdr.uploaderId = output;
+            std::erase(cmdr.uploaderId, '=');
+        }
     }
 }
 

@@ -29,6 +29,7 @@ void loop();
 static bool vJoyAcquired;
 static std::map<std::string,vJoyAxisInfo> vJoyAxisMap;
 
+#define ROBOT_KB_EXTRA_INFO 0x239034
 
 //----- Offsets for values in KEYBOARD_MAPPING ---------------------------------
 const unsigned int EXT_KEY   = 0xE000;
@@ -501,6 +502,7 @@ static INPUT fillInput(const GameKey& gk, bool up) {
             input.ki.dwFlags |= KEYEVENTF_KEYUP;
         if (gk.code & EXT_KEY)
             input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        input.ki.dwExtraInfo = ROBOT_KB_EXTRA_INFO;
     }
     else if (gk.device == GameKey::Mouse) {
         input.type = INPUT_MOUSE;
@@ -747,9 +749,9 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYUP)) {
         auto* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
         auto vkCode = pKeyBoard->vkCode;
-        auto isInjected = pKeyBoard->flags & LLKHF_INJECTED;
-        if (!isInjected && INTERCEPT_VK_KEY_SET.contains(vkCode)) {
-            //LOG(INFO) << "keyboard hook key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
+        auto isRobotInjected = (pKeyBoard->flags & LLKHF_INJECTED) && (pKeyBoard->dwExtraInfo == ROBOT_KB_EXTRA_INFO);
+        if (!isRobotInjected && INTERCEPT_VK_KEY_SET.contains(vkCode)) {
+            LOG(DEBUG) << "keyboard hook key down: code " << pKeyBoard->vkCode << " scancode " << pKeyBoard->scanCode << " flags " << pKeyBoard->flags;
             int flags = 0;
             if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) flags |= LSHIFT;
             if (GetAsyncKeyState(VK_RSHIFT) & 0x8000) flags |= RSHIFT;
@@ -929,6 +931,7 @@ void releaseKeys() {
             input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
             if (ik.code & EXT_KEY)
                 input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+            input.ki.dwExtraInfo = ROBOT_KB_EXTRA_INFO;
             unsigned sent = SendInput(1, &input, sizeof(INPUT));
             if (sent != 1)
                 LOG(ERROR) << "SendInput failed: " << getErrorMessage();
@@ -1014,6 +1017,7 @@ unsigned post(const GameKey& gk, int hold_ms) {
             input.ki.dwFlags = KEYEVENTF_SCANCODE;
             if (gkm.code & EXT_KEY)
                 input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+            input.ki.dwExtraInfo = ROBOT_KB_EXTRA_INFO;
             unsigned sent = SendInput(1, &input, sizeof(INPUT));
             if (sent != 1)
                 LOG(ERROR) << "SendInput keydown '" << gkm << "' failed: " << getErrorMessage();
@@ -1038,6 +1042,7 @@ unsigned post(const GameKey& gk, int hold_ms) {
         input.ki.dwFlags = KEYEVENTF_SCANCODE;
         if (gk.code & EXT_KEY)
             input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        input.ki.dwExtraInfo = ROBOT_KB_EXTRA_INFO;
         unsigned sent = SendInput(1, &input, sizeof(INPUT));
         if (sent != 1)
             LOG(ERROR) << "SendInput keydown '" << gk << "' failed: " << getErrorMessage();

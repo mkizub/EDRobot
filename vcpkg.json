@@ -45,5 +45,7 @@
     "version>=" : "1.17.0",
     "features" : [ "wchar" ],
     "default-features" : false
+  }, {
+    "name" : "openssl"
   } ]
 }

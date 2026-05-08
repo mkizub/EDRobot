@@ -19,7 +19,7 @@
 namespace ai {
 
 void TaskDebugFindAllBase::checkAndFixOCRText() {
-    std::string dirname = "cache/testset-edr";
+    std::wstring dirname = L"cache/testset-edr";
 
     LOG(INFO) << "Checking OCR texts in dir: " << dirname;
     FuzzyMatch fuzzyMatch;
@@ -333,7 +333,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
     assert(cr.u.lrow.commodity == commodity);
     if (commodity != cr.u.lrow.commodity)
         return;
-    std::string filename = std::format("cache/testset-edr/{}-row-gray.png", commodity->nameId);
+    std::wstring filename = std::format(L"cache/testset-edr/{}-row-gray.png", toUtf16(commodity->nameId));
     if (std::filesystem::exists(filename))
         return;
 
@@ -341,8 +341,8 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
     cv::Mat rowDumpImage;
     int conf = ocr::ocrRowTextForTraining(ocr::GENERIC, grayImage, ai::rEnv, cr, "name", text, rowDumpImage);
 
-    filename = std::format("cache/testset-edr/{}-row-gray.png", commodity->nameId);
-    cv::imwrite(filename, rowDumpImage);
+    filename = std::format(L"cache/testset-edr/{}-row-gray.png", toUtf16(commodity->nameId));
+    cv::imwrite(toUtf8(filename), rowDumpImage);
 
 //    cv::Mat rowOtsuImage;
 //    cv::threshold(rowDumpImage, rowOtsuImage, 150, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
@@ -353,7 +353,7 @@ void TaskDebugFindAllCommodities::saveOcrMarketRow(const cv::Mat& grayImage, con
     std::wstring nameOCR = fm.toOCR(commodity->wide);
 
     std::ofstream gt_txt;
-    filename = std::format("cache/testset-edr/{}-row-gray.gt.txt", commodity->nameId);
+    filename = std::format(L"cache/testset-edr/{}-row-gray.gt.txt", toUtf16(commodity->nameId));
     gt_txt.open(filename, std::ios::trunc | std::ios::binary);
     gt_txt << toUtf8(nameOCR);
     gt_txt.close();

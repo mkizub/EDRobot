@@ -431,8 +431,8 @@ XMLNode *xml_parse_string(const char *xml) {
   return root;
 }
 
-XMLNode *xml_parse_file(const char *path) {
-  FILE *file = fopen(path, "rb");
+XMLNode *xml_parse_file(const wchar_t *path) {
+  FILE *file = _wfopen(path, L"rb");
   if (!file) return NULL;
   fseek(file, 0, SEEK_END);
   long file_size = ftell(file);

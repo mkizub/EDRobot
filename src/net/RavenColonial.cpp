@@ -116,15 +116,15 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
     parseTimestamp(cr_body, timestamp);
     if (!depot) {
         depot = std::make_shared<gal::Entity>();
-        depot->name = fullName;
-        depot->marketId = cr_body["marketId"].as_int_or();
-        depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
-        if (cr_body["isPrimaryPort"].as_bool_or())
+        if (cr_body["isPrimaryPort"].as_bool_or() || gal::COLONIZATION_SHIP.match_name(fullName))
             depot->type = TypeNav::ColonisationShip;
         else if (fullName.starts_with("Orbital Construction Site:"))
             depot->type = TypeNav::SpaceConstrDepot;
         else if (fullName.starts_with("Planetary Construction Site:"))
             depot->type = TypeNav::PlanetaryConstrDepot;
+        depot->setName(fullName);
+        depot->marketId = cr_body["marketId"].as_int_or();
+        depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
         starSystem->addStation(depot);
         starSystem->saved = false;
         starSystem->save();

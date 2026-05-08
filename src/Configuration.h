@@ -33,7 +33,6 @@ public:
     void setBookmarks(std::vector<spBookmark> bookmarks);
     bool isBookmarked(const std::string& system, const std::string& dock) const;
     std::string getErrorMessage() const { return errorMessage; }
-    std::string getTesseractDataPath() const { return mTesseractDataPath; }
     std::string getForcedDXGIDeviceName() const { return forceDXGIDevice; }
     int getForcedDXGIDeviceId() const { return forceDXGIDeviceId; }
     bool isCapturerWin32Disabled() const { return capturerWin32Disabled; }
@@ -147,11 +146,10 @@ private:
     bool mCurlInsecure = true;
     std::map<std::string,std::string> mRavenColonialKeys;
     std::string mCurlProxyUrl;
-    std::string mTesseractDataPath;
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;
     std::wstring mEDCurrentJournalFile;
-    std::string mEDCurrentPlayerOptionsFile;
+    std::wstring mEDCurrentPlayerOptionsFile;
     unsigned mDisplaySettingsCRC32 {0};
     unsigned mSettingsCRC32 {0};
 

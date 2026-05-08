@@ -72,7 +72,7 @@ std::string packMessage(const char* schema, js::value& orig_msg) {
     js::value j = js::object({
         {"$schemaRef", schema},
         {"header", js::object({
-            {"uploaderID", st::cmdr.name},
+            {"uploaderID", st::cmdr.uploaderId},
             {"gameversion", st::client.gameversion},
             {"gamebuild", st::client.build},
             {"softwareName", "EDRobot"},

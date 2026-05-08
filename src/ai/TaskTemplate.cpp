@@ -581,7 +581,7 @@ TaskTemplate TaskTemplate::loadTask(const js::value& j_task) {
 
 void TaskTemplate::loadUserTasks() {
     LOG(INFO) << "Loading tasks.json5";
-    js::value j_tasks = parseJsonFile("tasks.json5");
+    js::value j_tasks = parseJsonFile(L"tasks.json5");
     if (!j_tasks.is_array())
         return;
     for (const auto& jtt : j_tasks.as_array()) {
@@ -608,13 +608,13 @@ void TaskTemplate::saveUserTasks() {
         }
         j_tasks.as_array().push_back(jt);
     }
-    if (std::filesystem::exists("tasks.json5")) {
-        if (std::filesystem::exists("tasks.bak.json5"))
-            std::filesystem::remove("tasks.bak.json5");
-        std::filesystem::rename("tasks.json5", "tasks.bak.json5");
+    if (std::filesystem::exists(L"tasks.json5")) {
+        if (std::filesystem::exists(L"tasks.bak.json5"))
+            std::filesystem::remove(L"tasks.bak.json5");
+        std::filesystem::rename(L"tasks.json5", L"tasks.bak.json5");
     }
     try {
-        std::ofstream tasksFile("tasks.json5", std::ofstream::out|std::ofstream::trunc);
+        std::ofstream tasksFile(L"tasks.json5", std::ofstream::out|std::ofstream::trunc);
         if (tasksFile.fail()) {
             LOG(ERROR) << "Cannot write file: tasks.json5";
         } else {

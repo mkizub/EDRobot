@@ -59,12 +59,10 @@ void saveMarket(Market* market) {
                     jcmdr["deliveries"] = ci.deliveries;
                 if (ci.contributed)
                     jcmdr["contributed"] = ci.contributed;
-                if (!ci.assigned.empty()) {
-                    js::value ja = js::array({});
-                    for (Commodity* c : ci.assigned)
-                        ja.as_array().push_back(c->nameId);
-                    jcmdr["assigned"] = ja;
-                }
+                js::value ja = js::array({});
+                for (Commodity* c : ci.assigned)
+                    ja.as_array().push_back(c->nameId);
+                jcmdr["assigned"] = ja;
                 jcmdr.add_flags(js::force::no_indent);
             }
         }
@@ -80,7 +78,7 @@ void saveMarket(Market* market) {
         if (ml.demand)
             jv["Demand"] = ml.demand;
         if (ml.buyPrice)
-            jv["BuyPrice"] = true;
+            jv["BuyPrice"] = ml.buyPrice;
         if (ml.sellPrice)
             jv["SellPrice"] = ml.sellPrice;
         if (ml.isConsumer)
@@ -90,7 +88,7 @@ void saveMarket(Market* market) {
         jv.add_flags(js::force::no_indent);
     }
 
-    std::filesystem::path fp("cache/markets/"+std::to_string(market->marketId)+".json");
+    std::filesystem::path fp(std::format(L"cache/markets/{}.json", market->marketId));
     std::ofstream ofs(fp);
     ofs << js::rule::ecma404() << js::rule::space_indent<1>() << jm;
     ofs.close();
@@ -100,7 +98,7 @@ spMarket loadMarket(int64_t marketId) {
     if (!marketId)
         return {};
 
-    const js::value jm = parseJsonFile("cache/markets/"+std::to_string(marketId)+".json");
+    const js::value jm = parseJsonFile(std::format(L"cache/markets/{}.json", marketId));
 
     Timestamp timestamp;
     if (!parseTimestamp(jm["timestamp"], timestamp))
@@ -364,7 +362,7 @@ void StarSystem::save() {
     };
     jout["coords"].add_flags(js::force::no_indent);
 
-    std::filesystem::path fp("cache/systems/"+systemName+".json");
+    std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(systemName)));
     std::ofstream ofs(fp);
     ofs << std::setprecision(15) << std::defaultfloat << js::rule::ecma404() << js::rule::space_indent<1>() << jout;
     ofs.close();
@@ -374,9 +372,9 @@ void StarSystem::save() {
 
 static spStarSystem loadStarSystem(std::string name) {
     spStarSystem ss;
-    std::filesystem::path fp("cache/systems/"+name+".json");
+    std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(name)));
     if (std::filesystem::exists(fp)) {
-        auto jsystem = parseJsonFile(fp.string());
+        auto jsystem = parseJsonFile(fp.wstring());
         if (!jsystem.empty())
             ss = fromEDDN(jsystem, true);
     }
@@ -890,8 +888,10 @@ spMarket getMarket(int64_t marketId) {
 void setMarketData(spMarket market) {
     if (!market || !market->marketId)
         return;
-    if (auto old = gMarketById[market->marketId]; old && old->timestamp > market->timestamp)
-        return;
+    if (auto old = gMarketById[market->marketId]; old && old->timestamp > market->timestamp && old->raven == market->raven) {
+        if (!old->raven || old->raven->timestamp == market->raven->timestamp)
+            return;
+    }
     gMarketById[market->marketId] = market;
     saveMarket(market.get());
 }

@@ -53,7 +53,7 @@ enum TextPSM {
     LINE_PSM_13 = 13,
 };
 
-extern bool init(const std::string& tessdata);
+extern bool init();
 extern void shutdown();
 
 extern bool ocrPageSegm(const cv::Mat& grayImage, cv::Rect& rectOut, std::vector<cv::Line>& baselineOut);

@@ -235,10 +235,8 @@ UIMainDialog::UIMainDialog()
     });
     this->base_msg_pubm::on_command(IDC_CURRENT_TASK, [this](wl::params p){
         if (HIWORD(p.wParam) == STN_CLICKED) {
-            if (!ai::curr_task())
+            if (!ai::curr_task() || !ai::active() || ai::isDebugPause())
                 on_command_task_new();
-            else if (!ai::active() || ai::isDebugPause())
-                on_command_task_resume();
             else
                 on_command_task_pause();
         }
@@ -458,7 +456,7 @@ bool UIMainDialog::show_startup(const std::string &message, const std::string& l
         control = std::unique_ptr<UIControl>(new UIShowStartup(message, latest_version, latest_url));
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
-        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, 0);
+        menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 5, IDM_SHOW_TASK_STATUS);
     });
     return true;
 }
@@ -561,7 +559,7 @@ void UIMainDialog::on_command_task_new() {
     control = std::unique_ptr<UIControl>(new UIEditTask);
     control->create(hwnd(), 0, {10,10}, {400,400});
     relayout();
-    menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 3, IDM_SHOW_TASK_STATUS);
+    menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 5, IDM_SHOW_TASK_EDITOR);
 }
 void UIMainDialog::on_command_task_stop() {
     try {

@@ -100,7 +100,7 @@ namespace {
 //}
 
 static std::pair<std::string,std::string> getLatestVersionAndUrl() {
-    auto path = std::filesystem::path("cache/rel-latest.json");
+    auto path = std::filesystem::path(L"cache/rel-latest.json");
     js::value latest;
     if (std::filesystem::exists(path)) {
         auto file_file_tp = std::filesystem::last_write_time(path);
@@ -108,13 +108,13 @@ static std::pair<std::string,std::string> getLatestVersionAndUrl() {
         std::chrono::sys_days file_days{std::chrono::floor<std::chrono::days>(file_sys_tp)};
         std::chrono::sys_days now_days{std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now())};
         if (file_days >= now_days)
-            latest = parseJsonFile(path.string());
+            latest = parseJsonFile(path.wstring());
     }
 
     if (latest.empty()) {
         auto resp = curlRequestGithubLatest();
         if (!resp.empty()) {
-            std::ofstream ofs_latest(path.string(), std::ios::trunc | std::ios::binary);
+            std::ofstream ofs_latest(path.wstring(), std::ios::trunc | std::ios::binary);
             ofs_latest << resp;
             ofs_latest.close();
             try {

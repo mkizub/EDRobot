@@ -31,11 +31,12 @@ static cv::Mat sharpenKernel5x5 = (cv::Mat_<float>(5, 5) <<
 #endif
 
 
-bool init(const std::string& tessdata) {
-    LOG(INFO) << "Initializing Tesseract OCR tessdata: " << tessdata << "";
+bool init() {
+    LOG(INFO) << "Initializing Tesseract OCR";
 
     std::set<std::wstring> words_set;
-    std::filesystem::path twpath(std::format("tesseract-words-{}.txt", enum_name<Lang>(st::lng)));
+    auto lng = enum_name<Lang>(st::lng);
+    std::filesystem::path twpath(std::format(L"tesseract-words-{}.txt", toUtf16(lng.data(), lng.size())));
     if (std::filesystem::exists(twpath)) {
         FuzzyMatch fm;
         std::ifstream ifs_tw(twpath);
@@ -45,12 +46,12 @@ bool init(const std::string& tessdata) {
             words_set.insert(ocr_word);
         }
         ifs_tw.close();
-        std::ofstream ofs_tw("cache/tesseract-words.txt", std::ios::trunc | std::ios::binary);
+        std::ofstream ofs_tw(L"cache/tesseract-words.txt", std::ios::trunc | std::ios::binary);
         for (auto& w : words_set)
             ofs_tw << toUtf8(w) << std::endl;
         ofs_tw.close();
     }
-    std::ofstream ofs_tw("cache/tesseract-words.txt", std::ios::trunc | std::ios::binary);
+    std::ofstream ofs_tw(L"cache/tesseract-words.txt", std::ios::trunc | std::ios::binary);
     for (auto& w : words_set)
         ofs_tw << toUtf8(w) << std::endl;
     ofs_tw.close();
@@ -59,7 +60,7 @@ bool init(const std::string& tessdata) {
     std::vector<std::string> vars_vec { "user_words_file", "debug_file", "tessedit_do_invert"};
     std::vector<std::string> vars_values { "cache/tesseract-words.txt", "cache/tesseract.log", "0" };
     tesseractApi = new tesseract::TessBaseAPI();
-    int fail = tesseractApi->Init(tessdata.c_str(), tesseractLang, tesseract::OEM_DEFAULT, nullptr, 0,
+    int fail = tesseractApi->Init("tessdata", tesseractLang, tesseract::OEM_DEFAULT, nullptr, 0,
                                   &vars_vec, &vars_values, true);
     if (fail) {
         LOG(ERROR) << "Error: Could not initialize tesseract.";
