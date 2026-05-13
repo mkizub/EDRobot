@@ -64,6 +64,7 @@ extern std::string formatTimestampString(Timestamp timestamp, bool nanos=false);
 extern bool parseTimestampString(const std::string& str, Timestamp& timestamp);
 extern bool parseTimestamp(const js::value& value, Timestamp& timestamp);
 extern dist_t parseDist(std::wstring dist, int conf);
+extern int parseDistTime(std::wstring dist);
 extern bool parseInt(const std::string& str, int64_t& out);
 extern bool parseReal(const std::string& str, double& out);
 

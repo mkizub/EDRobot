@@ -31,6 +31,11 @@ bool new_task(const TaskTemplate& templ);
 
 void reportCompassDetect(CompassInfo& compass);
 void resetCompassDetects();
+struct ExpextedCruiseTime {
+    int curent_sec;
+    int expected_sec;
+};
+ExpextedCruiseTime expectingTimeToDest(int in_seconds);
 
 void notify_progress_(MessageSeverity severity, const std::string_view msg);
 [[noreturn]] void throw_trouble_(const std::string_view msg);

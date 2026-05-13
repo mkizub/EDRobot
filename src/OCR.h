@@ -41,6 +41,7 @@ const int BASELINE_Y   = 30;
 enum TextType {
     GENERIC,
     DISTANCE,
+    FLYTIME,
     NUMERIC,
 };
 
@@ -72,6 +73,7 @@ extern int ocrNavigationLblTextForTraining(const cv::Mat& grayImage, const Resol
 
 extern cv::Mat normalizeTargetDistText(cv::Mat& grayImage);
 extern int ocrTargetDistText(cv::Mat grayImage, std::string& text);
+extern int ocrTargetDistForTraining(cv::Mat grayImage, std::string& text, cv::Mat& distImage, cv::Mat& timeImage);
 
 extern int ocrTileLblText(double font_height, cv::Mat& grayImage, WState ws, std::string& text);
 

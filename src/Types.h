@@ -117,12 +117,14 @@ struct dist_t {
         X, M, KM, MM, LS, LY
     };
     double dist;
+    int tsec;
     Unit unit : 8;
     int8_t conf : 8;
 
-    constexpr dist_t() : dist(0), unit(X), conf(0) {}
-    constexpr dist_t(Unit u, double d) : unit(u), dist(d), conf(0) {}
-    constexpr dist_t(double d, Unit u, int8_t conf) : dist(d), unit(u), conf(conf) {}
+    constexpr dist_t() : dist(0), tsec(0), unit(X), conf(0) {}
+    constexpr dist_t(Unit u, double d) : unit(u), dist(d), tsec(0), conf(0) {}
+    constexpr dist_t(double d, Unit u, int8_t conf) : dist(d), tsec(0), unit(u), conf(conf) {}
+    constexpr dist_t(double d, int s, Unit u, int8_t conf) : dist(d), tsec(s), unit(u), conf(conf) {}
 
     explicit operator bool() const { return unit != X && dist > 0; }
     bool valid() const { return unit != X; }

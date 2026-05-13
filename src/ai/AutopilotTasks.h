@@ -239,6 +239,7 @@ public:
     BaseCruiseStep() = default;
 
     bool gotDistance(dist_t dist);
+    void checkStartSCO();
     void checkExitSCO(bool exitSCO);
 
     std::string getTitle() override;
@@ -253,6 +254,7 @@ public:
     bool useNavList {};
     bool flyAway {};
     int failCount {};
+    Timestamp scoExit;
 };
 
 

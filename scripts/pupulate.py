@@ -27,7 +27,7 @@ class Populate:
         self.currentImage = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
         hist_g = cv2.calcHist([self.currentImage], [0], None, [256], [0, 256])
         self.background_gray = np.argmax(hist_g)
-        self.currentBaseName = os.path.basename(file)[:-9] # strip -gray.png
+        self.currentBaseName = os.path.basename(file)[:-4] # strip .png
 
     def shift(self, image, step):
         height, width = image.shape
@@ -65,8 +65,8 @@ class Populate:
             outDir = f'{outDir}/{chunk:03d}'
         if not os.path.exists(outDir):
             os.mkdir(outDir)
-        cv2.imwrite(f'{outDir}/{self.currentBaseName}{suffix}-gray.png', image)
-        shutil.copyfile(f'{self.inpDir}/{self.currentBaseName}-gray.gt.txt', f'{outDir}/{self.currentBaseName}{suffix}-gray.gt.txt')
+        cv2.imwrite(f'{outDir}/{self.currentBaseName}{suffix}.png', image)
+        shutil.copyfile(f'{self.inpDir}/{self.currentBaseName}.gt.txt', f'{outDir}/{self.currentBaseName}{suffix}.gt.txt')
 
     def run(self):
         if len(sys.argv) != 3 or not os.path.isdir(sys.argv[1]):
@@ -78,7 +78,7 @@ class Populate:
         print(f'Populate images from {self.inpDir} to {self.outDir}')
         if not os.path.exists(self.outDir):
           os.mkdir(self.outDir)
-        self.srcFiles = glob.glob(f"{self.inpDir}/*-gray.png")
+        self.srcFiles = glob.glob(f"{self.inpDir}/*.png")
         self.srcFiles.sort()
 
         for i in range(len(self.srcFiles)):

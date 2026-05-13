@@ -334,6 +334,7 @@ bool loadEDDB();
 spShipStats initShipStats(const std::string &type);
 void setShipStats(spShipStats shipStats);
 spShipStats getShipStats();
+bool shipHasFsdSco();
 
 } // namespace eddb
 

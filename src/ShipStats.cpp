@@ -51,6 +51,9 @@ void setShipStats(spShipStats shipStats) {
 spShipStats getShipStats() {
     return gShipStats;
 }
+bool shipHasFsdSco() {
+    return gShipStats && gShipStats->hasFsdSco();
+}
 
 bool loadEDDB() {
     LOG(INFO) << "Loading EDDB";

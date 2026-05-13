@@ -389,7 +389,7 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
 
         int scaledSz = 210; // 420x210
         cv::Rect lineRect {200, 0, 210, 210};
-        cv::Rect ocrRect {210, 114, 170, ocr::LINE_HEIGHT};
+        cv::Rect ocrRect {210, 114, 170, 92};
 
         int sz = nr.im->org_h;
 //            double scale = double(scaledSz) / nr.im->org_h;
@@ -437,32 +437,54 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
         cv::bitwise_not(ocrImage, ocrImage);
         std::string text;
         int conf =  ocr::ocrTargetDistText(toMat(ocrImage), text);
-        lastNavDist = parseDist(toUtf16(text), conf);
-//            else {
-//                static int counter = 0;
-//                if (!counter) {
-//                    for (const auto &entry: std::filesystem::directory_iterator("testset-edr")) {
-//                        if (!entry.is_regular_file())
-//                            continue;
-//                        auto &ep = entry.path();
-//                        if (!ep.has_extension() || ep.extension() != ".png")
-//                            continue;
-//                        if (!ep.filename().string().starts_with("nav-tgt-"))
-//                            continue;
-//                        auto strings = split(ep.filename().string(), '-');
-//                        int num = std::stoi(strings[2], nullptr, 10);
-//                        counter = std::max(num, counter);
-//                    }
+        int nl = text.find('\n');
+        if (nl == std::string::npos) {
+            lastNavDist = parseDist(toUtf16(text), conf);
+        } else {
+            lastNavDist = parseDist(toUtf16(text.substr(0,nl)), conf);
+            lastNavDist.tsec = parseDistTime(toUtf16(text.substr(nl+1)));
+        }
+//        if (env.isDebugMatch()) {
+//            static int counter = 0;
+//            if (!counter) {
+//                for (const auto &entry: std::filesystem::directory_iterator("cache/testset-edr")) {
+//                    if (!entry.is_regular_file())
+//                        continue;
+//                    auto &ep = entry.path();
+//                    if (!ep.has_extension() || ep.extension() != ".png")
+//                        continue;
+//                    if (!ep.filename().string().starts_with("nav-tgt-"))
+//                        continue;
+//                    auto strings = split(ep.filename().string(), '-');
+//                    int num = std::stoi(strings[2], nullptr, 10);
+//                    counter = std::max(num, counter);
 //                }
-//                counter += 1;
-//                cv::Mat normImage = ocr::normalizeTargetDistText(toMat(ocrImage));
-//                std::string filename = std::format("testset-edr/nav-tgt-{:04d}-{}", counter, conf);
-//                cv::imwrite(filename+".png", normImage);
-//                filename = std::format("testset-edr/nav-tgt-{:04d}-{}.gt.txt", counter, conf);
-//                std::ofstream gt_txt(filename+".gt.txt", std::ios::trunc | std::ios::binary);
-//                gt_txt << text;
-//                gt_txt.close();
 //            }
+//            counter += 1;
+//            cv::Mat distImage;
+//            cv::Mat timeImage;
+//            ocr::ocrTargetDistForTraining(toMat(ocrImage), text, distImage, timeImage);
+//            int nl = text.find('\n');
+//            std::string dist_text;
+//            std::string time_text;
+//            if (nl == std::string::npos) {
+//                dist_text = text;
+//            } else {
+//                dist_text = text.substr(0,nl);
+//                time_text = text.substr(nl+1);
+//            }
+//
+//            std::string filename = std::format("cache/testset-edr/nav-tgt-dist-{:04d}", counter);
+//            cv::imwrite(filename+".png", distImage);
+//            std::ofstream gt_txt(filename+".gt.txt", std::ios::trunc | std::ios::binary);
+//            gt_txt << dist_text;
+//            gt_txt.close();
+//            filename = std::format("cache/testset-edr/nav-tgt-time-{:04d}", counter);
+//            cv::imwrite(filename+".png", timeImage);
+//            gt_txt.open(filename+".gt.txt", std::ios::trunc | std::ios::binary);
+//            gt_txt << time_text;
+//            gt_txt.close();
+//        }
         //auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - startTime);
         //LOG(INFO) << "Compass nav target dist text took: " << elapsedTime.count() << "us";
     }

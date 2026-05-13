@@ -448,11 +448,11 @@ static double DIST_UNIT_SCALE[6][6] {
 
 dist_t dist_t::convertTo(dist_t::Unit u) const {
     if (u == Unit::X || unit == Unit::X) return *this;
-    return dist_t(u, dist*DIST_UNIT_SCALE[unit][u]);
+    return dist_t(dist*DIST_UNIT_SCALE[unit][u], tsec, u, conf);
 }
 
 dist_t dist_t::abs() const {
-    return dist_t(std::abs(dist), unit, conf);
+    return dist_t(std::abs(dist), tsec, unit, conf);
 }
 
 double dist_t::get(Unit u) const {
@@ -474,21 +474,33 @@ double dist_t::get_ls() const {
 }
 
 std::string dist_t::to_string() const {
+    std::string out;
     switch (unit) {
     default:
     case Unit::X:
-        return std::format("{:.2f}", dist);
+        out = std::format("{:.2f}", dist);
+        break;
     case Unit::M:
-        return std::format("{:.2f}m", dist);
+        out = std::format("{:.2f}m", dist);
+        break;
     case Unit::KM:
-        return std::format("{:.2f}km", dist);
+        out = std::format("{:.2f}km", dist);
+        break;
     case Unit::MM:
-        return std::format("{:.2f}mm", dist);
+        out = std::format("{:.2f}mm", dist);
+        break;
     case Unit::LS:
-        return std::format("{:.2f}ls", dist);
+        out = std::format("{:.2f}ls", dist);
+        break;
     case Unit::LY:
-        return std::format("{:.2f}ly", dist);
+        out = std::format("{:.2f}ly", dist);
+        break;
     }
+    if (tsec > 3600)
+        out += std::format(" {:%H:%M:%S}", std::chrono::seconds(tsec));
+    else if (tsec > 0)
+        out += std::format(" {:%M:%S}", std::chrono::seconds(tsec));
+    return out;
 }
 
 std::ostream& operator<<(std::ostream& os, const dist_t& obj) {
@@ -584,6 +596,30 @@ dist_t parseDist(std::wstring dist, int conf) {
     if (std::from_chars(num.c_str(), num.c_str()+num.size(), d).ec != std::errc{})
         return {};
     return dist_t(d, unit, conf);
+}
+
+static const int time_scale[] = { 1, 10, 0, 60, 600, 0, 3600, 36000 };
+int parseDistTime(std::wstring dist) {
+    dist = trim(dist);
+    if (dist.size() < 4)
+        return 0;
+    int tsec = 0;
+
+    for (int sc=0, p = dist.size()-1; p >= 0; sc++, p--) {
+        if (time_scale[sc] == 0) {
+            if (!(dist[p] == L':' || dist[p] == L'.' || dist[p] == L',' || dist[p] == L'1' || dist[p] == L' ')) {
+                LOG_WARNING("Bad time {}", toUtf8(dist));
+                return 0;
+            }
+        } else {
+            if (dist[p] < L'0' || dist[p] > L'9') {
+                LOG_WARNING("Bad time {}", toUtf8(dist));
+                return 0;
+            }
+            tsec += (dist[p] - L'0') * time_scale[sc];
+        }
+    }
+    return tsec;
 }
 
 bool parseInt(const std::string& str, int64_t& out) {

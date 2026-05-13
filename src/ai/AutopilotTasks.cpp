@@ -1680,12 +1680,11 @@ bool LeaveBodyStep::run() {
     }
 
     bool useFsdOvercharge = false;
-    auto shipStats = eddb::getShipStats();
     if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
         LOG_DEBUG("LeaveBody: leaving body in cruise");
         timer = utc_timer(60s);
         status = LEAVING_BODY;
-        if (shipStats && shipStats->hasFsdSco()) {
+        if (eddb::shipHasFsdSco()) {
             useFsdOvercharge = true;
             kbd::send("UseBoostJuice", 100);
         }
@@ -2661,19 +2660,57 @@ bool BaseCruiseStep::gotDistance(dist_t dist) {
     return false;
 }
 
+void BaseCruiseStep::checkStartSCO() {
+    if (st::ship.flags2.supercruise_overcharge || !st::ship.flags.cruise)
+        return;
+    if (scoExit.time_since_epoch().count()) {
+        auto cooltime = std::chrono::duration<double>(Timestamp::clock::now() - scoExit).count();
+        if (cooltime < 10)
+            return;
+    }
+    if (st::ship.flags.overheating)
+        return;
+    else if (st::shipStats.fuelMain < 0.25f*st::shipStats.fuelCapacityMain)
+        return;
+    else if (st::compass.hemisphere < 0 || std::abs(st::compass.targetAngle) > 20)
+        return;
+    else if (auto exp=expectingTimeToDest(0); exp.curent_sec < 90) // more then 90 seconds to cruise
+        return;
+
+    if (eddb::shipHasFsdSco()) {
+        LOG_INFO("Start SCO acceleration");
+        kbd::send("UseBoostJuice", 100, 500);
+    }
+}
+
+
 void BaseCruiseStep::checkExitSCO(bool exitSCO) {
     if (!st::ship.flags2.supercruise_overcharge)
         return;
-    if (st::ship.flags.overheating)
+    if (exitSCO) {
+        LOG_INFO("Exit SCO acceleration (distance)");
+    }
+    else if (st::ship.flags.overheating) {
+        LOG_INFO("Exit SCO acceleration (overheating)");
         exitSCO = true;
-    if (st::shipStats.fuelMain < 0.25f*st::shipStats.fuelCapacityMain)
+    }
+    else if (st::shipStats.fuelMain < 0.25f*st::shipStats.fuelCapacityMain) {
+        LOG_INFO("Exit SCO acceleration (fuel)");
         exitSCO = true;
-    if (st::compass.hemisphere < 0 || std::abs(st::compass.targetAngle) > 20)
+    }
+    else if (st::compass.hemisphere < 0 || std::abs(st::compass.targetAngle) > 20) {
+        LOG_INFO("Exit SCO acceleration (direction)");
         exitSCO = true;
+    }
+    else if (auto exp=expectingTimeToDest(1); exp.curent_sec < 7 /*exp.curent_sec < 300 && exp.expected_sec < 7*/) {
+        LOG_INFO("Exit SCO acceleration (time)");
+        exitSCO = true;
+    }
 
     if (!exitSCO)
         return;
 
+    LOG_INFO("Exit SCO acceleration");
     kbd::send("UseBoostJuice", 100, 100);
     while (st::ship.flags2.supercruise_overcharge) {
         utc_timer timer = 1s;
@@ -2685,6 +2722,7 @@ void BaseCruiseStep::checkExitSCO(bool exitSCO) {
         // stop cruise overcharge
         kbd::send("UseBoostJuice", 100, 100);
     }
+    scoExit = Timestamp::clock::now();
 }
 
 bool CruiseToSignal::run() {
@@ -3090,21 +3128,24 @@ bool CruiseToDistStep::run() {
                 sleep(100);
             }
             else if (currentDist <= 500_ls) {
-                checkExitSCO(true);
+                //checkExitSCO(true);
                 status = DIST_FAR;
                 setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls");
                 sleep(500);
             }
             else {
                 status = DIST_HUGE;
-                if (currentDist <= 12000_ls)
-                    checkExitSCO(true);
+                //if (currentDist <= 12000_ls)
+                //    checkExitSCO(true);
+                if (!st::ship.flags2.supercruise_overcharge)
+                    checkStartSCO();
                 setSpeed(100, false, "CruiseToDist: !flyAway && currentDist > 1000_ls");
                 sleep(1000);
             }
         }
     }
 
+    checkExitSCO(true);
     LOG_INFO("CruiseToDist done");
     prevSubStep.reset();
     currSubStep.reset();

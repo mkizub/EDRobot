@@ -307,6 +307,47 @@ void reportCompassDetect(CompassInfo& compass) {
         turnCond.notify_one();
 }
 
+ExpextedCruiseTime expectingTimeToDest(int in_seconds) {
+    Timestamp ts_now = Timestamp::clock::now();
+    int count = 0;
+    CompassDist dist[3] {};
+    for (int i=int(buffer.size())-1; i >= 0 && count < 3; i--) {
+        auto& cd = buffer[i];
+        if ((ts_now - cd.timestamp) > 5s)
+            break;
+        if (cd.dist.valid() && cd.dist.tsec > 0)
+            dist[count++] = cd;
+    }
+    double in_time = in_seconds + std::chrono::duration<double>(ts_now - dist[0].timestamp).count();
+    LOG_INFO("expectingTimeToDest({} + {:.2f}) buffer count {} [{}, {}, {}]",
+             in_seconds, in_time, count,
+             dist[0].dist.tsec, dist[1].dist.tsec, dist[2].dist.tsec);
+    if (count <= 0)
+        return {INT_MAX,INT_MAX};
+    if (count <= 1) {
+        LOG_INFO("expecting time: {}sec", dist[0].dist.tsec);
+        return {dist[0].dist.tsec,dist[0].dist.tsec};
+    }
+//    if (count <= 2) {
+        int delta_tsec = dist[0].dist.tsec - dist[1].dist.tsec;
+        auto delta_time = std::chrono::duration<double>(dist[0].timestamp - dist[1].timestamp);
+        double tsec_speed = delta_tsec / delta_time.count();
+        int expected = dist[0].dist.tsec + tsec_speed*in_time;
+        LOG_INFO("expecting time: {}sec (current {}, speed {})", expected, dist[0].dist.tsec, tsec_speed);
+        return {dist[0].dist.tsec,expected};
+//    }
+//    int delta_tsec_1 = dist[0].dist.tsec - dist[1].dist.tsec;
+//    auto delta_time_1 = std::chrono::duration<double>(dist[0].timestamp - dist[1].timestamp);
+//    double tsec_speed_1 = delta_tsec_1 / delta_time_1.count();
+//    int delta_tsec_2 = dist[1].dist.tsec - dist[2].dist.tsec;
+//    auto delta_time_2 = std::chrono::duration<double>(dist[1].timestamp - dist[2].timestamp);
+//    double tsec_speed_2 = delta_tsec_2 / delta_time_2.count();
+//    double tsec_accel = (tsec_speed_1 - tsec_speed_2) / delta_time_1.count();
+//    int expected = dist[0].dist.tsec + tsec_speed_1*in_time + tsec_accel*in_time*in_time/2;
+//    LOG_INFO("expecting time: {}sec (current {}, speed {}, accel {})", expected, dist[0].dist.tsec, tsec_speed_1, tsec_accel);
+//    return {dist[0].dist.tsec,expected};
+}
+
 static int compassLostCounter;
 
 void turn_loop() {

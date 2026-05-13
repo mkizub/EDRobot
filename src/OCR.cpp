@@ -150,6 +150,9 @@ int ocrLine(TextType type, int psm, const char* dbg, const cv::Mat& grayImage, i
         else
             tesseractApi->SetVariable("tessedit_char_whitelist", " .,/%0123456789Mmklsy");
         break;
+    case FLYTIME:
+        tesseractApi->SetVariable("tessedit_char_whitelist", ":0123456789");
+        break;
     case NUMERIC:
         tesseractApi->SetVariable("tessedit_char_whitelist", " +-.,/%0123456789");
         break;
@@ -551,8 +554,73 @@ cv::Mat normalizeTargetDistText(cv::Mat& grayImage) {
 int ocrTargetDistText(cv::Mat grayImage, std::string& text) {
     cv::Mat ocrImage = normalizeTargetDistText(grayImage);
     cv::filter2D(grayImage, ocrImage, -1, sharpenKernel5x5);
-    int conf = ocr::ocrLine(ocr::DISTANCE, 7, "(nav dist)", ocrImage, 30, text, nullptr);
-    return conf;
+    cv::Rect rect;
+    std::vector<cv::Line> baselines;
+    if (!ocr::ocrPageSegm(ocrImage, rect, baselines))
+        return 0;
+#ifdef DEBUG_OCR
+    cv::Mat debugImage = ocrImage.clone();
+    cv::rectangle(debugImage, rect, {64,64,64}, 1);
+    for (auto& bl : baselines)
+        cv::line(debugImage, bl.p0(), bl.p1(), {64,64,64}, 1);
+#endif
+
+    int dconf = 0;
+    int tconf = 0;
+    for (int i=0; i < 2 && i < baselines.size(); i++) {
+        auto& bl = baselines[i];
+        cv::Rect crop;
+        crop.x = rect.x;
+        crop.y = bl.y0 - (ocr::ASCENT + ocr::LEADING);
+        crop.width = rect.width;
+        crop.height = ocr::LINE_HEIGHT;
+        crop &= cv::Rect(0, 0, ocrImage.cols, ocrImage.rows);
+        cv::Mat ocrCropImage = ocrImage(crop);
+        std::string text_line;
+        if (i == 0) {
+            dconf = ocr::ocrLine(ocr::DISTANCE, 7, "(nav dist)", ocrCropImage, 30, text_line, nullptr);
+            text = text_line;
+        } else {
+            tconf = ocr::ocrLine(ocr::FLYTIME, 7, "(nav time)", ocrCropImage, 30, text_line, nullptr);
+            if (tconf >= 30)
+                text += "\n" + text_line;
+        }
+    }
+    return dconf;
+}
+
+int ocrTargetDistForTraining(cv::Mat grayImage, std::string& text, cv::Mat& distImage, cv::Mat& timeImage) {
+    cv::Mat ocrImage = normalizeTargetDistText(grayImage);
+    cv::filter2D(grayImage, ocrImage, -1, sharpenKernel5x5);
+    cv::Rect rect;
+    std::vector<cv::Line> baselines;
+    if (!ocr::ocrPageSegm(ocrImage, rect, baselines))
+        return 0;
+
+    int dconf = 0;
+    int tconf = 0;
+    for (int i=0; i < 2 && i < baselines.size(); i++) {
+        auto& bl = baselines[i];
+        cv::Rect crop;
+        crop.x = rect.x;
+        crop.y = bl.y0 - (ocr::ASCENT + ocr::LEADING);
+        crop.width = rect.width;
+        crop.height = ocr::LINE_HEIGHT;
+        crop &= cv::Rect(0, 0, ocrImage.cols, ocrImage.rows);
+        cv::Mat ocrCropImage = ocrImage(crop);
+        std::string text_line;
+        if (i == 0) {
+            distImage = ocrCropImage;
+            dconf = ocr::ocrLine(ocr::DISTANCE, 7, "(nav dist)", ocrCropImage, 30, text_line, nullptr);
+            text = text_line;
+        } else {
+            timeImage = ocrCropImage;
+            tconf = ocr::ocrLine(ocr::FLYTIME, 7, "(nav time)", ocrCropImage, 30, text_line, nullptr);
+            if (tconf >= 30)
+                text += "\n" + text_line;
+        }
+    }
+    return dconf;
 }
 
 int ocrTileLblText(double font_height, cv::Mat& grayImage, WState ws, std::string& text) {
