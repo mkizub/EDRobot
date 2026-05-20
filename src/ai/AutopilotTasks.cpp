@@ -2661,13 +2661,10 @@ bool BaseCruiseStep::gotDistance(dist_t dist) {
 }
 
 void BaseCruiseStep::checkStartSCO() {
-    if (st::ship.flags2.supercruise_overcharge || !st::ship.flags.cruise)
+    if (st::ship.flags2.supercruise_overcharge || !st::ship.flags.cruise || !eddb::shipHasFsdSco())
         return;
-    if (scoExit.time_since_epoch().count()) {
-        auto cooltime = std::chrono::duration<double>(Timestamp::clock::now() - scoExit).count();
-        if (cooltime < 10)
-            return;
-    }
+    if (Timestamp::clock::now() < scoCanStart)
+        return;
     if (st::ship.flags.overheating)
         return;
     else if (st::shipStats.fuelMain < 0.25f*st::shipStats.fuelCapacityMain)
@@ -2677,10 +2674,12 @@ void BaseCruiseStep::checkStartSCO() {
     else if (auto exp=expectingTimeToDest(0); exp.curent_sec < 90) // more then 90 seconds to cruise
         return;
 
-    if (eddb::shipHasFsdSco()) {
-        LOG_INFO("Start SCO acceleration");
-        kbd::send("UseBoostJuice", 100, 500);
-    }
+    LOG_INFO("Start SCO acceleration");
+    if (currentDist.get_ls() > 100000)
+        scoExitThreshold = 4;
+    else
+        scoExitThreshold = 7;
+    kbd::send("UseBoostJuice", 100, 500);
 }
 
 
@@ -2702,7 +2701,7 @@ void BaseCruiseStep::checkExitSCO(bool exitSCO) {
         LOG_INFO("Exit SCO acceleration (direction)");
         exitSCO = true;
     }
-    else if (auto exp=expectingTimeToDest(1); exp.curent_sec < 7 /*exp.curent_sec < 300 && exp.expected_sec < 7*/) {
+    else if (auto exp=expectingTimeToDest(1); exp.curent_sec < scoExitThreshold) {
         LOG_INFO("Exit SCO acceleration (time)");
         exitSCO = true;
     }
@@ -2722,7 +2721,7 @@ void BaseCruiseStep::checkExitSCO(bool exitSCO) {
         // stop cruise overcharge
         kbd::send("UseBoostJuice", 100, 100);
     }
-    scoExit = Timestamp::clock::now();
+    scoCanStart = Timestamp::clock::now() + 10s;
 }
 
 bool CruiseToSignal::run() {

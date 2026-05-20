@@ -296,6 +296,8 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
         const std::string& systemName, const std::string& dockName, const Demands& demands)
 {
     BaseColonizationTask::MarketInfo mi {MARKET_INVALID, systemName, dockName};
+    mi.canBuy.resize(demands.allDepots.size(), 0);
+    mi.canBuyListed.resize(demands.allDepots.size(), 0);
     auto starSystem = gal::getStarSystem(systemName);
     if (!starSystem) {
         notify_warn("Star system '{}' not known", systemName);
@@ -341,8 +343,6 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
     for (auto &[c, counts] : demands.toDeliver) {
         need[c] = counts.total - counts.bought;
     }
-    mi.canBuy.resize(demands.allDepots.size(), 0);
-    mi.canBuyListed.resize(demands.allDepots.size(), 0);
     for (int depotIdx=0; depotIdx < demands.allDepots.size(); ++depotIdx) {
         auto& ddp = demands.allDepots[depotIdx];
         for (auto &[c, counts] : demands.toDeliver) {

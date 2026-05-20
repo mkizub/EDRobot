@@ -254,7 +254,8 @@ public:
     bool useNavList {};
     bool flyAway {};
     int failCount {};
-    Timestamp scoExit;
+    int scoExitThreshold = 7;
+    Timestamp scoCanStart;
 };
 
 
