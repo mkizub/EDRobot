@@ -2677,6 +2677,8 @@ void BaseCruiseStep::checkStartSCO() {
     LOG_INFO("Start SCO acceleration");
     if (currentDist.get_ls() > 100000)
         scoExitThreshold = 4;
+    else if (currentDist.get_ls() <= 1500)
+        scoExitThreshold = 15;
     else
         scoExitThreshold = 7;
     kbd::send("UseBoostJuice", 100, 500);
@@ -2701,7 +2703,7 @@ void BaseCruiseStep::checkExitSCO(bool exitSCO) {
         LOG_INFO("Exit SCO acceleration (direction)");
         exitSCO = true;
     }
-    else if (auto exp=expectingTimeToDest(1); exp.curent_sec < scoExitThreshold) {
+    else if (auto exp=expectingTimeToDest(1); exp.curent_sec <= scoExitThreshold) {
         LOG_INFO("Exit SCO acceleration (time)");
         exitSCO = true;
     }
@@ -3079,7 +3081,7 @@ bool CruiseToDistStep::run() {
             setSpeed(0, true, "CruiseToDist: stop");
             if (useNavList)
                 sendUiBack();
-            sleep(5000);
+            sleep(3000);
             LOG_INFO("CruiseToDist done");
             prevSubStep.reset();
             currSubStep.reset();
@@ -3130,7 +3132,8 @@ bool CruiseToDistStep::run() {
                 //checkExitSCO(true);
                 status = DIST_FAR;
                 setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls");
-                sleep(500);
+                if (!st::ship.flags2.supercruise_overcharge)
+                    sleep(500);
             }
             else {
                 status = DIST_HUGE;
@@ -3139,7 +3142,12 @@ bool CruiseToDistStep::run() {
                 if (!st::ship.flags2.supercruise_overcharge)
                     checkStartSCO();
                 setSpeed(100, false, "CruiseToDist: !flyAway && currentDist > 1000_ls");
-                sleep(1000);
+                if (!st::ship.flags2.supercruise_overcharge)
+                    sleep(1000);
+                else if (currentDist > 15000_ls)
+                    sleep(250);
+                else
+                    sleep(50);
             }
         }
     }
@@ -3295,11 +3303,11 @@ bool DiveUnderPlanetStep::run() {
                     dockIsVisible = true;
                 } else if (ai::compassInfo.targetRoll < -100) {
                     LOG_DEBUG("DiveUnderPlanet, orient to see dock target mark");
-                    task->orientRollByTarget(-60, 15, 10000);
+                    task->orientRollByTarget(-80, 15, 10000);
                     goto try_visible_again;
                 } else if (ai::compassInfo.targetRoll > 100) {
                     LOG_DEBUG("DiveUnderPlanet, orient to see dock target mark");
-                    task->orientRollByTarget(60, 15, 10000);
+                    task->orientRollByTarget(80, 15, 10000);
                     goto try_visible_again;
                 }
             }
@@ -3354,7 +3362,10 @@ bool DiveUnderPlanetStep::run() {
                     } else {
                         task->orientRollByTarget(180, 8);
                         task->orientPitchStep(-(to_body_center_angle+10), 10000);
-                        keepCruisePitch = 7;
+                        if (disk_part < 1.5)
+                            keepCruisePitch = 12;
+                        else
+                            keepCruisePitch = 7;
                     }
                 }
                 LOG_INFO("DiveUnderPlanet, done");
@@ -3448,12 +3459,15 @@ bool DiveUnderPlanetStep::run() {
                     }
                 } else {
                     LOG_DEBUG("DiveUnderPlanet, dockIsVisible && !toPort");
-                    if (disk_part < 0.85 || disk_part > 2) {
+                    if (disk_part < 0.85 || disk_part > 2.5) {
                         keepCruisePitch = 0;
                     } else {
                         task->orientRollByTarget(0, 8);
                         task->orientPitchStep(-10, 10000);
-                        keepCruisePitch = 7;
+                        if (disk_part < 1.5)
+                            keepCruisePitch = 12;
+                        else
+                            keepCruisePitch = 7;
                     }
                 }
                 if (!run_sub_step(new NavDockSelect)) {
@@ -4196,6 +4210,7 @@ bool CruiseAndDock::run() {
 
 full_path:
     int noCompassCount = 0;
+    bool extended_min_dist = false;
     while (!at_dest_dock) {
         bool relaxed_min_dist = false;
         if (st::shipAtBody.approachBody || st::shipAtBody.nearBody) {
@@ -4283,6 +4298,12 @@ full_path:
                 }
             }
         }
+        if (extended_min_dist) {
+            min_dist = max_dist * 0.8;
+            extended_min_dist = false;
+            skip_cruise_to_dist = false;
+            skip_dive = false;
+        }
 
         if (!skip_cruise_to_dist) {
             LOG_DEBUG("CruiseAndDock, cruising min/max dist: {} / {}", min_dist, max_dist);
@@ -4316,8 +4337,10 @@ full_path:
                 setSpeed(0, false, "CruiseAndDock, dive");
                 check_interrupted();
                 status = DIVE;
-                if (!run_sub_step(new DiveUnderPlanetStep))
+                if (!run_sub_step(new DiveUnderPlanetStep)) {
+                    extended_min_dist = true;
                     continue;
+                }
                 auto* dive = dynamic_cast<DiveUnderPlanetStep*>(prevSubStep.get());
                 if (dive)
                     exitCruisePitch = dive->keepCruisePitch;

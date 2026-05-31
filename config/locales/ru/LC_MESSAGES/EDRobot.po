@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-13 13:24+0300\n"
-"PO-Revision-Date: 2026-05-13 13:36+0300\n"
+"PO-Revision-Date: 2026-05-21 00:27+0300\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "Language: ru\n"
@@ -96,7 +96,7 @@ msgstr "Остановлено '{}'"
 #: D:\Work\ED\EDRobot\src\ai\AIManager.cpp:137
 #: D:\Work\ED\EDRobot\src\ai\AIManager.cpp:141
 msgid "EDRobot resume"
-msgstr "Возобленовлено"
+msgstr "Возобновлено"
 
 #: D:\Work\ED\EDRobot\src\ai\AIManager.cpp:137
 msgid "No paused task"

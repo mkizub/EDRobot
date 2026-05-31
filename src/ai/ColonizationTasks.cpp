@@ -62,6 +62,8 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
         depotMarket = gal::getMarket(depot->marketId);
         depotImported = true;
     }
+    if (depotMarket && !depotMarket->raven)
+        depotMarket->raven = std::make_shared<RavenProj>();
     auto& depotInfo = depots.emplace_back(systemName, fullName, shortName);
     depotInfo.marketId = depot->marketId;
     if (depotMarket && depotMarket->raven) {
@@ -156,6 +158,9 @@ void BaseColonizationTask::addDemands(DepotInfo& dv, Demands& demands) {
     }
     for (auto &item: depotMarket->items) {
         Commodity *c = item.first;
+        const auto& ml = item.second;
+        if (ml.demand <= ml.stock)
+            continue;
         if (demands.onlyListed) {
             if (!demands.specialCommodities.contains(c) && !ddp.assignedCommodities.contains(c))
                 continue;
