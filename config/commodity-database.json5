@@ -10,6 +10,11 @@
         ru: "Дрон",
       },
     },
+    curatedcommodity: {
+      id: 129045961,
+      en: "Curated Commodity Package",
+      ru: "Curated Commodity Package",
+    },
   },
   'foods': {
     id: 4,
@@ -2654,6 +2659,7 @@
     "prohibitedresearchmaterials", //  | Запретные материалы исследований
     "antimattercontainmentunit", //  | Контейнер с антиматерией
     "thargoidpod", //  | Таргоидская капсула для биоматериалов
+    "curatedcommodity", //  | Curated Commodity Package
   ],
   'carrier-order-ru': [
     "gromcounterintelligence", //  | Разведданные Грома
@@ -3055,5 +3061,6 @@
     "prohibitedresearchmaterials", //  | Запретные материалы исследований
     "antimattercontainmentunit", //  | Контейнер с антиматерией
     "thargoidpod", //  | Таргоидская капсула для биоматериалов
+    "curatedcommodity", //  | Curated Commodity Package
   ],
 }

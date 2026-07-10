@@ -307,6 +307,8 @@ public:
     double getThrustSpeed() const;
     double getForwardAccel() const;
     double getReverseAccel() const;
+    double getMassRotMultiplier() const;
+    double getMassSpdMultiplier() const;
 
     bool hasFsdSco() const { return hasFsdScoModule; }
 
@@ -321,8 +323,6 @@ private:
     void updateStat(ShipSlot& slot, Attr attr);
     eddb::ShipSlot& getSlot(const std::string& name);
     double getMassCurveMultiplier(double mass, double minMass, double optMass, double maxMass, double minMul, double optMul, double maxMul) const;
-    double getMassRotMultiplier() const;
-    double getMassSpdMultiplier() const;
     bool hasFsdScoModule;
 
     std::map<std::string, eddb::ShipSlot> slots;

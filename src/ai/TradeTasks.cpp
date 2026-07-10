@@ -67,7 +67,7 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
     if (ai::uiState.focused_name() != "btn-commit")
         return false;
     kbd::send("UI_Select");
-    if (waitMarketEvent(4s)) {
+    if (waitMarketEvent(35s)) {
         lastCommitCount = Cfg.marketEvent->data["Count"].as_int_or();
     }
     // wait for market screem
@@ -347,7 +347,7 @@ bool TaskSell::processTradeDialog(bool force) {
         chunk = std::min(mChunk, mLeft);
     if (chunk < canSell) {
         if (chunk < canSell / 2 ) {
-            kbd::send("UI_Left", 3000);
+            kbd::send("UI_Left", 3500);
             for (int i = 0; i < chunk; i++)
                 kbd::send("UI_Right");
         } else {
@@ -507,6 +507,7 @@ bool TaskBuy::run() {
     if (!mCommodity)
         throw_trouble("No commodity to sell");
 
+    mInitial = mCommodity->ship.count;
     status = TO_MARKET;
     gotoMarketScreen(true);
 
@@ -567,12 +568,20 @@ bool TaskBuy::run() {
                 }
             }
             if (canTrade) {
-                if (processTradeDialog(forceTrade))
+                if (processTradeDialog(forceTrade)) {
                     missCount = 0;
-                else
-                    missCount += 1;
-                if (missCount >= 4)
+                    continue;
+                }
+                missCount += 1;
+                if (missCount >= 3)
                     throw_trouble("Too many fails");
+                kbd::send("UI_Back");
+                kbd::send("UI_Back");
+                mBought = mCommodity->ship.count - mInitial;
+                if (mTotal <= 0)
+                    mLeft = Mgr.canBuy(mCommodity);
+                else
+                    mLeft = std::min(mTotal-mBought, Mgr.canBuy(mCommodity));
                 continue;
             }
             prevFocusedIdx = -1;
@@ -628,6 +637,11 @@ bool TaskBuy::run() {
             waitUiState("scr-market:mod-buy", 2s);
             continue;
         } else {
+            mBought = mCommodity->ship.count - mInitial;
+            if (mTotal <= 0)
+                mLeft = Mgr.canBuy(mCommodity);
+            else
+                mLeft = std::min(mTotal-mBought, Mgr.canBuy(mCommodity));
             status = TO_MARKET;
             gotoMarketScreen(true);
         }
@@ -643,7 +657,7 @@ bool TaskBuy::processTradeDialog(bool force) {
     if (canBuy <= 0)
         return false;
     if (mLeft >= canBuy && mLeft > 20) {
-        kbd::send("UI_Right", 3000); // buy all
+        kbd::send("UI_Right", 3500); // buy all
     } else {
         for (int i=0; i < mLeft; i++)
             kbd::send("UI_Right");
@@ -932,8 +946,8 @@ void TaskConstrUnload::on_complete() {
         ai::detectEDState(DetectLevel::Buttons);
         if (ai::uiState.match("scr-building-complete")) {
             was_scr_complete = true;
-            max_wait = 15;
-            if (i >= 5 || ai::uiState.focused_name() == "btn-confirm") {
+            max_wait = 20;
+            if (i >= 10) {
                 clickButton("btn-confirm", 0.25);
                 kbd::send("UI_Select");
             }

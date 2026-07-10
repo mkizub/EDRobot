@@ -935,7 +935,12 @@ bool Entity::nameEq(const std::string& nm) const {
     case TypeNav::SpaceConstrDepot:
     case TypeNav::PlanetaryConstrDepot:
     case TypeNav::Megaship:
+        return false;
     case TypeNav::StationMegaShip:
+        for (auto& p : STRONGHOLD_CARRIER.name_loc) {
+            if (p.second == nm)
+                return true;
+        }
         return false;
     case TypeNav::FleetCarrier:
         if (code == nm)

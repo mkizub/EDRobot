@@ -729,6 +729,7 @@ bool TaskDebugShipStats::accelForward() {
 
     double seconds = duration.value_or(1.0);
     double fwdacc = ship->getForwardAccel() * speed.value_or(100) / 100;
+    LOG_INFO("Mass multiplier {}", ship->getMassSpdMultiplier());
     if (st::ship.flags.fa_off) {
         LOG_ERROR("FA-OFF mode");
         setSpeed(speed.value_or(100), true, "accelForward start");
@@ -759,6 +760,7 @@ bool TaskDebugShipStats::accelReverse() {
 
     double seconds = duration.value_or(1.0);
     double revacc = ship->getReverseAccel() * speed.value_or(100) / 100;
+    LOG_INFO("Mass multiplier {}", ship->getMassSpdMultiplier());
     if (st::ship.flags.fa_off) {
         LOG_ERROR("FA-OFF mode");
         setSpeed(-speed.value_or(100), true, "accelReverse start");
@@ -2667,18 +2669,29 @@ void BaseCruiseStep::checkStartSCO() {
         return;
     if (st::ship.flags.overheating)
         return;
-    else if (st::shipStats.fuelMain < 0.25f*st::shipStats.fuelCapacityMain)
+    if (st::shipStats.fuelMain < 0.25f*st::shipStats.fuelCapacityMain)
         return;
-    else if (st::compass.hemisphere < 0 || std::abs(st::compass.targetAngle) > 20)
+    if (st::compass.hemisphere < 0 || std::abs(st::compass.targetAngle) > 20)
         return;
-    else if (auto exp=expectingTimeToDest(0); exp.curent_sec < 90) // more then 90 seconds to cruise
+    if (currentDist.get_ls() <= 500)
+        return;
+    auto exp = expectingTimeToDest(0);
+    if (exp.curent_sec <= 30)
+        return;
+    if (exp.curent_sec <= 60 && currentDist.get_ls() <= 1000)
         return;
 
     LOG_INFO("Start SCO acceleration");
-    if (currentDist.get_ls() > 100000)
-        scoExitThreshold = 4;
-    else if (currentDist.get_ls() <= 1500)
+    if (currentDist.get_ls() <= 1000)
         scoExitThreshold = 15;
+    else if (currentDist.get_ls() <= 2000)
+        scoExitThreshold = 10;
+    else if (currentDist.get_ls() >= 50000)
+        scoExitThreshold = 4;
+    else if (currentDist.get_ls() >= 15000)
+        scoExitThreshold = 5;
+    else if (currentDist.get_ls() >= 8000)
+        scoExitThreshold = 6;
     else
         scoExitThreshold = 7;
     kbd::send("UseBoostJuice", 100, 500);
@@ -2983,8 +2996,6 @@ bool CruiseToDistStep::run() {
     failCount = 0;
     int noCompassCount = 0;
 
-    bool useFsdOvercharge = false;
-    auto shipStats = eddb::getShipStats();
     CourseLocker course(flyAway ? 180 : 0);
     // wait until we get to required distance
     for (;;) {
@@ -3119,13 +3130,17 @@ bool CruiseToDistStep::run() {
                 task->orientTowardTarget(5);
                 continue;
             }
-            if (currentDist <= maxDist * 1.5) {
+            if (currentDist <= maxDist * 1.15) {
                 status = DIST_NEAR;
-                setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= maxDist * 2");
+                setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= maxDist * 1.15");
             }
             else if (currentDist <= 50_ls) {
                 status = DIST_CLOSE;
-                setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= 100_ls");
+                auto exp = expectingTimeToDest(0);
+                if (exp.curent_sec <= 7)
+                    setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= 50_ls && time <= 7");
+                else if (exp.curent_sec >= 11)
+                    setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 50_ls && time >= 9");
                 sleep(100);
             }
             else if (currentDist <= 500_ls) {
@@ -3639,8 +3654,8 @@ bool ExitCruiseToSpace::run() {
         else
             dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius*25).convertTo(dist_t::LS);
     }
-    if (!dist_too_far || dist_too_far < 11_ls)
-        dist_too_far = 11_ls;
+    if (!dist_too_far || dist_too_far < 15_ls)
+        dist_too_far = 15_ls;
     status = ORIENT;
     setSpeed(0, true, "ExitCruiseToSpace, start");
     if (!st::autopilot.destDock || !st::autopilot.destDock->nameEq(st::destination.name)) {

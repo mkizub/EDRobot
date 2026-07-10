@@ -489,6 +489,7 @@ EntityDialog::EntityDialog(EntityCtrl *ctrl)
             {TypeNav::StationMegaShip, pgettext("TypeNav","Station Megaship")},
             {TypeNav::FleetCarrier, pgettext("TypeNav","Fleet Carrier")},
             {TypeNav::SquadronCarrier, pgettext("TypeNav","Squadron Carrier")},
+            {TypeNav::StrongholdCarrier, pgettext("TypeNav","Stronghold Carrier")},
             {TypeNav::ColonisationShip, pgettext("TypeNav","Colonisation Ship")},
             {TypeNav::PlanetaryPort, pgettext("TypeNav","Planetary Port")},
             {TypeNav::EngineerPort, pgettext("TypeNav","Engineer Port")},
@@ -497,7 +498,8 @@ EntityDialog::EntityDialog(EntityCtrl *ctrl)
             {TypeNav::PlanetaryConstrDepot, pgettext("TypeNav","Planetary Construction Depot")},
     };
     for (auto& c : ctrl->ui->controls) {
-        parentEntries.emplace_back(c.get());
+        if (isBody(c->entity->type))
+            parentEntries.emplace_back(c.get());
     }
 }
 

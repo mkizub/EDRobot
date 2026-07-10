@@ -1093,8 +1093,13 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
             market->raven->timestamp = ge->timestamp;
     }
     gal::setMarketData(market);
-    if (hasRaven && reportToRaven)
+    if (hasRaven && reportToRaven) {
         RavenColonial::reportConstructionDepot(ge, market);
+    }
+    else if (complete && market->raven->status != "complete") {
+        market->raven->status = "complete";
+        gal::saveMarket(market.get());
+    }
  }
 
 void parseEvent_ColonisationContribution(spGameEvent& ge) {

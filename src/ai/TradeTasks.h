@@ -68,6 +68,7 @@ public:
     const int mTotal;
     int mBought;
     int mLeft;
+    int mInitial;
 
     std::string getTitle() override;
     std::string getStatus() override;
