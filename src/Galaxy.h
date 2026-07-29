@@ -68,8 +68,8 @@ private:
 
 typedef std::shared_ptr<StarSystem> spStarSystem;
 
-spStarSystem getStarSystem(std::string_view name);
-spStarSystem makeStarSystem(const std::string& name, int64_t address);
+spStarSystem getStarSystem(std::string_view name, bool network_load=true);
+spStarSystem makeStarSystem(const std::string& name, int64_t address, bool network_load=true);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
 

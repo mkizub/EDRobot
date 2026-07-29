@@ -121,6 +121,8 @@ add_executable(EDRobot WIN32
         src/net/HttpInterceptor.h
         src/net/EDSM.cpp
         src/net/EDSM.h
+        src/net/Spansh.h
+        src/net/Spansh.cpp
 
         src/ui/UIMainDialog.cpp
         src/ui/UIMainDialog.h

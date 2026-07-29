@@ -37,7 +37,8 @@ bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, b
         // check we trade required commodity
         sleep(700);
         cv::Mat grayImage;
-        ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
+        if (!ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage))
+            return false;
         auto lblCommodity = Master::getLabelCommodity(ai::rEnv, grayImage, "lbl-commodity");
         if (lblCommodity != commodity) {
             kbd::send("UI_Back");
@@ -235,7 +236,8 @@ bool TaskSell::run() {
         status = TO_COMMODITY;
         sleep(500);
         cv::Mat grayImage;
-        ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
+        if (!ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage))
+            continue;
         if (ai::uiState.match("scr-market:mod-sell")) {
             if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInSellOrder())) {
                 kbd::send("UI_Back");
@@ -525,7 +527,8 @@ bool TaskBuy::run() {
         status = TO_COMMODITY;
         sleep(500);
         cv::Mat grayImage;
-        ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage);
+        if (!ai::detectEDStateGrayIm(DetectLevel::ListRows, grayImage))
+            continue;
         if (ai::uiState.match("scr-market:mod-buy")) {
             if (!Mgr.approximateListOfCommodities(ai::rEnv, grayImage, "lst-goods", Cfg.getMarketInBuyOrder())) {
                 kbd::send("UI_Back");

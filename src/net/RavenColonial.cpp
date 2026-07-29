@@ -48,8 +48,10 @@ bool RavenColonial::linkCmdr(int64_t marketId) {
     auto raven = market->raven;
     if (raven->commanders.contains(st::cmdr.name))
         return true;
-    std::string cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
-    cpr::Response cr = cpr::Put(cpr::Url{RCAPI_PRJ + raven->buildId + "/link/" + cmdr_esc_name});
+    char* cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
+    std::string url = RCAPI_PRJ + raven->buildId + "/link/" + cmdr_esc_name;
+    curl_free(cmdr_esc_name);
+    cpr::Response cr = cpr::Put(cpr::Url{url});
     if (!isOK(cr))
         return false;
     raven->commanders[st::cmdr.name] = {};
@@ -337,9 +339,10 @@ void RavenColonial::reportContribution(spGameEvent& ge) {
     }
     std::string json_data = js::stringify(post_json);
     LOG(INFO) << "RavenColonial contribution post: " << json_data;
-    std::string cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
-    cpr::PostAsync(cpr::Url{RCAPI_PRJ + raven->buildId + "/contribute/" + cmdr_esc_name},
-                   cpr::Body{json_data});
+    char* cmdr_esc_name = curl_escape(st::cmdr.name.c_str(), st::cmdr.name.size());
+    std::string url = RCAPI_PRJ + raven->buildId + "/contribute/" + cmdr_esc_name;
+    curl_free(cmdr_esc_name);
+    cpr::PostAsync(cpr::Url{url}, cpr::Body{json_data});
     rci.timestamp = ge->timestamp;
     rci.deliveries += 1;
     rci.contributed += contributed;

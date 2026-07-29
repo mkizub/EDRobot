@@ -10,29 +10,12 @@
         ru: "Дрон",
       },
     },
-    curatedcommodity: {
-      id: 129045961,
-      en: "Curated Commodity Package",
-      ru: "Curated Commodity Package",
-    },
   },
   'foods': {
     id: 4,
     en: "Foods",
     ru: "Продукты питания",
     items: {
-      karsukilocusts: {
-        id: 128667023,
-        rare: true,
-        en: "Karsuki Locusts",
-        ru: "Саранча с Karsuki",
-      },
-      neritusberries: {
-        id: 128667056,
-        rare: true,
-        en: "Neritus Berries",
-        ru: "Нерутские ягоды",
-      },
       algae: {
         id: 128049177,
         en: "Algae",
@@ -59,6 +42,12 @@
         id: 128049185,
         en: "Synthetic Meat",
         ru: "Синтетическое мясо",
+      },
+      neritusberries: {
+        id: 128667056,
+        rare: true,
+        en: "Neritus Berries",
+        ru: "Нерутские ягоды",
       },
       animalmeat: {
         id: 128049182,
@@ -246,6 +235,12 @@
         en: "Jaroua Rice",
         ru: "Жаруйский рис",
       },
+      karsukilocusts: {
+        id: 128667023,
+        rare: true,
+        en: "Karsuki Locusts",
+        ru: "Саранча с Karsuki",
+      },
       lftvoidextractcoffee: {
         id: 128667685,
         rare: true,
@@ -331,24 +326,6 @@
         en: "Eleu Thermals",
         ru: "Элеусская теплая одежда",
       },
-      eshuumbrellas: {
-        id: 128667038,
-        rare: true,
-        en: "Eshu Umbrellas",
-        ru: "Зонтики Эшу",
-      },
-      alacarakmoskinart: {
-        id: 128667036,
-        rare: true,
-        en: "Alacarakmo Skin Art",
-        ru: "Алакаракмовские татуировки",
-      },
-      rajukrustoves: {
-        id: 128667047,
-        rare: true,
-        en: "Rajukru Multi-Stoves",
-        ru: "Мультипечи Rajukru",
-      },
       uzumokulowgwings: {
         id: 128667696,
         rare: true,
@@ -396,6 +373,18 @@
         rare: true,
         en: "Ultra-Compact Processor Prototypes",
         ru: "Экспериментальные ультракомпактные процессоры",
+      },
+      eshuumbrellas: {
+        id: 128667038,
+        rare: true,
+        en: "Eshu Umbrellas",
+        ru: "Зонтики Эшу",
+      },
+      alacarakmoskinart: {
+        id: 128667036,
+        rare: true,
+        en: "Alacarakmo Skin Art",
+        ru: "Алакаракмовские татуировки",
       },
       alieneggs: {
         id: 128667717,
@@ -494,6 +483,12 @@
         en: "Ophiuch Exino Artefacts",
         ru: "Артефакты офиух экзино",
       },
+      rajukrustoves: {
+        id: 128667047,
+        rare: true,
+        en: "Rajukru Multi-Stoves",
+        ru: "Мультипечи Rajukru",
+      },
       survivalequipment: {
         id: 128682048,
         en: "Survival Equipment",
@@ -524,15 +519,20 @@
         en: "Delta Phoenicis Palms",
         ru: "Фениксовые пальмы с Delta",
       },
-      explosives: {
-        id: 128049204,
-        en: "Explosives",
-        ru: "Взрывчатка",
-      },
       agronomictreatment: {
         id: 128924334,
         en: "Agronomic Treatment",
         ru: "Средство очистки почвы",
+      },
+      hydrogenfuel: {
+        id: 128049202,
+        en: "Hydrogen Fuel",
+        ru: "Водородное топливо",
+      },
+      explosives: {
+        id: 128049204,
+        en: "Explosives",
+        ru: "Взрывчатка",
       },
       syntheticreagents: {
         id: 128672303,
@@ -544,11 +544,6 @@
         rare: true,
         en: "Hip Organophosphates",
         ru: "Мощные органофосфаты",
-      },
-      hydrogenfuel: {
-        id: 128049202,
-        en: "Hydrogen Fuel",
-        ru: "Водородное топливо",
       },
       hydrogenperoxide: {
         id: 128673850,
@@ -620,24 +615,6 @@
     en: "Legal drugs",
     ru: "Легальные психоактивные вещества",
     items: {
-      eraninpearlwhisky: {
-        id: 128666746,
-        rare: true,
-        en: "Eranin Pearl Whisky",
-        ru: "Эранинское жемчужное виски",
-      },
-      bastsnakegin: {
-        id: 128667065,
-        rare: true,
-        en: "Bast Snake Gin",
-        ru: "Настойка из бастетовых змей",
-      },
-      geawendancedust: {
-        id: 128667677,
-        rare: true,
-        en: "Geawen Dance Dust",
-        ru: "Геавенская танцевальная пыль",
-      },
       chateaudeaegaeon: {
         id: 128667084,
         rare: true,
@@ -678,10 +655,34 @@
         en: "Saxon Wine",
         ru: "Саксонское вино",
       },
+      gerasiangueuzebeer: {
+        id: 128667678,
+        rare: true,
+        en: "Gerasian Gueuze Beer",
+        ru: "Герасианское пиво гез",
+      },
       basicnarcotics: {
         id: 128049212,
         en: "Narcotics",
         ru: "Наркотики",
+      },
+      geawendancedust: {
+        id: 128667677,
+        rare: true,
+        en: "Geawen Dance Dust",
+        ru: "Геавенская танцевальная пыль",
+      },
+      eraninpearlwhisky: {
+        id: 128666746,
+        rare: true,
+        en: "Eranin Pearl Whisky",
+        ru: "Эранинское жемчужное виски",
+      },
+      bastsnakegin: {
+        id: 128667065,
+        rare: true,
+        en: "Bast Snake Gin",
+        ru: "Настойка из бастетовых змей",
       },
       beer: {
         id: 128049214,
@@ -693,12 +694,6 @@
         rare: true,
         en: "Centauri Mega Gin",
         ru: "Кентаврский мега-джин",
-      },
-      gerasiangueuzebeer: {
-        id: 128667678,
-        rare: true,
-        en: "Gerasian Gueuze Beer",
-        ru: "Герасианское пиво гез",
       },
       harmasilversearum: {
         id: 128793113,
@@ -836,12 +831,6 @@
     en: "Machinery",
     ru: "Машинное оборудование",
     items: {
-      noneuclidianexotanks: {
-        id: 128667687,
-        rare: true,
-        en: "Non Euclidian Exotanks",
-        ru: "Неевклидовы экзобаки",
-      },
       powertransferconduits: {
         id: 128673864,
         en: "Power Transfer Bus",
@@ -857,6 +846,12 @@
         rare: true,
         en: "Volkhab Bee Drones",
         ru: "Дроны Volkhab Bee",
+      },
+      noneuclidianexotanks: {
+        id: 128667687,
+        rare: true,
+        en: "Non Euclidian Exotanks",
+        ru: "Неевклидовы экзобаки",
       },
       powerconverter: {
         id: 128673862,
@@ -1032,27 +1027,10 @@
         en: "Superconductors",
         ru: "Сверхпроводники",
       },
-    },
-  },
-  'politic': {
-    id: 16,
-    en: "Politic",
-    ru: "Политика",
-    items: {
-      gromcounterintelligence: {
-        id: 0,
+      curatedcommodity: {
+        id: 129045961,
         en: "",
-        ru: "Разведданные Грома",
-      },
-      gromwartrophies: {
-        id: 0,
-        en: "",
-        ru: "Военные припасы Грома",
-      },
-      undergroundsupport: {
-        id: 0,
-        en: "",
-        ru: "Подпольная поддержка Грома",
+        ru: "Подборка предметов потребления",
       },
     },
   },
@@ -2013,6 +1991,28 @@
       },
     },
   },
+  'politic': {
+    id: 16,
+    en: "Politic",
+    ru: "Политика",
+    items: {
+      gromcounterintelligence: {
+        id: 0,
+        en: "",
+        ru: "Разведданные Грома",
+      },
+      undergroundsupport: {
+        id: 0,
+        en: "",
+        ru: "Подпольная поддержка Грома",
+      },
+      gromwartrophies: {
+        id: 0,
+        en: "",
+        ru: "Военные припасы Грома",
+      },
+    },
+  },
   'slaves': {
     id: 10,
     en: "Slavery",
@@ -2041,10 +2041,10 @@
     en: "Technology",
     ru: "Технологии",
     items: {
-      telemetrysuite: {
-        id: 128673872,
-        en: "Telemetry Suite",
-        ru: "Телеметрический комплект",
+      structuralregulators: {
+        id: 128672311,
+        en: "Structural Regulators",
+        ru: "Конструкционные регуляторы",
       },
       duradrives: {
         id: 128922524,
@@ -2056,11 +2056,6 @@
         id: 128049231,
         en: "Advanced Catalysers",
         ru: "Улучшенные катализаторы",
-      },
-      structuralregulators: {
-        id: 128672311,
-        en: "Structural Regulators",
-        ru: "Конструкционные регуляторы",
       },
       classifiedexperimentalequipment: {
         id: 129002574,
@@ -2083,6 +2078,11 @@
         rare: true,
         en: "AZ Cancri Formula 42",
         ru: "Формула 42 AZ Cancri",
+      },
+      telemetrysuite: {
+        id: 128673872,
+        en: "Telemetry Suite",
+        ru: "Телеметрический комплект",
       },
       robotics: {
         id: 128049227,
@@ -2659,7 +2659,7 @@
     "prohibitedresearchmaterials", //  | Запретные материалы исследований
     "antimattercontainmentunit", //  | Контейнер с антиматерией
     "thargoidpod", //  | Таргоидская капсула для биоматериалов
-    "curatedcommodity", //  | Curated Commodity Package
+    "curatedcommodity", //  | Подборка предметов потребления
   ],
   'carrier-order-ru': [
     "gromcounterintelligence", //  | Разведданные Грома
@@ -3061,6 +3061,6 @@
     "prohibitedresearchmaterials", //  | Запретные материалы исследований
     "antimattercontainmentunit", //  | Контейнер с антиматерией
     "thargoidpod", //  | Таргоидская капсула для биоматериалов
-    "curatedcommodity", //  | Curated Commodity Package
+    "curatedcommodity", //  | Подборка предметов потребления
   ],
 }

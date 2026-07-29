@@ -7,7 +7,7 @@
 #include <unordered_set>
 
 #include "Galaxy.h"
-#include "net/EDSM.h"
+#include "net/Spansh.h"
 
 namespace gal {
 
@@ -370,7 +370,7 @@ void StarSystem::save() {
     saved = true;
 }
 
-static spStarSystem loadStarSystem(std::string name) {
+static spStarSystem loadStarSystem(std::string name, bool network_load) {
     spStarSystem ss;
     std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(name)));
     if (std::filesystem::exists(fp)) {
@@ -378,15 +378,13 @@ static spStarSystem loadStarSystem(std::string name) {
         if (!jsystem.empty())
             ss = fromEDDN(jsystem, true);
     }
-    if (!ss || ss->bodies.empty()) {
-        auto jsystem = EDSM::loadStarSystem(name);
-        if (!jsystem.empty())
-            ss = fromEDDN(jsystem, false);
+    if (network_load && (!ss || ss->bodies.empty())) {
+        ss = Spansh::loadStarSystem(name);
     }
     return ss;
 }
 
-spStarSystem getStarSystem(std::string_view name) {
+spStarSystem getStarSystem(std::string_view name, bool network_load) {
     spStarSystem ss;
     if (gCurrentStarSystem && gCurrentStarSystem->systemName == name) {
         ss = gCurrentStarSystem;
@@ -395,7 +393,7 @@ spStarSystem getStarSystem(std::string_view name) {
         ss = *it;
     }
     if (!ss || ss->bodies.empty())
-        ss = loadStarSystem(std::string(name));
+        ss = loadStarSystem(std::string(name), network_load);
     if (ss && !ss->saved) {
         assert (ss->systemName == name);
         ss->save();
@@ -403,8 +401,8 @@ spStarSystem getStarSystem(std::string_view name) {
     return ss;
 }
 
-spStarSystem makeStarSystem(const std::string& name, int64_t address) {
-    spStarSystem ss = getStarSystem(name);
+spStarSystem makeStarSystem(const std::string& name, int64_t address, bool network_load) {
+    spStarSystem ss = getStarSystem(name, network_load);
     if (!ss) {
         ss.reset(new StarSystem(address, name));
         gSystemsByNameCache.insert(ss);

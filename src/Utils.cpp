@@ -414,6 +414,8 @@ bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
     }
     else if (str.size() == 19 && str[10] == ' ')
         iss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", timestamp);
+    else if (str.size() == 22 && str[10] == ' ' && str.ends_with("+00"))
+        iss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", timestamp);
     else
         return false;
     if (iss.fail()) {
