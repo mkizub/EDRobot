@@ -287,3 +287,15 @@ cv::Rect Capturer::getCaptureRect() {
 cv::Rect Capturer::getMonitorVirtualRect() {
     return monitorVirtRect;
 }
+
+cv::Point Capturer::cvtCapturedToDesktop(cv::Point p) {
+    if (Cfg.getCaptureDisplaySize() != Cfg.getConfigDisplaySize())
+        p *= double(Cfg.getConfigDisplaySize().width) / double(Cfg.getCaptureDisplaySize().width);
+    if (Cfg.getGameScreenMode() == Configuration::GameScreenMode::Window)
+        return captureVirtRect.tl() + p;
+    if (monitorVirtRect.size() != Cfg.getConfigDisplaySize()) {
+        p.x *= monitorVirtRect.width / double(Cfg.getConfigDisplaySize().width);
+        p.y *= monitorVirtRect.height / double(Cfg.getConfigDisplaySize().height);
+    }
+    return captureVirtRect.tl() + p;
+}

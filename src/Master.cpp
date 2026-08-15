@@ -1366,10 +1366,9 @@ cv::Point Master::cvtReferenceToDesktop(const cv::Point& point) const {
     if (!frame || !frame->owner)
         return point;
     cv::Point p = mClassifyEnv.frameRect.tl() + mClassifyEnv.cvtReferenceToCaptured(point);
-    if (Cfg.getCaptureDisplaySize() != Cfg.getConfigDisplaySize()) {
-        p *= double(Cfg.getConfigDisplaySize().width) / double(Cfg.getCaptureDisplaySize().width);
-    }
-    return mCapturer->captureVirtRect.tl() + p;
+    if (!mCapturer)
+        return p;
+    return mCapturer->cvtCapturedToDesktop(p);
 }
 
 Capturer* Master::getCapturer() {

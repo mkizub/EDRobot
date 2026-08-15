@@ -34,6 +34,7 @@ public:
 
     cv::Rect getCaptureRect();
     cv::Rect getMonitorVirtualRect();
+    cv::Point cvtCapturedToDesktop(cv::Point p);
 
     [[nodiscard]] bool isStarted() { return atomicIsStarted.load(); }
 
