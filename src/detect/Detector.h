@@ -193,6 +193,21 @@ public:
     const cv::Point anchor_of;
 };
 
+class BlackScreenDetector : public Detector {
+public:
+    BlackScreenDetector(bool black, spEvalRect rect)
+        : isBlack(black)
+        , refEvalRect(rect)
+    {}
+    ~BlackScreenDetector() override = default;
+
+    double match(ClassifyEnv& env) override;
+
+    const bool isBlack;
+    spEvalRect refEvalRect;
+    double threshold {10};
+};
+
 } // namespace detect
 
 #endif //EDROBOT_TEMPLATE_H

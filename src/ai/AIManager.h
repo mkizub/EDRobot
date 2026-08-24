@@ -109,6 +109,7 @@ bool detectEDState(DetectLevel level);
 bool detectEDStateGrayIm(DetectLevel level, cv::Mat& grayImage);
 
 bool gotoNavPage(const std::string &page_name, bool required=true, cv::Mat* grayImage=nullptr);
+bool gotoShipPage(const std::string &page_name, bool required);
 void rollBlindCompass();
 
 

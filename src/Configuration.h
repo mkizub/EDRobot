@@ -40,6 +40,7 @@ public:
     bool isCapturerDXGIDisabled() const { return capturerDXGIDisabled; }
     bool useOpenclD3dInterop() const { return openclD3dInterop; }
     GameScreenMode getGameScreenMode() const { return configScreenMode; };
+    double getGammaOffset() const { return configGammaOffset; }
     int getUiScalePercents() const { return mUiScalePercents; }
     int getDefaultKeyHoldTime() const { return defaultKeyHoldTime; }
     int getDefaultKeyAfterTime() const { return defaultKeyAfterTime; }

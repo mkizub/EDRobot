@@ -456,6 +456,20 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             templ->classifierWeight = j["weight"].as_real_or(1);
             return templ;
         }
+        if (j.has_key("black")) {
+            bool black = j["black"].as_bool();
+            spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale, false);
+            auto* templ = new BlackScreenDetector(black, rect);
+            if (j["threshold"].is_number()) {
+                double thr = j["threshold"].as_real();
+                if (thr < 1)
+                    templ->threshold = thr * 255;
+                else
+                    templ->threshold = thr;
+            }
+            templ->classifierWeight = j["weight"].as_real_or(1);
+            return templ;
+        }
         if (j.has_key("line")) {
             spEvalLine line = makeEvalLine(widget, "line", j["line"], fov_scale);
             auto* ldet = new detect::LineDetector(line);

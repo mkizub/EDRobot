@@ -5,7 +5,7 @@
 #include "../pch.h"
 
 #include "AIManager.h"
-#include "ContactsTasks.h"
+#include "EmergencyTasks.h"
 #include "../ui/UIManager.h"
 #include "../Keyboard.h"
 
@@ -37,6 +37,7 @@ std::condition_variable turnCond;
 
 namespace {
     spTask activeTask;
+    spTask suspendedTasks;
     spTask lastTask;
 
     std::atomic_bool isWorking;
@@ -49,6 +50,7 @@ namespace {
 
 void task_loop();
 void task_step();
+void check_emergency();
 
 void initTemplates();
 
@@ -289,23 +291,15 @@ void task_loop() {
                 break;
             if (!wasActive && !active())
                 Mgr.pushCommand(Command::ResetCapturer);
-            if (isInterrupted && interruptReason == InterruptReason::DEATH) {
-                if (st::isDead && activeTask) {
-                    lastTask.reset();
-                    activeTask.swap(lastTask);
-                    TaskTemplate tt {ED_TASK_RESURRECT, _lc("Resurrect"), [](const TaskTemplate &templ) { return new TaskResurrect(templ); }};
-                    spTask task(new TaskResurrect(tt));
-                    activeTask.swap(task);
-                    isInterrupted = false;
-                }
-                interruptReason = InterruptReason::UNKNOWN;
-            }
+            check_emergency();
             if (isInterrupted) {
                 LOG_INFO("ai::task_loop(): steel interrupted");
                 continue;
             }
         }
         st::autopilot = {};
+        if (!activeTask && suspendedTasks)
+            suspendedTasks.swap(activeTask);
         if (activeTask) {
             task_step();
         } else {
@@ -314,7 +308,6 @@ void task_loop() {
     }
     LOG_INFO("Exiting ai task loop");
 }
-
 
 void task_step() {
     Mgr.setGameForeground();
@@ -363,6 +356,45 @@ void task_step() {
     kbd::reset_vJoy();
     disableAutoTurn();
     st::autopilot = {};
+}
+
+void check_emergency() {
+    TRY {
+        if (isInterrupted && interruptReason == InterruptReason::DEATH) {
+            if (st::isDead && activeTask) {
+                if (!activeTask->isEmergencyTask())
+                    activeTask.swap(suspendedTasks);
+                TaskTemplate tt {ED_TASK_RESURRECT, _lc("Resurrect"), [](const TaskTemplate &templ) { return new TaskResurrect(templ); }};
+                activeTask.reset(new TaskResurrect(tt));
+                isInterrupted = false;
+            }
+            interruptReason = InterruptReason::UNKNOWN;
+        }
+        else if (!isInterrupted && activeTask) {
+            cv::Mat grayImage;
+            ai::detectEDStateGrayIm(DetectLevel::Screen, grayImage);
+            if (!ai::rEnv.isWarped()) {
+                int height = ReferenceScreenSize.height / 4;
+                cv::Rect rect{0, ReferenceScreenSize.height - height, ReferenceScreenSize.width, height};
+                rect = ai::rEnv.cvtReferenceToCaptured(rect);
+                double gp = 1.0 / (1.0 + Cfg.getGammaOffset()*0.5);
+                double thr = std::clamp(255 * std::pow(10/255., gp), 0., 255.);
+                cv::Mat blackImage;
+                cv::threshold(grayImage, blackImage, thr, 255, cv::THRESH_BINARY);
+                int count = cv::countNonZero(blackImage);
+                if (count == 0) {
+                    if (!activeTask->isEmergencyTask())
+                        activeTask.swap(suspendedTasks);
+                    TaskTemplate tt{ED_TASK_RELOGIN, _lc("Relogin"),
+                                    [](const TaskTemplate &templ) { return new TaskRelogin(templ); }};
+                    activeTask.reset(new TaskRelogin(tt));
+                }
+            }
+        }
+    } CATCH (const std::exception& ex) {
+        kbd::reset_vJoy();
+        LOG(ERROR) << "Exception during emergency task detection: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
+    }
 }
 
 bool detectEDStateReq(DetectRequest&& req) {

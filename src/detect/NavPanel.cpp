@@ -15,7 +15,7 @@ void NavPanelDetector::standaloneTest(std::string image_filename, std::string sc
     cv::Mat fileImage = cv::imread(image_filename, cv::IMREAD_UNCHANGED); // assume GRAY/BGR/BGRA
     XMat debugImage = toXMat(fileImage);
     ClassifyEnv debugEnv;
-    debugEnv.init(debugImage, 1);
+    debugEnv.init(debugImage, false, 1);
 
     const widget::Screen *screen = (const widget::Screen *) Master::getInstance().getCfgItem(screen_name);
     auto det = dynamic_cast<NavPanelDetector*>(screen->oracle.get());

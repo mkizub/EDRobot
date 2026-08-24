@@ -141,7 +141,7 @@ class GaussFilter(Filter):
 class DoGFilter(Filter):
 
     def __init__(self):
-        super().__init__('Gauss')
+        super().__init__('DoG')
         self.tb_sigm1 = Trackbar('Sigma1', self.name, 50, 300, 300)
         self.tb_sigm2 = Trackbar('Sigma2', self.name, 50, 300, 500)
         self.tb_scale = Trackbar('Scale', self.name, 10, 100, 50)
@@ -157,6 +157,27 @@ class DoGFilter(Filter):
         g2 = cv2.GaussianBlur(image, (0, 0), s2)
         dog = cv2.subtract(g2, g1)
         out = cv2.convertScaleAbs(dog * scl)
+        #out = cv2.divide(g1, g2, scale=255)
+        self.show(out)
+        return out
+
+
+class BilateralFilter(Filter):
+
+    def __init__(self):
+        super().__init__('Bilateral')
+        self.tb_dist = Trackbar('Dist', self.name, 1, 10, 5)
+        self.tb_sigmColor = Trackbar('SigmaColor', self.name, 1, 300, 150)
+        self.tb_sigmSpace = Trackbar('SigmaSpace', self.name, 1, 300, 150)
+
+    def apply(self, image):
+        s1 = self.tb_sigmColor.get()
+        s2 = self.tb_sigmColor.get()
+        if s1 < s2:
+            s1, s2 = s2, s1
+        d = self.tb_dist.get()
+        self.title(f'Bilateral: Dist={d} SigmaColor={s1} SigmaSpace={s2}')
+        out = cv2.bilateralFilter(image, d, s1, s2)
         self.show(out)
         return out
 
@@ -527,6 +548,8 @@ for arg in range(1, len(sys.argv)):
         filters.append(GaussFilter())
     elif sys.argv[arg] == '--dog' or sys.argv[arg] == '--DoG':
         filters.append(DoGFilter())
+    elif sys.argv[arg] == '--bilateral':
+        filters.append(BilateralFilter())
     elif sys.argv[arg] == '--thr' or sys.argv[arg] == '--threshold':
         filters.append(ThresholdFilter())
     elif sys.argv[arg] == '--erode':

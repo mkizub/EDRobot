@@ -20,6 +20,7 @@ Lang lng {Lang::XX};
 
 GuiFocus guiFocus {GuiFocus::None};
 bool isDead {};
+bool isNeedRebootRepair {};
 
 EddnStarSystem eddnStarSystem;
 
@@ -574,11 +575,19 @@ void parseEvent_Loadout(spGameEvent& ge) {
         ss.totalMass = ss.unladenMass + ss.fuelMain + ss.fuelReservoir + ss.cargo;
     }
 
+    st::isNeedRebootRepair = false;
     auto ss = eddb::initShipStats(shipInfo.shipType);
     if (ss && je["Modules"].is_array()) {
         auto& modules = je["Modules"].as_array();
         for (auto& m : modules) {
             ss->setSlotModule(m);
+            auto slot_name = m["Slot"].as_string_or();
+            auto item_name = m["Item"].as_string_or();
+            if (slot_name == "FrameShiftDrive" || item_name == "int_dockingcomputer_advanced") {
+                auto health = m["Health"].as_real_or(1.0);
+                if (health < 0.05)
+                    st::isNeedRebootRepair = true;
+            }
         }
         ss->updateStats();
     }

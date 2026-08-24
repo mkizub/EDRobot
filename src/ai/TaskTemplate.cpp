@@ -12,6 +12,7 @@
 #include "ContactsTasks.h"
 #include "CarrierTasks.h"
 #include "ColonizationTasks.h"
+#include "EmergencyTasks.h"
 
 namespace ai {
 
@@ -32,12 +33,16 @@ const std::string ED_TASK_TRADE_LOOP = "tsk-trade-loop";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
 const std::string ED_TASK_TRAVEL = "tsk-travel";
 const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
+
+const std::string ED_TASK_RELOGIN = "tsk-relogin";
 const std::string ED_TASK_RESURRECT = "tsk-resurrect";
+const std::string ED_TASK_REBOOT_REPAIR = "tsk-reboot-repair";
 
 const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES = "tsk-debug-find-all-commodities";
 const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS = "tsk-debug-find-all-nav-points";
 const std::string ED_TASK_DEBUG_AUTOPILOT = "tsk-debug-autopilot";
 const std::string ED_TASK_DEBUG_SHIP_STATS = "tsk-debug-ship-stats";
+const std::string ED_TASK_DEBUG_EMERGENCY = "tsk-debug-emergency";
 
 static Param dummy_param {};
 Param& TaskTemplate::get(const string& pid) {
@@ -537,6 +542,11 @@ void initTemplates() {
             { Param::Real,    "value",  _lc("Value"),  OPT },
             { Param::Real,    "duration", _lc("Duration"), META({{"min",0},{"optional",true},{"placeholder","seconds"}}) },
             { Param::Int,     "speed", _lc("Speed"), META({{"min",0},{"max",100},{"optional",true},{"placeholder","percents"}}) },
+    });
+    templates.emplace_back(ED_TASK_DEBUG_EMERGENCY, "Debug: emergency", FACTORY(TaskDebugEmergency), P{
+            { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
+                         "Relogin", "RebootRepair", "Resurrect",
+                       ]})")},
     });
 
     AllTaskTemplates.swap(templates);

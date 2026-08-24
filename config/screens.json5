@@ -430,6 +430,81 @@
     }
   },
   {
+    name: 'scr-black',
+    status: { expect: "emergency" },
+    detect: [
+      { black:true, rect:[0,810,1920,270], threshold: 10 },
+    ],
+    have: [
+      { name: 'btn-play', rect: [900,520,120,40] },
+    ]
+  },
+  {
+    name: 'scr-game-menu',
+    status: { expect: "emergency" },
+    detect: [
+      { name: 'logo',
+        img: 'at_main_menu_logo.png', t: [0.6, 0.8], rect:[196,74,380,220],
+        method:'corr', filter: [ {channel: 'gray'}, {threshold: 127} ],
+      },
+    ],
+    have: [
+      { name: 'mod-main',
+        detect: { black:false, rect:[169,692,385,200] },
+        have: [
+          { name: 'btn-play', rect: [169,350,430,70] },
+          { name: 'btn-communication', rect: [169,426,430,42] },
+          { name: 'btn-addons', rect: [169,474,430,42] },
+          { name: 'btn-settings', rect: [169,522,430,42] },
+          { name: 'btn-help', rect: [169,570,430,42] },
+          { name: 'btn-exit', rect: [169,618,430,42] }
+        ]
+      },
+      { name: 'mod-pause',
+        detect: { black:true, rect:[169,692,385,200] },
+        have: [
+          { name: 'btn-play', rect: [169,350,430,70] },
+          { name: 'btn-communication', rect: [169,426,430,42] },
+          { name: 'btn-settings', rect: [169,474,430,42] },
+          { name: 'btn-help', rect: [169,522,430,42] },
+          { name: 'btn-buy-arx', rect: [169,570,430,42] },
+          { name: 'btn-exit', rect: [169,618,430,42] }
+        ]
+      },
+    ]
+  },
+  {
+    name: 'scr-menu-choise',
+    status: { expect: "emergency" },
+    detect: [
+      { name: 'logo',
+        img: 'at_login_mode_logo.png', t: [0.6, 0.8], rect:[168,88,214,120],
+        method:'corr', filter: [ {channel: 'gray'}, {threshold: 127} ],
+      },
+    ],
+    have: [
+      { name: 'mod-login',
+        detect: { black:false, rect:[169,538,300,400] },
+        have: [
+          { name: 'btn-tile-open', rect: [169,894,304,42] },
+          { name: 'btn-tile-group', rect: [489,894,304,42] },
+          { name: 'btn-tile-solo', rect: [809,894,304,42] },
+          { name: 'btn-tile-arena', rect: [1129,894,304,42] },
+          { name: 'btn-tile-learn', rect: [1449,894,304,42] },
+          { name: 'btn-exit', rect: [169,986,232,42] }
+        ]
+      },
+      { name: 'mod-logout',
+        detect: { black:true, rect:[169,538,300,400] },
+        have: [
+          { name: 'btn-tile-main', rect: [648,894,304,42] },
+          { name: 'btn-tile-desktop', rect: [968,894,304,42] },
+          { name: 'btn-exit', rect: [169,986,232,42] }
+        ]
+      }
+    ]
+  },
+  {
     name: 'scr-cockpit',
     status: { gui: 'None' },
     ////// make all template images and numbers for FOV=54.32 (minimal FOV) !!!!! //////
@@ -712,18 +787,4 @@
       }
     ]
   },
-//  {
-//    name: 'scr-carrier-trade-mgr',
-//    detect: [
-//      { img: "at_carrier.png", t: [0.7,0.9], rect:[1308,873,87,82] },
-//      { img: "at_carrier_trade_mgr-*.png", t: [0.7,0.9], rect:[1403,855,206,92] },
-//      { img: "at_market.png", t: 0.7, rect:[92, 57, 50, 50] },
-//    ],
-//    have: [
-//      { name: 'btn-exit', rect: [96,981,193,40] },
-//      { name: 'btn-help', rect: [295,980,195,40] },
-//      { name: 'btn-filter', rect: [97,167,134,73] },
-//      { name: 'lst-goods', rect: [250,205,488,767] },
-//    ]
-//  },
 ]

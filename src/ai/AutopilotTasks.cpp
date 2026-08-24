@@ -6,8 +6,9 @@
 
 #include "Task.h"
 #include "AIManager.h"
-#include "AutopilotTasks.h"
 #include "AIUtils.h"
+#include "AutopilotTasks.h"
+#include "EmergencyTasks.h"
 #include "../Galaxy.h"
 #include "../Keyboard.h"
 #include "../ShipStats.h"
@@ -179,21 +180,15 @@ BaseAutopilotStep::BaseAutopilotStep()
 
 
 void BaseAutopilotTask::relogin() {
-    // something is really wrong, logout and login again
-    notify_warn("Something is wrong with departure, trying to re-login");
-    kbd::send("Pause", 0, 1000);
-    kbd::send("UI_Up", 0, 100); // go to Exit button
-    notify_info("Logout");
-    kbd::send("UI_Select", 0, 1000); // logout
-    notify_info("Logout to main menu");
-    kbd::send("UI_Select", 0, 8000); // logout to main menu
-    notify_info("Login to Solo...");
-    kbd::send("UI_Select", 0, 3000); // login, select mode screen
-    kbd::send("UI_Right", 0, 100);
-    kbd::send("UI_Right", 0, 500);  // choose Solo
-    notify_info("Login");
-    kbd::send("UI_Select", 0, 12000); // login
+    TaskTemplate tt {ED_TASK_RELOGIN, _lc("Relogin"), [](const TaskTemplate &templ) { return new TaskRelogin(templ); }};
+    ai::curr_step()->run_sub_step(new TaskRelogin(tt));
     throw_trouble("Finished re-login");
+}
+
+void BaseAutopilotTask::reboot_repair() {
+    TaskTemplate tt {ED_TASK_REBOOT_REPAIR, _lc("Reboot and Repair"), [](const TaskTemplate &templ) { return new TaskRebootRepair(templ); }};
+    ai::curr_step()->run_sub_step(new TaskRebootRepair(tt));
+    throw_trouble("Finished reboot repair");
 }
 
 bool setSpeed(int percents, bool force, const char* reason) {
@@ -480,8 +475,10 @@ bool BaseAutopilotTask::orientRollByTarget(double reqRoll, double precision, int
     return false;
 }
 
-void BaseAutopilotTask::initNavFilter() {
+void BaseAutopilotTask::initNavFilter(bool additive) {
     st::NavPanelFilters filters{};
+    if (additive)
+        filters = st::navFilters;
     filters.star = true;
     filters.planetOrMoon = true;
     filters.landablePlanetOrMoon = true;
@@ -504,6 +501,7 @@ void BaseAutopilotTask::initNavFilter() {
     case TypeNav::Dodec:
     case TypeNav::Coriolis:
     case TypeNav::AsteroidBase:
+    case TypeNav::SpaceOutpost:
     case TypeNav::SpaceConstrDepot:
     case TypeNav::StationMegaShip:
     case TypeNav::StrongholdCarrier:
@@ -1298,8 +1296,10 @@ bool EnterCruiseStep::run() {
             //notifyProgress("Mass-locked, flying away");
             sleep(1000);
         }
-        if (st::ship.flags.fsd_masslocked)
-            throw_trouble("Cannot enter cruise: mass-locked");
+        if (st::ship.flags.fsd_masslocked) {
+            notify_error("Cannot enter cruise: mass-locked, relogin");
+            task->relogin();
+        }
     }
 
     if (st::ship.flags.cargo_scoop_on || st::ship.flags.weapon_on || st::ship.flags.landing_gear_down) {
@@ -1330,28 +1330,31 @@ bool EnterCruiseStep::run() {
             throw_trouble("Cannot enter cruise: FSD cooldown");
     }
 
-    LOG_DEBUG("EnterCruise: enter Supercruise");
-    timer = utc_timer(20s);
-    status = ENTER_CRUISE;
-    kbd::send("Supercruise", 100, 1000);
-    if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
-        notify_error("Entering supercruise failed");
-        return false;
-    }
+    for (int try_count=0; !st::ship.flags.cruise && try_count < 5; try_count++) {
+        LOG_DEBUG("EnterCruise: enter Supercruise");
+        timer = utc_timer(20s);
+        status = ENTER_CRUISE;
+        kbd::send("Supercruise", 100, 2000);
+        if (!(st::ship.flags.cruise || st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+            notify_error("Entering supercruise failed");
+            continue;
+        }
 
-    if (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
-        LOG_DEBUG("EnterCruise: waiting cruise");
-        CourseLocker course(0);
-        while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump) && !timer.expired()) {
-            if (st::guiFocus != GuiFocus::None)
-                sendUiBack();
-            sleep(500);
+        if (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+            LOG_DEBUG("EnterCruise: waiting cruise");
+            CourseLocker course(0);
+            while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump) &&
+                   !timer.expired()) {
+                if (st::guiFocus != GuiFocus::None)
+                    sendUiBack();
+                sleep(500);
+            }
         }
     }
 
     if (!st::ship.flags.cruise) {
-        notify_error("Entering supercruise failed");
-        return false;
+        notify_error("Entering supercruise failed, relogin");
+        task->relogin();
     }
 
     if (flyAwayFromNearest) {
@@ -1366,6 +1369,7 @@ bool EnterCruiseStep::run() {
             }
         }
     }
+    Axis::resetAll(true);
 
     LOG_DEBUG("EnterCruise: done");
     prevSubStep.reset();
@@ -1439,18 +1443,27 @@ bool HyperJumpStep::run() {
     }
 
     // select next jump system and jump
-    LOG_DEBUG("HyperJump: charge");
     timer = utc_timer(15s);
     status = CHARGE;
-    if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+
+    for (int try_count=0; !(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump) && try_count < 5; try_count++) {
+        LOG_DEBUG("HyperJump: charge");
         kbd::send("HyperSuperCombination", 100, 2000);
-        if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
-            if (!st::ship.flags.cruise)
-                run_sub_step(new LeaveBodyStep);
-            notify_error("Entering jump failed");
-            return false;
+        if (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)
+            break;
+        notify_error("Entering jump failed");
+        if (!st::ship.flags.cruise) {
+            run_sub_step(new LeaveBodyStep);
+            task->orientTowardTarget(6);
         }
     }
+
+    if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+        notify_error("Entering jump failed, relogin");
+        task->relogin();
+        return false;
+    }
+
     {
         setSpeed(50, false, "HyperJump: charging, orient");
         CourseLocker course(0);
@@ -1859,9 +1872,14 @@ bool BaseDockStep::autopilot() {
         }
         LOG_DEBUG("Docking autopilot waiting...");
     }
+    // wait for timer.expired() instead of initial check
+    //if (!ai::uiState.autopilot) {
+    //    notify_error("Docking autopilot not started, relogin");
+    //    task->relogin();
+    //}
     for (;;) {
         if (timer.expired()) {
-            LOG_ERROR("Autopilot time expired");
+            LOG_ERROR("Autopilot time expired, relogin");
             task->relogin();
         }
         sleep(2000);
@@ -2164,9 +2182,10 @@ void DockSpaceStation::flyTowardsTarget() {
 }
 
 void BaseDockStep::flyTowardsStep() {
-    LOG_DEBUG("Docking: flyTowards");
-    if (st::autopilot.distanceToDock < dock_req_dist)
+    if (st::autopilot.distanceToDock < dock_req_dist) {
+        LOG_DEBUG("Docking: flyTowards, already at req distance");
         return;
+    }
     // distance to fly for auto-docking
     double dist = st::autopilot.distanceToDock.get(dist_t::M) - safe_dist.get(dist_t::M);
     auto ship = eddb::getShipStats();
@@ -2192,6 +2211,8 @@ void BaseDockStep::flyTowardsStep() {
     // max acceleration time = topspd / fwdacc
     double accel_time = std::sqrt( 2*dist / (fwdacc*(1 + fwdacc/revacc)) );
     double break_time = accel_time*fwdacc/revacc;
+    LOG_DEBUG("Docking: flyTowards, accel_time {:.1f}, break_time {:.1f}, topspd {:.1f}, fwdacc {:.1f}, revacc {:.1f}",
+              accel_time, break_time, topspd, fwdacc, revacc);
     if (accel_time < topspd/fwdacc) {
         timer = utc_timer(std::chrono::seconds((int)std::ceil(accel_time+break_time)));
         status = APPROACH;
@@ -2210,6 +2231,8 @@ void BaseDockStep::flyTowardsStep() {
     double break_dist = revacc*break_time*break_time/2;
     double fly_dist = dist - accel_dist - break_dist;
     double fly_time = fly_dist / topspd;
+    LOG_DEBUG("Docking: flyTowards, accel_time {:.1f}, fly_time {:.1f}, break_time {:.1f}, accel_dist {:.1f}, fly_dist {:.1f}, break_dist {:.1f}",
+              accel_time, fly_time, break_time, accel_dist, fly_dist, break_dist);
     if (fly_time > 10)
         fly_time = 10; // limit time for one step
     timer = utc_timer(std::chrono::seconds((int)std::ceil(accel_time+fly_time+break_time)));
@@ -2228,7 +2251,7 @@ void BaseDockStep::sleep_waiting_dist(int milliseconds) {
     int prev_dist = 100000;
     if (dd <= 7400_m)
         prev_dist = (int)dd.get_m();
-    //LOG(INFO) << "sleep_waiting_dist, safe dist " << safe_dist;
+    //LOG_DEBUG("sleep_waiting_dist, safe dist {}", safe_dist);
     auto now = std::chrono::high_resolution_clock::now();
     auto until = now + std::chrono::milliseconds(milliseconds);
     while (now < until) {
@@ -2237,16 +2260,16 @@ void BaseDockStep::sleep_waiting_dist(int milliseconds) {
         if (left < 5ms)
             break;
         if (left > 250ms) {
-            auto until = now + 250ms;
+            auto sleep_til = now + 250ms;
             ai::detectEDState(DetectLevel::Screen);
-            //LOG(INFO) << "sleep_waiting_dist, curr dist " << dd;
-            std::this_thread::sleep_until(until);
+            //LOG_DEBUG("sleep_waiting_dist, curr dist {}", dd);
+            std::this_thread::sleep_until(sleep_til);
         } else {
             std::this_thread::sleep_for(left);
         }
         now = std::chrono::high_resolution_clock::now();
         if (dd <= 7400_m) {
-            //LOG(INFO) << "sleep_waiting_dist, maybe stop, dist " << dd << " and prev " << prev_dist;
+            //LOG_DEBUG("sleep_waiting_dist, maybe stop, dist {} and prev {}", dd, prev_dist);
             int dist = (int)dd.get_m();
             if (dist < prev_dist && prev_dist <= 7400)
                 return;
@@ -4449,7 +4472,7 @@ std::string TaskTravel::getTitle() {
     return templ.name();
 }
 
-bool TaskTravel::setDestDockAndBody(bool required) {
+bool TaskTravel::setDestDockAndBody(bool required, bool additive) {
     auto starSystem = gal::getStarSystem(destSystemName);
     if (!starSystem) {
         if (required)
@@ -4464,7 +4487,7 @@ bool TaskTravel::setDestDockAndBody(bool required) {
     }
 
     if (required && st::autopilot.destDock->parentBodyId < 0) {
-        initNavFilter();
+        initNavFilter(additive);
         if (!run_sub_step(new NavDockSelect)) {
             throw_trouble("Cannot select destination dock");
         }
@@ -4485,7 +4508,7 @@ bool TaskTravel::setDestDockAndBody(bool required) {
         }
     }
 
-    initNavFilter();
+    initNavFilter(additive);
     return true;
 }
 
@@ -4501,7 +4524,7 @@ bool TaskTravel::run() {
     }
 
     if (gal::getCurrentStarSystem()->systemName != destSystemName) {
-        setDestDockAndBody(false);
+        setDestDockAndBody(false, false);
 
         bool change_route = false;
         auto navRoute = st::currentNavRoute;
@@ -4520,7 +4543,7 @@ bool TaskTravel::run() {
             throw_trouble("Cannot reach destination system");
     }
 
-    setDestDockAndBody(true);
+    setDestDockAndBody(true, false);
 
     if (!run_sub_step(new CruiseAndDock))
         throw_trouble("Cannot cruise and dock");
@@ -4545,7 +4568,7 @@ bool Autopilot::run() {
     resetCompassDetects();
     LOG_INFO("Autopilot, start");
     if (int ri=getNavRoutePosition(st::currentNavRoute); ri >= 0 && ri+1 < st::currentNavRoute->route.size()) {
-        nl.init(st::navFilters);
+        initNavFilter(true);
         if (!run_sub_step(new CompleteNavRoute))
             throw_trouble("Cannot reach destination system");
     }
@@ -4595,7 +4618,7 @@ bool Autopilot::run() {
         }
     }
 
-    nl.init(st::navFilters);
+    initNavFilter(true);
 
     if (!st::autopilot.destDock && !st::autopilot.destBody) {
         if (!run_sub_step(new CruiseToSignal(0.9_ls)))

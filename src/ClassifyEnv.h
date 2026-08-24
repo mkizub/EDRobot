@@ -230,7 +230,7 @@ struct ResolvedEnv {
 
     ResolvedEnv();
     ResolvedEnv& operator=(const ResolvedEnv& other) = default;
-    void init(const cv::Rect& frameRect, double scale);
+    void init(const cv::Rect& frameRect, bool warped, double scale);
     void clear();
 
     // a list of classified detected rects
@@ -329,6 +329,7 @@ struct ResolvedEnv {
 
     void setDebugMatch(bool on) { isDebugMatch_ = on; }
     bool isDebugMatch() const { return isDebugMatch_; }
+    bool isWarped() const { return isWarped_; }
 protected:
     cv::Rect frameRect;
     cv::Rect frameCrop;
@@ -336,13 +337,14 @@ protected:
     bool needScale_ {false};
     bool needCrop_ {false};
     bool isDebugMatch_ {false};
+    bool isWarped_ {false};
     double scaleToCaptured_ {1};
 };
 
 struct ClassifyEnv : public ResolvedEnv {
     ClassifyEnv() = default;
     void init(upFrame&& frame);
-    void init(XMat warpedImage, double scale=1.0);
+    void init(XMat warpedImage, bool warped, double scale);
     void init(XMat warpedImage, const cv::Matx33d& unWarpMatrix);
     void init(XMat warpedImage, const cv::Matx23d& unWarpMatrix);
     void clear();

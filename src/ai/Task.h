@@ -56,6 +56,8 @@ public:
     bool executeWait(const js::value& step, const js::value& args);
     void hardcodedStep(const std::string& step, DetectLevel level, cv::Mat* grayImage = nullptr);
 
+    virtual bool isEmergencyTask() { return false; }
+
     int missCount {};
     TaskExitReason progress {};
 };

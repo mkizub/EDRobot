@@ -80,12 +80,16 @@ extern const std::string ED_TASK_TRADE_LOOP;        // trade loop between statio
 extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination
 extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
 extern const std::string ED_TASK_NAV_SCAN;          // san navigation map
+
+extern const std::string ED_TASK_RELOGIN;           // relogin
 extern const std::string ED_TASK_RESURRECT;         // resurrect on death
+extern const std::string ED_TASK_REBOOT_REPAIR;     // reboot repair broken modules
 
 extern const std::string ED_TASK_DEBUG_FIND_ALL_COMMODITIES;
 extern const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS;
 extern const std::string ED_TASK_DEBUG_AUTOPILOT;
 extern const std::string ED_TASK_DEBUG_SHIP_STATS;
+extern const std::string ED_TASK_DEBUG_EMERGENCY;
 
 } // namespace ai
 

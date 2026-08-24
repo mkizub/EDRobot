@@ -9,17 +9,6 @@
 
 namespace ai {
 
-class TaskResurrect final : public Task {
-public:
-    explicit TaskResurrect(const TaskTemplate& templ);
-    bool run() final;
-
-    std::string getStatus() override;
-    enum {
-        READY, REPORT, DEPLOY, DONE
-    } status {READY};
-};
-
 class TaskAcquirePPC final : public Task {
 public:
     explicit TaskAcquirePPC(const TaskTemplate& templ);

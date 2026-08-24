@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 set (CMAKE_CONFIGURATION_TYPES Debug Release)
 
-project(EDRobot LANGUAGES CXX VERSION 0.9.3)
+project(EDRobot LANGUAGES CXX VERSION 0.9.4)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -78,6 +78,8 @@ add_executable(EDRobot WIN32
         src/ai/ColonizationTasks.h
         src/ai/ContactsTasks.cpp
         src/ai/ContactsTasks.h
+        src/ai/EmergencyTasks.h
+        src/ai/EmergencyTasks.cpp
         src/ai/NavList.cpp
         src/ai/NavList.h
         src/ai/ShipTracker.cpp

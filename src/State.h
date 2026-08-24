@@ -19,6 +19,7 @@ extern Lang lng;
 
 extern GuiFocus guiFocus;
 extern bool isDead;
+extern bool isNeedRebootRepair;
 
 extern struct EddnStarSystem {
     std::string name;

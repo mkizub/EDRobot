@@ -18,7 +18,7 @@ void CompassDetector::standaloneTest(std::string image_filename) {
     cv::Mat fileImage = cv::imread(image_filename, cv::IMREAD_UNCHANGED); // assume GRAY/BGR/BGRA
     XMat debugImage = toXMat(fileImage);
     ClassifyEnv debugEnv;
-    debugEnv.init(debugImage, 1);
+    debugEnv.init(debugImage, false, 1);
 
     auto det = std::make_unique<detect::CompassDetector>();
     double match = det->match(debugEnv);
@@ -412,7 +412,7 @@ void CompassDetector::detectNavTarget(ClassifyEnv& env, bool afterCompass) {
         {
             XMat lineImage = normImage(lineRect);
             ClassifyEnv lineEnv;
-            lineEnv.init(lineImage, 1);
+            lineEnv.init(lineImage, true, 1);
             lineDetector->withRefLine = cv::Line(0, 105, lineRect.width, 105);
             double ln_match = lineDetector->match(lineEnv);
             if (ln_match > 0.5 && std::abs(lineDetector->lastAvrgAngle) > 2) {

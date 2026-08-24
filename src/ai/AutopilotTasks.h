@@ -51,6 +51,7 @@ protected:
 
 public:
     void relogin();
+    void reboot_repair();
 
     void orientRollStep(double delta, int max_time_ms=5000);
     void orientPitchStep(double delta, int max_time_ms=5000);
@@ -60,7 +61,7 @@ public:
     bool orientAwayFromTargetStep(double precision, int max_time_ms=5000);
     bool orientAwayFromTarget(double precision);
     bool orientRollByTarget(double roll, double precision, int max_time_ms=5000);
-    void initNavFilter();
+    void initNavFilter(bool additive);
 
     NavList nl;
 };
@@ -98,7 +99,6 @@ public:
     std::optional<double> duration;
     std::optional<int> speed;
 };
-
 
 class DepartureStep : public BaseAutopilotStep {
 public:
@@ -358,7 +358,7 @@ public:
     std::string getTitle() override;
     bool run() final;
 
-    bool setDestDockAndBody(bool required);
+    bool setDestDockAndBody(bool required, bool additive);
 
     std::string destSystemName;
     std::string destDockName;

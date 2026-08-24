@@ -204,4 +204,21 @@ WState Histogram::guessWState() {
     return WState::Unknown;
 }
 
+double BlackScreenDetector::match(ClassifyEnv &env) {
+    if (env.isWarped())
+        return 0.0;
+    cv::Rect rect = env.cvtReferenceToCaptured(refEvalRect->calcReferenceRect(env));
+    env.cropToCapture(rect);
+    if (rect.empty())
+        return 0.0;
+    double gp = 1.0 / (1.0 + Cfg.getGammaOffset()*0.5);
+    double thr = std::clamp(255 * std::pow(this->threshold/255., gp), 0., 255.);
+    cv::Mat grayImage;
+    cv::cvtColor(env.getColorImage()(rect), grayImage, cv::COLOR_BGR2GRAY);
+    cv::Mat blackImage;
+    cv::threshold(grayImage, blackImage, thr, 255, cv::THRESH_BINARY);
+    int count = cv::countNonZero(blackImage);
+    return (count == 0) == isBlack ? 1.0 : 0.0;
+}
+
 } // namespace detect

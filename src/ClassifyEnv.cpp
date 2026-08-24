@@ -7,16 +7,17 @@
 #include "ClassifyEnv.h"
 
 ResolvedEnv::ResolvedEnv() {
-    init(cv::Rect(cv::Point(), ReferenceScreenSize), 1);
+    init(cv::Rect(cv::Point(), ReferenceScreenSize), false, 1);
 }
 
-void ResolvedEnv::init(const cv::Rect& frmRect, double scale) {
+void ResolvedEnv::init(const cv::Rect& frmRect, bool warped, double scale) {
     frameRect = frmRect;
     frameCrop = cv::Rect(cv::Point(), frmRect.size());
     classified.clear();
     isDebugMatch_ = false;
     needScale_ = (scale != 1);
     needCrop_ = frameRect.tl() != cv::Point();
+    isWarped_ = warped;
     scaleToCaptured_ = scale;
 }
 
@@ -35,16 +36,16 @@ void ClassifyEnv::init(upFrame&& frame) {
     br *= scale;
     br += frameCenter;
     cv::Rect frameRect {tl, br};
-    ResolvedEnv::init(frameRect, scale);
+    ResolvedEnv::init(frameRect, false, scale);
     unWarpMatrix = cv::Matx33d::eye();
 }
 
-void ClassifyEnv::init(XMat warpedImage, double scale) {
+void ClassifyEnv::init(XMat warpedImage, bool warped, double scale) {
     cv::Rect frameRect {0, 0, warpedImage.cols, warpedImage.rows};
     upFrame fr(new FrameWarp(frameRect.size(), warpedImage));
     mFrame.swap(fr);
     mColorImage = warpedImage;
-    ResolvedEnv::init(frameRect, scale);
+    ResolvedEnv::init(frameRect, warped, scale);
     unWarpMatrix = cv::Matx33d::eye();
 }
 
@@ -53,7 +54,7 @@ void ClassifyEnv::init(XMat warpedImage, const cv::Matx33d& unWM) {
     upFrame fr(new FrameWarp(frameRect.size(), warpedImage));
     mFrame.swap(fr);
     mColorImage = warpedImage;
-    ResolvedEnv::init(frameRect, 1.0);
+    ResolvedEnv::init(frameRect, true, 1.0);
     unWarpMatrix = unWM;
 }
 
@@ -71,6 +72,7 @@ void ResolvedEnv::clear() {
     frameRect = {};
     frameCrop = {};
     isDebugMatch_ = false;
+    isWarped_ = false;
     needScale_ = false;
     needCrop_ = false;
     scaleToCaptured_ = 1;
