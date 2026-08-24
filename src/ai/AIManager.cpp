@@ -284,7 +284,7 @@ void task_loop() {
             bool wasActive = active(); // auto-stop capturing
             // TODO: auto-resume after 30 seconds, need UI check-box and keyboard watchdog
             taskCond.wait_for(lock, 30s, []() {
-                return !isWorking || (activeTask && !isInterrupted);
+                return !isWorking || ((activeTask || suspendedTasks) && !isInterrupted);
             });
             isLoopWaiting = false;
             if (!isWorking)
@@ -329,12 +329,8 @@ void task_step() {
             LOG(ERROR) << "Exception during task execution: " << ex.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
     }
     if (ok || reason > TaskExitReason::ONGOING) {
-        if (ok && activeTask && activeTask->templ.id == ED_TASK_RESURRECT) {
-            lastTask.swap(activeTask);
-        } else {
-            lastTask.reset();
-            lastTask.swap(activeTask);
-        }
+        lastTask.reset();
+        lastTask.swap(activeTask);
     }
     if (ok || reason == TaskExitReason::COMPLETE) {
         std::string title;
@@ -375,12 +371,12 @@ void check_emergency() {
             ai::detectEDStateGrayIm(DetectLevel::Screen, grayImage);
             if (!ai::rEnv.isWarped()) {
                 int height = ReferenceScreenSize.height / 4;
-                cv::Rect rect{0, ReferenceScreenSize.height - height, ReferenceScreenSize.width, height};
+                cv::Rect rect{10, ReferenceScreenSize.height - height, ReferenceScreenSize.width-20, height-10};
                 rect = ai::rEnv.cvtReferenceToCaptured(rect);
                 double gp = 1.0 / (1.0 + Cfg.getGammaOffset()*0.5);
                 double thr = std::clamp(255 * std::pow(10/255., gp), 0., 255.);
                 cv::Mat blackImage;
-                cv::threshold(grayImage, blackImage, thr, 255, cv::THRESH_BINARY);
+                cv::threshold(grayImage(rect), blackImage, thr, 255, cv::THRESH_BINARY);
                 int count = cv::countNonZero(blackImage);
                 if (count == 0) {
                     if (!activeTask->isEmergencyTask())

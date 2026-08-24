@@ -2,7 +2,7 @@
 +++ b/CMakeLists.txt
 @@ -638,7 +638,7 @@ set(OPENCV_EXTRA_MODULES_PATH "" CACHE PATH "Where to look for additional OpenCV
  ocv_cmake_hook(POST_CMAKE_BUILD_OPTIONS)
-
+ 
  # --- Python Support ---
 -if(NOT IOS AND NOT XROS)
 +if(WITH_PYTHON)

@@ -433,7 +433,7 @@
     name: 'scr-black',
     status: { expect: "emergency" },
     detect: [
-      { black:true, rect:[0,810,1920,270], threshold: 10 },
+      { black:true, rect:[10,810,1900,260], threshold: 10 },
     ],
     have: [
       { name: 'btn-play', rect: [900,520,120,40] },
