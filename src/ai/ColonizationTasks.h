@@ -34,6 +34,7 @@ protected:
             int* count {};  // first depot
             int total {};   // total of all depots
             int bought {};  // already have in ship of carrier
+            int to_buy_at(int idx) const { return count[idx] - bought; }
         };
         struct Depot {
             DepotInfo* info;

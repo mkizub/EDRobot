@@ -846,7 +846,20 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
     }
 }
 
+static void saveBodyCount(spGameEvent& ge, const char* prop) {
+    if (!ge->data[prop].is_int())
+        return;
+    int body_count = ge->data[prop].as_int();
+    auto ss = gal::getCurrentStarSystem();
+    if (ss->game_body_count != body_count) {
+        ss->game_body_count = body_count;
+        ss->saved = false;
+        ss->save();
+    }
+}
+
 void parseEvent_NavBeaconScan(spGameEvent& ge) {
+    saveBodyCount(ge, "NumBodies");
     if (!ge->expired)
         EDDN::event_NavBeaconScan(ge);
 }
@@ -857,11 +870,13 @@ void parseEvent_SAASignalsFound(spGameEvent& ge) {
 }
 
 void parseEvent_FSSDiscoveryScan(spGameEvent& ge) {
+    saveBodyCount(ge, "BodyCount");
     if (!ge->expired)
         EDDN::event_FSSDiscoveryScan(ge);
 }
 
 void parseEvent_FSSAllBodiesFound(spGameEvent& ge) {
+    saveBodyCount(ge, "Count");
     if (!ge->expired)
         EDDN::event_FSSAllBodiesFound(ge);
 }

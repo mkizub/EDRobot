@@ -424,10 +424,14 @@ private:
                 break;
             } else if (has_flag(flags::infinity_number) && (ch == 'i' || ch == 'I')) {
                 // ["infinity"] (JSON5)
-                if (equals(ch, 'n', 'f', 'i', 'n', 'i', 't', 'y')) {
+                if (equals(ch, 'n', 'f')) {
                     v = negative ?
                         -std::numeric_limits<value::floating_type>::infinity() :
                         +std::numeric_limits<value::floating_type>::infinity();
+                    if (!equals(ch, 'i'))
+                        istream.unget();
+                    else if (!equals(ch, 'n', 'i', 't', 'y'))
+                        throw syntax_error(ch, context);
                     return;
                 }
             } else if (has_flag(flags::not_a_number) && (ch == 'N')) {
@@ -651,7 +655,9 @@ private:
                         // [IdentifierStart]
                         if (space)
                             throw syntax_error(ch, context);
-                    } else if (is_digit(ch) && (!buffer.empty())) {
+                    } else if (is_digit(ch)) {
+                        //if (buffer.empty())
+                        //    throw syntax_error(ch, context);
                         // [UnicodeDigit]
                         if (space)
                             throw syntax_error(ch, context);

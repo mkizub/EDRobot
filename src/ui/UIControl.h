@@ -17,6 +17,8 @@
 
 class UIControl : public wl::window_control {
 public:
+    const static int popup_menu_id = 0x1002;
+
     UIControl(bool scrollable);
     virtual ~UIControl() = default;
     void reset_scroll(bool scroll_to_top);
@@ -27,6 +29,7 @@ public:
     virtual void relayout(bool scroll_to_top=false) = 0;
     virtual bool need_timer_update() const { return false; }
     virtual void on_update() {};
+    virtual void on_popup_menu(int idx) {};
     virtual void on_ctrl_change(wl::params& params);
     virtual void on_ctrl_edit(int id, WORD msg) = 0;
     virtual bool validate() const = 0;

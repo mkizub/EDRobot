@@ -80,6 +80,8 @@ add_executable(EDRobot WIN32
         src/ai/ContactsTasks.h
         src/ai/EmergencyTasks.h
         src/ai/EmergencyTasks.cpp
+        src/ai/ExplorationTasks.h
+        src/ai/ExplorationTasks.cpp
         src/ai/NavList.cpp
         src/ai/NavList.h
         src/ai/ShipTracker.cpp

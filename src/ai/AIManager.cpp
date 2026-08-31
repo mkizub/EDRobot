@@ -369,10 +369,11 @@ void check_emergency() {
         else if (!isInterrupted && activeTask) {
             cv::Mat grayImage;
             ai::detectEDStateGrayIm(DetectLevel::Screen, grayImage);
-            if (!ai::rEnv.isWarped()) {
+            if (!ai::rEnv.isWarped() && !grayImage.empty()) {
                 int height = ReferenceScreenSize.height / 4;
                 cv::Rect rect{10, ReferenceScreenSize.height - height, ReferenceScreenSize.width-20, height-10};
                 rect = ai::rEnv.cvtReferenceToCaptured(rect);
+                ai::rEnv.cropToCapture(rect);
                 double gp = 1.0 / (1.0 + Cfg.getGammaOffset()*0.5);
                 double thr = std::clamp(255 * std::pow(10/255., gp), 0., 255.);
                 cv::Mat blackImage;

@@ -12,6 +12,17 @@
 
 const std::string API = "https://spansh.co.uk/api/";
 
+#ifdef CPPTRACE_TRY
+# define TRY CPPTRACE_TRY
+# define CATCH(param) CPPTRACE_CATCH(param)
+# define GET_EXCEPTION_STACK_TRACE cpptrace::from_current_exception().to_string()
+#else
+# define TRY try
+# define CATCH(param) catch(param)
+# include <stacktrace>
+# define GET_EXCEPTION_STACK_TRACE std::stacktrace::current()
+#endif
+
 static void parseBodyId(const gal::spStarSystem& ss, gal::spEntity& entity, const js::value& j) {
     if (j.at("bodyId").is_int())
         entity->bodyId = j["bodyId"].as_int();
@@ -216,31 +227,40 @@ static void parseBody(const gal::spStarSystem& ss, const js::value& jb) {
 
 gal::spStarSystem Spansh::loadStarSystem(int64_t systemAddress) {
     LOG(INFO) << "Spansh query system by id";
-    auto cr = cpr::Get(cpr::Url{API+"dump/"+std::to_string((uint64_t)systemAddress)});
-    auto cr_body = getJS(cr);
-    if (cr_body["system"]["id64"].as_int_or() != systemAddress)
+    TRY {
+        auto cr = cpr::Get(cpr::Url{API+"dump/"+std::to_string((uint64_t)systemAddress)});
+        auto cr_body = getJS(cr);
+        if (cr_body["system"]["id64"].as_int_or() != systemAddress)
         return {};
 
-    const js::value jsystem = cr_body["system"];
+        const js::value jsystem = cr_body["system"];
 
-    auto systemName = jsystem["name"].as_string();
-    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, false);
-    ss->starPos.x = jsystem["coords"]["x"].as_real_or();
-    ss->starPos.y = jsystem["coords"]["y"].as_real_or();
-    ss->starPos.z = jsystem["coords"]["z"].as_real_or();
+        auto systemName = jsystem["name"].as_string();
+        gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, false);
+        ss->starPos.x = jsystem["coords"]["x"].as_real_or();
+        ss->starPos.y = jsystem["coords"]["y"].as_real_or();
+        ss->starPos.z = jsystem["coords"]["z"].as_real_or();
+        parseTimestampString(jsystem["date"].as_string_or(), ss->eddn_updated_at);
+        int body_count = jsystem["bodyCount"].as_int_or();
+        if (body_count > 0 && body_count != ss->game_body_count)
+        ss->game_body_count = body_count;
 
-    for (auto& jb : jsystem["bodies"].as_array_or()) {
-        parseBody(ss, jb);
+        for (auto& jb : jsystem["bodies"].as_array_or()) {
+            parseBody(ss, jb);
+        }
+
+        for (auto& jb : jsystem["stations"].as_array_or()) {
+            parseStation(ss, jb);
+        }
+
+        ss->saved = false;
+        ss->save();
+        ss->loaded = true;
+        return ss;
+    } CATCH(const std::exception& e) {
+        LOG(ERROR) << "Exception in Spansh::loadStarSystem(int): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
     }
-
-    for (auto& jb : jsystem["stations"].as_array_or()) {
-        parseStation(ss, jb);
-    }
-
-    ss->saved = false;
-    ss->save();
-
-    return ss;
+    return {};
 }
 
 gal::spStarSystem Spansh::loadStarSystem(const std::string& name) {
@@ -248,25 +268,87 @@ gal::spStarSystem Spansh::loadStarSystem(const std::string& name) {
     // https://spansh.co.uk/api/systems/field_values/system_names?q={systenName}
 
     LOG(INFO) << "Spansh query system id by name";
-    std::string url = API+"systems/field_values/system_names?q=";
-    char* name_esc = curl_escape(name.data(), name.length());
-    std::string name_plus = name_esc;
-    curl_free(name_esc);
-    size_t pos = 0;
-    while ((pos = name_plus.find("%20", pos)) != std::string::npos) {
-        name_plus.replace(pos, 3, "+");
-        pos += 1; // Move past the newly inserted '+'
-    }
-    url += name_plus;
-    auto cr = cpr::Get(cpr::Url{url});
-    auto cr_body = getJS(cr);
-
-    for (auto &ss: cr_body["min_max"].as_array_or()) {
-        if (ss["name"].as_string_or() == name) {
-            return loadStarSystem(ss["id64"].as_int());
+    TRY {
+        std::string url = API+"systems/field_values/system_names?q=";
+        char* name_esc = curl_escape(name.data(), name.length());
+        std::string name_plus = name_esc;
+        curl_free(name_esc);
+        size_t pos = 0;
+        while ((pos = name_plus.find("%20", pos)) != std::string::npos) {
+            name_plus.replace(pos, 3, "+");
+            pos += 1; // Move past the newly inserted '+'
         }
+        url += name_plus;
+        auto cr = cpr::Get(cpr::Url{url});
+        auto cr_body = getJS(cr);
+
+        for (auto &ss: cr_body["min_max"].as_array_or()) {
+            if (ss["name"].as_string_or() == name) {
+                return loadStarSystem(ss["id64"].as_int());
+            }
+        }
+    } CATCH(const std::exception& e) {
+        LOG(ERROR) << "Exception in Spansh::loadStarSystem(string): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
     }
 
     return {};
 }
 
+std::vector<gal::spStarSystem> Spansh::listNearestSystems(const std::string& systemBegin, const std::string& systemEnd, double distance) {
+    if (systemBegin.empty())
+        return {};
+    js::value j_request = js::object({
+        { "filters",          js::object({{"distance", js::object({{"min", 0}, {"max", distance}})} })},
+        { "size",             100},
+        { "page",             0},
+        { "sort",             js::object({{"distance", js::object({{"direction", "asc"}})} })},
+    });
+    if (systemEnd.empty() || systemBegin == systemEnd)
+        j_request["reference_system"] = systemBegin;
+    else
+        j_request["reference_route"] = js::object({{"source", systemBegin }, {"destination", systemEnd}});
+
+    std::vector<gal::spStarSystem> result;
+    for (int page=0; page < 10; page++) {
+        j_request["page"] = page;
+
+        std::ostringstream os;
+        os << std::fixed << std::setprecision(5) << js::rule::ecma404() << js::rule::no_object_nulls() << j_request;
+        auto payload = os.str();
+
+        auto cr = cpr::Post(cpr::Url{API+"systems/search"}, cpr::Body{payload});
+        auto cr_body = getJS(cr);
+        if (cr_body.empty())
+            break;
+
+        int position = cr_body["from"].as_int_or();
+        int count = cr_body["count"].as_int_or();
+        int size = cr_body["size"].as_int_or();
+
+        auto jresult = cr_body["results"].as_array_or();
+        for (auto jr : jresult) {
+            auto name = jr["name"].as_string();
+            int64_t address = jr["id64"].as_int();
+            double x = jr["x"].as_real_or();
+            double y = jr["y"].as_real_or();
+            double z = jr["z"].as_real_or();
+            auto total_bodies = jr["body_count"].as_int_or();
+            Timestamp updated_at;
+            if (jr["updated_at"].is_string())
+                parseTimestampString(jr["updated_at"].as_string(), updated_at);
+            gal::spStarSystem ss = gal::makeStarSystem(name, address, false);
+            if (updated_at < ss->eddn_updated_at || !ss->loaded)
+                loadStarSystem(address);
+            if (ss) {
+                LOG_INFO("Star system: {} / {} (at x={:.5f} y={:.5f} z={:.5f}) has {} bodies, updated at {}",
+                         name, address, x, y, z, total_bodies, updated_at);
+                result.push_back(ss);
+            }
+        }
+
+        if (position+size >= count)
+            break;
+    }
+
+    return result;
+}

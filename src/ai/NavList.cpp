@@ -12,6 +12,7 @@
 #include "../FuzzyMatch.h"
 #include "../OCR.h"
 #include "../detect/NavPanel.h"
+#include "../net/Spansh.h"
 
 namespace {
 
@@ -1138,6 +1139,73 @@ bool NavListScanTask::gotoNavPageNavigation() {
         ok = true;
     }
     return ok;
+}
+
+
+NavListScanSystemsTask::NavListScanSystemsTask(const TaskTemplate& templ_)
+        : Task(templ_)
+{
+    assert (templ.id == ED_TASK_NAV_SCAN_SYSTEMS);
+}
+
+bool NavListScanSystemsTask::run() {
+    if (status == DONE)
+        return true;
+
+    st::NavPanelFilters filters{};
+    filters.star = true;
+    filters.system = true;
+    nl.init(filters);
+    nl.focusTopEntry();
+
+    cv::Mat grayImage;
+    int focusIdx;
+    for (int retry=0; retry < 5; retry++) {
+        auto rows = nl.recognizeWholePage(grayImage, focusIdx);
+        if (rows.empty())
+            throw_failed_("Cannot recognize nav list");
+
+        int topSystemIdx = -1;
+        for (auto &nle: nl.list) {
+            if (nle.indent > 0)
+                continue;
+            if (nle.icon != gal::STAR_SYSTEM.charOCR)
+                continue;
+            topSystemIdx = nle.index;
+            break;
+        }
+        if (topSystemIdx < 0)
+            continue;
+        if (topSystemIdx == focusIdx)
+            break;
+        if (focusIdx < topSystemIdx) {
+            for (int i = 0; i < topSystemIdx - focusIdx; i++)
+                kbd::send("UI_Down");
+        } else {
+            for (int i = 0; i < focusIdx - topSystemIdx; i++)
+                kbd::send("UI_Up");
+        }
+    }
+
+    int64_t prevAddress = 0;
+    for (int sidx=0; sidx < 100; sidx++) {
+        nl.selectFocused(nullptr);
+        sleep(1000);
+        for (int w = 0; w < 5 && st::destination.systemAddress == prevAddress; w++)
+            sleep(1000);
+        auto address = st::destination.systemAddress;
+        auto name = st::destination.name;
+        auto bodyId = st::destination.bodyId;
+        prevAddress = address;
+        if (address == gal::getCurrentStarSystem()->systemAddress)
+            break;
+        gal::spStarSystem ss = gal::makeStarSystem(name, address, true);
+        foundSystems.push_back(ss);
+        kbd::send("UI_Down");
+    }
+
+    status = DONE;
+    return true;
 }
 
 } // namespace ai

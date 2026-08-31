@@ -164,8 +164,8 @@ public:
 
 UIEditTask::UIEditTask() : UIControl(true) {
     on_command(IDC_COMBO_TEMPLATES, [this](wl::params p) {
-        if (HIWORD(p.wParam) == CBN_SELCHANGE)
-            on_template_selected();
+        init_templ_list();
+        menu_tasks.show_at_point(this->hwnd(), {0,20}, lbl_tasks.hwnd());
         return 0;
     });
     on_command(ID_RUN, [this](wl::params params) {
@@ -202,7 +202,8 @@ void UIEditTask::initialize() {
     int x = lo.left;
     int y = lo.top;
     int cb_w = lo.width - 3*(lo.btnh+lo.xgap);
-    cb_tasks.create(hwnd(), IDC_COMBO_TEMPLATES, {x,y}, cb_w, wl::combobox::sort::UNSORTED);
+    lbl_tasks.create(hwnd(), IDC_COMBO_TEMPLATES, L"", {x,y}, {lo.btnh, cb_w})
+            .style.set_style(true, WS_BORDER | SS_CENTER | SS_NOTIFY);
     x += cb_w + lo.xgap;
     btn_run.create(hwnd(), ID_RUN, "task-run", lo.icsz, {x,y}, {lo.btnh,lo.btnh}).set_enabled(false);
     x += cb_w + lo.xgap;
@@ -220,22 +221,38 @@ void UIEditTask::clear() {
     usedIds = {};
 }
 
-void UIEditTask::init_templ_list(std::string select) {
-    cb_tasks.remove_all();
+void UIEditTask::init_templ_list() {
+    menu_tasks.destroy();
     templates.clear();
-    for (auto& tt : ai::getUserTasks())
+    menu_tasks = CreatePopupMenu();
+    MENUINFO mi {sizeof(MENUINFO), MIM_STYLE|MIM_HELPID|MIM_MENUDATA, MNS_AUTODISMISS|MNS_NOCHECK|MNS_NOTIFYBYPOS};
+    mi.dwContextHelpID = UIControl::popup_menu_id;
+    mi.dwMenuData = (ULONG_PTR)this;
+    SetMenuInfo(menu_tasks.hmenu(), &mi);
+    std::map<std::string,wl::menu> groups;
+    WORD idx = 0;
+    for (auto& tt : ai::getUserTasks()) {
         templates.push_back(tt);
-    for (auto& tt : ai::getTemplates())
-        templates.push_back(tt);
-    int select_index = -1;
-    for (int i=0; i < templates.size(); i++) {
-        auto& tt = templates[i];
-        cb_tasks.add({toUtf16(tt.name()).c_str()});
-        if (select_index < 0 && !select.empty() && select == tt.nm)
-            select_index = i;
+        auto name = toUtf16(tt.nm.c_str());
+        menu_tasks.append_item(idx++, name);
     }
-    if (select_index >= 0)
-        cb_tasks.select(select_index);
+    if (idx > 0)
+        menu_tasks.append_separator();
+    for (auto& tt : ai::getTemplates()) {
+        templates.push_back(tt);
+        auto name = toUtf16(gettext(tt.nm.c_str()));
+        auto group = tt.meta["group"].as_string_or();
+        if (group.empty()) {
+            menu_tasks.append_item(idx++, name);
+        } else {
+            if (!groups.contains(group)) {
+                auto wname = toUtf16(gettext(group.c_str()));
+                groups[group] = menu_tasks.append_submenu(wname);
+                SetMenuInfo(groups[group].hmenu(), &mi);
+            }
+            groups[group].append_item(idx++, name);
+        }
+    }
 }
 
 void UIEditTask::on_template_run() {
@@ -262,21 +279,21 @@ void UIEditTask::on_template_save() {
     if (templ.id.empty())
         return;
     ai::saveUserTask(templ);
-    init_templ_list(templ.nm);
+    lbl_tasks.set_text(toUtf16(templ.name()));
     btn_save.set_enabled(false);
 }
 
 void UIEditTask::on_template_delete() {
-    auto selected_index = cb_tasks.get_selected_index();
+    lbl_tasks.set_text(L"");
+    btn_run.set_enabled(false);
+    btn_save.set_enabled(false);
+    btn_del.set_enabled(false);
     auto user_tasks_size = ai::getUserTasks().size();
-    if (selected_index < user_tasks_size) {
-        ai::delUserTask(selected_index);
-        clear();
-        init_templ_list();
-        btn_run.set_enabled(false);
-        btn_save.set_enabled(false);
-        btn_del.set_enabled(false);
+    if (selected_template_index < user_tasks_size) {
+        ai::delUserTask(selected_template_index);
     }
+    selected_template_index = -1;
+    clear();
 }
 
 ai::TaskTemplate UIEditTask::makeTemplate() {
@@ -331,8 +348,7 @@ void UIEditTask::validate_callback(bool valid) {
         return;
     }
 
-    auto selected_index = cb_tasks.get_selected_index();
-    bool is_template = selected_index >= ai::getUserTasks().size();
+    bool is_template = selected_template_index >= ai::getUserTasks().size();
     btn_del.set_enabled(!is_template);
 
     bool is_modified = false;
@@ -371,7 +387,7 @@ void UIEditTask::relayout(bool scroll_to_top) {
         scaled_to_dpi = uiDpi;
         loCreateFont(font, uiDpi, uiPercent);
         lo.font = &font;
-        font.set_on(cb_tasks);
+        font.set_on(lbl_tasks);
     }
     btn_run.set_icon_size(lo.icsz);
     btn_save.set_icon_size(lo.icsz);
@@ -388,7 +404,7 @@ void UIEditTask::relayout(bool scroll_to_top) {
     int x = lo.left;
     int y = lo.top;
     int cb_w = lo.width - 3*(lo.btnh+lo.xgap);
-    lo.wpi = DeferWindowPos(lo.wpi, cb_tasks.hwnd(), nullptr, x, y, cb_w, lo.height, SWP_NOZORDER);
+    lo.wpi = DeferWindowPos(lo.wpi, lbl_tasks.hwnd(), nullptr, x, y, cb_w, lo.btnh, SWP_NOZORDER);
     x += cb_w + lo.xgap;
     lo.wpi = DeferWindowPos(lo.wpi, btn_run.hwnd(), nullptr, x, y, lo.btnh, lo.btnh, SWP_NOZORDER);
     x += lo.btnh + lo.xgap;
@@ -408,14 +424,20 @@ void UIEditTask::relayout(bool scroll_to_top) {
     reset_scroll(false);
 }
 
-void UIEditTask::on_template_selected() {
-    int idx = cb_tasks.get_selected_index();
+void UIEditTask::on_popup_menu(int idx) {
     clear();
-    if (idx < 0 || idx >= templates.size())
+    menu_tasks.destroy();
+    if (idx < 0 || idx >= templates.size()) {
+        selected_template_index = -1;
+        lbl_tasks.set_text(L"");
         return;
+    }
+    selected_template_index = idx;
+    ai::TaskTemplate& templ = templates[idx];
+    lbl_tasks.set_text(toUtf16(templ.name()));
 
     beginControls();
-    task_ctrl = std::make_unique<TaskCtrl>(this, templates[idx]);
+    task_ctrl = std::make_unique<TaskCtrl>(this, templ);
     task_ctrl->create();
     endControls();
     relayout(true);

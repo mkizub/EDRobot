@@ -1030,8 +1030,8 @@ bool DepartureStep::run() {
             gotoLandingPad(false);
 
             LOG_INFO("Takeoff...");
-            // 20 seconds to leave landing pad
-            timer = utc_timer(25s);
+            // 5-25 seconds to leave landing pad
+            timer = utc_timer(fromSpaceConstruction ? 5s : 25s);
             status = TAKEOFF;
             kbd::send("UI_Down");
             kbd::send("UI_Down");
@@ -1048,8 +1048,8 @@ bool DepartureStep::run() {
         }
         if (!ai::uiState.autopilot) {
             LOG_INFO("Departure autopilot waiting...");
-            // 15 seconds wait autopilot
-            timer = utc_timer(15s);
+            // 5-15 seconds wait autopilot
+            timer = utc_timer(fromSpaceConstruction ? 5s : 15s);
             status = WAIT_AUTOPILOT;
             // wait at least 15 seconds for autopilot to departure
             while (!ai::uiState.autopilot && !timer.expired()) {
@@ -1059,6 +1059,7 @@ bool DepartureStep::run() {
         }
         if (fromCompletedConstruction && !ai::uiState.autopilot) {
             LOG_INFO("Departure from completed construction...");
+            status = THRUST_UP;
             if (st::ship.flags.landing_gear_down) {
                 LOG_DEBUG("EnterCruise: LandingGearToggle");
                 kbd::send("LandingGearToggle");
@@ -1067,7 +1068,7 @@ bool DepartureStep::run() {
         }
         // 4 minutes for departure
         LOG_INFO("Departure: got autopilot");
-        timer = utc_timer(4min);
+        timer = utc_timer(fromSpaceConstruction ? 15s : 4min);
         status = AUTOPILOT;
         setSpeed(0, true, "Departure: got autopilot");
         notAutoPilotCounter = 0;
@@ -1078,6 +1079,12 @@ bool DepartureStep::run() {
         //}
         for (;;) {
             if (timer.expired()) {
+                if (fromSpaceConstruction) {
+                    setSpeed(25, true, "Departure: timer expired, cancel autopilot");
+                    sleep(2000);
+                    setSpeed(0, true, "Departure: timer expired, stop");
+                    break;
+                }
                 notify_error("Autopilot time expired");
                 status = RELOGIN;
                 task->relogin();
@@ -1112,10 +1119,11 @@ bool DepartureStep::run() {
 
     if (fromSpaceConstruction) {
         LOG_DEBUG("Departure: from SpaceConstruction, thrust up");
-        timer = utc_timer(15s);
+        status = THRUST_UP;
+        timer = utc_timer(20s);
         status = LEAVE_DEPOT;
         setSpeed(0,true,"Departure: from SpaceConstruction, thrust up");
-        kbd::send("UpThrustButton", 15000);
+        kbd::send("UpThrustButton", 20000);
     }
 
     kbd::send("TargetNextRouteSystem", 0, 500);
@@ -1218,6 +1226,8 @@ std::string DepartureStep::getStatus() {
             return lc_format("Autopilot exiting: {}", notAutoPilotCounter);
         else
             return lc_format("Autopilot: {}", timer.left());
+    case THRUST_UP:
+        return lc_format("Thust up: {}", timer.left());
     case ORIENT_AWAY:
         return _gt("Orient away from planet");
     case LEAVE_DEPOT:
@@ -1361,13 +1371,17 @@ bool EnterCruiseStep::run() {
         setSpeed(100,false,"EnterCruise: flyAwayFromNearest");
         timer = utc_timer(15s);
         status = FLY_AWAY;
-        while (!timer.expired()) {
-            sleep(1000);
-            if (!st::ship.flags.cruise) {
-                setSpeed(0,false,"EnterCruise: !st::ship.flags.cruise");
-                throw_trouble("Unexpected cruise exit");
+        {
+            CourseLocker course(180);
+            while (!timer.expired()) {
+                sleep(1000);
+                if (!st::ship.flags.cruise) {
+                    setSpeed(0, false, "EnterCruise: !st::ship.flags.cruise");
+                    throw_trouble("Unexpected cruise exit");
+                }
             }
         }
+        sleep(1000);
     }
     Axis::resetAll(true);
 

@@ -13,6 +13,7 @@
 #include "CarrierTasks.h"
 #include "ColonizationTasks.h"
 #include "EmergencyTasks.h"
+#include "ExplorationTasks.h"
 
 namespace ai {
 
@@ -33,6 +34,8 @@ const std::string ED_TASK_TRADE_LOOP = "tsk-trade-loop";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
 const std::string ED_TASK_TRAVEL = "tsk-travel";
 const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
+const std::string ED_TASK_NAV_SCAN_SYSTEMS = "tsk-nav-scan-systems";
+const std::string ED_TASK_EXPL_SYSTEMS_AROUND = "tsk-expl-systems-around";
 
 const std::string ED_TASK_RELOGIN = "tsk-relogin";
 const std::string ED_TASK_RESURRECT = "tsk-resurrect";
@@ -43,6 +46,7 @@ const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS = "tsk-debug-find-all-nav-po
 const std::string ED_TASK_DEBUG_AUTOPILOT = "tsk-debug-autopilot";
 const std::string ED_TASK_DEBUG_SHIP_STATS = "tsk-debug-ship-stats";
 const std::string ED_TASK_DEBUG_EMERGENCY = "tsk-debug-emergency";
+const std::string ED_TASK_DEBUG_EXPLORATION = "tsk-debug-exploration";
 
 static Param dummy_param {};
 Param& TaskTemplate::get(const string& pid) {
@@ -420,52 +424,21 @@ void initTemplates() {
     const js::value OPT {{"optional", true}};
     std::list<TaskTemplate> templates;
     templates.emplace_back(ED_TASK_AUTOPILOT, _lc("Autopilot"), FACTORY(Autopilot));
-    templates.emplace_back(ED_TASK_TRADE_AT, _lc("Trade at station"), FACTORY(TaskTradeAt), P{
-            { Param::Site,     "market", _lc("Market") },
-            { Param::Array,    "tasks",  _lc("Tasks"), META(
-                    R"({optional:true, elements:{type:'Task', values: [
-                        'tsk-market-sell-all', 'tsk-market-sell',
-                        'tsk-market-buy-all', 'tsk-market-buy',
-                        'tsk-market-buy-constr', 'tsk-constr-unload', "tsk-carrier-unload",
-                        'tsk-contact-acquire-ppc', 'tsk-contact-deliver-ppc',
-                    ]}})")},
-    });
     templates.emplace_back(ED_TASK_TRADE_LOOP, _lc("Trade loop"), FACTORY(TradeLoopTask), P{
             { Param::Array, "markets", _lc("Markets"),
               META(R"({elements:{type:'Task', values: ['tsk-trade-at']}})")},
     });
-    templates.emplace_back(ED_TASK_MARKET_SELL_ALL, _lc("Sell everything"), FACTORY(TaskSellAll), P{
-            { Param::Int,   "chunk",  _lc("By chunk"), META("{optional:true, placeholder:'all', max:100}") },
-            { Param::Array, "except", _lc("Except"),   META("{optional:true, elements:{type:'Commodity'}}")},
-    });
-    templates.emplace_back(ED_TASK_MARKET_SELL, _lc("Sell"), FACTORY(TaskSell), P{
-            { Param::Commodity, "commodity", _lc("Commodity") },
-            { Param::Int,       "amount",    _lc("Amount"),   META("{optional:true, placeholder:'all'}") },
-            { Param::Int,       "chunk",     _lc("By chunk"), META("{optional:true, placeholder:'all', max:100}") },
-    });
-    templates.emplace_back(ED_TASK_MARKET_BUY_ALL, _lc("Buy all"), FACTORY(TaskBuyAll), P{
-            { Param::Array,     "commodity", _lc("Commodity"), META("{elements:{type:'Commodity'}}")},
-    });
-    templates.emplace_back(ED_TASK_MARKET_BUY, _lc("Buy"), FACTORY(TaskBuy), P{
-            { Param::Commodity, "commodity", _lc("Commodity") },
-            { Param::Int,       "amount",    _lc("Amount"),   META("{optional:true, placeholder:'all'}") },
-    });
-    templates.emplace_back(ED_TASK_MARKET_BUY_CONSTR, _lc("Buy for construction"), FACTORY(TaskBuyConstr), P{
-            { Param::Site,     "depot",  _lc("Construction depot") },
-            { Param::Bool,     "carrier",_lc("Consider Fleet Carrier")  },
+    templates.emplace_back(ED_TASK_CONSTR_BUILD, _lc("Build constructions"), FACTORY(TaskConstruction), P{
+            { Param::Array,    "depots",  _lc("Construction depots"), META(
+                    R"({elements:{type:'Site'}})")},
+            { Param::Array,    "markets", _lc("Markets"), META(
+                    R"({elements:{type:'Site'}})")},
             { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
-                js::object({{"id", "ListLittleFirst"}, {"name", _lc("Listed, then Little first")}}),
-                js::object({{"id", "ListBulkFirst"}, {"name", _lc("Listed, then Bulk first")}}),
-                js::object({{"id", "ExceptLittleFirst"}, {"name", _lc("Except listed, Little first")}}),
-                js::object({{"id", "ExceptBulkFirst"}, {"name", _lc("Except listed, Bulk first")}}),
-                js::object({{"id", "OnlyLittleFirst"}, {"name", _lc("Only listed, Little first")}}),
-                js::object({{"id", "OnlyBulkFirst"}, {"name", _lc("Only listed, Bulk first")}})
-            })}}), "ListLittleFirst"},
+                js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
+                js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
+                js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
+            })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
-    });
-    templates.emplace_back(ED_TASK_CARRIER_UNLOAD, _lc("Unload cargo to own carrier"), FACTORY(TaskMyCarrierUnload));
-    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload), P{
-            { Param::Bool,     "continue", _lc("Continue task on build complete") },
     });
     templates.emplace_back(ED_TASK_CONSTR_RESERVE, _lc("Fill carrier for constructions"), FACTORY(TaskMyCarrierReserve), P{
             { Param::Site,     "carrier",_lc("My carrier location") },
@@ -480,24 +453,6 @@ void initTemplates() {
             })}}), "FirstListed"},
             { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
     });
-    templates.emplace_back(ED_TASK_CONSTR_BUILD, _lc("Build constructions"), FACTORY(TaskConstruction), P{
-            { Param::Array,    "depots",  _lc("Construction depots"), META(
-                    R"({elements:{type:'Site'}})")},
-            { Param::Array,    "markets", _lc("Markets"), META(
-                    R"({elements:{type:'Site'}})")},
-            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
-                js::object({{"id", "FirstListed"}, {"name", _lc("First listed")}}),
-                js::object({{"id", "ExceptListed"}, {"name", _lc("Except listed")}}),
-                js::object({{"id", "OnlyListed"}, {"name", _lc("Only listed")}}),
-            })}}), "FirstListed"},
-            { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
-    });
-    templates.emplace_back(ED_TASK_ACQUIRE_PPC, _lc("Acquire PowerPlay resource"), FACTORY(TaskAcquirePPC), P{
-            { Param::Commodity, "commodity", _lc("Commodity") },
-    });
-    templates.emplace_back(ED_TASK_DELIVER_PPC, _lc("Deliver PowerPlay resource"), FACTORY(TaskDeliverPPC), P{
-            { Param::Commodity, "commodity", _lc("Commodity") },
-    });
     templates.emplace_back(ED_TASK_TRAVEL, _lc("Travel to dock"), FACTORY(TaskTravel), P{
             { Param::Site,     "dock",   _lc("Dock") },
     });
@@ -511,18 +466,96 @@ void initTemplates() {
                         'tsk-market-buy-constr', 'tsk-constr-unload',
                     ]}})")},
     });
+    templates.emplace_back(ED_TASK_TRADE_AT, _lc("Trade at station"), FACTORY(TaskTradeAt), P{
+            { Param::Site,     "market", _lc("Market") },
+            { Param::Array,    "tasks",  _lc("Tasks"), META(
+                    R"({optional:true, elements:{type:'Task', values: [
+                        'tsk-market-sell-all', 'tsk-market-sell',
+                        'tsk-market-buy-all', 'tsk-market-buy',
+                        'tsk-market-buy-constr', 'tsk-constr-unload', "tsk-carrier-unload",
+                        'tsk-contact-acquire-ppc', 'tsk-contact-deliver-ppc',
+                    ]}})")},
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_MARKET_SELL_ALL, _lc("Sell everything"), FACTORY(TaskSellAll), P{
+            { Param::Int,   "chunk",  _lc("By chunk"), META("{optional:true, placeholder:'all', max:100}") },
+            { Param::Array, "except", _lc("Except"),   META("{optional:true, elements:{type:'Commodity'}}")},
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_MARKET_SELL, _lc("Sell"), FACTORY(TaskSell), P{
+            { Param::Commodity, "commodity", _lc("Commodity") },
+            { Param::Int,       "amount",    _lc("Amount"),   META("{optional:true, placeholder:'all'}") },
+            { Param::Int,       "chunk",     _lc("By chunk"), META("{optional:true, placeholder:'all', max:100}") },
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_MARKET_BUY_ALL, _lc("Buy all"), FACTORY(TaskBuyAll), P{
+            { Param::Array,     "commodity", _lc("Commodity"), META("{elements:{type:'Commodity'}}")},
+            }, META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_MARKET_BUY, _lc("Buy"), FACTORY(TaskBuy), P{
+            { Param::Commodity, "commodity", _lc("Commodity") },
+            { Param::Int,       "amount",    _lc("Amount"),   META("{optional:true, placeholder:'all'}") },
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_MARKET_BUY_CONSTR, _lc("Buy for construction"), FACTORY(TaskBuyConstr), P{
+            { Param::Site,     "depot",  _lc("Construction depot") },
+            { Param::Bool,     "carrier",_lc("Consider Fleet Carrier")  },
+            { Param::Enum,     "mode",   _lc("Mode"), META({{"values", js::array({
+                js::object({{"id", "ListLittleFirst"}, {"name", _lc("Listed, then Little first")}}),
+                js::object({{"id", "ListBulkFirst"}, {"name", _lc("Listed, then Bulk first")}}),
+                js::object({{"id", "ExceptLittleFirst"}, {"name", _lc("Except listed, Little first")}}),
+                js::object({{"id", "ExceptBulkFirst"}, {"name", _lc("Except listed, Bulk first")}}),
+                js::object({{"id", "OnlyLittleFirst"}, {"name", _lc("Only listed, Little first")}}),
+                js::object({{"id", "OnlyBulkFirst"}, {"name", _lc("Only listed, Bulk first")}})
+            })}}), "ListLittleFirst"},
+            { Param::Array,    "commodity", _lc("Commodity"),   META("{optional:true, elements:{type:'Commodity'}}")},
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_CARRIER_UNLOAD, _lc("Unload cargo to own carrier"), FACTORY(TaskMyCarrierUnload),
+            P{},
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_CONSTR_UNLOAD, _lc("Unload cargo at depot"), FACTORY(TaskConstrUnload), P{
+            { Param::Bool,     "continue", _lc("Continue task on build complete") }
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_ACQUIRE_PPC, _lc("Acquire PowerPlay resource"), FACTORY(TaskAcquirePPC), P{
+            { Param::Commodity, "commodity", _lc("Commodity") }
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_DELIVER_PPC, _lc("Deliver PowerPlay resource"), FACTORY(TaskDeliverPPC), P{
+            { Param::Commodity, "commodity", _lc("Commodity") },
+            },
+            META("{group:'Trade'}")
+    );
+    templates.emplace_back(ED_TASK_NAV_SCAN_SYSTEMS, _lc("Scan systems around"), FACTORY(TaskSystemsAround), P{
+            { Param::String,  "system", _lc("Around system"), META("{optional:true, placeholder:'current'}") },
+            },
+            META("{group:'Exploration'}")
+    );
     templates.emplace_back(ED_TASK_DEBUG_FIND_ALL_COMMODITIES, "Debug: find all commodities", FACTORY(TaskDebugFindAllCommodities), P{
             { Param::Bool, "shuffle" },
             { Param::Bool, "dump_images" },
-            { Param::Int,  "start_index", "", OPT },
-    });
+            { Param::Int,  "start_index", "", OPT }
+            },
+            META("{group:'Debug'}")
+    );
     templates.emplace_back(ED_TASK_DEBUG_FIND_ALL_NAV_POINTS, "Debug: find all nav points", FACTORY(TaskDebugFindAllNavPoints), P{
             { Param::Bool, "dump_images" },
             { Param::Int,  "ocr_confidence", "", META({{"max",100}}), 90 },
             { Param::Int,  "txt_confidence", "", META({{"max",100}}), 90 },
             { Param::Bool, "resume" },
-            { Param::Bool, "unfocused" },
-    });
+            { Param::Bool, "unfocused" }
+            },
+            META("{group:'Debug'}")
+    );
     templates.emplace_back(ED_TASK_DEBUG_AUTOPILOT, "Debug: autopilot steps", FACTORY(TaskDebugAutopilot), P{
             { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
                          "Departure", "DockSpaceStation", "DockPlanetPort",
@@ -531,8 +564,10 @@ void initTemplates() {
                          "GalMapNavRoute", "NavDockSelect", "NavBodySelect", "CruiseToDist", "DiveUnderPlanet",
                          "ExitCruiseToSpace", "ExitCruiseToPlanet",
                        ]})")},
-            { Param::String,  "target", _lc("Target"), OPT },
-    });
+            { Param::String,  "target", _lc("Target"), OPT }
+            },
+            META("{group:'Debug'}")
+    );
     templates.emplace_back(ED_TASK_DEBUG_SHIP_STATS, "Debug: ship stats", FACTORY(TaskDebugShipStats), P{
             { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
                          "OrientTowards", "OrientAway", "KeepCourse",
@@ -541,13 +576,27 @@ void initTemplates() {
                        ]})")},
             { Param::Real,    "value",  _lc("Value"),  OPT },
             { Param::Real,    "duration", _lc("Duration"), META({{"min",0},{"optional",true},{"placeholder","seconds"}}) },
-            { Param::Int,     "speed", _lc("Speed"), META({{"min",0},{"max",100},{"optional",true},{"placeholder","percents"}}) },
-    });
+            { Param::Int,     "speed", _lc("Speed"), META({{"min",0},{"max",100},{"optional",true},{"placeholder","percents"}}) }
+            },
+            META("{group:'Debug'}")
+    );
     templates.emplace_back(ED_TASK_DEBUG_EMERGENCY, "Debug: emergency", FACTORY(TaskDebugEmergency), P{
             { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
                          "Relogin", "RebootRepair", "Resurrect",
+                       ]})")}
+            },
+            META("{group:'Debug'}")
+    );
+    templates.emplace_back(ED_TASK_DEBUG_EXPLORATION, "Debug: exploration", FACTORY(TaskDebugExploration), P{
+            { Param::Enum, "test", _lc("Test"), META(R"({placeholder:'select the test', values: [
+                         "ListNearest", "ScanNearest"
                        ]})")},
-    });
+            { Param::String,  "begin", _lc("Route begin"), OPT },
+            { Param::String,  "end", _lc("Route end"), OPT },
+            { Param::Real,    "distance",  _lc("Distance"),  OPT },
+            },
+            META("{group:'Debug'}")
+    );
 
     AllTaskTemplates.swap(templates);
 

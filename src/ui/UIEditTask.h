@@ -19,6 +19,7 @@
 #include <winlamb/resizer.h>
 #include <winlamb/scrollinfo.h>
 
+#include "wl_popup_menu.h"
 #include "wl_svg_button.h"
 
 #include "UIControl.h"
@@ -35,15 +36,15 @@ public:
     const wchar_t* title() const override { return L"EDRobot task editor"; };
     void initialize() override;
     void relayout(bool scroll_to_top=false) override;
+    void on_popup_menu(int idx) override;
     void on_ctrl_edit(int id, WORD msg) override;
     bool validate() const override;
     void clear();
 
-    void init_templ_list(std::string select={});
+    void init_templ_list();
     void on_template_run();
     void on_template_save();
     void on_template_delete();
-    void on_template_selected();
     void validate_callback(bool valid);
 
     ai::TaskTemplate makeTemplate();
@@ -51,8 +52,10 @@ public:
 
 private:
     std::deque<ai::TaskTemplate> templates;
+    int selected_template_index {-1};
 
-    wl::combobox cb_tasks;
+    wl::button     lbl_tasks;
+    wl::menu       menu_tasks;
     wl::svg_button btn_run;
     wl::svg_button btn_save;
     wl::svg_button btn_del;

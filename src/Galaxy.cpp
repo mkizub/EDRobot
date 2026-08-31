@@ -195,6 +195,11 @@ static spStarSystem fromEDDN(const js::value& jsystem, bool saved) {
     ss->starPos.y = jsystem["coords"]["y"].as_real_or();
     ss->starPos.z = jsystem["coords"]["z"].as_real_or();
 
+    if (jsystem["eddn_updated_at"].is_string())
+        parseTimestampString(jsystem["eddn_updated_at"].as_string_or(), ss->eddn_updated_at);
+    if (jsystem["bodyCount"].is_int())
+        ss->game_body_count = jsystem["bodyCount"].as_int_or();
+
     for (auto& jb : jsystem["bodies"].as_array_or()) {
         spEntity body(new Entity);
         if (jb["type"].is_string()) {
@@ -279,6 +284,7 @@ static spStarSystem fromEDDN(const js::value& jsystem, bool saved) {
     }
 
     ss->saved = saved;
+    ss->loaded = true;
     gSystemsByNameCache.insert(ss);
     return ss;
 }
@@ -357,9 +363,12 @@ void StarSystem::save() {
                 {"y", starPos.y},
                 {"z", starPos.z},
                 })},
+            {"bodyCount", game_body_count},
             {"bodies",   jbodies},
             {"stations", jstations},
     };
+    if (eddn_updated_at.time_since_epoch().count() != 0)
+        jout["eddn_updated_at"] = formatTimestampString(eddn_updated_at, false);
     jout["coords"].add_flags(js::force::no_indent);
 
     std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(systemName)));

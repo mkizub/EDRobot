@@ -108,7 +108,7 @@ public:
     std::string getTitle() override;
     std::string getStatus() override;
     enum {
-        READY, GOING_TO_DOCK, REFUEL, TAKEOFF, WAIT_AUTOPILOT, AUTOPILOT, ORIENT_AWAY, LEAVE_DEPOT, MASSLOCKED, FLYAWAY, RELOGIN, DONE
+        READY, GOING_TO_DOCK, REFUEL, TAKEOFF, WAIT_AUTOPILOT, AUTOPILOT, THRUST_UP, ORIENT_AWAY, LEAVE_DEPOT, MASSLOCKED, FLYAWAY, RELOGIN, DONE
     } status {READY};
 
     gal::spEntity fromDock;

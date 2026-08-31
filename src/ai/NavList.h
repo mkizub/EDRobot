@@ -74,6 +74,18 @@ public:
     NavList nl;
 };
 
+class NavListScanSystemsTask : public Task {
+public:
+    NavListScanSystemsTask(const TaskTemplate& templ);
+    bool run() final;
+
+    NavList nl;
+    enum {
+        READY, DONE
+    } status {READY};
+    std::vector<gal::spStarSystem> foundSystems;
+};
+
 } // namespace ai
 
 #endif //EDROBOT_NAVLIST_H

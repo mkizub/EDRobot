@@ -8,6 +8,7 @@
 namespace Spansh {
     gal::spStarSystem loadStarSystem(const std::string& systemName);
     gal::spStarSystem loadStarSystem(int64_t systemAddress);
+    std::vector<gal::spStarSystem> listNearestSystems(const std::string& systemBegin, const std::string& systemEnd, double distance);
 }
 
 #endif //EDROBOT_SPANSH_H

@@ -91,15 +91,21 @@ UIControl::UIControl(bool scrollable) {
         return 0;
     });
 
-    on_message(WM_MENUCOMMAND, [](wl::params params) {
-        int idx = params.wParam;
+    on_message(WM_MENUCOMMAND, [this](wl::params params) {
         HMENU hMenu = (HMENU)params.lParam;
+        int itemID = GetMenuItemID(hMenu, params.wParam);
         MENUINFO mi {sizeof(MENUINFO), MIM_MENUDATA|MIM_HELPID|MIM_STYLE};
         BOOL ok = GetMenuInfo(hMenu, &mi);
-        if (!ok || mi.dwContextHelpID != wl::popup_menu_id || !mi.dwMenuData)
+        if (!ok || !mi.dwMenuData)
             return 0;
-        auto* pm = reinterpret_cast<wl::popup_menu*>(mi.dwMenuData);
-        pm->apply(idx);
+        if (mi.dwContextHelpID == UIControl::popup_menu_id) {
+            assert (mi.dwMenuData == (ULONG_PTR)this);
+            this->on_popup_menu(itemID);
+        }
+        if (mi.dwContextHelpID == wl::popup_menu_id) {
+            auto *pm = reinterpret_cast<wl::popup_menu *>(mi.dwMenuData);
+            pm->apply(itemID);
+        }
         return 0;
     });
     on_message(WM_MENUSELECT, [this](wl::params params) {

@@ -60,15 +60,15 @@ bool loadEDDB() {
     gEDDBFull = parseJsonFile(L"eddb.json5");
     if (!gEDDBFull)
         return false;
-    for (auto& ship : gEDDBFull["ship"].as_array()) {
+    for (auto& [key, ship] : gEDDBFull["ship"].as_object()) {
         std::string fdname = toLower(ship["fdname"].as_string());
         gEDDBShips.emplace(fdname, ship);
-        for (auto& module : ship["module"].as_array()) {
+        for (auto& [mkey, module] : ship["module"].as_object()) {
             fdname = toLower(module["fdname"].as_string());
             gEDDBModules.emplace(fdname, module);
         }
     }
-    for (auto& module : gEDDBFull["module"].as_array()) {
+    for (auto& [key, module] : gEDDBFull["module"].as_object()) {
         auto jn = module["fdname"];
         if (jn.is_string())
             gEDDBModules.emplace(toLower(jn.as_string()), module);

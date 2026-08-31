@@ -261,27 +261,48 @@ NavType* NavType::findNavType(TypeNav tp) {
     return nullptr;
 }
 
+static std::string STR_COLONIZATION_SHIP("$EXT_PANEL_ColonisationShip;");
+static std::string STR_COLONIZATION_SHIP_IDX("$EXT_PANEL_ColonisationShip:#index");
+static std::string STR_COLONIZATION_BEACON_IDX("$EXT_PANEL_ColonisationBeacon_Site:#index");
+static std::string STR_COLONIZATION_SITE_IDX("$EXT_PANEL_ColonisationBeacon_DeploymentSite;");
+static std::string STR_MODULE_INACTIVE("$INT_PANEL_module_inactive;");
 bool NavType::expandName(const std::string nm, std::string& name, std::string& nloc) {
     // $INT_PANEL_module_inactive; -> НЕАКТИВНО
-    if (nm.starts_with("$EXT_PANEL_ColonisationShip;")) {
-        name = "System Colonisation Ship" + nm.substr(28);
+    if (nm.starts_with(STR_COLONIZATION_SHIP)) {
+        name = "System Colonisation Ship" + nm.substr(STR_COLONIZATION_SHIP.length());
         nloc = nm;
         if (st::lng == Lang::RU)
-            nloc = "Колонизационный корабль" + nm.substr(28);
+            nloc = "Колонизационный корабль" + nm.substr(STR_COLONIZATION_SHIP.length());
+        auto pos = name.find(STR_MODULE_INACTIVE);
+        if (pos != std::string::npos) {
+            name.replace(pos, STR_MODULE_INACTIVE.length(), "INACTIVE");
+            if (st::lng == Lang::RU) {
+                pos = nloc.find(STR_MODULE_INACTIVE);
+                if (pos != std::string::npos)
+                    nloc.replace(pos, STR_MODULE_INACTIVE.length(), "НЕАКТИВНО");
+            }
+        }
         return true;
     }
-    if (nm.starts_with("$EXT_PANEL_ColonisationShip:#index")) {
+    if (nm.starts_with(STR_COLONIZATION_SHIP_IDX)) {
         name = "System Colonisation Ship";
         nloc = nm;
         if (st::lng == Lang::RU)
             nloc = "Колонизационный корабль";
         return true;
     }
-    if (nm.starts_with("$EXT_PANEL_ColonisationBeacon_Site:#index")) {
+    if (nm.starts_with(STR_COLONIZATION_BEACON_IDX)) {
         name = "System Colonisation Beacon";
         nloc = nm;
         if (st::lng == Lang::RU)
             nloc = "Маяк колонизации системы";
+        return true;
+    }
+    if (nm.starts_with(STR_COLONIZATION_SITE_IDX)) {
+        name = "System Colonisation Beacon Deployment Site";
+        nloc = nm;
+        if (st::lng == Lang::RU)
+            nloc = "Место размещения маяка";
         return true;
     }
     //"$EXT_PANEL_ColonisationBeacon_DeploymentSite;" "Место размещения маяка"

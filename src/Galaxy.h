@@ -39,6 +39,9 @@ struct StarSystem {
     const int64_t systemAddress;
     const std::string systemName;
     cv::Point3d starPos;
+    Timestamp eddn_updated_at {};
+    int game_body_count {};
+    bool loaded {};
 
     std::vector<spEntity> bodies;
     std::vector<spEntity> stations;

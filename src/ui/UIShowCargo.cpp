@@ -238,18 +238,14 @@ void UIShowCargo::on_cargo_save() {
         return;
     }
 
-    auto cargo = jv["cargo"];
-    js::value diff = js::object({});
+    auto raven_cargo = jv["cargo"];
+    js::value my_cargo = js::object({});
     for (auto c : Cfg.getAllKnownCommodities()) {
-        if (!cargo[c->nameId].empty()) {
-            if (c->fc.count != cargo[c->nameId].as_int())
-                diff[c->nameId] = c->fc.count;
-        }
-        else if (c->fc.count != 0)
-            diff[c->nameId] = c->fc.count;
+        if (!raven_cargo[c->nameId].empty() || c->fc.count != 0)
+            my_cargo[c->nameId] = c->fc.count;
     }
-    if (!diff.empty())
-        RavenColonial::carrierPostCargo(st::cmdr.fleetCarrierId, diff);
+    if (!my_cargo.empty() || !raven_cargo.empty())
+        RavenColonial::carrierPostCargo(st::cmdr.fleetCarrierId, my_cargo);
 }
 
 FullCargoCtrl::FullCargoCtrl(UIShowCargo* ui, Commodity* commodity)
@@ -440,12 +436,21 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
     if (changed == btn_fc_save.hwnd() && msg == BN_CLICKED) {
         ui->on_cargo_save();
     }
+
     if (changed != dl.hwnd())
         return;
+    if (msg == EN_SETFOCUS) {
+        PostMessage(dl.hwnd(), EM_SETSEL, (WPARAM)0, (LPARAM)-1);
+        return;
+    }
     if (msg == CBN_SELENDOK)
         text = dl.get_text();
     else
         text = dl.get_text();
+
+    text = dl.get_text();
+    dl.auto_drop(ui->hwnd());
+
     bool can_add = false;
     auto* c = Cfg.getCommodityByName(text, false);
     if (c) {
@@ -462,19 +467,6 @@ void NewCargoCtrl::on_ctrl_edit(HWND changed, WORD msg) {
         dl.remove_all();
         return;
     }
-//    std::set<std::wstring> new_set;
-//    std::wstring text_l = toLower(text);
-//    for (auto* c : Cfg.getAllKnownCommodities()) {
-//        if (toUtf16(c->nameId).starts_with(text_l))
-//            new_set.insert(c->wide);
-//        else if (!c->translation[int(Lang::EN)].empty() && toUtf16(toLower(c->translation[int(Lang::EN)])).starts_with(text_l))
-//            new_set.insert(c->wide);
-//        else if (st::lng != Lang::EN && !c->translation[int(st::lng)].empty() && toLower(toUtf16(c->translation[int(st::lng)])).starts_with(text_l))
-//            new_set.insert(c->wide);
-//    }
-//    dl.set_list(new_set);
-//    if (dl.count() <= 10)
-//        SendMessage(dl.hwnd(), CB_SHOWDROPDOWN, TRUE, 0);
 }
 
 bool NewCargoCtrl::validate(bool *changed) {

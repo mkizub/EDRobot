@@ -19,8 +19,8 @@ struct Param {
     Type              type;
     std::string       id;
     std::string       nm;
-    js::value    meta;
-    js::value    value;
+    js::value         meta;
+    js::value         value;
 
     std::string name() const;
     std::string placeholder() const;
@@ -43,10 +43,11 @@ struct Param {
 
 struct TaskTemplate {
     typedef std::function<Task*(const TaskTemplate& templ)> factory_t;
-    std::string id;
-    std::string nm;
-    factory_t factory;
-    std::vector<Param> params;
+    std::string         id;
+    std::string         nm;
+    factory_t           factory;
+    std::vector<Param>  params;
+    js::value           meta;
 
     Param& get(const string& pid);
     const Param& get(const string& pid) const;
@@ -79,7 +80,9 @@ extern const std::string ED_TASK_TRADE_AT;          // sell/buy at specified doc
 extern const std::string ED_TASK_TRADE_LOOP;        // trade loop between stations
 extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination
 extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
-extern const std::string ED_TASK_NAV_SCAN;          // san navigation map
+extern const std::string ED_TASK_NAV_SCAN;          // scan navigation panel
+extern const std::string ED_TASK_NAV_SCAN_SYSTEMS;  // scan systems in navigation panel
+extern const std::string ED_TASK_EXPL_SYSTEMS_AROUND; // explore systems around specified system
 
 extern const std::string ED_TASK_RELOGIN;           // relogin
 extern const std::string ED_TASK_RESURRECT;         // resurrect on death
@@ -90,6 +93,7 @@ extern const std::string ED_TASK_DEBUG_FIND_ALL_NAV_POINTS;
 extern const std::string ED_TASK_DEBUG_AUTOPILOT;
 extern const std::string ED_TASK_DEBUG_SHIP_STATS;
 extern const std::string ED_TASK_DEBUG_EMERGENCY;
+extern const std::string ED_TASK_DEBUG_EXPLORATION;
 
 } // namespace ai
 

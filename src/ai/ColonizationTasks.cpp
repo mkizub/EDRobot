@@ -368,7 +368,7 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
                 continue;
             if ((demands.firstListed || demands.onlyListed) && demands.specialCommodities.contains(c))
                 listed = true;
-            need[c] -= toBuy;
+            //need[c] -= toBuy;
             mi.canBuy[depotIdx] = toBuy;
             if (listed)
                 mi.canBuyListed[depotIdx] = toBuy;
@@ -449,7 +449,7 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
                 bi.order = 1000;
             else
                 bi.order = 2000;
-            bi.dp_buy = demands.toDeliver.at(bi.commodity).count[depotIdx];
+            bi.dp_buy = demands.toDeliver.at(bi.commodity).to_buy_at(depotIdx);
             if (bi.dp_buy <= 0)
                 bi.dp_buy = INT_MAX;
         }
@@ -462,7 +462,7 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
             if (freeCargoSpace <= 0)
                 break;
             int canBuy = canBuyAtMarket(market, bi.commodity);
-            int buyMore = std::min({canBuy, freeCargoSpace, demands.toDeliver.at(bi.commodity).count[depotIdx]});
+            int buyMore = std::min({canBuy, freeCargoSpace, demands.toDeliver.at(bi.commodity).to_buy_at(depotIdx)});
             if (buyMore > 0) {
                 bi.buy += buyMore;
                 freeCargoSpace -= buyMore;
