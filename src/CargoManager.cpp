@@ -62,7 +62,7 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
         std::set<Commodity*> eventCargo;
         auto items = ge->data["Inventory"].as_array_or();
         for (auto &item: items) {
-            auto name = item["Name"].as_string();
+            auto name = item["Name"].as_string_or();
             if (name.empty()) {
                 LOG(ERROR) << "Bad cargo item name: " << name;
                 continue;
@@ -72,12 +72,12 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
                 LOG(ERROR) << "Unknown cargo item name: " << name << ", adding to dummy category";
                 std::array<std::string, 2> translation;
                 if (st::lng == Lang::EN)
-                    translation = {item.at("Name_Localised").as_string(), ""};
+                    translation = {*item.at("Name_Localised").as_string(), ""};
                 if (st::lng == Lang::RU)
-                    translation = {"", item.at("Name_Localised").as_string()};
+                    translation = {"", *item.at("Name_Localised").as_string()};
                 c = &Cfg.getOrAddCommodity({
                     .intId = 0,
-                    .nameId = name,
+                    .nameId = *name,
                     .category = Cfg.getCommodityCategoryById(0),
                     .translation = translation,
                     .rare = false
@@ -98,7 +98,7 @@ bool CargoManager::loadShipCargo(spGameEvent ge) {
             .cargo = std::vector(eventCargo.begin(), eventCargo.end()),
             .timestamp = file_timestamp,
             .count = (int)ge->data["Count"].as_int_or(),
-            .vessel = ge->data["Vessel"].as_string_or(),
+            .vessel = *ge->data["Vessel"].as_string_or(),
             }));
         timestampShip = file_timestamp;
     }
@@ -126,7 +126,7 @@ bool CargoManager::loadCarrierCargo() {
         std::set<Commodity*> savedCargo;
         auto items = j_cargo.at("Cargo").as_array();
         for (auto &item: items) {
-            auto name = item["Name"].as_string();
+            auto name = item["Name"].as_string_or();
             if (name.empty()) {
                 LOG(ERROR) << "Bad cargo item name: " << name;
                 continue;
@@ -293,7 +293,7 @@ bool CargoManager::processColonisationContribution(spGameEvent ge) {
 
     std::scoped_lock<std::mutex> lock(cargoMutex);
     for (auto& jc : je["Contributions"].as_array_or()) {
-        auto name = jc["Name"].as_string_or();
+        auto name = *jc["Name"].as_string_or();
         int amount = jc["Amount"].as_int_or();
         if (name.empty() || name[0] != '$' || !name.ends_with("_name;") || amount <= 0)
             continue;

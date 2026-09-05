@@ -20,7 +20,7 @@ public:
     virtual ~RavenColonial();
 
     static gal::spEntity importConstructionProject(
-            const std::string& systemName, const std::string& fullName, const std::string& shortName);
+            std::string_view systemName, std::string_view fullName, std::string_view shortName);
 
     static bool linkCmdr(int64_t marketId);
     static js::value carrierGetCargo(int64_t marketId);

@@ -285,7 +285,7 @@ void event_Market(spGameEvent &ge) {
 
     auto& arr = j["commodities"].as_array();
     for (auto& c : je["Items"].as_array_or()) {
-        std::string name = c["Name"].as_string();
+        auto name = c["Name"].as_string();
         name = name.substr(1, name.size() - 7); // "$ ... _name;"
         if (name == "drones")
             continue;

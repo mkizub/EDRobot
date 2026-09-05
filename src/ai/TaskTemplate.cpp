@@ -95,7 +95,7 @@ bool Param::operator==(const Param& other) const {
 }
 
 bool Param::set(const js::value& val, bool silent) {
-    if (val.is_null() || (val.is_string() && val.as_string().empty())) {
+    if (val.is_null() || (val.is_string() && val.empty())) {
         value = nullptr;
         return true;
     }
@@ -120,7 +120,7 @@ bool Param::set(const js::value& val, bool silent) {
         break;
     case Enum:
         if (val.is_string()) {
-            auto& text = val.as_string();
+            auto text = val.as_string();
             auto arr = meta["values"].as_array();
             for (auto v: arr) {
                 if (v.is_string() && text == v.as_string()) {
@@ -155,7 +155,7 @@ bool Param::set(const js::value& val, bool silent) {
             return true;
         }
         if (val.is_string()) {
-            auto& str = val.as_string();
+            auto str = val.as_string();
             int64_t result = 0;
             if (parseInt(str, result)) {
                 value = result;
@@ -169,7 +169,7 @@ bool Param::set(const js::value& val, bool silent) {
             return true;
         }
         if (val.is_string()) {
-            auto& str = val.as_string();
+            auto str = val.as_string();
             double result = 0;
             if (parseReal(str, result)) {
                 value = result;
@@ -191,7 +191,7 @@ bool Param::set(const js::value& val, bool silent) {
         break;
     case Commodity:
         if (val.is_string()) {
-            auto& text = val.as_string();
+            auto text = val.as_string();
             auto* commodity = Cfg.getCommodityByName(text, false);
             if (commodity) {
                 value = commodity->nameId;
@@ -246,7 +246,7 @@ std::string Param::name() const {
 
 std::string Param::placeholder() const {
     if (meta["placeholder"].is_string())
-        return gettext(meta["placeholder"].as_string().c_str());
+        return gettext(meta["placeholder"].as_string().data());
     return {};
 }
 
@@ -283,7 +283,7 @@ double Param::as_number() const {
 }
 std::string Param::as_string() const {
     if (value.is_string())
-        return value.as_string();
+        return *value.as_string();
     if (value.is_null())
         return {};
     if (value.is_int())
@@ -296,7 +296,7 @@ std::string Param::as_string() const {
 }
 ::Commodity* Param::as_commodity() const {
     if (value.is_string()) {
-        auto& text = value.as_string();
+        auto text = value.as_string();
         return Cfg.getCommodityByName(text, false);
     }
     return nullptr;
@@ -307,7 +307,7 @@ bool Param::valid() const {
     if (empty() && optional())
         return true;
     bool valid = false;
-    std::string text;
+    std::string_view text;
     try {
         switch (type) {
         case Param::Void:
@@ -357,7 +357,7 @@ bool Param::valid() const {
             break;
         case Param::String:
             if (value.is_string())
-                valid = !value.as_string().empty();
+                valid = !value.empty();
             break;
         case Param::Site:
             if (value.is_object()) {
@@ -604,7 +604,7 @@ void initTemplates() {
 }
 
 TaskTemplate TaskTemplate::loadTask(const js::value& j_task) {
-    auto &templ_id = j_task.at("templ", "").as_string();
+    auto templ_id = j_task["templ"].as_string_or();
     const TaskTemplate *templ_ptr = nullptr;
     for (auto &tt: AllTaskTemplates) {
         if (tt.id == templ_id) {
@@ -659,8 +659,11 @@ void TaskTemplate::saveUserTasks() {
             {"name", tt.nm},
         });
         for (auto& p : tt.params) {
-            if (p.value.is_array())
-                std::erase_if(p.value.as_array(),[](auto& v) { return v.empty(); });
+            if (p.value.is_array()) {
+                auto& arr = p.value.as_array();
+                arr.erase(std::remove_if(arr.begin(), arr.end(), [](auto &v) { return v.empty(); }),
+                          arr.end());
+            }
             if (p.empty())
                 continue;
             jt[p.id] = p.value;

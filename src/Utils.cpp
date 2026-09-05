@@ -79,37 +79,37 @@ std::string textFromClipboard() {
 std::string trim(const char* source) {
     if (!source || !*source)
         return {};
-    return trim(std::string(source));
+    return trim(std::string_view(source));
 }
-std::string trim(const std::string & source) {
+std::string trim(std::string_view source) {
     std::string s(source);
     s.erase(0,s.find_first_not_of(" \n\r\t"));
     s.erase(s.find_last_not_of(" \n\r\t")+1);
     return s;
 }
 
-std::wstring trim(const std::wstring & source) {
+std::wstring trim(std::wstring_view source) {
     std::wstring s(source);
     s.erase(0,s.find_first_not_of(L" \n\r\t"));
     s.erase(s.find_last_not_of(L" \n\r\t")+1);
     return s;
 }
 
-std::string trimWithPunktuation(const std::string & source) {
+std::string trimWithPunktuation(std::string_view source) {
     std::string s(source);
     s.erase(0,s.find_first_not_of(" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>?"));
     s.erase(s.find_last_not_of(" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>?")+1);
     return s;
 }
 
-std::wstring trimWithPunktuation(const std::wstring & source) {
+std::wstring trimWithPunktuation(std::wstring_view source) {
     std::wstring s(source);
     s.erase(0,s.find_first_not_of(L" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>«»?"));
     s.erase(s.find_last_not_of(L" \n\r\t.,`~!@#$%^&*()-+=[]{}:;\'\"|\\<>«»?")+1);
     return s;
 }
 
-std::string trimTextLine(const std::string & source) {
+std::string trimTextLine(std::string_view source) {
     std::string s(source);
     s.erase(0,s.find_first_not_of(" \n\r\t"));
     s.erase(s.find_last_not_of(" \n\r\t")+1);
@@ -119,7 +119,7 @@ std::string trimTextLine(const std::string & source) {
     return s;
 }
 
-std::wstring trimTextLine(const std::wstring & source) {
+std::wstring trimTextLine(std::wstring_view source) {
     std::wstring s(source);
     s.erase(0,s.find_first_not_of(L" \n\r\t"));
     s.erase(s.find_last_not_of(L" \n\r\t")+1);
@@ -140,38 +140,38 @@ std::string toUtf8(const wchar_t* buffer, size_t size) {
     std::string utf8_string = converter.to_bytes(buffer, buffer+size);
     return utf8_string;
 }
-std::string toUtf8(const std::wstring& str) {
-    return toUtf8(str.c_str(), str.size());
+std::string toUtf8(std::wstring_view str) {
+    return toUtf8(str.data(), str.size());
 }
 std::wstring toUtf16(const char* buffer, size_t size) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
     std::wstring utf16_string = converter.from_bytes(buffer, buffer+size);
     return utf16_string;
 }
-std::wstring toUtf16(const std::string& str) {
-    return toUtf16(str.c_str(), str.size());
+std::wstring toUtf16(std::string_view str) {
+    return toUtf16(str.data(), str.size());
 }
 
-std::string toLower(const std::string& str) {
-    std::string lower = str;
+std::string toLower(std::string_view str) {
+    std::string lower(str);
     std::transform(lower.begin(), lower.end(), lower.begin(),[](unsigned char c){ return std::tolower(c); });
     return lower;
 }
-std::string toUpper(const std::string& str) {
-    std::string upper = str;
+std::string toUpper(std::string_view str) {
+    std::string upper(str);
     std::transform(upper.begin(), upper.end(), upper.begin(),[](unsigned char c){ return std::toupper(c); });
     return upper;
 }
 
-std::wstring toLower(const std::wstring& str) {
+std::wstring toLower(std::wstring_view str) {
     if (str.empty())
-        return str;
+        return {};
     std::wstring lower;
     lower.resize(str.length() + 2);
     int result_size = LCMapStringEx(
             LOCALE_NAME_SYSTEM_DEFAULT,
             LCMAP_LOWERCASE,
-            str.c_str(),
+            str.data(),
             static_cast<int>(str.length()),
             lower.data(),
             static_cast<int>(lower.length()),
@@ -180,18 +180,18 @@ std::wstring toLower(const std::wstring& str) {
     if (result_size > 0)
         lower.resize(result_size);
     else
-        return str;
+        return std::wstring(str);
     return lower;
 }
-std::wstring toUpper(const std::wstring& str) {
+std::wstring toUpper(std::wstring_view str) {
     if (str.empty())
-        return str;
+        return {};
     std::wstring upper;
     upper.resize(str.length() + 2);
     int result_size = LCMapStringEx(
             LOCALE_NAME_SYSTEM_DEFAULT,
             LCMAP_UPPERCASE,
-            str.c_str(),
+            str.data(),
             static_cast<int>(str.length()),
             upper.data(),
             static_cast<int>(upper.length()),
@@ -200,11 +200,11 @@ std::wstring toUpper(const std::wstring& str) {
     if (result_size > 0)
         upper.resize(result_size);
     else
-        return str;
+        return std::wstring(str);
     return upper;
 }
 
-bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2) {
+bool equalsIgnoreCase(std::string_view str1, std::string_view str2) {
     if (str1.length() != str2.length())
         return false;
 
@@ -402,10 +402,10 @@ std::string formatTimestampString(Timestamp timestamp, bool nanos) {
     return std::format("{:%Y-%m-%dT%H:%M:%S}Z", timestamp);
 }
 
-bool parseTimestampString(const std::string& str, Timestamp& timestamp) {
+bool parseTimestampString(std::string_view str, Timestamp& timestamp) {
     if (str.empty())
         return false;
-    std::istringstream iss(str);
+    std::istringstream iss(*str);
     if (str.size() >= 20 && str[10] == 'T') {
         if (str[str.size()-1] == 'Z')
             iss >> std::chrono::parse("%FT%TZ", timestamp);
@@ -624,21 +624,21 @@ int parseDistTime(std::wstring dist) {
     return tsec;
 }
 
-bool parseInt(const std::string& str, int64_t& out) {
+bool parseInt(std::string_view str, int64_t& out) {
     if (str.empty())
         return false;
-    auto* bgn = str.c_str();
+    auto* bgn = str.data();
     auto* end = bgn + str.size();
-    std::from_chars_result res = std::from_chars(str.c_str(), str.c_str()+str.size(), out);
+    std::from_chars_result res = std::from_chars(str.data(), str.data()+str.size(), out);
     return res.ec == std::errc{} && res.ptr == end;
 }
 
-bool parseReal(const std::string& str, double& out) {
+bool parseReal(std::string_view str, double& out) {
     if (str.empty())
         return false;
-    auto* bgn = str.c_str();
+    auto* bgn = str.data();
     auto* end = bgn + str.size();
-    std::from_chars_result res = std::from_chars(str.c_str(), str.c_str()+str.size(), out);
+    std::from_chars_result res = std::from_chars(str.data(), str.data()+str.size(), out);
     return res.ec == std::errc{} && res.ptr == end;
 }
 

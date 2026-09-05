@@ -13,6 +13,7 @@
 #include <initializer_list>
 
 #include "internal/impl.h"
+#include "../compact_vector.h"
 
 namespace js {
 
@@ -55,7 +56,7 @@ private:
 #ifndef NDEBUG
             std::memset(buff, 0, sizeof(buff));
 #endif
-            index = (unsigned char)std::clamp(idx, 0, 255);
+            index = (unsigned char)std::clamp(idx, 0, 0x7FFFFF);
             if (sv.empty()) {
                 length = 0;
                 buff[0] = 0;
@@ -132,6 +133,118 @@ private:
         }
     };
 #pragma pack(pop)
+    struct str_val {
+        union {
+            struct {
+                unsigned char length;
+                char buff[7 + 8 + 8];
+            } small;
+            struct {
+                uint32_t dummy;
+                uint32_t length;
+                const char *ptr;
+            } large;
+        };
+        str_val(std::string_view sv) {
+#ifndef NDEBUG
+            std::memset(small.buff, 0, sizeof(small.buff));
+#endif
+            if (sv.empty()) {
+                small.length = 0;
+                small.buff[0] = 0;
+            }
+            else if (sv.size() < sizeof(small.buff)) {
+                small.length = sv.size();
+                strncpy_s(small.buff, sizeof(small.buff), sv.data(), sv.size());
+            }
+            else {
+                small.length = 255;
+                large.length = sv.size();
+                auto* tmp = (char*)malloc(sv.size()+1);
+                strncpy_s(tmp, sv.size()+1, sv.data(), sv.size());
+                large.ptr = tmp;
+            }
+        }
+        str_val(const str_val& other) {
+            if (other.small.length == 0) {
+                small.length = 0;
+                small.buff[0] = 0;
+            }
+            else if (other.small.length < sizeof(small.buff)) {
+                small.length = other.small.length;
+                strncpy_s(small.buff, sizeof(small.buff), other.small.buff, other.small.length);
+            }
+            else {
+                small.length = 255;
+                large.length = other.large.length;
+                auto* tmp = (char*)malloc(large.length+1);
+                strncpy_s(tmp, large.length+1, other.large.ptr, large.length);
+                large.ptr = tmp;
+            }
+        }
+        str_val(str_val&& other) {
+            if (other.small.length == 0) {
+                small.length = 0;
+                small.buff[0] = 0;
+            }
+            else if (other.small.length < sizeof(small.buff)) {
+                small.length = other.small.length;
+                strncpy_s(small.buff, sizeof(small.buff), other.small.buff, other.small.length);
+            }
+            else {
+                small.length = 255;
+                large.length = other.large.length;
+                large.ptr = other.large.ptr;
+                other.small.length = 0;
+            }
+        }
+        str_val& operator=(const str_val& other) {
+            if (this == &other)
+                return *this;
+            if (other.small.length == 0) {
+                small.length = 0;
+                small.buff[0] = 0;
+            }
+            else if (other.small.length < sizeof(small.buff)) {
+                small.length = other.small.length;
+                strncpy_s(small.buff, sizeof(small.buff), other.small.buff, other.small.length);
+            }
+            else {
+                small.length = 255;
+                large.length = other.large.length;
+                auto* tmp = (char*)malloc(large.length+1);
+                strncpy_s(tmp, large.length+1, other.large.ptr, large.length);
+                large.ptr = tmp;
+            }
+            return *this;
+        }
+
+        ~str_val() {
+            if (small.length >= sizeof(small.buff))
+                free((void *) large.ptr);
+        }
+        operator const char*() const {
+            if (small.length >= sizeof(small.buff))
+                return large.ptr;
+            return small.buff;
+        }
+        operator std::string_view() const {
+            if (small.length >= sizeof(small.buff))
+                return {large.ptr, large.length};
+            return {small.buff, small.length};
+        }
+        bool operator==(const obj_key& other) const {
+            return this->operator std::string_view() == other.operator std::string_view();
+        }
+        bool operator<(const obj_key& other) const {
+            const char* p1 = this->operator const char *();
+            const char* p2 = other.operator const char *();
+            return strcmp(p1, p2) < 0;
+        }
+        bool empty() const {
+            return small.length == 0;
+        }
+    };
     struct obj_val {
         using map_type = std::map<obj_key, value>;
 
@@ -150,7 +263,7 @@ private:
         }
     };
     struct arr_val {
-        using arr_type = std::vector<value>;
+        using arr_type = compact_vector<value>;
 
         arr_type arr;
         unsigned short force_flags {};
@@ -173,12 +286,11 @@ public:
     using integer_type = int64_t;
     using unsigned_type = uint64_t;
     using floating_type = double;
-    using string_type = std::string;
-    using string_p_type = const char*;
-    using array_type = arr_val;
-    using object_type = obj_val;
+    using string_type = std::string_view;
+    using array_type = compact_vector<value>;
+    using object_type = std::map<obj_key, value>;
     using pair_type = std::pair<std::string_view,value>;
-    using json_type = std::string;
+    using key_type = str_val;
 
     /*================================================================================
      * Construction
@@ -225,25 +337,25 @@ public:
      * @brief JSON value constructor for "string" type.
      * @param val A string value to be set.
      */
-    constexpr value(std::string_view val) : content(string_type(val)) {}
+    constexpr value(std::string_view val) : content(str_val(val)) {}
 
     /**
      * @brief JSON value constructor for "string" type.
      * @param val A string value to be set.
      */
-    constexpr value(const string_type& val) : content(val) {}
+    constexpr value(const std::string& val) : content(str_val(val)) {}
 
     /**
      * @brief JSON value constructor for "string" type. (const char* version)
      * @param val A string value to be set.
      */
-    constexpr value(string_p_type val) : content(string_type(val)) {}
+    constexpr value(const char* val) : content(str_val(val)) {}
 
     /**
      * @brief JSON value constructor for "array" type.
      * @param elements An initializer list of elements.
      */
-    constexpr explicit value(std::initializer_list<value> elements) : content(array_type()) {
+    constexpr explicit value(std::initializer_list<value> elements) : content(arr_val()) {
         if (elements.size() > 0) {
             auto &av = std::get<TYPE_ARRAY>(content);
             av.arr.reserve(elements.size());
@@ -257,7 +369,7 @@ public:
      * @brief JSON value constructor with key,value pair for "object" type.
      * @param elements An initializer list of key,value pair.
      */
-    constexpr explicit value(std::initializer_list<pair_type> elements) : content(object_type()) {
+    constexpr explicit value(std::initializer_list<pair_type> elements) : content(obj_val()) {
         if (elements.size() > 0) {
             auto &ov = std::get<TYPE_OBJECT>(content);
             for (auto &el: elements) {
@@ -476,48 +588,25 @@ public:
     }
 
     /**
-     * @brief Cast to string
+     * @brief Cast to string view
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] const string_type& as_string() const
+    [[nodiscard]] value::string_type as_string() const
     {
         return std::get<TYPE_STRING>(content);
     }
 
     /**
-     * @brief Cast to string reference
-     *
-     * @throws std::bad_variant_access if the value is not a number nor integer
-     */
-    [[nodiscard]] string_type& as_string()
-    {
-        return std::get<TYPE_STRING>(content);
-    }
-
-    /**
-     * @brief Cast to string reference
-     *
-     * @return emoty string if not a string
-     */
-    [[nodiscard]] const string_type& as_string_or() const noexcept
-    {
-        if (is_string())
-            return std::get<TYPE_STRING>(content);
-        static string_type dummy;
-        return dummy;
-    }
-
-    /**
-     * @brief Cast to string reference
+     * @brief Cast to string view
      *
      * @return default value if not a string
      */
-    [[nodiscard]] string_type as_string_or(std::string_view default_value) const noexcept
+    [[nodiscard]] value::string_type as_string_or(std::string_view default_value={}) const noexcept
     {
         if (is_string())
             return std::get<TYPE_STRING>(content);
-        return string_type(default_value);
+        return default_value;
     }
 
     /**
@@ -525,7 +614,7 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] const std::vector<value>& as_array() const
+    [[nodiscard]] const value::array_type& as_array() const
     {
         return std::get<TYPE_ARRAY>(content).arr;
     }
@@ -535,7 +624,7 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] std::vector<value>& as_array()
+    [[nodiscard]] value::array_type& as_array()
     {
         return std::get<TYPE_ARRAY>(content).arr;
     }
@@ -543,11 +632,11 @@ public:
     /**
      * @brief Cast to array, return [] if not array
      */
-    [[nodiscard]] const std::vector<value>& as_array_or() const noexcept
+    [[nodiscard]] const value::array_type& as_array_or() const noexcept
     {
         if (is_array())
             return std::get<TYPE_ARRAY>(content).arr;
-        static std::vector<value> dummy;
+        static value::array_type dummy;
         return dummy;
     }
 
@@ -556,7 +645,7 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a object
      */
-    [[nodiscard]] const std::map<obj_key, value>& as_object() const
+    [[nodiscard]] const value::object_type& as_object() const
     {
         return std::get<TYPE_OBJECT>(content).map;
     }
@@ -566,7 +655,7 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a object
      */
-    [[nodiscard]] std::map<obj_key, value>& as_object()
+    [[nodiscard]] value::object_type& as_object()
     {
         return std::get<TYPE_OBJECT>(content).map;
     }
@@ -574,11 +663,11 @@ public:
     /**
      * @brief Cast to object, return {} if not object
      */
-    [[nodiscard]] const std::map<obj_key, value>& as_object_or() const noexcept
+    [[nodiscard]] const value::object_type& as_object_or() const noexcept
     {
         if (is_object())
             return std::get<TYPE_OBJECT>(content).map;
-        static std::map<obj_key, value> dummy;
+        static value::object_type dummy;
         return dummy;
     }
 
@@ -656,18 +745,18 @@ public:
         return default_value;
     }
 
-    [[nodiscard]] const value& at(const string_type& str) const
+    [[nodiscard]] const value& at(std::string_view str) const
     {
         static const value null;
         return at(str, null);
     }
 
-    const value& at(const string_p_type str, const value& default_value) const
+    const value& at(const char* str, const value& default_value) const
     {
         return at(std::string_view(str), default_value);
     }
 
-    const value& at(const string_p_type key) const
+    const value& at(const char* key) const
     {
         static const value null;
         return at(std::string_view(key), null);
@@ -676,11 +765,11 @@ public:
     inline ref<1,true> as_ref(std::string_view key);
     inline ref<1,false> as_cref(std::string_view key) const;
     inline ref<1,true> operator[](std::string_view key);
-    inline ref<1,true> operator[](string_p_type key);
-    inline ref<1,true> operator[](const string_type& key);
+    inline ref<1,true> operator[](const char* key);
+    inline ref<1,true> operator[](const std::string& key);
     inline ref<1,false> operator[](std::string_view key) const;
-    inline ref<1,false> operator[](string_p_type key) const;
-    inline ref<1,false> operator[](const string_type& key) const;
+    inline ref<1,false> operator[](const char* key) const;
+    inline ref<1,false> operator[](const std::string& key) const;
 
     void erase(std::string_view sv)
     {
@@ -739,26 +828,26 @@ public:
      * @brief Assign string value.
      * @param string A string to be set.
      */
-    value& operator=(const string_type& string) { content = string; return *this; }
+    value& operator=(const std::string& string) { content = str_val(string); return *this; }
 
     /**
      * @brief Assign string value from const char*
      * @param string A string to be set.
      */
-    value& operator=(string_p_type string) { content = string_type(string); return *this; }
+    value& operator=(const char* string) { content = str_val(string); return *this; }
 
     /**
      * @brief Assign string value from string_view
      * @param string A string to be set.
      */
-    value& operator=(std::string_view string) { content = string_type(string); return *this; }
+    value& operator=(std::string_view string) { content = str_val(string); return *this; }
 
     /**
      * @brief Assign array value by deep copy.
      * @param elements An array to be set.
      */
     value& operator=(std::initializer_list<value> elements) {
-        auto& av = content.emplace<array_type>();
+        auto& av = content.emplace<arr_val>();
         if (elements.size() > 0) {
             av.arr.reserve(elements.size());
             for (auto &el: elements)
@@ -772,7 +861,7 @@ public:
      * @param object An object to be set.
      */
     value& operator=(std::initializer_list<value::pair_type> elements) {
-        auto& ov = content.emplace<object_type>();
+        auto& ov = content.emplace<obj_val>();
         if (elements.size() > 0) {
             for (auto &el: elements) {
                 ov.map.emplace(obj_key(ov.key_count++, el.first), el.second);
@@ -884,17 +973,17 @@ private:
 
 public:
     template <class... T>
-    json_type stringify(T... args) const;
+    std::string stringify(T... args) const;
 
     template <class... T>
-    json_type stringify5(T... args) const;
+    std::string stringify5(T... args) const;
 
     /*================================================================================
      * Internal data structure
      */
 private:
     // nust match type_enum
-    std::variant<null_type,boolean_type,integer_type,floating_type,string_type,array_type,object_type> content;
+    std::variant<null_type,boolean_type,integer_type,floating_type,str_val,arr_val,obj_val> content;
 };
 
 /**
@@ -1037,12 +1126,12 @@ public:
         if (!v) { return default_value; }
         return v->as_int_or(default_value);
     }
-    [[nodiscard]] const value::string_type& as_string() requires (!M) {
+    [[nodiscard]] value::string_type as_string() requires (!M) {
         const V* v = try_deref();
         if (!v) { throw std::bad_variant_access(); }
         return v->as_string();
     }
-    [[nodiscard]] value::string_type& as_string() requires M {
+    [[nodiscard]] value::string_type as_string() requires M {
         V& v = deref();
         if (v.is_null()) { v = ""; }
         if (!v.is_string()) { throw std::bad_variant_access(); }
@@ -1050,43 +1139,43 @@ public:
     }
     [[nodiscard]] value::string_type as_string_or(std::string_view default_value={}) const noexcept {
         V* v = try_deref();
-        if (!v) { return value::string_type(default_value); }
+        if (!v) { return default_value; }
         return v->as_string_or(default_value);
     }
-    [[nodiscard]] const std::vector<value>& as_array() requires (!M) {
+    [[nodiscard]] const value::array_type& as_array() requires (!M) {
         V* v = try_deref();
         if (!v) { throw std::bad_variant_access(); }
         return v->as_array();
     }
-    [[nodiscard]] std::vector<value>& as_array() requires M {
+    [[nodiscard]] value::array_type& as_array() requires M {
         V& v = deref();
         if (v.is_null()) { v = array({}); }
         if (!v.is_array()) { throw std::bad_variant_access(); }
         return v.as_array();
     }
-    [[nodiscard]] const std::vector<value>& as_array_or() const noexcept {
+    [[nodiscard]] const value::array_type& as_array_or() const noexcept {
         V* v = try_deref();
         if (!v || !v->is_array()) {
-            static std::vector<value> dummy;
+            static value::array_type dummy;
             return dummy;
         }
         return v->as_array_or();
     }
-    [[nodiscard]] const std::map<value::obj_key, value>& as_object() requires (!M) {
+    [[nodiscard]] const value::object_type& as_object() requires (!M) {
         V* v = try_deref();
         if (!v) { throw std::bad_variant_access(); }
         return v->as_object();
     }
-    [[nodiscard]] std::map<value::obj_key, value>& as_object() requires M {
+    [[nodiscard]] value::object_type& as_object() requires M {
         V& v = deref();
         if (v.is_null()) { v = object({}); }
         if (!v.is_object()) { throw std::bad_variant_access(); }
         return v.as_object();
     }
-    [[nodiscard]] const std::map<value::obj_key, value>& as_object_or() const noexcept {
+    [[nodiscard]] const value::object_type& as_object_or() const noexcept {
         V* v = try_deref();
         if (!v || !v->is_object()) {
-            static std::map<value::obj_key, value> dummy;
+            static value::object_type dummy;
             return dummy;
         }
         return v->as_object_or();
@@ -1103,9 +1192,9 @@ public:
     V& operator=(uint16_t rhs) requires M { return deref() = rhs; }
     V& operator=(double rhs) requires M { return deref() = rhs; }
     V& operator=(float rhs) requires M { return deref() = rhs; }
-    V& operator=(const value::string_type& rhs) requires M { return deref() = rhs; }
-    V& operator=(value::string_p_type rhs) requires M { return deref() = rhs; }
-    V& operator=(const std::string_view rhs) requires M { return deref() = rhs; }
+    V& operator=(const std::string& rhs) requires M { return deref() = rhs; }
+    V& operator=(const char* rhs) requires M { return deref() = rhs; }
+    V& operator=(std::string_view rhs) requires M { return deref() = rhs; }
     V& operator=(const value& rhs) requires M { return deref() = rhs; }
 
     explicit operator bool() const {
@@ -1124,13 +1213,13 @@ public:
         else
             return as_cref(key);
     }
-    constexpr ref<N+1,M> operator[](value::string_p_type key) {
+    constexpr ref<N+1,M> operator[](const char* key) {
         if constexpr (M)
             return as_ref(key);
         else
             return as_cref(key);
     }
-    constexpr ref<N+1,M> operator[](const value::string_type& key) {
+    constexpr ref<N+1,M> operator[](const std::string& key) {
         if constexpr (M)
             return as_ref(key);
         else
@@ -1216,19 +1305,19 @@ inline ref<1,false> value::as_cref(std::string_view key) const {
 inline ref<1,true> value::operator[](std::string_view key) {
     return as_ref(key);
 }
-inline ref<1,true> value::operator[](value::string_p_type key) {
+inline ref<1,true> value::operator[](const char* key) {
     return as_ref(key);
 }
-inline ref<1,true> value::operator[](const value::string_type& key) {
+inline ref<1,true> value::operator[](const std::string& key) {
     return as_ref(key);
 }
 inline ref<1,false> value::operator[](std::string_view key) const {
     return as_cref(key);
 }
-inline ref<1,false> value::operator[](string_p_type key) const {
+inline ref<1,false> value::operator[](const char* key) const {
     return as_cref(key);
 }
-inline ref<1,false> value::operator[](const string_type& key) const {
+inline ref<1,false> value::operator[](const std::string& key) const {
     return as_cref(key);
 }
 

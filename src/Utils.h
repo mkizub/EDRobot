@@ -13,29 +13,32 @@ inline RECT toRECT(cv::Rect& r) {
 inline cv::Rect fromRECT(RECT& r) {
     return {r.left, r.top, r.right-r.left, r.bottom-r.top};
 }
+inline std::string operator*(std::string_view sv) {
+    return std::string(sv);
+}
 
 extern std::string getErrorMessage();
 extern std::string getErrorMessage(unsigned errorCode);
 extern void pasteToClipboard(const std::string& text);
 extern std::string textFromClipboard();
 extern std::string trim(const char* source);
-extern std::string trim(const std::string & source);
-extern std::wstring trim(const std::wstring & source);
-extern std::string trimWithPunktuation(const std::string & source);
-extern std::wstring trimWithPunktuation(const std::wstring & source);
-extern std::string trimTextLine(const std::string & source);
-extern std::wstring trimTextLine(const std::wstring & source);
+extern std::string trim(std::string_view source);
+extern std::wstring trim(std::wstring_view source);
+extern std::string trimWithPunktuation(std::string_view source);
+extern std::wstring trimWithPunktuation(std::wstring_view source);
+extern std::string trimTextLine(std::string_view source);
+extern std::wstring trimTextLine(std::wstring_view source);
 extern std::string toString(const char* buffer, size_t size);
 extern std::wstring toString(const wchar_t* buffer, size_t size);
 extern std::string toUtf8(const wchar_t* buffer, size_t size);
-extern std::string toUtf8(const std::wstring& str);
+extern std::string toUtf8(std::wstring_view str);
 extern std::wstring toUtf16(const char* buffer, size_t size);
-extern std::wstring toUtf16(const std::string& str);
-extern std::string toLower(const std::string& str);
-extern std::string toUpper(const std::string& str);
-extern std::wstring toLower(const std::wstring& str);
-extern std::wstring toUpper(const std::wstring& str);
-extern bool equalsIgnoreCase(const std::string_view& str1, const std::string_view& str2);
+extern std::wstring toUtf16(std::string_view str);
+extern std::string toLower(std::string_view str);
+extern std::string toUpper(std::string_view str);
+extern std::wstring toLower(std::wstring_view str);
+extern std::wstring toUpper(std::wstring_view str);
+extern bool equalsIgnoreCase(std::string_view str1, std::string_view str2);
 inline bool isLatinLetter(char ch) { return ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z'; }
 std::vector<std::string> split(const std::string &s, char delim);
 bool contains(const std::vector<std::string>& strings, const std::string& str);
@@ -61,12 +64,12 @@ extern std::pair<std::string,unsigned> decodeShortcut(std::string key);
 extern std::string encodeShortcut(const std::string& name, unsigned flags);
 
 extern std::string formatTimestampString(Timestamp timestamp, bool nanos=false);
-extern bool parseTimestampString(const std::string& str, Timestamp& timestamp);
+extern bool parseTimestampString(std::string_view str, Timestamp& timestamp);
 extern bool parseTimestamp(const js::value& value, Timestamp& timestamp);
 extern dist_t parseDist(std::wstring dist, int conf);
 extern int parseDistTime(std::wstring dist);
-extern bool parseInt(const std::string& str, int64_t& out);
-extern bool parseReal(const std::string& str, double& out);
+extern bool parseInt(std::string_view str, int64_t& out);
+extern bool parseReal(std::string_view str, double& out);
 
 extern js::value parseJsonFile(std::wstring_view file);
 

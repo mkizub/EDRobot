@@ -163,7 +163,7 @@ bool Configuration::load() {
         if (auto& tm = j_config.at("ravencolonial-keys"); tm.is_object()) {
             for (auto [cmdr,rcc_key] : tm.key_value()) {
                 if (rcc_key.is_string() && !rcc_key.empty())
-                    mRavenColonialKeys[std::string(cmdr)] = rcc_key.as_string();
+                    mRavenColonialKeys[*cmdr] = rcc_key.as_string();
             }
             LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
         }
@@ -179,7 +179,7 @@ bool Configuration::load() {
         }
         g_DisableOpenCL = openclDisabled;
         if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
-            _putenv_s("OPENCV_OPENCL_CACHE_DIR", tm.as_string().c_str());
+            _putenv_s("OPENCV_OPENCL_CACHE_DIR", tm.as_string().data());
         } else {
             _putenv_s("OPENCV_OPENCL_CACHE_DIR", "cache");
         }
@@ -250,10 +250,10 @@ bool Configuration::load() {
 
         js::value j_bookmarks = parseJsonFile(L"bookmarks.json5");
         for (auto& jbm : j_bookmarks.as_array_or()) {
-            auto name = jbm["name"].as_string_or();
-            auto dock = jbm["dock"].as_string_or();
-            auto system = jbm["system"].as_string_or();
-            auto comment = jbm["comment"].as_string_or();
+            auto name = *jbm["name"].as_string_or();
+            auto dock = *jbm["dock"].as_string_or();
+            auto system = *jbm["system"].as_string_or();
+            auto comment = *jbm["comment"].as_string_or();
             if (system.empty() || dock.empty())
                 continue;
             if (name.empty())
@@ -365,11 +365,11 @@ void Configuration::parseShortcutConfig(Command command, const std::string& name
         }
         js::value jcmd = cfg.at(name);
         if (jcmd.is_string())
-            keyMapping[decodeShortcut(jcmd.as_string())] = command;
+            keyMapping[decodeShortcut(*jcmd.as_string())] = command;
         if (jcmd.is_array()) {
             for (auto& jc : jcmd.as_array()) {
                 if (jc.is_string())
-                    keyMapping[decodeShortcut(jc.as_string())] = command;
+                    keyMapping[decodeShortcut(*jc.as_string())] = command;
             }
         }
 
@@ -977,7 +977,7 @@ CommodityCategory* Configuration::getCommodityCategoryByName(const std::string& 
 }
 
 Commodity* Configuration::getCommodityById(std::string_view name) {
-    return getCommodityById(std::string(name));
+    return getCommodityById(*name);
 }
 Commodity* Configuration::getCommodityById(const std::string& id) {
     if (id.empty())
@@ -988,10 +988,10 @@ Commodity* Configuration::getCommodityById(const std::string& id) {
     return nullptr;
 }
 
-Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy_ocr) {
+Commodity* Configuration::getCommodityByName(std::string_view name, bool fuzzy_ocr) {
     if (name.empty())
         return nullptr;
-    auto it = commodityMap.find(name);
+    auto it = commodityMap.find(*name);
     if (it != commodityMap.end())
         return it->second;
     if (!fuzzy_ocr) {
@@ -1003,7 +1003,7 @@ Commodity* Configuration::getCommodityByName(const std::string& name, bool fuzzy
     }
     return getCommodityByName(toUtf16(name), true);
 }
-Commodity* Configuration::getCommodityByName(const std::wstring& name, bool fuzzy_ocr) {
+Commodity* Configuration::getCommodityByName(std::wstring_view name, bool fuzzy_ocr) {
     if (name.empty())
         return nullptr;
     if (!fuzzy_ocr) {
@@ -1162,9 +1162,9 @@ bool Configuration::loadMarket(spGameEvent ge) {
     spMarket market = std::shared_ptr<Market>(new Market{
             .timestamp = timestamp,
             .marketId = j_market.at("MarketID").as_int(),
-            .stationName = j_market.at("StationName").as_string(),
-            .stationType = j_market.at("StationType").as_string(),
-            .starSystem = j_market.at("StarSystem").as_string(),
+            .stationName = *j_market.at("StationName").as_string(),
+            .stationType = *j_market.at("StationType").as_string(),
+            .starSystem = *j_market.at("StarSystem").as_string(),
     });
     if (oldMarket)
         market->raven = oldMarket->raven;
@@ -1172,20 +1172,20 @@ bool Configuration::loadMarket(spGameEvent ge) {
     for (auto& item : items) {
         std::array<std::string,2> translation;
         if (st::lng == Lang::EN)
-            translation = {item.at("Category_Localised").as_string(),""};
+            translation = {*item.at("Category_Localised").as_string(),""};
         if (st::lng == Lang::RU)
-            translation = {"",item.at("Category_Localised").as_string()};
+            translation = {"",*item.at("Category_Localised").as_string()};
         CommodityCategory& cc = getOrAddCommodityCategory({
-                .nameId = item.at("Category").as_string(),
+                .nameId = *item.at("Category").as_string(),
                 .translation = translation
         });
         if (st::lng == Lang::EN)
-            translation = {item.at("Name_Localised").as_string(),""};
+            translation = {*item.at("Name_Localised").as_string(),""};
         if (st::lng == Lang::RU)
-            translation = {"",item.at("Name_Localised").as_string()};
+            translation = {"",*item.at("Name_Localised").as_string()};
         Commodity& commodity = getOrAddCommodity({
                 .intId = (int)item["id"].as_int(),
-                .nameId = item["Name"].as_string(),
+                .nameId = *item["Name"].as_string(),
                 .category = &cc,
                 .translation = translation,
                 .rare = item["Rare"].as_bool_or()
@@ -1225,10 +1225,10 @@ bool Configuration::loadNavRoute(spGameEvent& ge) {
     std::vector<NavRoute::Entry> entries;
     auto j_entries = j_route.at("Route").as_array();
     for (auto& je : j_entries) {
-        std::string starSystem = je["StarSystem"].as_string();
+        std::string starSystem = *je["StarSystem"].as_string();
         int64_t systemAddress = je["SystemAddress"].as_int();
         cv::Point3d pos;
-        std::string starClass = je["StarClass"].as_string();
+        std::string starClass = *je["StarClass"].as_string();
         if (je["StarPos"].is_array()) {
             auto& jp = je.at("StarPos");
             pos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
@@ -1286,9 +1286,9 @@ bool Configuration::loadCommodityDatabase() {
         for (auto [c_nameId,j_c] : jcc["items"].key_value()) {
             Commodity c_add{
                     .intId = (int)j_c["id"].as_int(),
-                    .nameId = std::string(c_nameId),
+                    .nameId = *c_nameId,
                     .category = &cc,
-                    .translation = {j_c["en"].as_string(), j_c["ru"].as_string()},
+                    .translation = {*j_c["en"].as_string(), *j_c["ru"].as_string()},
                     .rare = j_c["rare"].as_bool_or(),
             };
             getOrAddCommodity(std::move(c_add));

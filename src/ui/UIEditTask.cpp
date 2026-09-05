@@ -241,7 +241,7 @@ void UIEditTask::init_templ_list() {
     for (auto& tt : ai::getTemplates()) {
         templates.push_back(tt);
         auto name = toUtf16(gettext(tt.nm.c_str()));
-        auto group = tt.meta["group"].as_string_or();
+        auto group = *tt.meta["group"].as_string_or();
         if (group.empty()) {
             menu_tasks.append_item(idx++, name);
         } else {
@@ -615,7 +615,7 @@ void TextCtrl::create() {
     if (type == ai::Param::Int || type == ai::Param::Real)
         tb.style.set_style(TRUE, ES_RIGHT);
     if (meta["placeholder"].is_string()) {
-        const char* ph = gettext(meta["placeholder"].as_string().c_str());
+        const char* ph = gettext(meta["placeholder"].as_string().data());
         if (ph && *ph)
             Edit_SetCueBannerText(tb.hwnd(), toUtf16(ph).c_str());
     }
@@ -781,7 +781,7 @@ void CargoCtrl::create() {
     if (!text.empty())
         dl.set_text(text);
     if (meta["placeholder"].is_string()) {
-        const char* ph = gettext(meta["placeholder"].as_string().c_str());
+        const char* ph = gettext(meta["placeholder"].as_string().data());
         if (ph && *ph)
             Edit_SetCueBannerText(dl.hwnd(), toUtf16(ph).c_str());
     }
@@ -870,8 +870,10 @@ ArrayCtrl::ArrayCtrl(UIEditTask* ui, ai::Param& param)
         , el_meta(meta["elements"])
         , el_type(enum_cast<ai::Param::Type>(el_meta["type"].as_string()).value())
 {
-    if (param.value.is_array())
-        arr_value = param.value.as_array();
+    if (param.value.is_array()) {
+        auto& arr = param.value.as_array();
+        arr_value.assign(arr.begin(), arr.end());
+    }
     arr_value.push_back({});
     if (!(el_type == ai::Param::Bool || el_type == ai::Param::Task || el_type == ai::Param::Array))
         simple = true;
@@ -966,7 +968,7 @@ TaskCtrl::TaskCtrl(UIEditTask* ui, ai::Param& param)
     std::vector<std::string> valid_templates;
     for (auto v : meta["values"].as_array()) {
         if (v.is_string())
-            valid_templates.push_back(v.as_string());
+            valid_templates.push_back(*v.as_string());
     }
     for (auto& tt : ai::getUserTasks()) {
         if (std::ranges::contains(valid_templates, tt.id))

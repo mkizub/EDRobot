@@ -231,7 +231,7 @@ spGameEvent Configuration::parseEvent(Timestamp& latest_log_timestamp, const std
                 expired = true;
             else
                 latest_log_timestamp = ts;
-            gameEvent.reset(new GameEvent{std::move(res), ts, jev.as_string(), expired});
+            gameEvent.reset(new GameEvent{std::move(res), ts, *jev.as_string(), expired});
         } catch (const js::syntax_error& ex) {
             return {};
         }
@@ -426,16 +426,16 @@ void parseEvent_Fileheader(spGameEvent& ge) {
     Cfg.updateLanguage(lng);
 }
 
-static void setCommander(const std::string& name, const std::string& fid) {
+static void setCommander(std::string_view name, std::string_view fid) {
     if (name != st::cmdr.name || fid != st::cmdr.fid) {
         LOG(INFO) << "CMDR: " << name;
         auto& cmdr = const_cast<st::Commander&>(st::cmdr);
         cmdr = {};
-        cmdr.name = name;
-        cmdr.fid = fid;
-        cmdr.ravenKey = Cfg.getRavenColonialKey(name);
+        cmdr.name = *name;
+        cmdr.fid = *fid;
+        cmdr.ravenKey = Cfg.getRavenColonialKey(*name);
         {
-            std::string key = name + ":" + fid;
+            std::string key = *name + ":" + *fid;
             unsigned char digestMD5[MD5_DIGEST_LENGTH];
             MD5((unsigned char*)key.data(), key.size(), digestMD5);
             char output[((MD5_DIGEST_LENGTH + 2) / 3 * 4) + 1];
@@ -452,7 +452,7 @@ static void setEddnStarSystem(spGameEvent& ge) {
     st::eddnStarSystem.addr = je["SystemAddress"].as_int_or();
     auto& jp = je["StarPos"].as_array();
     st::eddnStarSystem.pos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
-    gal::spStarSystem ss = gal::makeStarSystem(st::eddnStarSystem.name, st::eddnStarSystem.addr);
+    gal::spStarSystem ss = gal::makeStarSystem(st::eddnStarSystem.name, st::eddnStarSystem.addr, &st::eddnStarSystem.pos);
     if (cv::norm(ss->starPos) == 0)
         ss->starPos = st::eddnStarSystem.pos;
     gal::setCurrentStarSystem(ss);
@@ -635,7 +635,12 @@ void parseEvent_Docked(spGameEvent& ge) {
 
     auto& je = ge->data;
 
-    gal::spStarSystem ss = gal::makeStarSystem(je["StarSystem"].as_string(), je["SystemAddress"].as_int());
+    auto systemName = je["StarSystem"].as_string();
+    auto systemAddress = je["SystemAddress"].as_int_or();
+    cv::Point3d* systemPos = nullptr;
+    if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
+        systemPos = &st::eddnStarSystem.pos;
+    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos);
     gal::setCurrentStarSystem(ss);
     st::dockedAt.marketId = je["MarketID"].as_int_or();
     set(st::dockedAt.stationName, je["StationName"]);
@@ -682,9 +687,9 @@ void parseEvent_StartJump(spGameEvent& ge) {
     st::space = {};
     // "Hyperspace" or "Supercruise"
     if (je["JumpType"].as_string_or() == "Hyperspace") {
-        auto& name = je["StarSystem"].as_string();
+        auto name = je["StarSystem"].as_string();
         int64_t address = je["SystemAddress"].as_int();
-        gal::spStarSystem ss = gal::makeStarSystem(name, address);
+        gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr);
         gal::setCurrentStarSystem(ss);
         st::autopilot.isDestDockTargeted = false;
         st::autopilot.isDestBodyTargeted = false;
@@ -889,10 +894,13 @@ void parseEvent_FSSBodySignals(spGameEvent& ge) {
 void parseEvent_Scan(spGameEvent& ge) {
     auto& je = ge->data;
 
-    auto starSystem = je["StarSystem"].as_string_or();
-    int64_t address = je["SystemAddress"].as_int_or();
+    auto systemName = je["StarSystem"].as_string_or();
+    int64_t systemAddress = je["SystemAddress"].as_int_or();
+    cv::Point3d* systemPos = nullptr;
+    if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
+        systemPos = &st::eddnStarSystem.pos;
+    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos);
     int bodyId = je["BodyID"].as_int_or(-1);
-    gal::spStarSystem ss = gal::makeStarSystem(starSystem, address);
     auto body = ss->getBodyById(bodyId);
     if (!body) {
         body = std::make_shared<gal::Entity>();
@@ -905,7 +913,7 @@ void parseEvent_Scan(spGameEvent& ge) {
             body->type = TypeNav::Star;
             ss->saved = false;
         }
-        std::string code = je["StarType"].as_string();
+        std::string code = *je["StarType"].as_string();
         if (je["Subclass"].is_int())
             code += std::to_string(je["Subclass"].as_int());
         if (body->code != code) {
@@ -1002,10 +1010,13 @@ void parseEvent_Scan(spGameEvent& ge) {
 void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     auto& je = ge->data;
 
-    auto starSystem = je["StarSystem"].as_string_or();
-    int64_t address = je["SystemAddress"].as_int_or();
+    auto systemName = je["StarSystem"].as_string_or();
+    int64_t systemAddress = je["SystemAddress"].as_int_or();
+    cv::Point3d* systemPos = nullptr;
+    if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
+        systemPos = &st::eddnStarSystem.pos;
+    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos);
     int bodyId = je["BodyID"].as_int();
-    gal::spStarSystem ss = gal::makeStarSystem(starSystem, address);
     auto body = ss->getBodyById(bodyId);
     if (!body) {
         body = std::make_shared<gal::Entity>();
@@ -1080,7 +1091,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
     for (auto &jr: je["ResourcesRequired"].as_array_or()) {
         if (!jr["Name"].is_string())
             continue;
-        std::string name = jr["Name"].as_string();
+        auto name = jr["Name"].as_string();
         // "$aluminium_name;"
         if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
             continue;

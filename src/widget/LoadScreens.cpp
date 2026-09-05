@@ -44,7 +44,7 @@ static cv::Vec3b color_from_json(const js::value& v) {
         bgr = (r&0xFF) | ((g&0xFF)<<8) | ((b&0xFF)<<16);
     }
     else if (v.is_string()) {
-        auto& s = v.as_string();
+        std::string s = *v.as_string();
         if (s.size() == 7 && s[0] == '#')
             bgr = std::stol(s.substr(1), nullptr, 16);
     }
@@ -296,7 +296,7 @@ static detect::ImageFilter* filter_from_json(const js::value& jf) {
             jhsv = jf["hsv_mask"];
             filter = new HsvMaskFilter();
         }
-        std::vector<js::value> jarr;
+        js::value::array_type jarr;
         if (jhsv.is_array())
             jarr = jhsv.as_array();
         else if (jhsv.is_object())
@@ -364,7 +364,7 @@ static void image_template_from_json(const js::value& j, ImageTemplate* templ) {
     minmax_from_json(j["t"], templ->threshold_min, templ->threshold_max);
 
     if (j.at("method").is_string()) {
-        const std::string method = j.at("method").as_string();
+        auto method = j.at("method").as_string();
         if (method == "coeff")
             templ->matchMethod = cv::TM_CCOEFF_NORMED;
         else if (method == "corr")
@@ -391,7 +391,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
         return new ConstDetector(value);
     }
     if (j.is_string()) {
-        const auto& referred = j.as_string();
+        std::string referred = *j.as_string();
         return new ReferDetector(referred);
     }
     if (j.is_array()) {
@@ -412,7 +412,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             return cdet;
         }
         if (j["ref"].is_string()) {
-            const auto referred = j["ref"].as_string();
+            std::string referred = *j["ref"].as_string();
             auto* rdet = new ReferDetector(referred);
             rdet->classifierWeight = j["weight"].as_real_or(1);
             return rdet;
@@ -440,7 +440,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             return sdet;
         }
         if (j.has_key("anchor")) {
-            std::string filename = "templates/"+j.at("img").as_string();
+            std::string filename = "templates/" + *j.at("img").as_string();
             spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale, true);
             cv::Point anchor = size_from_json(j["anchor"], fov_scale);
             auto* templ = new AnchorDetector(filename, rect, anchor);
@@ -449,7 +449,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             return templ;
         }
         if (j.has_key("img")) {
-            std::string filename = "templates/"+j.at("img").as_string();
+            std::string filename = "templates/" + *j.at("img").as_string();
             spEvalRect rect = makeEvalRect(widget, "rect", j["rect"], fov_scale, false);
             auto* templ = new ImageTemplate(filename, rect);
             image_template_from_json(j, templ);
@@ -495,7 +495,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             cv::Rect tilesRect = rect_from_json(j["tiles"], fov_scale);
             cv::Rect marksRect = mark_from_json(j["rect"], fov_scale);
 
-            std::string name = j["name"].as_string();
+            std::string name = *j["name"].as_string();
             int rows_min = 1;
             int rows_max = 1;
             minmax_from_json(j["rows"], rows_min, rows_max);
@@ -514,11 +514,11 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             tiles->classifierWeight = j["weight"].as_real_or(1);
 
             if (j["icons"].is_string()) {
-                std::string icons = "templates/" + j["icons"].as_string();
+                std::string icons = "templates/" + *j["icons"].as_string();
                 auto* templ = new ImageTemplate(icons, spEvalRect(new ConstRect(marksRect)));
                 image_template_from_json(j, templ);
                 if (j["icon_align"].is_string()) {
-                    auto& align = j["icon_align"].as_string();
+                    auto align = j["icon_align"].as_string();
                     if (toLower(align) == "center")
                         tiles->mIconAlign = TilesDetector::IconAlign::Center;
                     else if (toLower(align) == "top-left")
@@ -533,11 +533,11 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
                 for (auto [key,val] : j["labels"].key_value()) {
                     std::vector<std::wstring>& texts = tiles->labels[key.data()];
                     if (val.is_string()) {
-                        auto& txt = val.as_string();
+                        auto txt = val.as_string();
                         texts.push_back(fm.toOCR(toUtf16(txt)));
                     } else if (val.is_array()) {
                         for (auto& t : val.as_array()) {
-                            auto& txt = t.as_string();
+                            auto txt = t.as_string();
                             texts.push_back(fm.toOCR(toUtf16(txt)));
                         }
                     }
@@ -547,7 +547,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             return tiles;
         }
         if (j.has_key("texts")) {
-            std::string name = j["name"].as_string_or();
+            std::string name = *j["name"].as_string_or();
             spEvalRect textsRect = makeEvalRect(widget, name.c_str(), j["rect"], fov_scale, false);
 
             auto* tdet = new TextDetector(name, textsRect);
@@ -556,11 +556,11 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             for (auto [key,val] : j["texts"].key_value()) {
                 std::vector<std::wstring>& texts = tdet->labels[key.data()];
                 if (val.is_string()) {
-                    auto& txt = val.as_string();
+                    auto txt = val.as_string();
                     texts.push_back(fm.toOCR(toUtf16(txt)));
                 } else if (val.is_array()) {
                     for (auto& t : val.as_array()) {
-                        auto& txt = t.as_string();
+                        auto txt = t.as_string();
                         texts.push_back(fm.toOCR(toUtf16(txt)));
                     }
                 }
@@ -592,7 +592,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             }
             for (auto& jo : j["nav_panel"]["tabs"].as_array()) {
                 cv::Rect rect = rect_from_json(jo["rect"]);
-                const std::string& name = jo["name"].as_string();
+                std::string name = *jo["name"].as_string();
                 tabs.emplace_back(NavPanelDetector::Tab{rect, name});
             }
             auto* pdet = new NavPanelDetector(widget.path, std::move(lines), std::move(anchors), std::move(tabs));
@@ -609,10 +609,10 @@ static void from_json(const js::value& j, std::map<std::string,std::vector<BaseD
         for (auto& vars_it : varSetVal.as_array()) {
             BaseDialog::Vars& vars = varSetMap[varSetName.data()].emplace_back();
             if (vars_it.at("key").is_string())
-                vars.keys.push_back(vars_it.at("key").as_string());
+                vars.keys.push_back(*vars_it["key"].as_string());
             else if (vars_it.at("key").is_array()) {
-                for (auto& js : vars_it.at("key").as_array())
-                    vars.keys.push_back(js.as_string());
+                for (auto& js : vars_it["key"].as_array())
+                    vars.keys.push_back(*js.as_string());
             }
             for (auto [key,val] : vars_it.key_value()) {
                 if (key == "key")
@@ -634,7 +634,7 @@ Widget* widget_from_json(const js::value& j, Widget* parent, FovScale* fov_scale
     }
     FovScale scr_fov_scale;
     Widget* widget = nullptr;
-    auto name = j["name"].as_string();
+    std::string name = *j["name"].as_string();
     if (name.starts_with("scr-")) {
         auto scr = new Screen(name, parent, j["status"]);
         if (auto jfscl=j["fov_size"]; jfscl.is_array() || jfscl.is_number()) {
@@ -666,9 +666,9 @@ Widget* widget_from_json(const js::value& j, Widget* parent, FovScale* fov_scale
                 std::vector<std::string> lines;
                 if (jt["line"].is_array()) {
                     for (auto& l : jt["line"].as_array())
-                        lines.push_back(l.as_string());
+                        lines.push_back(*l.as_string());
                 } else {
-                    lines.push_back(jt["line"].as_string());
+                    lines.push_back(*jt["line"].as_string());
                 }
                 scr->transform = spEvalTransform(new LineTransform(lines, tl, tr, br, bl, sz));
             }
@@ -691,7 +691,7 @@ Widget* widget_from_json(const js::value& j, Widget* parent, FovScale* fov_scale
         widget = btn;
         widget->setRect("rect", j, fov_scale);
         if (j["icon"].is_string())
-            btn->icon = "templates/"+j["icon"].as_string();
+            btn->icon = "templates/" + *j["icon"].as_string();
         ext_from_json(j["ext"], btn->extendLT, btn->extendRB);
         btn->filters = filters_from_json(j["filter"]);
         btn->force_present = j["force_present"].as_bool_or(false);
@@ -705,7 +705,7 @@ Widget* widget_from_json(const js::value& j, Widget* parent, FovScale* fov_scale
         btn->force_present = j["force_present"].as_bool_or(false);
     }
     else if (name.starts_with("til-")) {
-        std::string icon = j["icon"].as_string_or();
+        std::string icon = *j["icon"].as_string_or();
         auto btn = new TileBtn(name, parent, icon);
         widget = btn;
     }

@@ -2045,7 +2045,7 @@ bool DockSpaceStation::run() {
         if (de) {
             LOG_DEBUG("DockSpaceStation: docking event {}", de->event);
             if (de->event == "DockingDenied")
-                lastDockingStatus = de->event + ": " + de->data["Reason"].as_string();
+                lastDockingStatus = de->event + ": " + *de->data["Reason"].as_string();
             else
                 lastDockingStatus = de->event;
             updateSafeDist();
@@ -2344,7 +2344,7 @@ bool DockPlanetPort::run() {
         LOG_INFO("Docking status: {}", (de ? de->event : "null"));
         if (de) {
             if (de->event == "DockingDenied")
-                lastDockingStatus = de->event + ": " + de->data["Reason"].as_string();
+                lastDockingStatus = de->event + ": " + *de->data["Reason"].as_string();
             else
                 lastDockingStatus = de->event;
         }

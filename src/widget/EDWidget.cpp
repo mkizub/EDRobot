@@ -617,7 +617,7 @@ cv::Line FovScale::apply(cv::Line l, double fov) {
 
 spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const js::value& jv, FovScale* fov_scale) {
     if (jv.is_string()) {
-        std::vector<std::string> scope_name = split(jv.as_string(), ':');
+        std::vector<std::string> scope_name = split(*jv.as_string(), ':');
         if (scope_name.size() != 2) {
             LOG(ERROR) << "Reference must be at form 'scope:name', but is " << jv;
             return {};
@@ -660,7 +660,7 @@ spEvalPoint makeEvalPoint(const widget::Widget& widget, const char* name, const 
 
 spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js::value& jv, FovScale* fov_scale, bool relative) {
     if (jv.is_string()) {
-        std::vector<std::string> scope_name = split(jv.as_string(), ':');
+        std::vector<std::string> scope_name = split(*jv.as_string(), ':');
         if (scope_name.size() != 2) {
             LOG(ERROR) << "Reference must be at form 'scope:name', but is " << jv;
             return {};
@@ -711,7 +711,7 @@ spEvalRect makeEvalRect(const widget::Widget& widget, const char* name, const js
 
 spEvalLine makeEvalLine(const widget::Widget& widget, const char* name, const js::value& jv, FovScale* fov_scale) {
     if (jv.is_string()) {
-        std::vector<std::string> scope_name = split(jv.as_string(), ':');
+        std::vector<std::string> scope_name = split(*jv.as_string(), ':');
         if (scope_name.size() != 2) {
             LOG(ERROR) << "Reference must be at form 'scope:name', but is " << jv;
             return {};

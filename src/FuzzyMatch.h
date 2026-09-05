@@ -41,7 +41,7 @@ public:
 
     double ratio(const std::wstring& source, const std::wstring& target) const;
 
-    std::wstring toOCR(const std::wstring& source);
+    std::wstring toOCR(std::wstring_view source);
     wchar_t toOCR(wchar_t ch);
 
 private:

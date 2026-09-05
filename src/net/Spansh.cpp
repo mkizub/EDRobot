@@ -6,6 +6,7 @@
 #include "Spansh.h"
 #include "HttpInterceptor.h"
 #include "../Galaxy.h"
+#include "../db/DB.h"
 
 #include <curl/curl.h>
 #include <cpr/cpr.h>
@@ -126,7 +127,7 @@ static void parseStation(const gal::spStarSystem& ss, const js::value& jb, int p
         site = old;
         is_new = false;
     }
-    else if (ss->getDock(name)) {
+    else if (auto old = ss->getDock(name)) {
         site = old;
         is_new = false;
     }
@@ -178,7 +179,7 @@ static void parseStation(const gal::spStarSystem& ss, const js::value& jb, int p
 static void parseBody(const gal::spStarSystem& ss, const js::value& jb) {
     gal::spEntity body(new gal::Entity);
     if (jb["type"].is_string()) {
-        std::string type = jb["type"].as_string();
+        auto type = jb["type"].as_string();
         if (type == "Star") body->type = TypeNav::Star;
         else if (type == "Planet") body->type = TypeNav::Planet;
         else if (type == "AsteroidCluster") body->type = TypeNav::AsteroidCluster;
@@ -190,14 +191,16 @@ static void parseBody(const gal::spStarSystem& ss, const js::value& jb) {
     parseBodyId(ss, body, jb);
 
     bool is_new = true;
-    if (ss->getBodyById(body->bodyId)) {
-        body = ss->getBodyById(body->bodyId);
+    if (auto b = ss->getBodyById(body->bodyId)) {
+        body = b;
         is_new = false;
     }
-    if (jb["name"].is_string()) {
-        auto& name = jb["name"].as_string();
-        if (ss->getBody(name)) {
-            body = ss->getBodyById(body->bodyId);
+    else if (jb["name"].is_string()) {
+        auto name = jb["name"].as_string();
+        if (auto b = ss->getBody(name); b && b->bodyId < 0) {
+            TypeNav tp = body->type;
+            body = b;
+            body->type = tp;
             is_new = false;
         }
         else
@@ -226,7 +229,7 @@ static void parseBody(const gal::spStarSystem& ss, const js::value& jb) {
 }
 
 gal::spStarSystem Spansh::loadStarSystem(int64_t systemAddress) {
-    LOG(INFO) << "Spansh query system by id";
+    LOG(INFO) << "Spansh query system by id: " << systemAddress;
     TRY {
         auto cr = cpr::Get(cpr::Url{API+"dump/"+std::to_string((uint64_t)systemAddress)});
         auto cr_body = getJS(cr);
@@ -236,10 +239,10 @@ gal::spStarSystem Spansh::loadStarSystem(int64_t systemAddress) {
         const js::value jsystem = cr_body["system"];
 
         auto systemName = jsystem["name"].as_string();
-        gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, false);
-        ss->starPos.x = jsystem["coords"]["x"].as_real_or();
-        ss->starPos.y = jsystem["coords"]["y"].as_real_or();
-        ss->starPos.z = jsystem["coords"]["z"].as_real_or();
+        cv::Point3d systemPos{jsystem["coords"]["x"].as_real_or(),
+                              jsystem["coords"]["y"].as_real_or(),
+                              jsystem["coords"]["z"].as_real_or()};
+        gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, &systemPos, false);
         parseTimestampString(jsystem["date"].as_string_or(), ss->eddn_updated_at);
         int body_count = jsystem["bodyCount"].as_int_or();
         if (body_count > 0 && body_count != ss->game_body_count)
@@ -263,14 +266,16 @@ gal::spStarSystem Spansh::loadStarSystem(int64_t systemAddress) {
     return {};
 }
 
-gal::spStarSystem Spansh::loadStarSystem(const std::string& name) {
+gal::spStarSystem Spansh::loadStarSystem(std::string_view name) {
+    auto db_ss = db::loadStarSystem(name);
+    if (db_ss.id)
+        return loadStarSystem(db_ss.id);
 
-    // https://spansh.co.uk/api/systems/field_values/system_names?q={systenName}
-
-    LOG(INFO) << "Spansh query system id by name";
+    LOG(INFO) << "Spansh query system id by name: " << name;
     TRY {
+        // https://spansh.co.uk/api/systems/field_values/system_names?q={systenName}
         std::string url = API+"systems/field_values/system_names?q=";
-        char* name_esc = curl_escape(name.data(), name.length());
+        char* name_esc = curl_escape(name.data(), (int)name.length());
         std::string name_plus = name_esc;
         curl_free(name_esc);
         size_t pos = 0;
@@ -336,7 +341,8 @@ std::vector<gal::spStarSystem> Spansh::listNearestSystems(const std::string& sys
             Timestamp updated_at;
             if (jr["updated_at"].is_string())
                 parseTimestampString(jr["updated_at"].as_string(), updated_at);
-            gal::spStarSystem ss = gal::makeStarSystem(name, address, false);
+            cv::Point3d pos = {x,y,z};
+            gal::spStarSystem ss = gal::makeStarSystem(name, address, &pos, false);
             if (updated_at < ss->eddn_updated_at || !ss->loaded)
                 loadStarSystem(address);
             if (ss) {

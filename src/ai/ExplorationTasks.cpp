@@ -75,6 +75,8 @@ bool TaskSystemsAround::run() {
             throw_failed("Failed to scan systems around '{}'", systemName);
             return false;
         }
+        LOG_INFO("Scanned around systems address {:14d} name \"{}\" is unknown",
+                 starSystem->systemAddress, starSystem->systemName);
         auto& foundSystems = std::static_pointer_cast<NavListScanSystemsTask>(scan_task)->foundSystems;
         for (int sidx=0; sidx < foundSystems.size(); sidx++) {
             auto& ss = foundSystems[sidx];

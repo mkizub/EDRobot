@@ -6,6 +6,7 @@
 
 #include "ui/UIManager.h"
 #include "ai/AIManager.h"
+#include "db/DB.h"
 #include "detect/Detector.h"
 #include "detect/Lines.h"
 #include "detect/NavPanel.h"
@@ -129,7 +130,7 @@ static std::pair<std::string,std::string> getLatestVersionAndUrl() {
         auto tag = latest["tag_name"];
         auto url = latest["html_url"];
         if (tag.is_string() && tag.as_string().starts_with("rel-")) {
-            return {tag.as_string().substr(4), url.as_string_or()};
+            return {*tag.as_string().substr(4), *url.as_string_or()};
         }
     }
     return {};
@@ -391,13 +392,12 @@ bool Master::initialize() {
         std::string msg = msg1 + "\n\n" + msg2;
         auto latest = getLatestVersionAndUrl();
         UIManager::showStartupDialog(msg, latest.first, latest.second);
-        return true;
     } else {
         std::string msg1 = _gt("Initialization error");
         std::string msg = msg1 + "\n\n" + error;
         UIManager::showStartupDialog(msg, EDROBOT_VERSION, "");
-        return false;
     }
+    return true;
 }
 std::string Master::initializeInternal() {
 
@@ -408,6 +408,8 @@ std::string Master::initializeInternal() {
     if (!Cfg.load())
         return Cfg.getErrorMessage();
 
+    if (!db::init())
+        return _gt("Cannot open database");
     ai::init();
     if (!ai::init_ship_tracker())
         return _gt("Missing required vJoy axis bindings for ship");
@@ -443,6 +445,7 @@ Master::~Master() {
 
 void Master::shutdown() {
     UIManager::shutdown();
+    db::shutdown();
     kbd::stop();
     kbd::release_vJoy();
     ai::shutdown_ship_tracker();

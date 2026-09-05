@@ -601,8 +601,9 @@ private:
     void parse_string(value& v, int quote)
     {
         static const char context[] = "string";
-        v = "";
-        parse_string(v.as_string(), quote, context);
+        std::string buffer;
+        parse_string(buffer, quote, context);
+        v = buffer;
     }
 
     /**
@@ -869,14 +870,14 @@ private:
      *
      * @return An indent text for one level
      */
-    value::json_type get_indent()
+    std::string get_indent()
     {
         if (indent_ > 0) {
-            return value::json_type(indent_, ' ');
+            return std::string(indent_, ' ');
         } else if (indent_ < 0) {
-            return value::json_type(-indent_, '\t');
+            return std::string(-indent_, '\t');
         }
-        return value::json_type();
+        return std::string();
     }
 
     /**
@@ -914,7 +915,7 @@ private:
      * @param v A value object to stringify
      * @param indent An indent string
      */
-    void stringify_value(const value& v, const value::json_type& indent, bool ignore_container_flags)
+    void stringify_value(const value& v, const std::string& indent, bool ignore_container_flags)
     {
         switch (v.content.index()) {
         case value::TYPE_BOOLEAN:
@@ -966,7 +967,7 @@ private:
                     } else {
                         const char *const newline = get_newline();
                         const char *delim = "[";
-                        const value::json_type inner_indent = indent + get_indent();
+                        const std::string inner_indent = indent + get_indent();
                         for (const auto &item: v.as_array()) {
                             if (has_flag(flags::no_array_nulls) && item.is_null())
                                 continue;
@@ -1003,7 +1004,7 @@ private:
                     } else {
                         const char *const newline = get_newline();
                         const char *delim = "{";
-                        const value::json_type inner_indent = indent + get_indent();
+                        const std::string inner_indent = indent + get_indent();
                         for (const auto [key,val] : v.key_value_ordered()) {
                             if (has_flag(flags::no_object_nulls) && val.is_null())
                                 continue;
@@ -1417,7 +1418,7 @@ inline value parse(std::istream& istream, bool finished = true)
  * @param string A string to be parsed
  * @return JSON value
  */
-inline value parse(const value::json_type& string)
+inline value parse(const std::string& string)
 {
     std::istringstream istream(string);
     return parse(istream, true);
@@ -1461,7 +1462,7 @@ inline value parse5(std::istream& istream, bool finished = true)
  * @param string A string to be parsed
  * @return JSON value
  */
-inline value parse5(const value::json_type& string)
+inline value parse5(const std::string& string)
 {
     std::istringstream istream(string);
     return parse5(istream, true);
@@ -1489,7 +1490,7 @@ inline value parse5(const void* pointer, std::size_t length)
  * @return JSON string
  */
 template <class... T>
-value::json_type stringify(const value& v, T... args)
+std::string stringify(const value& v, T... args)
 {
     std::ostringstream ostream;
     impl::flow_stringifier(ostream << rule::ecma404(), args..., v);
@@ -1505,7 +1506,7 @@ value::json_type stringify(const value& v, T... args)
  * @return JSON string
  */
 template <class... T>
-value::json_type stringify5(const value& v, T... args)
+std::string stringify5(const value& v, T... args)
 {
     std::ostringstream ostream;
     impl::flow_stringifier(ostream << rule::json5(), args..., v);
@@ -1520,7 +1521,7 @@ value::json_type stringify5(const value& v, T... args)
  * @return JSON string
  */
 template <class... T>
-value::json_type value::stringify(T... args) const
+std::string value::stringify(T... args) const
 {
     return js::stringify(*this, args...);
 }
@@ -1533,7 +1534,7 @@ value::json_type value::stringify(T... args) const
  * @return JSON string
  */
 template <class... T>
-value::json_type value::stringify5(T... args) const
+std::string value::stringify5(T... args) const
 {
     return js::stringify5(*this, args...);
 }

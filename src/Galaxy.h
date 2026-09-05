@@ -12,8 +12,8 @@ namespace gal {
 class Entity {
 public:
     virtual ~Entity() = default;
-    bool nameEq(const std::string& nm) const;
-    bool setName(const std::string& nm);
+    bool nameEq(std::string_view nm) const;
+    bool setName(std::string_view nm);
     TypeNav type {TypeNav::Other};
     Timestamp updated {};
     short bodyId {-1};
@@ -31,14 +31,22 @@ public:
 typedef std::shared_ptr<Entity> spEntity;
 
 struct StarSystem {
-    StarSystem(int64_t address, std::string name)
+    StarSystem(int64_t address, std::string_view name)
         : systemAddress(address)
-        , systemName(std::move(name))
+        , systemName(name)
+    {}
+    StarSystem(int64_t address, std::string_view name, double x, double y, double z, int64_t blobId, bool savedDbBase)
+            : systemAddress(address)
+            , systemName(name)
+            , starPos(x,y,z)
+            , dbBlobId(blobId)
+            , savedDbBase(savedDbBase)
     {}
     virtual ~StarSystem() = default;
     const int64_t systemAddress;
     const std::string systemName;
     cv::Point3d starPos;
+    int64_t dbBlobId {};
     Timestamp eddn_updated_at {};
     int game_body_count {};
     bool loaded {};
@@ -47,13 +55,14 @@ struct StarSystem {
     std::vector<spEntity> stations;
     std::vector<spEntity> signals;
     bool saved {false};
+    bool savedDbBase {false};
     void save();
 
     spEntity getMainStar();
     spEntity getEntity(const std::string& bname);
     spEntity getBodyById(int bodyId);
-    spEntity getBody(const std::string& bname);
-    spEntity getDock(const std::string& sname);
+    spEntity getBody(std::string_view bname);
+    spEntity getDock(std::string_view sname);
     spEntity getDock(int64_t marketId);
     void addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEvent>>& events);
     spEntity addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& name, int bodyId);
@@ -65,14 +74,14 @@ struct StarSystem {
 
 private:
     void checkType(spEntity& site, TypeNav type, Timestamp timestamp);
-    void checkName(spEntity& site, const std::string& name, Timestamp timestamp);
-    void checkNloc(spEntity& site, const std::string& nloc, Timestamp timestamp);
+    void checkName(spEntity& site, std::string_view name, Timestamp timestamp);
+    void checkNloc(spEntity& site, std::string_view nloc, Timestamp timestamp);
 };
 
 typedef std::shared_ptr<StarSystem> spStarSystem;
 
 spStarSystem getStarSystem(std::string_view name, bool network_load=true);
-spStarSystem makeStarSystem(const std::string& name, int64_t address, bool network_load=true);
+spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d* starPos, bool network_load=true);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
 
@@ -90,10 +99,10 @@ struct NavType {
     const std::vector<std::pair<Lang,std::string>> name_loc;
 
     static NavType* findNavType(TypeNav type);
-    static bool expandName(const std::string nm, std::string& name, std::string& nloc);
+    static bool expandName(std::string_view nm, std::string& name, std::string& nloc);
     std::string get_nloc() const;
-    bool match_name(const std::string& name) const;
-    bool match_type(const std::string& type) const;
+    bool match_name(std::string_view name) const;
+    bool match_type(std::string_view type) const;
     bool match_icon(wchar_t ch, const std::string& icon) const;
 };
 

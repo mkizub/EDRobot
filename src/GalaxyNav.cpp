@@ -266,13 +266,13 @@ static std::string STR_COLONIZATION_SHIP_IDX("$EXT_PANEL_ColonisationShip:#index
 static std::string STR_COLONIZATION_BEACON_IDX("$EXT_PANEL_ColonisationBeacon_Site:#index");
 static std::string STR_COLONIZATION_SITE_IDX("$EXT_PANEL_ColonisationBeacon_DeploymentSite;");
 static std::string STR_MODULE_INACTIVE("$INT_PANEL_module_inactive;");
-bool NavType::expandName(const std::string nm, std::string& name, std::string& nloc) {
+bool NavType::expandName(std::string_view nm, std::string& name, std::string& nloc) {
     // $INT_PANEL_module_inactive; -> НЕАКТИВНО
     if (nm.starts_with(STR_COLONIZATION_SHIP)) {
-        name = "System Colonisation Ship" + nm.substr(STR_COLONIZATION_SHIP.length());
+        name = "System Colonisation Ship" + *nm.substr(STR_COLONIZATION_SHIP.length());
         nloc = nm;
         if (st::lng == Lang::RU)
-            nloc = "Колонизационный корабль" + nm.substr(STR_COLONIZATION_SHIP.length());
+            nloc = "Колонизационный корабль" + *nm.substr(STR_COLONIZATION_SHIP.length());
         auto pos = name.find(STR_MODULE_INACTIVE);
         if (pos != std::string::npos) {
             name.replace(pos, STR_MODULE_INACTIVE.length(), "INACTIVE");
@@ -316,7 +316,7 @@ std::string NavType::get_nloc() const {
     }
     return {};
 }
-bool NavType::match_name(const std::string& sname) const {
+bool NavType::match_name(std::string_view sname) const {
     if (sname.empty())
         return false;
     if (!name_loc.empty()) {
@@ -352,7 +352,7 @@ bool NavType::match_name(const std::string& sname) const {
     return false;
 }
 
-bool NavType::match_type(const std::string& stype) const {
+bool NavType::match_type(std::string_view stype) const {
     if (stype.empty())
         return false;
     if (!stype.empty()) {

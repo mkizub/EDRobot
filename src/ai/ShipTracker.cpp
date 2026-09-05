@@ -146,7 +146,7 @@ CourseLockerPause::~CourseLockerPause() {
 
 
 bool setAxisBindings(Axis& axis, bool invert) {
-    const KeyBindings& orig = Cfg.getGameKeyBindings(std::string(axis.name()) + "AxisRaw");
+    const KeyBindings& orig = Cfg.getGameKeyBindings(*axis.name() + "AxisRaw");
     axis.bindings = orig;
     if (!(orig.mode == KeyBindings::Axis || orig.mode == KeyBindings::AxisInv)) {
         LOG_ERROR("Bad bindings for {}, vJoy axis required", axis.name());

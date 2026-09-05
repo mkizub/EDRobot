@@ -108,7 +108,7 @@ bool TaskSellAll::run() {
         if (mExcept.is_array()) {
             for (auto& v : mExcept.as_array()) {
                 if (v.is_string())
-                    except.push_back(v.as_string());
+                    except.push_back(*v.as_string());
             }
         }
         for (Commodity* commodity: Cfg.getAllKnownCommodities()) {
@@ -1033,8 +1033,8 @@ bool TradeLoopTask::run() {
                     continue;
 
                 MarketInfo& mi = markets.emplace_back(
-                        mt.get("market").value["system"].as_string_or(),
-                        mt.get("market").value["dock"].as_string_or());
+                        *mt.get("market").value["system"].as_string_or(),
+                        *mt.get("market").value["dock"].as_string_or());
                 auto& j_tasks = mt.get("tasks").value;
                 if (!j_tasks.is_array()) {
                     mi.sell_all = true;

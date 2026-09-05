@@ -608,6 +608,16 @@
         en: "Water",
         ru: "Вода",
       },
+      helium3: {
+        id: 129046167,
+        en: "",
+        ru: "Гелий-3",
+      },
+      helium: {
+        id: 129046166,
+        en: "",
+        ru: "Гелий",
+      },
     },
   },
   'drugs': {
@@ -997,6 +1007,11 @@
         en: "Micro-weave Cooling Hoses",
         ru: "Шланги системы охлаждения малых диаметров",
       },
+      curatedcommodity: {
+        id: 129045961,
+        en: "",
+        ru: "Подборка предметов потребления",
+      },
       insulatingmembrane: {
         id: 128673855,
         en: "Insulating Membrane",
@@ -1026,11 +1041,6 @@
         id: 128049200,
         en: "Superconductors",
         ru: "Сверхпроводники",
-      },
-      curatedcommodity: {
-        id: 129045961,
-        en: "",
-        ru: "Подборка предметов потребления",
       },
     },
   },
@@ -1118,6 +1128,11 @@
         id: 128732186,
         en: "Guardian Tablet",
         ru: "Табличка Стражей",
+      },
+      genebank: {
+        id: 128672162,
+        en: "Gene Bank",
+        ru: "Генотека",
       },
       s6_tissuesample_coenosarc: {
         id: 128922787,
@@ -1290,11 +1305,6 @@
         id: 128672161,
         en: "Earth Relics",
         ru: "Реликвии с Земли",
-      },
-      genebank: {
-        id: 128672162,
-        en: "Gene Bank",
-        ru: "Генотека",
       },
       unstabledatacore: {
         id: 128672810,
@@ -1775,6 +1785,11 @@
         en: "Uranium",
         ru: "Уран",
       },
+      iridium: {
+        id: 129046165,
+        en: "",
+        ru: "Иридий",
+      },
     },
   },
   'weapons': {
@@ -1844,15 +1859,40 @@
     en: "Minerals",
     ru: "Минералы",
     items: {
+      periclasedunite: {
+        id: 129046173,
+        en: "",
+        ru: "Периклазовый дунит",
+      },
       bertrandite: {
         id: 128049156,
         en: "Bertrandite",
         ru: "Бертрандит",
       },
+      diamond: {
+        id: 129046175,
+        en: "",
+        ru: "Алмаз",
+      },
       opal: {
         id: 128924332,
         en: "Void Opal",
         ru: "Опал бездны",
+      },
+      deuterium: {
+        id: 129046169,
+        en: "",
+        ru: "Дейтерий",
+      },
+      ruby: {
+        id: 129046176,
+        en: "",
+        ru: "Рубин",
+      },
+      sapphire: {
+        id: 129046174,
+        en: "",
+        ru: "Сапфир",
       },
       methaneclathrate: {
         id: 128673854,
@@ -1988,6 +2028,31 @@
         id: 128049160,
         en: "Uraninite",
         ru: "Уранинит",
+      },
+      olivine: {
+        id: 129046172,
+        en: "",
+        ru: "Оливин",
+      },
+      bastnasite: {
+        id: 129046168,
+        en: "",
+        ru: "Бастнезит",
+      },
+      thortveitite: {
+        id: 129046170,
+        en: "",
+        ru: "Тортвейтит",
+      },
+      quartzpyroxenite: {
+        id: 129046171,
+        en: "",
+        ru: "Кварцевый пироксенит",
+      },
+      magnesite: {
+        id: 129046177,
+        en: "",
+        ru: "Магнезит",
       },
     },
   },
@@ -2660,6 +2725,19 @@
     "antimattercontainmentunit", //  | Контейнер с антиматерией
     "thargoidpod", //  | Таргоидская капсула для биоматериалов
     "curatedcommodity", //  | Подборка предметов потребления
+    "iridium", //  | Иридий
+    "helium", //  | Гелий
+    "helium3", //  | Гелий-3
+    "bastnasite", //  | Бастнезит
+    "deuterium", //  | Дейтерий
+    "thortveitite", //  | Тортвейтит
+    "quartzpyroxenite", //  | Кварцевый пироксенит
+    "olivine", //  | Оливин
+    "periclasedunite", //  | Периклазовый дунит
+    "sapphire", //  | Сапфир
+    "diamond", //  | Алмаз
+    "ruby", //  | Рубин
+    "magnesite", //  | Магнезит
   ],
   'carrier-order-ru': [
     "gromcounterintelligence", //  | Разведданные Грома
@@ -3062,5 +3140,18 @@
     "antimattercontainmentunit", //  | Контейнер с антиматерией
     "thargoidpod", //  | Таргоидская капсула для биоматериалов
     "curatedcommodity", //  | Подборка предметов потребления
+    "iridium", //  | Иридий
+    "helium", //  | Гелий
+    "helium3", //  | Гелий-3
+    "bastnasite", //  | Бастнезит
+    "deuterium", //  | Дейтерий
+    "thortveitite", //  | Тортвейтит
+    "quartzpyroxenite", //  | Кварцевый пироксенит
+    "olivine", //  | Оливин
+    "periclasedunite", //  | Периклазовый дунит
+    "sapphire", //  | Сапфир
+    "diamond", //  | Алмаз
+    "ruby", //  | Рубин
+    "magnesite", //  | Магнезит
   ],
 }

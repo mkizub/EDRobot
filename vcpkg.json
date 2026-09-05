@@ -47,5 +47,9 @@
     "default-features" : false
   }, {
     "name" : "openssl"
+  }, {
+    "name" : "sqlite3",
+    "version>=" : "3.52.0",
+    "features" : [ "json1", "math", "rtree" ]
   } ]
 }

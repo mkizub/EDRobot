@@ -64,7 +64,7 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
     }
     if (depotMarket && !depotMarket->raven)
         depotMarket->raven = std::make_shared<RavenProj>();
-    auto& depotInfo = depots.emplace_back(systemName, fullName, shortName);
+    auto& depotInfo = depots.emplace_back(*systemName, *fullName, *shortName);
     depotInfo.marketId = depot->marketId;
     if (depotMarket && depotMarket->raven) {
         depotInfo.ravenBuildId = depotMarket->raven->buildId;
@@ -81,7 +81,7 @@ gal::spEntity BaseColonizationTask::getCurrDock() {
     return dock;
 }
 
-gal::spEntity BaseColonizationTask::travelTo(const std::string& systemName, const std::string& dockName) {
+gal::spEntity BaseColonizationTask::travelTo(std::string_view systemName, std::string_view dockName) {
     auto currDock = getCurrDock();
     if (currDock && gal::getCurrentStarSystem()->systemName == systemName && currDock->nameEq(dockName)) {
         destSystemName.clear();
@@ -298,9 +298,9 @@ BaseColonizationTask::Demands BaseColonizationTask::calcDemands() {
 }
 
 BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
-        const std::string& systemName, const std::string& dockName, const Demands& demands)
+        std::string_view systemName, std::string_view dockName, const Demands& demands)
 {
-    BaseColonizationTask::MarketInfo mi {MARKET_INVALID, systemName, dockName};
+    BaseColonizationTask::MarketInfo mi {MARKET_INVALID, *systemName, *dockName};
     mi.canBuy.resize(demands.allDepots.size(), 0);
     mi.canBuyListed.resize(demands.allDepots.size(), 0);
     auto starSystem = gal::getStarSystem(systemName);

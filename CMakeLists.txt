@@ -18,6 +18,7 @@ find_package(CURL REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(cpptrace CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
 add_library(vJoyInterface SHARED IMPORTED)
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION_RELEASE "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
 set_property(TARGET vJoyInterface PROPERTY IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/thirdparty/vjoy/lib/x64/vJoyInterface.dll")
@@ -29,6 +30,7 @@ find_package(ZLIB REQUIRED)
 add_compile_definitions(UNICODE)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(ELPP_NO_DEFAULT_LOG_FILE ELPP_THREAD_SAFE)
+add_compile_definitions(SQLITE_ENABLE_COLUMN_METADATA)
 string(REPLACE "/EHsc" "/EHa" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 string(REPLACE "/EHs" "/EHa" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 add_compile_options(/Zc:__cplusplus /await:strict /utf-8 /Zi /EHa)
@@ -40,6 +42,7 @@ add_executable(EDRobot WIN32
         src/pch.h
         src/ed_opencv.h
         src/ed_spdlog.h
+        src/compact_vector.h
         src/Types.h
         src/main.cpp
         src/CargoManager.cpp
@@ -115,6 +118,9 @@ add_executable(EDRobot WIN32
         src/js/parser.h
         src/js/internal/impl.h
 
+        src/db/DB.h
+        src/db/DB.cpp
+
         src/net/NetUtils.cpp
         src/net/NetUtils.h
         src/net/RavenColonial.cpp
@@ -138,6 +144,10 @@ add_executable(EDRobot WIN32
         src/ui/UIDebug.h
         src/ui/UIDialog.cpp
         src/ui/UIDialog.h
+        src/ui/UIEditBookmarks.cpp
+        src/ui/UIEditBookmarks.h
+        src/ui/UIEditSystem.cpp
+        src/ui/UIEditSystem.h
         src/ui/UIEditTask.cpp
         src/ui/UIEditTask.h
         src/ui/UILayout.h
@@ -156,7 +166,9 @@ add_executable(EDRobot WIN32
         src/ui/UIWindow.cpp
         src/ui/UIWindow.h
         src/ui/wl_cargobox.h
+        src/ui/wl_popup_menu.h
         src/ui/wl_svg_button.h
+        src/ui/wl_tooltip.h
 
         src/widget/EDWidget.cpp
         src/widget/EDWidget.h
@@ -187,12 +199,13 @@ add_executable(EDRobot WIN32
         thirdparty/glob/glob.h
         thirdparty/vjoy/vjoyinterface.h
         thirdparty/xml/xml.h
-        src/ui/wl_tooltip.h
-        src/ui/wl_popup_menu.h
-        src/ui/UIEditBookmarks.cpp
-        src/ui/UIEditBookmarks.h
-        src/ui/UIEditSystem.cpp
-        src/ui/UIEditSystem.h
+        thirdparty/SQLiteCpp/Backup.cpp
+        thirdparty/SQLiteCpp/Column.cpp
+        thirdparty/SQLiteCpp/Database.cpp
+        thirdparty/SQLiteCpp/Exception.cpp
+        thirdparty/SQLiteCpp/Savepoint.cpp
+        thirdparty/SQLiteCpp/Statement.cpp
+        thirdparty/SQLiteCpp/Transaction.cpp
 )
 
 
@@ -209,6 +222,7 @@ target_link_libraries(EDRobot PRIVATE ${OpenCV_LIBS})
 target_link_libraries(EDRobot PRIVATE Tesseract::libtesseract)
 target_link_libraries(EDRobot PRIVATE ZLIB::ZLIB)
 target_link_libraries(EDRobot PRIVATE OpenSSL::SSL CURL::libcurl cpr::cpr)
+target_link_libraries(EDRobot PRIVATE unofficial::sqlite3::sqlite3)
 target_link_libraries(EDRobot PRIVATE spdlog::spdlog)
 target_link_libraries(EDRobot PRIVATE dxgi d3d11 winmm shcore dwmapi d2d1 windowsapp)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

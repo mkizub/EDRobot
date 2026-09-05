@@ -114,7 +114,7 @@ static int get_int(const js::value& val, const js::value& args, int dflt = -1) {
 
 bool Task::decodePosition(const js::value& pos, cv::Point& point, const js::value& args) const {
     if (pos.is_string()) {
-        cv::Rect rect = Mgr.resolveWidgetReferenceRect(pos.as_string(), ai::rEnv);
+        cv::Rect rect = Mgr.resolveWidgetReferenceRect(*pos.as_string(), ai::rEnv);
         if (rect.empty()) {
             LOG(ERROR) << "Widget '" << pos << "' not found in current state";
             return false;
@@ -154,7 +154,7 @@ bool Task::executeWait(const js::value& step, const js::value& args) {
     bool ok;
     for (int counter=1; now < until; counter++) {
         ok = ai::detectEDState(DetectLevel::Buttons);
-        if (ok && ai::uiState.match(state.as_string())) {
+        if (ok && ai::uiState.match(*state.as_string())) {
             bool ok_focus = true;
             if (focus.is_string()) {
                 ok_focus = false;
@@ -223,7 +223,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             LOG_DEBUG("action task_step check: {}", step);
             const js::value& state = step.at("check");
             ai::detectEDState(DetectLevel::Buttons);
-            bool ok = ai::uiState.match(state.as_string());
+            bool ok = ai::uiState.match(*state.as_string());
             if (ok) {
                 const js::value &focus = step.at("focus");
                 if (focus) {
@@ -241,7 +241,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             const js::value& key = step.at("key");
             bool ok;
             if (step.at("hold").is_object() || step.at("hold").is_array()) {
-                const KeyBindings& keyBindings = Cfg.getGameKeyBindings(key.as_string());
+                const KeyBindings& keyBindings = Cfg.getGameKeyBindings(*key.as_string());
                 const GameKey* gk = nullptr;
                 if (keyBindings.primary.device != GameKey::Void)
                     gk = &keyBindings.primary;
@@ -261,7 +261,7 @@ bool Task::executeStep(const js::value& step, const js::value& args) {
             } else {
                 int hold = get_int(step.at("hold"), args, Cfg.getDefaultKeyHoldTime());
                 int after = get_int(step.at("after"), args, Cfg.getDefaultKeyAfterTime());
-                ok = kbd::send(key.as_string(), hold, after);
+                ok = kbd::send(*key.as_string(), hold, after);
             }
             LOG_IF(!ok,ERROR) << "Step " << step << " failed";
             return ok;
@@ -345,7 +345,7 @@ void Step::addMessage(MessageSeverity severity, const std::string_view msg) {
     std::scoped_lock<std::mutex> lock(messagesMutex);
     while (!messages.empty() && messages.front().expired() || messages.size() > 4)
         messages.pop_front();
-    messages.emplace_back(std::chrono::steady_clock::now(), severity, std::string(msg));
+    messages.emplace_back(std::chrono::steady_clock::now(), severity, *msg);
 }
 
 std::vector<std::string> Step::getMessages() {

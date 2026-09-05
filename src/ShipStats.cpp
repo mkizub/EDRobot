@@ -230,7 +230,7 @@ void ShipSlot::setEngineering(const std::string& bp, int level, float quality, c
             attrModifier.clear();
             attrOverride.clear();
             for (auto& a : mtype["modifiable"].as_array_or()) {
-                auto& attr_name = a.as_string();
+                auto attr_name = a.as_string();
                 if (!(*blueprint)[attr_name])
                     continue;
                 auto attr_opt = enum_cast<Attr>(attr_name);
@@ -475,17 +475,17 @@ ShipStats::ShipStats(const string &type, const js::value &jship)
 
 
 void ShipStats::setSlotModule(const js::value &jvalue) {
-    const std::string& slotName = jvalue["Slot"].as_string();
-    const std::string& moduleName = jvalue["Item"].as_string();
+    const std::string slotName = *jvalue["Slot"].as_string();
+    const std::string moduleName = *jvalue["Item"].as_string();
     auto& slot = getSlot(slotName);
     slot.setModule(moduleName);
     auto eng = jvalue["Engineering"];
     if (eng.is_object()) {
         if (eng["BlueprintName"].is_string()) {
-            std::string blueprint = eng["BlueprintName"].as_string();
+            std::string blueprint = *eng["BlueprintName"].as_string();
             int level = eng["Level"].as_int();
             float quality = eng["Quality"].as_real();
-            std::string effect = eng["ExperimentalEffect"].as_string_or();
+            std::string effect = *eng["ExperimentalEffect"].as_string_or();
             slot.setEngineering(blueprint, level, quality, effect);
         }
     }

@@ -1199,7 +1199,7 @@ bool NavListScanSystemsTask::run() {
         prevAddress = address;
         if (address == gal::getCurrentStarSystem()->systemAddress)
             break;
-        gal::spStarSystem ss = gal::makeStarSystem(name, address, true);
+        gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr, true);
         foundSystems.push_back(ss);
         kbd::send("UI_Down");
     }

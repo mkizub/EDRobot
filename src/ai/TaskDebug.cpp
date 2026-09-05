@@ -758,7 +758,7 @@ bool TaskDebugFindAllNavPoints::getSpanishInfo() {
         return false;
     std::vector<std::string> systems;
     for (auto& s : jn.as_array())
-        systems.push_back(s["name"].as_string());
+        systems.push_back(*s["name"].as_string());
     nl.setNearestSystems(systemName, systems);
     spanshNearSystems = std::move(jn);
     LOG_DEBUG("Got near systems: {}", spanshNearSystems);
@@ -823,9 +823,9 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::AsteroidCluster:
         if (spanshSystemInfo["bodies"].is_array()) {
             for (auto &js: spanshSystemInfo.at("bodies").as_array()) {
-                if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
+                if (!js["type"].is_string() || !contains(nav_type->typeAliases, *js["type"].as_string()))
                     continue;
-                std::string name = js.at("name").as_string();
+                auto name = js["name"].as_string();
                 std::wstring name_ocr = fm.toOCR(toUtf16(name));
                 double rate = fm.ratio(text_ocr, name_ocr);
                 if (rate > best_rate) {
@@ -838,7 +838,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::StarSystem:
         if (spanshNearSystems.is_array()) {
             for (auto &js: spanshNearSystems.as_array()) {
-                std::string name = js.at("name").as_string();
+                auto name = js["name"].as_string();
                 std::wstring name_ocr = fm.toOCR(toUtf16(name));
                 double rate = fm.ratio(text_ocr, name_ocr);
                 if (rate > best_rate) {
@@ -870,9 +870,9 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::PlanetaryConstrDepot:
         if (spanshSystemInfo["stations"].is_array()) {
             for (auto &js: spanshSystemInfo.at("stations").as_array()) {
-                if (!js["type"].is_string() || !contains(nav_type->typeAliases, js["type"].as_string()))
+                if (!js["type"].is_string() || !contains(nav_type->typeAliases, *js["type"].as_string()))
                     continue;
-                std::string name = js.at("name").as_string();
+                std::string name = *js.at("name").as_string();
                 while (name.ends_with("+"))
                     name = trim(name.substr(0, name.size() - 1));
                 std::wstring name_ocr = fm.toOCR(toUtf16(name));

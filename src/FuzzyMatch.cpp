@@ -132,7 +132,7 @@ double FuzzyMatch::replace_cost(wchar_t ch1, wchar_t ch2) const {
     return 1;
 }
 
-std::wstring FuzzyMatch::toOCR(const std::wstring& source) {
+std::wstring FuzzyMatch::toOCR(std::wstring_view source) {
     std::wstring out;
     out.reserve(source.size());
     for (auto ch : source) {

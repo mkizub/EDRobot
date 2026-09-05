@@ -99,11 +99,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         FILE *fpConsole = _fdopen(_open_osfhandle((intptr_t) hConsole, _O_TEXT), "w");
         auto c_sink = new spdlog::sinks::ansicolor_sink<spdlog::details::console_mutex>(fpConsole,
                                                                                         spdlog::color_mode::always);
+        console_sink.reset(c_sink);
         c_sink->set_level(spdlog::level::info);
         c_sink->set_color(spdlog::level::info, "\033[38;5;7m");
         c_sink->set_color(spdlog::level::debug, "\033[38;5;8m");
         c_sink->set_color(spdlog::level::trace, "\033[38;5;6m");
-        console_sink.reset(c_sink);
     }
 
     auto http_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("cache/network.log", 5*1024*1024, 3, true);

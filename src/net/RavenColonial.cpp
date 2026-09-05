@@ -58,7 +58,7 @@ bool RavenColonial::linkCmdr(int64_t marketId) {
     return true;
 }
 
-gal::spEntity RavenColonial::importConstructionProject(const std::string& systemName, const std::string& fullName, const std::string& shortName) {
+gal::spEntity RavenColonial::importConstructionProject(std::string_view systemName, std::string_view fullName, std::string_view shortName) {
     if (!Cfg.isRavenColonialEnabled())
         return {};
     // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
@@ -96,7 +96,7 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
         for (auto &site: cr_body["sites"].as_array_or()) {
             if (site["buildId"].empty() || site["status"].as_string_or() != "build")
                 continue;
-            active_builds.push_back(site["buildId"].as_string_or());
+            active_builds.push_back(*site["buildId"].as_string_or());
         }
         if (active_builds.size() == 1) {
             cr = cpr::Get(cpr::Url{RCAPI_PRJ + active_builds[0]});
@@ -145,7 +145,7 @@ gal::spEntity RavenColonial::importConstructionProject(const std::string& system
 
     spMarket market = gal::getMarket(depot->marketId);
     if (!market)
-        market = std::make_shared<Market>(timestamp, depot->marketId, fullName, "ConstrDepot", systemName);
+        market = std::make_shared<Market>(timestamp, depot->marketId, *fullName, "ConstrDepot", *systemName);
     else
         market = std::make_shared<Market>(*market);
     if (!market->raven)
@@ -310,7 +310,7 @@ void RavenColonial::reportContribution(spGameEvent& ge) {
                     raven->status = site["status"].as_string_or();
                 }
                 if (site["status"].as_string_or() == "build") {
-                    active_builds.push_back(site["buildId"].as_string_or());
+                    active_builds.push_back(*site["buildId"].as_string_or());
                 }
             }
         }

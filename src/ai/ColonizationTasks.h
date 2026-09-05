@@ -70,13 +70,13 @@ protected:
 
     static gal::spEntity getCurrDock();
     virtual bool ignoreCarrier(gal::spEntity& dock) { return false; }
-    gal::spEntity travelTo(const std::string& systemName, const std::string& dockName);
+    gal::spEntity travelTo(std::string_view systemName, std::string_view dockName);
     void travelResume();
     void addDemands(DepotInfo& depot, Demands& demands);
     void fillDemands(Demands& demands);
     Demands calcDemands();
 
-    MarketInfo checkMarketCanBuy(const std::string& systemName, const std::string& dockName,
+    MarketInfo checkMarketCanBuy(std::string_view systemName, std::string_view dockName,
                                  const Demands& demands);
     MarketInfo chooseBestMarket(const Demands& demands);
     void tradeCommodities(const gal::spEntity& currDock, const Demands& demands,
