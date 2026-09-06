@@ -249,7 +249,7 @@ double CompassDetector::match(ClassifyEnv &env) {
         }
     }
 
-    bool can_use_compass = !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
+    bool can_use_compass = true; //!(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging);
     double compassMatch = 0;
     if (can_use_compass) {
         //auto startTime = std::chrono::high_resolution_clock::now();
@@ -283,7 +283,7 @@ double CompassDetector::match(ClassifyEnv &env) {
             };
             double normSpherePosition = cv::norm(dotSpherePosition);
             if (normSpherePosition > 1)
-                dotSpherePosition /= normSpherePosition;
+                dotSpherePosition /= normSpherePosition*1.00000000001;
 
             double pitch = std::asin(dotSpherePosition.y) * 90 / M_PI_2;
             double yaw = std::asin(dotSpherePosition.x) * 90 / M_PI_2;

@@ -440,6 +440,11 @@ double update_axis(Axis& axis, double delta, double max_speed) {
 
 std::chrono::duration<double> turn_step() {
     bool forceScreenDetect = false;
+    utc_timer fsd_charge_timer;
+    if (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging) {
+        forceScreenDetect = true;
+        fsd_charge_timer = 5s;
+    }
 
 repeat_step:
     if (isDebugPause()) {
@@ -486,12 +491,17 @@ repeat_step:
     }
     CompassInfo compass = st::compass;
     auto compassElapsed = utc_now - compass.timestamp;
-//    LOG_INFO("KeepCourse: time delta: {}ms, hemispere {}",
-//                             std::chrono::duration_cast<std::chrono::milliseconds>(compassElapsed).count(),
-//                             compass.hemisphere);
+    LOG_INFO("KeepCourse: time delta: {}ms, hemispere {}",
+                             std::chrono::duration_cast<std::chrono::milliseconds>(compassElapsed).count(),
+                             compass.hemisphere);
     if (!compass.hemisphere || compassElapsed > max_wait_age) {
         compassLostCounter += 1;
         //LOG_INFO("KeepCourse: compass trouble {}",compassLostCounter);
+        if (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging) {
+            forceScreenDetect = true;
+            if (!fsd_charge_timer.expired())
+                goto repeat_step;
+        }
         if (compassLostCounter >= 3) {
             LOG_WARNING("KeepCourse: compass lost");
             Axis::resetAll();

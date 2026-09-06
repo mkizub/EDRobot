@@ -1636,7 +1636,7 @@ bool LeaveBodyStep::run() {
     LOG_DEBUG("LeaveBody: orient away from {}", fromBody);
     status = ORIENT;
     sendUiBack();
-    task->orientAwayFromTarget(10);
+    task->orientAwayFromTarget(6);
     sendUiBack();
 
     setSpeed(100, false, "LeaveBody: leaving");
@@ -1682,23 +1682,29 @@ bool LeaveBodyStep::run() {
         timer = utc_timer(20s);
         status = ENTER_CRUISE;
         kbd::send("Supercruise", 100, 1000);
-        if (!(st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+        for (int retry=0; retry < 5 && !(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging); retry++)
+            sleep(500);
+        if (!(st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging)) {
             notify_error("Entering supercruise failed");
             return false;
         }
     }
 
-    if (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
-        //CourseLocker course(0);
-        while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump) && !timer.expired()) {
+    if (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging)) {
+        while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging) && !timer.expired()) {
             if (st::guiFocus != GuiFocus::None)
                 sendUiBack();
-            ai::detectEDState(DetectLevel::Screen);
-            if (ai::compassInfo.hemisphere > 1) {
-                LOG_DEBUG("LeaveBody: align to exit cruise course");
-                // need align to exit course
-                task->orientTowardTargetStep(5, 1000);
-            }
+            sleep(500);
+        }
+    }
+
+    // in case we are waiting for course aligning
+    if (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging)) {
+        timer = utc_timer(20s);
+        CourseLocker course(0);
+        while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging) && !timer.expired()) {
+            if (st::guiFocus != GuiFocus::None)
+                sendUiBack();
             sleep(500);
         }
     }
@@ -1725,11 +1731,20 @@ bool LeaveBodyStep::run() {
             sleep(useFsdOvercharge ? 100 : 500);
         }
     }
+    else if (auto body = gal::getCurrentStarSystem()->getBody(fromBody);
+            body && body->type == TypeNav::Planet && body->radius > 8000 && eddb::shipHasFsdSco())
+    {
+        status = LEAVING_BODY;
+        useFsdOvercharge = true;
+        kbd::send("UseBoostJuice", 100);
+        sleep(4500, true);
+    }
     if (useFsdOvercharge) {
         kbd::send("UseBoostJuice", 100, 1000);
         while (st::ship.flags2.supercruise_overcharge)
             kbd::send("UseBoostJuice", 100, 1000);
     } else {
+        CourseLocker course(180);
         timer = utc_timer(15s);
         setSpeed(100, true, "LeaveBody: fly away");
         status = FLY_AWAY;
@@ -2889,18 +2904,14 @@ bool CruiseToSignal::run() {
                 continue;
             }
         }
-        if (currentDist >= requiredDist) {
+        if (currentDist <= requiredDist) {
             LOG_DEBUG("CruiseToSignal stop");
             status = DIST_STOP;
             setSpeed(0, false, "CruiseToSignal: stop");
             if (useNavList)
                 sendUiBack();
-            sleep(5000);
-            LOG_INFO("CruiseToSignal done");
-            prevSubStep.reset();
-            currSubStep.reset();
-            status = DONE;
-            return true;
+            sleep(3000);
+            break;
         } else {
             if (currentDist <= requiredDist * 1.5) {
                 status = DIST_NEAR;
@@ -3177,13 +3188,19 @@ bool CruiseToDistStep::run() {
                 if (exp.curent_sec <= 7)
                     setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= 50_ls && time <= 7");
                 else if (exp.curent_sec >= 11)
-                    setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 50_ls && time >= 9");
+                    setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 50_ls && time >= 11");
                 sleep(100);
             }
-            else if (currentDist <= 500_ls) {
+            else if (currentDist <= 1000_ls) {
                 //checkExitSCO(true);
                 status = DIST_FAR;
-                setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls");
+                auto exp = expectingTimeToDest(0);
+                if (exp.curent_sec < 7)
+                    setSpeed(50, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls && time < 7");
+                else if (exp.curent_sec >= 13)
+                    setSpeed(100, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls && time >=13");
+                else if (exp.curent_sec > 9)
+                    setSpeed(75, false, "CruiseToDist: !flyAway && currentDist <= 1000_ls && time > 9");
                 if (!st::ship.flags2.supercruise_overcharge)
                     sleep(500);
             }
@@ -3685,11 +3702,20 @@ bool ExitCruiseToSpace::run() {
 
     st::autopilot.distanceToDock = {};
     dist_t dist_too_far;
+    int dist_alert = 3000;
+    int speed_alert = 50;
     if (st::autopilot.destBody && st::autopilot.destBody->radius > 0) {
-        if (st::autopilot.destBody->type == TypeNav::Star)
-            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius*15).convertTo(dist_t::LS);
-        else
-            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius*25).convertTo(dist_t::LS);
+        if (st::autopilot.destBody->type == TypeNav::Star) {
+            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius * 15).convertTo(dist_t::LS);
+            dist_alert = 40000;
+            speed_alert = 75;
+        } else {
+            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius * 25).convertTo(dist_t::LS);
+            if (st::autopilot.destBody->radius > 40000) {
+                dist_alert = 10000;
+                speed_alert = 75;
+            }
+        }
     }
     if (!dist_too_far || dist_too_far < 15_ls)
         dist_too_far = 15_ls;
@@ -3734,8 +3760,12 @@ bool ExitCruiseToSpace::run() {
             }
             else if ((dist_fails % 5) == 4 && keepPitch == 0)
                 rollBlindCompass();
-            if (dist_fails > 100)
+            if (dist_fails > 50) {
+                setSpeed(100, true, "ExitCruiseToSpace, missed station, fly away");
+                sleep(10000);
+                setSpeed(0, true, "ExitCruiseToSpace, missed station, exit task");
                 throw_trouble("Lost compass or cruise direction");
+            }
             continue;
         }
         dist_fails = 0;
@@ -3753,17 +3783,14 @@ bool ExitCruiseToSpace::run() {
         LOG_DEBUG("ExitCruiseToSpace, exit confirm {}", exit_confirm);
         if (exit_confirm >= 2)
             break;
-        if (dist_km < 3000) {
-            setSpeed(50, true, "ExitCruiseToSpace, dist_km < 3000km");
+        if (dist_km < dist_alert) {
+            setSpeed(speed_alert, true, "ExitCruiseToSpace, dist_km < dist_alert");
             if (keepPitch) {
                 keepPitch = 0;
                 course.requestPitchRoll(0);
             }
-        }
-        else if (dist_km <= 6000)
-            setSpeed(50, false, "ExitCruiseToSpace, dist_km <= 6000km");
-        else {
-            setSpeed(75, false, "ExitCruiseToSpace, dist_km > 6000km");
+        } else {
+            setSpeed(75, false, "ExitCruiseToSpace, dist_km > dist_alert");
             sleep(250);
         }
     }
@@ -4290,8 +4317,8 @@ full_path:
         }
 
         // a few degrees visible angle to stop and avoid planet
-        dist_t min_dist = 0.5_ls;
-        dist_t max_dist = 2.0_ls;
+        dist_t min_dist = 1.5_ls;
+        dist_t max_dist = 5.0_ls;
         if (st::autopilot.destBody) {
             if (toPort || st::autopilot.destBody->type == TypeNav::Planet) {
                 auto radius = std::max(1000.0, st::autopilot.destBody->radius);
@@ -4581,8 +4608,15 @@ bool Autopilot::run() {
     st::autopilot = {};
     resetCompassDetects();
     LOG_INFO("Autopilot, start");
+    if (!st::navFilters.star || !st::navFilters.planetOrMoon || !st::navFilters.landablePlanetOrMoon) {
+        auto filter = st::navFilters;
+        filter.star = true;
+        filter.planetOrMoon = true;
+        filter.landablePlanetOrMoon = true;
+        nl.init(filter);
+    }
+
     if (int ri=getNavRoutePosition(st::currentNavRoute); ri >= 0 && ri+1 < st::currentNavRoute->route.size()) {
-        initNavFilter(true);
         if (!run_sub_step(new CompleteNavRoute))
             throw_trouble("Cannot reach destination system");
     }
@@ -4634,13 +4668,14 @@ bool Autopilot::run() {
 
     initNavFilter(true);
 
-    if (!st::autopilot.destDock && !st::autopilot.destBody) {
-        if (!run_sub_step(new CruiseToSignal(0.9_ls)))
+    if (!st::autopilot.destDock) {
+        if (!run_sub_step(new CruiseToSignal(5.0_ls)))
             throw_trouble("Cannot cruise to signal");
         if (destName.empty())
             throw_failed("No destination dock selected");
         nl.discoverSelected();
-        return false;
+        LOG_INFO("Autopilot, done");
+        return true;
     }
 
     if (!run_sub_step(new CruiseAndDock))
