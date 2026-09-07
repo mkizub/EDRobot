@@ -106,7 +106,9 @@ bool TaskMyCarrierUnload::run() {
         status = DONE_NOTHING;
         return true;
     }
-    if (!st::cmdr.fleetCarrierId || st::dockedAt.marketId != st::cmdr.fleetCarrierId) {
+    bool at_own_carrier = st::cmdr.fleetCarrierId && st::dockedAt.marketId == st::cmdr.fleetCarrierId;
+    bool at_sqd_carrier = st::cmdr.squadronCarrierId && st::dockedAt.marketId == st::cmdr.squadronCarrierId;
+    if (!(at_own_carrier || at_sqd_carrier)) {
         throw_failed("Not docked at own carrier");
         return false;
     }

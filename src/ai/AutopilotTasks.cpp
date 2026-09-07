@@ -1344,6 +1344,12 @@ bool EnterCruiseStep::run() {
         LOG_DEBUG("EnterCruise: enter Supercruise");
         timer = utc_timer(20s);
         status = ENTER_CRUISE;
+        if (!(st::ship.flags.cruise || st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
+            if (st::guiFocus != GuiFocus::None)
+                sendUiBack();
+            CourseLocker course(flyAwayFromNearest ? 180 : 0);
+            sleep(3000);
+        }
         kbd::send("Supercruise", 100, 2000);
         if (!(st::ship.flags.cruise || st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
             notify_error("Entering supercruise failed");
@@ -1352,7 +1358,6 @@ bool EnterCruiseStep::run() {
 
         if (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump)) {
             LOG_DEBUG("EnterCruise: waiting cruise");
-            CourseLocker course(0);
             while (!st::ship.flags.cruise && (st::ship.flags.fsd_charging || st::ship.flags.fsd_jump) &&
                    !timer.expired()) {
                 if (st::guiFocus != GuiFocus::None)

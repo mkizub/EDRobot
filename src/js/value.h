@@ -233,10 +233,10 @@ private:
                 return {large.ptr, large.length};
             return {small.buff, small.length};
         }
-        bool operator==(const obj_key& other) const {
+        bool operator==(const str_val& other) const {
             return this->operator std::string_view() == other.operator std::string_view();
         }
-        bool operator<(const obj_key& other) const {
+        bool operator<(const str_val& other) const {
             const char* p1 = this->operator const char *();
             const char* p2 = other.operator const char *();
             return strcmp(p1, p2) < 0;

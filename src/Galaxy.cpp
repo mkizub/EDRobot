@@ -599,6 +599,7 @@ void StarSystem::addDestination() {
         if (s->nameEq(dname) || (exp && s->nameEq(xx_name)) || (exp && s->nameEq(ru_name))) {
             switch (s->type) {
             case TypeNav::FleetCarrier:
+            case TypeNav::SquadronCarrier:
                 if (s->name != dname) {
                     s->setName(dname);
                     this->saved = false;
@@ -607,7 +608,6 @@ void StarSystem::addDestination() {
             case TypeNav::NavBeacon:
             case TypeNav::TouristBeacon:
             case TypeNav::SpaceInstallation:
-            case TypeNav::SquadronCarrier:
             case TypeNav::StrongholdCarrier:
             case TypeNav::ColonisationShip:
             case TypeNav::Megaship:
@@ -997,7 +997,6 @@ bool Entity::nameEq(std::string_view nm) const {
     case TypeNav::AsteroidBase:
     case TypeNav::SpaceOutpost:
     case TypeNav::SpaceInstallation:
-    case TypeNav::SquadronCarrier:
     case TypeNav::PlanetaryThing:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
@@ -1019,6 +1018,14 @@ bool Entity::nameEq(std::string_view nm) const {
         if (name.size() == 7 && nm.size() > 7 && nm.ends_with(name))
             return true;
         if (nm.size() == 7 && name.size() > 7 && name.ends_with(nm))
+            return true;
+        return false;
+    case TypeNav::SquadronCarrier:
+        if (code == nm)
+            return true;
+        if (name.size() == 4 && nm.size() > 7 && nm.ends_with(" | "+name))
+            return true;
+        if (nm.size() == 4 && name.size() > 7 && name.ends_with(std::string(" | ").append(nm)))
             return true;
         return false;
     case TypeNav::NotExplored:
