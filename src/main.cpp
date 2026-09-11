@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "Configuration.h"
+#include "DB/DB.h"
 
 #include <spdlog/sinks/ansicolor_sink.h>
 #include "spdlog/sinks/ansicolor_sink-inl.h"
@@ -8,6 +9,8 @@
 #include "spdlog/pattern_formatter.h"
 #include <io.h>
 #include <fcntl.h>
+
+#include "small_map.hpp"
 
 std::thread::id main_thread_id;
 spdlog::sink_ptr console_sink;
@@ -128,6 +131,34 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     spdlog::flush_on(spdlog::level::err);
     SetUnhandledExceptionFilter(UnhandledExceptionHandler);
     std::set_terminate(GlobalTerminateHandler);
+
+//    js::value j_null;
+//    js::value j_bool = true;
+//    js::value j_int = 64;
+//    js::value j_num = 0.125;
+//    js::value j_str = "json string";
+//    js::value j_arr0 = js::array({});
+//    js::value j_arr1 = js::array({1});
+//    js::value j_arr2 = js::array({1, "str"});
+//    js::value j_arr3 = js::array({1, "str", false});
+//    js::value j_arr4 = js::array({1, "str", false, true});
+//    js::value j_map0 = js::object({});
+//    js::value j_map1 = js::object({{"i", 1}});
+//    js::value j_map2 = js::object({{"i", 1}, {"s", "str"}});
+//
+//    std::map<std::string,double> d_map {
+//        {"one", 1.01}, {"two", 2.02}
+//    };
+//
+//    int j_sz = sizeof(j_null);
+//    int j_key_sz = sizeof(js::impl::key);
+//    int j_str_sz = sizeof(js::impl::str);
+//    int j_arr_sz = sizeof(js::value::arr_val_type);
+//    int j_obj_sz = sizeof(js::value::obj_val_type);
+//
+//    LOG_INFO("{} {} {} {} {}", j_sz, j_key_sz, j_str_sz, j_arr_sz, j_obj_sz);
+
+    db::init_js_remapping();
 
     Master& master = Master::getInstance();
     if (master.initialize())

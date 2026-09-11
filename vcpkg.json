@@ -51,5 +51,8 @@
     "name" : "sqlite3",
     "version>=" : "3.52.0",
     "features" : [ "json1", "math", "rtree" ]
+  }, {
+    "name" : "glaze",
+    "version>=" : "8.0.0"
   } ]
 }

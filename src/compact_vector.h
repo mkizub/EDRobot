@@ -23,6 +23,14 @@ private:
     uint32_t m_capacity = 0;     // 4 bytes
     // Total sizeof(compact_vector<T>) == 16 bytes
 
+    uint32_t ext_capacity() {
+        if (m_capacity == 0)
+            return 2;
+        if (m_capacity < 2)
+            return 4;
+        return m_capacity * 1.6;
+    }
+
 public:
     using value_type = T;
     using size_type = uint32_t;
@@ -215,7 +223,7 @@ public:
 
     void push_back(const T& value) {
         if (m_size == m_capacity) {
-            reserve(m_capacity == 0 ? 4 : m_capacity * 2);
+            reserve(ext_capacity());
         }
         new (m_data + m_size) T(value);
         ++m_size;
@@ -223,7 +231,7 @@ public:
 
     void push_back(T&& value) {
         if (m_size == m_capacity) {
-            reserve(m_capacity == 0 ? 4 : m_capacity * 2);
+            reserve(ext_capacity());
         }
         new (m_data + m_size) T(std::move(value));
         ++m_size;
@@ -232,7 +240,7 @@ public:
     template <typename... Args>
     T& emplace_back(Args&&... args) {
         if (m_size == m_capacity) {
-            reserve(m_capacity == 0 ? 4 : m_capacity * 2);
+            reserve(ext_capacity());
         }
         T* constructed_ptr = new (m_data + m_size) T(std::forward<Args>(args)...);
         ++m_size;
@@ -245,7 +253,7 @@ public:
         if (index > m_size) throw std::out_of_range("compact_vector::insert");
 
         if (m_size == m_capacity) {
-            uint32_t new_cap = (m_capacity == 0 ? 4 : m_capacity * 2);
+            uint32_t new_cap = ext_capacity();
             T* new_data = static_cast<T*>(std::malloc(new_cap * sizeof(T)));
             if (!new_data) throw std::bad_alloc();
 
@@ -281,7 +289,7 @@ public:
         if (index > m_size) throw std::out_of_range("compact_vector::insert");
 
         if (m_size == m_capacity) {
-            uint32_t new_cap = (m_capacity == 0 ? 4 : m_capacity * 2);
+            uint32_t new_cap = ext_capacity();
             T* new_data = static_cast<T*>(std::malloc(new_cap * sizeof(T)));
             if (!new_data) throw std::bad_alloc();
 

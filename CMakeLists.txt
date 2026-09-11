@@ -114,12 +114,15 @@ add_executable(EDRobot WIN32
         src/detect/Tiles.cpp
         src/detect/Tiles.h
 
+        src/js/internal/impl.h
+        src/js/internal/key.h
+        src/js/internal/str.h
         src/js/value.h
         src/js/parser.h
-        src/js/internal/impl.h
 
         src/db/DB.h
         src/db/DB.cpp
+        src/db/Remap.cpp
 
         src/net/NetUtils.cpp
         src/net/NetUtils.h
@@ -206,6 +209,9 @@ add_executable(EDRobot WIN32
         thirdparty/SQLiteCpp/Savepoint.cpp
         thirdparty/SQLiteCpp/Statement.cpp
         thirdparty/SQLiteCpp/Transaction.cpp
+        src/db/JsonCode.cpp
+        src/db/CborCode.cpp
+        src/db/JsEnum.h
 )
 
 

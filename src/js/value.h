@@ -4,8 +4,8 @@
 
 #pragma once
 
-#ifndef EDROBOT_VALUE_H
-#define EDROBOT_VALUE_H
+#ifndef EDROBOT_JS_VALUE_H
+#define EDROBOT_JS_VALUE_H
 
 #include <string>
 #include <vector>
@@ -13,6 +13,8 @@
 #include <initializer_list>
 
 #include "internal/impl.h"
+#include "internal/key.h"
+#include "internal/str.h"
 #include "../compact_vector.h"
 
 namespace js {
@@ -40,213 +42,8 @@ private:
         TYPE_ARRAY,
         TYPE_OBJECT,
     }; // type;
-#pragma pack(push, 1)
-    struct obj_key {
-        unsigned length :  8;
-        unsigned index  : 24;
-        union {
-            char buff[4+8+8];
-            struct {
-                uint32_t length;
-                const char *ptr;
-                // maybe add allocator
-            } large;
-        };
-        obj_key(int idx, std::string_view sv) {
-#ifndef NDEBUG
-            std::memset(buff, 0, sizeof(buff));
-#endif
-            index = (unsigned char)std::clamp(idx, 0, 0x7FFFFF);
-            if (sv.empty()) {
-                length = 0;
-                buff[0] = 0;
-            }
-            else if (sv.size() < sizeof(buff)) {
-                length = sv.size();
-                strncpy_s(buff, sizeof(buff), sv.data(), sv.size());
-            }
-            else {
-                length = 255;
-                large.length = sv.size();
-                auto* tmp = (char*)malloc(sv.size()+1);
-                strncpy_s(tmp, sv.size()+1, sv.data(), sv.size()+1);
-                large.ptr = tmp;
-            }
-        }
-        obj_key(const obj_key& other) {
-            index = other.index;
-            if (other.length == 0) {
-                length = 0;
-                buff[0] = 0;
-            }
-            else if (other.length < sizeof(buff)) {
-                length = other.length;
-                strncpy_s(buff, sizeof(buff), other.buff, other.length);
-            }
-            else {
-                length = 255;
-                large.length = other.large.length;
-                auto* tmp = (char*)malloc(large.length+1);
-                strncpy_s(tmp, large.length+1, other.large.ptr, large.length+1);
-                large.ptr = tmp;
-            }
-        }
-        obj_key(obj_key&& other) {
-            index = other.index;
-            if (other.length == 0) {
-                length = 0;
-                buff[0] = 0;
-            }
-            else if (other.length < sizeof(buff)) {
-                length = other.length;
-                strncpy_s(buff, sizeof(buff), other.buff, other.length);
-            }
-            else {
-                length = 255;
-                large.length = other.large.length;
-                large.ptr = other.large.ptr;
-                other.length = 0;
-            }
-        }
-
-        ~obj_key() {
-            if (length >= sizeof(buff))
-                free((void *) large.ptr);
-        }
-        operator const char*() const {
-            if (length >= sizeof(buff))
-                return large.ptr;
-            return buff;
-        }
-        operator std::string_view() const {
-            if (length >= sizeof(buff))
-                return {large.ptr, large.length};
-            return {buff, length};
-        }
-        bool operator==(const obj_key& other) const {
-            return this->operator std::string_view() == other.operator std::string_view();
-        }
-        bool operator<(const obj_key& other) const {
-            const char* p1 = this->operator const char *();
-            const char* p2 = other.operator const char *();
-            return strcmp(p1, p2) < 0;
-        }
-    };
-#pragma pack(pop)
-    struct str_val {
-        union {
-            struct {
-                unsigned char length;
-                char buff[7 + 8 + 8];
-            } small;
-            struct {
-                uint32_t dummy;
-                uint32_t length;
-                const char *ptr;
-            } large;
-        };
-        str_val(std::string_view sv) {
-#ifndef NDEBUG
-            std::memset(small.buff, 0, sizeof(small.buff));
-#endif
-            if (sv.empty()) {
-                small.length = 0;
-                small.buff[0] = 0;
-            }
-            else if (sv.size() < sizeof(small.buff)) {
-                small.length = sv.size();
-                strncpy_s(small.buff, sizeof(small.buff), sv.data(), sv.size());
-            }
-            else {
-                small.length = 255;
-                large.length = sv.size();
-                auto* tmp = (char*)malloc(sv.size()+1);
-                strncpy_s(tmp, sv.size()+1, sv.data(), sv.size());
-                large.ptr = tmp;
-            }
-        }
-        str_val(const str_val& other) {
-            if (other.small.length == 0) {
-                small.length = 0;
-                small.buff[0] = 0;
-            }
-            else if (other.small.length < sizeof(small.buff)) {
-                small.length = other.small.length;
-                strncpy_s(small.buff, sizeof(small.buff), other.small.buff, other.small.length);
-            }
-            else {
-                small.length = 255;
-                large.length = other.large.length;
-                auto* tmp = (char*)malloc(large.length+1);
-                strncpy_s(tmp, large.length+1, other.large.ptr, large.length);
-                large.ptr = tmp;
-            }
-        }
-        str_val(str_val&& other) {
-            if (other.small.length == 0) {
-                small.length = 0;
-                small.buff[0] = 0;
-            }
-            else if (other.small.length < sizeof(small.buff)) {
-                small.length = other.small.length;
-                strncpy_s(small.buff, sizeof(small.buff), other.small.buff, other.small.length);
-            }
-            else {
-                small.length = 255;
-                large.length = other.large.length;
-                large.ptr = other.large.ptr;
-                other.small.length = 0;
-            }
-        }
-        str_val& operator=(const str_val& other) {
-            if (this == &other)
-                return *this;
-            if (other.small.length == 0) {
-                small.length = 0;
-                small.buff[0] = 0;
-            }
-            else if (other.small.length < sizeof(small.buff)) {
-                small.length = other.small.length;
-                strncpy_s(small.buff, sizeof(small.buff), other.small.buff, other.small.length);
-            }
-            else {
-                small.length = 255;
-                large.length = other.large.length;
-                auto* tmp = (char*)malloc(large.length+1);
-                strncpy_s(tmp, large.length+1, other.large.ptr, large.length);
-                large.ptr = tmp;
-            }
-            return *this;
-        }
-
-        ~str_val() {
-            if (small.length >= sizeof(small.buff))
-                free((void *) large.ptr);
-        }
-        operator const char*() const {
-            if (small.length >= sizeof(small.buff))
-                return large.ptr;
-            return small.buff;
-        }
-        operator std::string_view() const {
-            if (small.length >= sizeof(small.buff))
-                return {large.ptr, large.length};
-            return {small.buff, small.length};
-        }
-        bool operator==(const str_val& other) const {
-            return this->operator std::string_view() == other.operator std::string_view();
-        }
-        bool operator<(const str_val& other) const {
-            const char* p1 = this->operator const char *();
-            const char* p2 = other.operator const char *();
-            return strcmp(p1, p2) < 0;
-        }
-        bool empty() const {
-            return small.length == 0;
-        }
-    };
     struct obj_val {
-        using map_type = std::map<obj_key, value>;
+        using map_type = std::map<impl::key, value>;
 
         map_type map;
         unsigned short force_flags {};
@@ -255,7 +52,7 @@ private:
             return map.empty();
         }
         [[nodiscard]] bool contains(std::string_view sv) const {
-            obj_key key(0, sv);
+            impl::key key(0, sv);
             return map.contains(key);
         }
         bool operator==(const obj_val& other) const {
@@ -288,9 +85,10 @@ public:
     using floating_type = double;
     using string_type = std::string_view;
     using array_type = compact_vector<value>;
-    using object_type = std::map<obj_key, value>;
+    using object_type = std::map<impl::key, value>;
     using pair_type = std::pair<std::string_view,value>;
-    using key_type = str_val;
+    using arr_val_type = arr_val;
+    using obj_val_type = obj_val;
 
     /*================================================================================
      * Construction
@@ -337,19 +135,25 @@ public:
      * @brief JSON value constructor for "string" type.
      * @param val A string value to be set.
      */
-    constexpr value(std::string_view val) : content(str_val(val)) {}
+    constexpr value(std::string_view val) : content(impl::str(val)) {}
 
     /**
      * @brief JSON value constructor for "string" type.
      * @param val A string value to be set.
      */
-    constexpr value(const std::string& val) : content(str_val(val)) {}
+    constexpr value(const std::string& val) : content(impl::str(val)) {}
 
     /**
      * @brief JSON value constructor for "string" type. (const char* version)
      * @param val A string value to be set.
      */
-    constexpr value(const char* val) : content(str_val(val)) {}
+    constexpr value(const char* val) : content(impl::str(val)) {}
+
+    /**
+     * @brief JSON value constructor for "string" type. (const char* version)
+     * @param val A string value to be set.
+     */
+    constexpr value(const impl::str& val) : content(val) {}
 
     /**
      * @brief JSON value constructor for "array" type.
@@ -373,7 +177,7 @@ public:
         if (elements.size() > 0) {
             auto &ov = std::get<TYPE_OBJECT>(content);
             for (auto &el: elements) {
-                ov.map.emplace(obj_key(ov.key_count++, el.first), el.second);
+                ov.map.emplace(impl::key(ov.key_count++, el.first), el.second);
             }
         }
     }
@@ -737,7 +541,7 @@ public:
     {
         if (is_object()) {
             auto& ov = std::get<TYPE_OBJECT>(content);
-            obj_key key(0, sv);
+            impl::key key(0, sv);
             auto iter = ov.map.find(key);
             if (iter != ov.map.end())
                 return iter->second;
@@ -775,7 +579,7 @@ public:
     {
         if (is_object()) {
             auto& ov = std::get<TYPE_OBJECT>(content);
-            obj_key key(0, sv);
+            impl::key key(0, sv);
             auto iter = ov.map.find(key);
             if (iter != ov.map.end())
                 ov.map.erase(iter);
@@ -828,19 +632,25 @@ public:
      * @brief Assign string value.
      * @param string A string to be set.
      */
-    value& operator=(const std::string& string) { content = str_val(string); return *this; }
+    value& operator=(const std::string& string) { content = impl::str(string); return *this; }
 
     /**
      * @brief Assign string value from const char*
      * @param string A string to be set.
      */
-    value& operator=(const char* string) { content = str_val(string); return *this; }
+    value& operator=(const char* string) { content = impl::str(string); return *this; }
 
     /**
      * @brief Assign string value from string_view
      * @param string A string to be set.
      */
-    value& operator=(std::string_view string) { content = str_val(string); return *this; }
+    value& operator=(std::string_view string) { content = impl::str(string); return *this; }
+
+    /**
+     * @brief Assign string value from string_view
+     * @param string A string to be set.
+     */
+    value& operator=(impl::str string) { content = string; return *this; }
 
     /**
      * @brief Assign array value by deep copy.
@@ -864,7 +674,7 @@ public:
         auto& ov = content.emplace<obj_val>();
         if (elements.size() > 0) {
             for (auto &el: elements) {
-                ov.map.emplace(obj_key(ov.key_count++, el.first), el.second);
+                ov.map.emplace(impl::key(ov.key_count++, el.first), el.second);
             }
         }
         return *this;
@@ -872,7 +682,7 @@ public:
 
     value& set(std::string_view sv, value& value) {
         auto& ov = std::get<TYPE_OBJECT>(content);
-        obj_key key(ov.key_count, sv);
+        impl::key key(ov.key_count, sv);
         auto it = ov.map.find(key);
         if (it == ov.map.end()) {
             auto res = ov.map.emplace(key, value);
@@ -983,7 +793,7 @@ public:
      */
 private:
     // nust match type_enum
-    std::variant<null_type,boolean_type,integer_type,floating_type,str_val,arr_val,obj_val> content;
+    std::variant<null_type,boolean_type,integer_type,floating_type,impl::str,arr_val,obj_val> content;
 };
 
 /**
@@ -1245,7 +1055,7 @@ public:
             if (!ptr->is_object())
                 return nullptr;
             auto& ov = std::get<value::TYPE_OBJECT>(ptr->content);
-            value::obj_key key(0,keys[idx]);
+            impl::key key(0,keys[idx]);
             auto it = ov.map.find(key);
             if (it == ov.map.end())
                 return nullptr;
@@ -1270,7 +1080,7 @@ public:
             if (!ptr->is_object())
                 throw std::bad_variant_access();
             auto& ov = std::get<value::TYPE_OBJECT>(ptr->content);
-            value::obj_key key(ov.key_count,keys[idx]);
+            impl::key key(ov.key_count,keys[idx]);
             auto it = ov.map.find(key);
             if (it == ov.map.end()) {
                 auto res = ov.map.emplace(std::move(key), value());
@@ -1391,7 +1201,7 @@ public:
         for (auto& p : map)
             array.emplace_back(&p.first, &p.second);
         std::sort(array.begin(), array.end(), [](auto& p1, auto& p2)->bool {
-            return p1.first->index < p2.first->index;
+            return p1.first->index() < p2.first->index();
         });
     }
 
@@ -1458,4 +1268,4 @@ struct std::formatter<js::value> : std::formatter<std::string> {
     }
 };
 
-#endif //EDROBOT_VALUE_H
+#endif //EDROBOT_JS_VALUE_H

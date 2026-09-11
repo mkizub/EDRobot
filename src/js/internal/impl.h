@@ -4,12 +4,16 @@
 
 #pragma once
 
-#ifndef EDROBOT_IMPL_H
-#define EDROBOT_IMPL_H
+#ifndef EDROBOT_JS_IMPL_H
+#define EDROBOT_JS_IMPL_H
 
 #include <cstdint>
 #include <type_traits>
 #include <iosfwd>
+#include <string>
+#include <string_view>
+#include <unordered_set>
+
 
 namespace js {
 
@@ -31,6 +35,17 @@ inline force operator&(force f1, force f2) {
 }
 
 namespace impl {
+
+struct string_hash {
+    using is_transparent = void; // Enables heterogeneous lookup
+
+    size_t operator()(std::string_view sv) const {
+        return std::hash<std::string_view>{}(sv);
+    }
+};
+
+static std::unordered_set<std::string, string_hash, std::equal_to<>> gKeySet;
+static std::unordered_set<std::string, string_hash, std::equal_to<>> gStrSet;
 
 /**
  * @brief Parser/stringifier flags
@@ -107,4 +122,4 @@ public:
 } // namespace js
 
 
-#endif //EDROBOT_IMPL_H
+#endif //EDROBOT_JS_IMPL_H
