@@ -158,6 +158,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //
 //    LOG_INFO("{} {} {} {} {}", j_sz, j_key_sz, j_str_sz, j_arr_sz, j_obj_sz);
 
+    Timestamp timestamp;
+    std::istringstream iss("2026-09-13T18:53:51Z");
+    iss >> std::chrono::parse("%FT%TZ", timestamp);
+    LOG_INFO("Test: {}", timestamp);
+
+
     db::init_js_remapping();
 
     Master& master = Master::getInstance();

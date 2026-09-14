@@ -33,9 +33,12 @@ const std::string ED_TASK_TRADE_AT = "tsk-trade-at";
 const std::string ED_TASK_TRADE_LOOP = "tsk-trade-loop";
 const std::string ED_TASK_AUTOPILOT = "tsk-autopilot";
 const std::string ED_TASK_TRAVEL = "tsk-travel";
+const std::string ED_TASK_VISIT_SYSTEM = "tsk-visit-system";
 const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
 const std::string ED_TASK_NAV_SCAN_SYSTEMS = "tsk-nav-scan-systems";
 const std::string ED_TASK_EXPL_SYSTEMS_AROUND = "tsk-expl-systems-around";
+const std::string ED_TASK_EXPL_VISIT_SYSTEMS = "tsk-expl-visit-systems";
+
 
 const std::string ED_TASK_RELOGIN = "tsk-relogin";
 const std::string ED_TASK_RESURRECT = "tsk-resurrect";
@@ -537,6 +540,17 @@ void initTemplates() {
     );
     templates.emplace_back(ED_TASK_NAV_SCAN_SYSTEMS, _lc("Scan systems around"), FACTORY(TaskSystemsAround), P{
             { Param::String,  "system", _lc("Around system"), META("{optional:true, placeholder:'current'}") },
+            },
+            META("{group:'Exploration'}")
+    );
+    templates.emplace_back(ED_TASK_EXPL_VISIT_SYSTEMS, _lc("Visit systems"), FACTORY(TaskVisitSystems), P{
+            { Param::String,  "system", _lc("From system"), META("{optional:true, placeholder:'current'}") },
+            { Param::String,  "list",   _lc("Url or file"), META("{placeholder:'file or spansh.co.uk search url'}") },
+            },
+           META("{group:'Exploration'}")
+    );
+    templates.emplace_back(ED_TASK_VISIT_SYSTEM, _lc("Visit star system"), FACTORY(TaskVisitSystem), P{
+            { Param::String,   "system",   _lc("Visit system"), META("{placeholder:'name'}") },
             },
             META("{group:'Exploration'}")
     );

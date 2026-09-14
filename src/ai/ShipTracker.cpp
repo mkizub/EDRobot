@@ -319,13 +319,13 @@ ExpextedCruiseTime expectingTimeToDest(int in_seconds) {
             dist[count++] = cd;
     }
     double in_time = in_seconds + std::chrono::duration<double>(ts_now - dist[0].timestamp).count();
-    LOG_INFO("expectingTimeToDest({} + {:.2f}) buffer count {} [{}, {}, {}]",
-             in_seconds, in_time, count,
-             dist[0].dist.tsec, dist[1].dist.tsec, dist[2].dist.tsec);
+//    LOG_INFO("expectingTimeToDest({} + {:.2f}) buffer count {} [{}, {}, {}]",
+//             in_seconds, in_time, count,
+//             dist[0].dist.tsec, dist[1].dist.tsec, dist[2].dist.tsec);
     if (count <= 0)
         return {INT_MAX,INT_MAX};
     if (count <= 1) {
-        LOG_INFO("expecting time: {}sec", dist[0].dist.tsec);
+//        LOG_INFO("expecting time: {}sec", dist[0].dist.tsec);
         return {dist[0].dist.tsec,dist[0].dist.tsec};
     }
 //    if (count <= 2) {
@@ -491,12 +491,12 @@ repeat_step:
     }
     CompassInfo compass = st::compass;
     auto compassElapsed = utc_now - compass.timestamp;
-    LOG_INFO("KeepCourse: time delta: {}ms, hemispere {}",
-                             std::chrono::duration_cast<std::chrono::milliseconds>(compassElapsed).count(),
-                             compass.hemisphere);
+//    LOG_INFO("KeepCourse: time delta: {}ms, hemispere {}",
+//                             std::chrono::duration_cast<std::chrono::milliseconds>(compassElapsed).count(),
+//                             compass.hemisphere);
     if (!compass.hemisphere || compassElapsed > max_wait_age) {
         compassLostCounter += 1;
-        //LOG_INFO("KeepCourse: compass trouble {}",compassLostCounter);
+//        LOG_INFO("KeepCourse: compass trouble {}",compassLostCounter);
         if (st::ship.flags.fsd_charging || st::ship.flags2.fsd_hyperdrive_charging) {
             forceScreenDetect = true;
             if (!fsd_charge_timer.expired())

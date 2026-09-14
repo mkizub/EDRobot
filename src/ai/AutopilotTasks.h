@@ -352,6 +352,15 @@ public:
     } status {READY};
 };
 
+class TaskVisitSystem : public BaseAutopilotTask {
+public:
+    explicit TaskVisitSystem(const TaskTemplate& templ);
+    std::string getTitle() override;
+    bool run() final;
+
+    std::string destSystemName;
+};
+
 class TaskTravel : public BaseAutopilotTask {
 public:
     explicit TaskTravel(const TaskTemplate& templ);

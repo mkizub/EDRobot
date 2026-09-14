@@ -5,6 +5,10 @@
 #include "pch.h"
 
 #include <unordered_set>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/identity.hpp>
+#include <boost/multi_index/member.hpp>
 
 #include "Galaxy.h"
 #include "db/DB.h"
@@ -12,7 +16,6 @@
 
 namespace gal {
 
-std::unordered_map<int64_t,spMarket > gMarketById;
 struct CompareStarSystem
 {
     using is_transparent = void;
@@ -22,8 +25,103 @@ struct CompareStarSystem
     bool operator()(std::string_view a, const spStarSystem& b) const {return a < b->systemName;}
     bool operator()(const spStarSystem& a, std::string_view b) const {return a->systemName < b;}
 };
-std::set<spStarSystem, CompareStarSystem> gSystemsByNameCache;
-spStarSystem gCurrentStarSystem = std::make_shared<StarSystem>(0, "Void");
+
+struct LRUKey {
+    int64_t  systemAddress;
+    std::string_view systemName;
+    std::shared_ptr<StarSystem> ptr;
+    mutable Timestamp lru;
+};
+
+struct by_systemAddress {};
+struct by_systemName {};
+
+using StarSystemMap = boost::multi_index_container<
+        LRUKey,
+        boost::multi_index::indexed_by<
+                // Index 1: Unique fast hash lookup by ID
+                boost::multi_index::hashed_unique<
+                        boost::multi_index::tag<by_systemAddress>,
+                        boost::multi_index::member<LRUKey, int64_t, &LRUKey::systemAddress>
+                >,
+                // Index 2: Unique sorted lookup by Username
+                boost::multi_index::hashed_unique<
+                        boost::multi_index::tag<by_systemName>,
+                        boost::multi_index::member<LRUKey, std::string_view, &LRUKey::systemName>
+                >
+        >
+>;
+
+struct StarSystemCache {
+    StarSystemMap systems;
+    const spStarSystem dummyStarSystem;
+    alignas(64) std::mutex mutex;
+
+    StarSystemCache() : dummyStarSystem(new StarSystem(0, "Void", 0,0,0))
+    {
+    }
+
+    void cleanup();
+    spStarSystem put(int64_t address, std::string_view name, double x, double y, double z);
+    spStarSystem get(int64_t address);
+    spStarSystem get(std::string_view name);
+
+} theCache;
+
+void StarSystemCache::cleanup() {
+    std::scoped_lock<std::mutex> lock(mutex);
+    auto keep = Timestamp::clock::now() - 1h;
+    for (auto it = systems.begin(); it != systems.end(); /* no increment */) {
+        if (it->lru < keep) {
+            it = systems.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+spStarSystem StarSystemCache::put(int64_t address, std::string_view name, double x, double y, double z) {
+    std::scoped_lock<std::mutex> lock(mutex);
+    if (!address)
+        return dummyStarSystem;
+    auto& id_index = systems.get<by_systemAddress>();
+    auto it = id_index.find(address);
+    if (it != id_index.end()) {
+        it->lru = Timestamp::clock::now();
+        return it->ptr;
+    }
+    spStarSystem s(new StarSystem(address, name, x, y, z));
+    auto p = systems.insert({s->systemAddress, s->systemName, s, Timestamp::clock::now()});
+    return s;
+}
+
+spStarSystem StarSystemCache::get(int64_t address) {
+    std::scoped_lock<std::mutex> lock(mutex);
+    if (!address)
+        return dummyStarSystem;
+    auto& id_index = systems.get<by_systemAddress>();
+    auto it = id_index.find(address);
+    if (it == id_index.end())
+        return {};
+    it->lru = Timestamp::clock::now();
+    return it->ptr;
+}
+
+spStarSystem StarSystemCache::get(std::string_view name) {
+    std::scoped_lock<std::mutex> lock(mutex);
+    if (name.empty())
+        return dummyStarSystem;
+    auto& name_index = systems.get<by_systemName>();
+    auto it = name_index.find(name);
+    if (it == name_index.end())
+        return {};
+    it->lru = Timestamp::clock::now();
+    return it->ptr;
+}
+
+
+std::unordered_map<int64_t,spMarket > gMarketById;
+spStarSystem gCurrentStarSystem = theCache.dummyStarSystem;
 
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
@@ -184,31 +282,33 @@ static void parseBodyId(const spStarSystem& ss, spEntity& entity, const js::valu
         }
     }
 }
-static spStarSystem fromEDDN(const js::value& jsystem, bool saved) {
-    auto systemName = jsystem["name"].as_string();
+static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool saved) {
     auto systemAddress = jsystem["address"].exists()
             ? jsystem["address"].as_int()
             : jsystem["id64"].as_int();
-    auto ss_it = gSystemsByNameCache.find(systemName);
-    spStarSystem ss;
-    if (ss_it != gSystemsByNameCache.end())
-        ss = *ss_it;
-    else
-        ss = std::make_shared<StarSystem>(systemAddress, systemName);
-    ss->starPos.x = jsystem["coords"]["x"].as_real_or();
-    ss->starPos.y = jsystem["coords"]["y"].as_real_or();
-    ss->starPos.z = jsystem["coords"]["z"].as_real_or();
-    gSystemsByNameCache.insert(ss);
+    auto systemName = jsystem["name"].as_string();
+    double posX = jsystem["coords"]["x"].as_real_or();
+    double posY = jsystem["coords"]["y"].as_real_or();
+    double posZ = jsystem["coords"]["z"].as_real_or();
+    if (!ss) {
+        ss = theCache.put(systemAddress, systemName, posX, posY, posZ);
+        if (!ss)
+            return {};
+    }
     if (!ss->savedDbBase) {
-        db::StarSystem s {
-                .id = ss->systemAddress,
-                .name = ss->systemName,
-                .x = ss->starPos.x,
-                .y = ss->starPos.y,
-                .z = ss->starPos.z,
-                .blobId = ss->dbBlobId,
-        };
-        ss->savedDbBase = db::saveStarSystem(s);
+        db::StarSystem db_ss = db::loadStarSystem(systemAddress);
+        if (db_ss.id) {
+            ss->dbBlobId = db_ss.blobId;
+        } else {
+            db_ss = {
+                    .id = ss->systemAddress,
+                    .name = ss->systemName,
+                    .x = ss->starPos.x,
+                    .y = ss->starPos.y,
+                    .z = ss->starPos.z,
+            };
+            db::saveStarSystem(db_ss);
+        }
     }
 
     if (jsystem["eddn_updated_at"].is_string())
@@ -397,13 +497,12 @@ void StarSystem::save() {
     saved = true;
 }
 
-static spStarSystem loadStarSystem(std::string_view name, int64_t address, bool network_load) {
-    spStarSystem ss;
+static spStarSystem loadStarSystem(spStarSystem ss, std::string_view name, int64_t address, bool network_load) {
     std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(name)));
     if (std::filesystem::exists(fp)) {
         auto jsystem = parseJsonFile(fp.wstring());
         if (!jsystem.empty())
-            ss = fromEDDN(jsystem, true);
+            ss = fromEDDN(ss, jsystem, true);
     }
     if (network_load && (!ss || ss->bodies.empty())) {
         if (address)
@@ -426,17 +525,11 @@ static spStarSystem loadStarSystem(std::string_view name, int64_t address, bool 
 }
 
 spStarSystem getStarSystem(std::string_view name, bool network_load) {
-    spStarSystem ss;
-    if (gCurrentStarSystem && gCurrentStarSystem->systemName == name) {
-        ss = gCurrentStarSystem;
-    }
-    else if (const auto& it = gSystemsByNameCache.find(name); it != gSystemsByNameCache.end()) {
-        ss = *it;
-    }
+    spStarSystem ss = theCache.get(name);
     if (!ss)
-        ss = loadStarSystem(*name, 0, network_load);
+        ss = loadStarSystem(ss, *name, 0, network_load);
     else if (ss->bodies.empty())
-        ss = loadStarSystem(ss->systemName, ss->systemAddress, network_load);
+        ss = loadStarSystem(ss, ss->systemName, ss->systemAddress, network_load);
     if (ss && !ss->saved) {
         assert (ss->systemName == name);
         ss->save();
@@ -448,38 +541,34 @@ spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d*
     spStarSystem ss;
     if (gCurrentStarSystem && gCurrentStarSystem->systemName == name)
         ss = gCurrentStarSystem;
-    else if (const auto& it = gSystemsByNameCache.find(name); it != gSystemsByNameCache.end())
-        ss = *it;
+    else if (address)
+        ss = theCache.get(address);
+    else if (!name.empty())
+        ss = theCache.get(name);
     if (!ss) {
         db::StarSystem s = db::loadStarSystem(address);
-        if (!s.name.empty())
-            ss = std::make_shared<StarSystem>(s.id, s.name, s.x, s.y, s.z, s.blobId, true);
-    }
-    //if (!ss) {
-    //    db::StarSystem s = db::loadStarSystem(name);
-    //    if (s.id)
-    //        ss = std::make_shared<StarSystem>(s.id, s.name, s.x, s.y, s.z, s.blobId, true);
-    //}
-    if (!ss || ss->bodies.empty())
-        ss = loadStarSystem(*name, address, network_load);
-    if (!ss) {
-        ss = std::make_shared<StarSystem>(address, name);
-        gSystemsByNameCache.insert(ss);
-        if (starPos) {
-            ss->starPos = *starPos;
-            if (!ss->savedDbBase) {
-                db::StarSystem s {
-                        .id = ss->systemAddress,
-                        .name = ss->systemName,
-                        .x = ss->starPos.x,
-                        .y = ss->starPos.y,
-                        .z = ss->starPos.z,
-                        .blobId = ss->dbBlobId,
-                };
-                ss->savedDbBase = db::saveStarSystem(s);
-            }
+        if (!s.name.empty()) {
+            ss = theCache.put(address, name, s.x, s.y, s.z);
+            ss->dbBlobId = s.blobId;
+            ss->savedDbBase = true;
+        }
+        else if (address && !name.empty()) {
+            double x = starPos ? starPos->x : 0;
+            double y = starPos ? starPos->y : 0;
+            double z = starPos ? starPos->z : 0;
+            ss = theCache.put(address, name, x, y, z);
+            s = { .id = ss->systemAddress,
+                  .name = ss->systemName,
+                  .x = ss->starPos.x,
+                  .y = ss->starPos.y,
+                  .z = ss->starPos.z,
+                  .blobId = ss->dbBlobId,
+            };
+            db::saveStarSystem(s);
         }
     }
+    if (!ss || ss->bodies.empty())
+        ss = loadStarSystem(ss, *name, address, network_load);
     return ss;
 }
 

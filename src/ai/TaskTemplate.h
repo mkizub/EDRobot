@@ -80,9 +80,11 @@ extern const std::string ED_TASK_TRADE_AT;          // sell/buy at specified doc
 extern const std::string ED_TASK_TRADE_LOOP;        // trade loop between stations
 extern const std::string ED_TASK_AUTOPILOT;         // fly to current destination
 extern const std::string ED_TASK_TRAVEL;            // multistep task to travel somewhere
+extern const std::string ED_TASK_VISIT_SYSTEM;      // multistep task to visit star system
 extern const std::string ED_TASK_NAV_SCAN;          // scan navigation panel
 extern const std::string ED_TASK_NAV_SCAN_SYSTEMS;  // scan systems in navigation panel
 extern const std::string ED_TASK_EXPL_SYSTEMS_AROUND; // explore systems around specified system
+extern const std::string ED_TASK_EXPL_VISIT_SYSTEMS; // visit systems by search criteria
 
 extern const std::string ED_TASK_RELOGIN;           // relogin
 extern const std::string ED_TASK_RESURRECT;         // resurrect on death

@@ -37,6 +37,26 @@ public:
     std::vector<gal::spStarSystem> systems;
 };
 
+class TaskVisitSystems final : public Task {
+public:
+    explicit TaskVisitSystems(const TaskTemplate& templ);
+    bool run() final;
+    std::string getTitle() override;
+
+    std::string getStatus() override;
+    enum {
+        READY, LOADING, OPTIMIZING, VISITING, DONE
+    } status {READY};
+    std::string systemName;
+    std::string systemList;
+    gal::spStarSystem starSystem;
+    std::vector<gal::spStarSystem> systems;
+    std::queue<gal::spStarSystem> orderedSystems;
+    int totalSystems {};
+    int nextSystemIdx {};
+    std::string nextSystemName;
+};
+
 
 
 }

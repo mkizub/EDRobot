@@ -240,15 +240,19 @@ spGameEvent Configuration::parseEvent(Timestamp& latest_log_timestamp, const std
     auto& event = gameEvent->event;
     LOG_DEBUG("Journal event: {}", event);
 
-    if (fssSignalSystemAddress) {
-        if (event != "FSSSignalDiscovered") {
-            spGameEvent empty;
-            parseEvent_FSSSignalDiscovered(empty);
+    try {
+        if (fssSignalSystemAddress) {
+            if (event != "FSSSignalDiscovered") {
+                spGameEvent empty;
+                parseEvent_FSSSignalDiscovered(empty);
+            }
         }
+        auto it = eventMap.find(event);
+        if (it != eventMap.end())
+            it->second(gameEvent);
+    } catch (...) {
+        LOG_ERROR("Uncatched exception in event: {}", line);
     }
-    auto it = eventMap.find(event);
-    if (it != eventMap.end())
-        it->second(gameEvent);
 
     return gameEvent;
 }
@@ -291,109 +295,112 @@ bool Configuration::loadGameStatus() {
             return false;
     }
 
-    std::optional<js::value> read_result;
-    spGameEvent ge;
-    for (int cnt=0; ; cnt++) {
-        if (!ifs) {
-            ifs.clear();
-            ifs.seekg(0, std::ios::beg);
-        }
-        std::stringstream buffer;
-        buffer << ifs.rdbuf();
-        ifs.clear();
-        ifs.seekg(0, std::ios::beg);
-        Timestamp latest_log_timestamp {};
-        ge = parseEvent(latest_log_timestamp, buffer.str());
-        if (!ge) {
-            if (cnt < 3) {
-                Sleep(50);
+    //std::optional<js::value> read_result;
+    std::stringstream buffer;
+    try {
+        spGameEvent ge;
+        for (int cnt = 0;; cnt++) {
+            if (!ifs) {
                 ifs.clear();
                 ifs.seekg(0, std::ios::beg);
-                continue;
             }
-            LOG(ERROR) << "Error loading Status.json";
+            buffer << ifs.rdbuf();
+            ifs.clear();
+            ifs.seekg(0, std::ios::beg);
+            Timestamp latest_log_timestamp{};
+            ge = parseEvent(latest_log_timestamp, buffer.str());
+            if (!ge) {
+                if (cnt < 3) {
+                    Sleep(50);
+                    ifs.clear();
+                    ifs.seekg(0, std::ios::beg);
+                    continue;
+                }
+                LOG(ERROR) << "Error loading Status.json";
+                return false;
+            }
+            break;
+        }
+        if (ge->event != "Status")
             return false;
+        //st::ShipStatus old_status = st::ship;
+        auto &j = ge->data;
+        st::ship.timestamp = ge->timestamp;
+        st::ship.flags.all = j["Flags"].as_int_or();
+        st::ship.flags2.all = j["Flags2"].as_int_or();
+        st::ship.fireGroup = j["FireGroup"].as_int_or();
+        auto gf = enum_cast<GuiFocus>(j["GuiFocus"].as_int_or());
+        st::guiFocus = gf.has_value() ? gf.value() : GuiFocus::None;
+        if (auto &jp = j["Pips"].as_array_or(); jp.size() == 3) {
+            st::ship.pips[0] = jp[0].as_unsigned();
+            st::ship.pips[1] = jp[1].as_unsigned();
+            st::ship.pips[2] = jp[2].as_unsigned();
         }
-        break;
-    }
-    if (ge->event != "Status")
-        return false;
-    //st::ShipStatus old_status = st::ship;
-    auto& j = ge->data;
-    st::ship.timestamp = ge->timestamp;
-    st::ship.flags.all = j["Flags"].as_int_or();
-    st::ship.flags2.all = j["Flags2"].as_int_or();
-    st::ship.fireGroup = j["FireGroup"].as_int_or();
-    auto gf = enum_cast<GuiFocus>(j["GuiFocus"].as_int_or());
-    st::guiFocus = gf.has_value() ? gf.value() : GuiFocus::None;
-    if (auto& jp = j["Pips"].as_array_or(); jp.size() == 3) {
-        st::ship.pips[0] = jp[0].as_unsigned();
-        st::ship.pips[1] = jp[1].as_unsigned();
-        st::ship.pips[2] = jp[2].as_unsigned();
-    }
-    {
-        auto& ss = st::shipStats;
-        ss.fuelMain = j["Fuel"]["FuelMain"].as_real_or();
-        ss.fuelReservoir = j["Fuel"]["FuelReservoir"].as_real_or();
-        ss.cargo = j["Cargo"].as_real_or();
-        ss.totalMass = ss.unladenMass + ss.fuelMain + ss.fuelReservoir + ss.cargo;
-    }
-    st::ship.balance = j["Balance"].as_int_or();
-    st::ship.oxygen = j["Oxygen"].as_real_or(1);
-    st::ship.health = j["Health"].as_real_or(1);
-    st::ship.legalState = enum_cast<st::ShipStatus::LegalState>(j["LegalState"].as_string_or())
-            .value_or(st::ShipStatus::LegalState::Clean);
-
-    if (j["BodyName"].is_string()) {
-        st::shipAtBody.nearBody = true;
-        set(st::shipAtBody.bodyName, j["BodyName"]);
-        st::shipAtBody.latitude = j["Latitude"].as_real_or();
-        st::shipAtBody.longitude = j["Longitude"].as_real_or();
-        st::shipAtBody.altitude = j["Altitude"].as_real_or();
-        st::shipAtBody.heading = j["Heading"].as_real_or();
-        st::shipAtBody.planetRadius = j["PlanetRadius"].as_real_or();
-        st::shipAtBody.gravity = j["Gravity"].as_real_or();
-        //LOG(INFO) << "Body: " << st::shipAtBody.bodyName << "; alt: " << std::round(st::shipAtBody.altitude/1000) << "km; radius: " << std::round(st::shipAtBody.planetRadius/1000) << "km";
-        //if (old_status.flags.cruise && !st::ship.flags.cruise)
-        //    LOG(INFO) << "Exit cruise alt: " << std::round(st::shipAtBody.altitude/1000) << "km";
-    } else {
-        st::shipAtBody.nearBody = false;
-    }
-
-    if (auto jd = j["Destination"]; jd.is_object()) {
-        // "Destination":{ "System":2381282543995, "Body":0, "Name":"Col 285 Sector XK-O d6-69" }
-        // "Destination":{ "System":2868098639337, "Body":1, "Name":"Orbital Construction Site: Piestrak Town" }
-        int64 systemAddress = jd["System"].as_int_or();
-        std::string name;
-        if (jd["Name_Localised"].is_string())
-            name = jd["Name_Localised"].as_string();
-        else
-            name = jd["Name"].as_string_or();
-        int bodyId = jd["Body"].as_int_or();
-        if (systemAddress != st::destination.systemAddress || name != st::destination.name || bodyId != st::destination.bodyId) {
-            st::destination.systemAddress = systemAddress;
-            st::destination.name = name;
-            st::destination.bodyId = bodyId;
-            auto &ss = gal::getCurrentStarSystem();
-            if (ss)
-                ss->addDestination();
+        {
+            auto &ss = st::shipStats;
+            ss.fuelMain = j["Fuel"]["FuelMain"].as_real_or();
+            ss.fuelReservoir = j["Fuel"]["FuelReservoir"].as_real_or();
+            ss.cargo = j["Cargo"].as_real_or();
+            ss.totalMass = ss.unladenMass + ss.fuelMain + ss.fuelReservoir + ss.cargo;
         }
-        if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name)) {
-            st::autopilot.isDestBodyTargeted = true;
+        st::ship.balance = j["Balance"].as_int_or();
+        st::ship.oxygen = j["Oxygen"].as_real_or(1);
+        st::ship.health = j["Health"].as_real_or(1);
+        st::ship.legalState = enum_cast<st::ShipStatus::LegalState>(j["LegalState"].as_string_or())
+                .value_or(st::ShipStatus::LegalState::Clean);
+
+        if (j["BodyName"].is_string()) {
+            st::shipAtBody.nearBody = true;
+            set(st::shipAtBody.bodyName, j["BodyName"]);
+            st::shipAtBody.latitude = j["Latitude"].as_real_or();
+            st::shipAtBody.longitude = j["Longitude"].as_real_or();
+            st::shipAtBody.altitude = j["Altitude"].as_real_or();
+            st::shipAtBody.heading = j["Heading"].as_real_or();
+            st::shipAtBody.planetRadius = j["PlanetRadius"].as_real_or();
+            st::shipAtBody.gravity = j["Gravity"].as_real_or();
+            //LOG(INFO) << "Body: " << st::shipAtBody.bodyName << "; alt: " << std::round(st::shipAtBody.altitude/1000) << "km; radius: " << std::round(st::shipAtBody.planetRadius/1000) << "km";
+            //if (old_status.flags.cruise && !st::ship.flags.cruise)
+            //    LOG(INFO) << "Exit cruise alt: " << std::round(st::shipAtBody.altitude/1000) << "km";
+        } else {
+            st::shipAtBody.nearBody = false;
+        }
+
+        if (auto jd = j["Destination"]; jd.is_object()) {
+            // "Destination":{ "System":2381282543995, "Body":0, "Name":"Col 285 Sector XK-O d6-69" }
+            // "Destination":{ "System":2868098639337, "Body":1, "Name":"Orbital Construction Site: Piestrak Town" }
+            int64 systemAddress = jd["System"].as_int_or();
+            std::string name;
+            if (jd["Name_Localised"].is_string())
+                name = jd["Name_Localised"].as_string();
+            else
+                name = jd["Name"].as_string_or();
+            int bodyId = jd["Body"].as_int_or();
+            if (systemAddress != st::destination.systemAddress || name != st::destination.name ||
+                bodyId != st::destination.bodyId) {
+                st::destination.systemAddress = systemAddress;
+                st::destination.name = name;
+                st::destination.bodyId = bodyId;
+                auto &ss = gal::getCurrentStarSystem();
+                if (ss)
+                    ss->addDestination();
+            }
+            if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name)) {
+                st::autopilot.isDestBodyTargeted = true;
+                st::autopilot.isDestDockTargeted = false;
+            } else if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name)) {
+                st::autopilot.isDestBodyTargeted = false;
+                st::autopilot.isDestDockTargeted = true;
+            } else {
+                st::autopilot.isDestBodyTargeted = false;
+                st::autopilot.isDestDockTargeted = false;
+            }
+        } else {
+            st::destination = {};
+            st::autopilot.isDestBodyTargeted = false;
             st::autopilot.isDestDockTargeted = false;
         }
-        else if (st::autopilot.destDock && st::autopilot.destDock->nameEq(st::destination.name)) {
-            st::autopilot.isDestBodyTargeted = false;
-            st::autopilot.isDestDockTargeted = true;
-        }
-        else {
-            st::autopilot.isDestBodyTargeted = false;
-            st::autopilot.isDestDockTargeted = false;
-        }
-    } else {
-        st::destination = {};
-        st::autopilot.isDestBodyTargeted = false;
-        st::autopilot.isDestDockTargeted = false;
+    } catch (...) {
+        LOG_ERROR("Uncatched exception while reading Status.json: {}", buffer.str());
     }
 
     //LOG(INFO) << "Ship status: " << st::ship;

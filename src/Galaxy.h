@@ -9,6 +9,8 @@
 
 namespace gal {
 
+class StarSystemCache;
+
 class Entity {
 public:
     virtual ~Entity() = default;
@@ -31,17 +33,14 @@ public:
 typedef std::shared_ptr<Entity> spEntity;
 
 struct StarSystem {
-    StarSystem(int64_t address, std::string_view name)
-        : systemAddress(address)
-        , systemName(name)
-    {}
-    StarSystem(int64_t address, std::string_view name, double x, double y, double z, int64_t blobId, bool savedDbBase)
+    friend class StarSystemCache;
+private:
+    StarSystem(int64_t address, std::string_view name, double x, double y, double z)
             : systemAddress(address)
             , systemName(name)
             , starPos(x,y,z)
-            , dbBlobId(blobId)
-            , savedDbBase(savedDbBase)
     {}
+public:
     virtual ~StarSystem() = default;
     const int64_t systemAddress;
     const std::string systemName;

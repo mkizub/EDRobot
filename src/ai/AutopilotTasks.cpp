@@ -63,6 +63,7 @@ double orbitEnterAltitude(double planet_radius) {
     return 400 + planet_radius * 0.1; // orbit exit altitude (angle shown)
 }
 double orbitExitAltitude(double planet_radius) {
+    // TODO: wrong for some planets, maybe small moons with atmosphere
     return 25; // orbit exit, start gliding, always at 25 km
 }
 
@@ -3998,7 +3999,7 @@ bool ExitCruiseToPlanet::run() {
         notify_warn("Cannot confirm distance after cruise exit");
     LOG_DEBUG("ExitCruiseToPlanet, align after gliding");
     if (!prev_dist || prev_dist < kPlDockFar)
-        task->orientPitchStep(angle_is_close_to_tangent ? 40 : 60);
+        task->orientPitchStep(angle_is_close_to_tangent ? 40 : 75);
     if (prev_dist > kPlDockTooFar)
         throw_trouble("Unexpected distance after cruise exit: {}", prev_dist.to_string());
     LOG_DEBUG("ExitCruiseToPlanet, done");
@@ -4049,6 +4050,9 @@ bool CompleteNavRoute::run() {
     }
     routeIdx += 1;
     targetNextNavRoute(routeIdx);
+
+    // TODO: ошибка когда не можем найти компас - врезались в звезду
+    //       нужно отлететь от звезды если мы не в круизе
 
     bool try_fast_jump = false;
     if (st::ship.flags.docked) {
@@ -4157,11 +4161,14 @@ void CompleteNavRoute::targetNextNavRoute(int routeIdx) {
         LOG_DEBUG("CompleteNavRoute, TargetNextRouteSystem");
         kbd::send("TargetNextRouteSystem", 0, 300);
     }
-    ai::detectEDState(DetectLevel::Screen);
+    for (int i=0; i < 10; i++) {
+        ai::detectEDState(DetectLevel::Screen);
+        if (ai::compassInfo.hemisphere != 0)
+            break;
+    }
     if (ai::compassInfo.hemisphere == 0) {
-        kbd::send("GalaxyMapOpen", 100);
-        sleep(2000);
-        sendUiBack(2000);
+        kbd::send("GalaxyMapOpen", 100, 2000);
+        leaveScrGalaxy();
         if (st::destination.systemAddress != st::currentNavRoute->route[routeIdx].systemAddress) {
             LOG_DEBUG("CompleteNavRoute, TargetNextRouteSystem");
             kbd::send("TargetNextRouteSystem", 0, 300);
@@ -4498,6 +4505,64 @@ std::string CruiseAndDock::getStatus() {
     }
     return {};
 }
+
+TaskVisitSystem::TaskVisitSystem(const TaskTemplate &templ_)
+    : BaseAutopilotTask(templ_)
+{
+    assert(templ.id == ED_TASK_VISIT_SYSTEM);
+    for (auto& p : templ.params) {
+        if (p.id == "system") {
+            destSystemName = p.value.as_string_or();
+        }
+    }
+}
+
+std::string TaskVisitSystem::getTitle() {
+    if (templ.nm.empty())
+        return lc_format("Travel to: {}", destSystemName);
+    return templ.name();
+}
+
+bool TaskVisitSystem::run() {
+    st::autopilot = {};
+    resetCompassDetects();
+    if (destSystemName.empty())
+        throw_failed("Destination system required");
+
+    LOG_INFO("TaskVisitSystem, to system '{}'", destSystemName);
+    if (st::ship.flags.docked) {
+        gotoLandingPad(false);
+    }
+
+    if (gal::getCurrentStarSystem()->systemName != destSystemName) {
+        auto starSystem = gal::getStarSystem(destSystemName);
+        if (!starSystem) {
+            throw_trouble("Cannot select destination system");
+            return false;
+        }
+
+        bool change_route = false;
+        auto navRoute = st::currentNavRoute;
+        if (!navRoute || navRoute->route.empty())
+            change_route = true;
+        else if (navRoute->route.back().starSystem != destSystemName)
+            change_route = true;
+        if (change_route) {
+            if (!selectOnGalaxyMap(destSystemName))
+                throw_trouble("Cannot make route to destination system: {}", destSystemName);
+            sleep(1000);
+        }
+        nl.init(st::navFilters);
+        if (!run_sub_step(new CompleteNavRoute))
+            throw_trouble("Cannot reach destination system");
+        if (gal::getCurrentStarSystem()->systemName != destSystemName)
+            throw_trouble("Cannot reach destination system");
+    }
+
+    LOG_INFO("TaskVisitSystem, done");
+    return true;
+}
+
 
 TaskTravel::TaskTravel(const TaskTemplate &templ_)
     : BaseAutopilotTask(templ_)

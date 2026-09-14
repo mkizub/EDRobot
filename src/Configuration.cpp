@@ -1482,8 +1482,9 @@ void Configuration::changeDirThreadLoop() {
             loadPlayerOptions(false);
         if (needReloadBindings)
             loadInputBindings();
-        if (needReloadStatus)
+        if (needReloadStatus) {
             loadGameStatus();
+        }
 
         // real all events from journal
         readJournalChanges(journalStream, latest_log_timestamp, journalLine);

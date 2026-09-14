@@ -86,13 +86,14 @@ bool leaveScrGalaxy() {
         kbd::send("UI_Back", 0, 1000);
         ai::detectEDState(DetectLevel::Buttons);
         if (ai::uiState.guiFocus != GuiFocus::GalaxyMap)
-            return true;
+            break;
         clickWidget("btn-exit", 500, 1000);
         ai::detectEDState(DetectLevel::Buttons);
         if (ai::uiState.guiFocus != GuiFocus::GalaxyMap)
-            return true;
+            break;
     }
-    return false;
+    sleep(1000);
+    return (ai::uiState.guiFocus != GuiFocus::GalaxyMap);
 }
 
 bool selectOnGalaxyMap(const std::string& systemName) {
@@ -136,6 +137,7 @@ bool selectOnGalaxyMap(const std::string& systemName) {
         if (name == systemName) {
             clickWidget("btn-tgt-nav-to", 500, 1000, 0.3);
             leaveScrGalaxy();
+            sleep(2000); // compass is animated after system was selected
             return true;
         }
 

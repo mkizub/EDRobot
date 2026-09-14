@@ -406,23 +406,60 @@ bool parseTimestampString(std::string_view str, Timestamp& timestamp) {
     if (str.empty())
         return false;
     std::istringstream iss(*str);
-    if (str.size() >= 20 && str[10] == 'T') {
-        if (str[str.size()-1] == 'Z')
-            iss >> std::chrono::parse("%FT%TZ", timestamp);
-        else
-            iss >> std::chrono::parse("%FT%T%Ez", timestamp);
+    std::string fmt = "%F";
+    if (str.size() < 10) {
+        // 2000-12-31
+        try {
+            iss >> std::chrono::parse(fmt, timestamp);
+        } catch (...) {
+            LOG_ERROR("Timestamp parsing exception, format '{}' string '{}'", fmt, str);
+            return false;
+        }
     }
-    else if (str.size() == 19 && str[10] == ' ')
-        iss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", timestamp);
-    else if (str.size() == 22 && str[10] == ' ' && str.ends_with("+00"))
-        iss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", timestamp);
-    else
+    else if (str[10] == 'T' || str[10] == ' ') {
+        fmt += str[10];
+        if (str.size() == 16 || str[16] != ':')
+            fmt += "%R"; // 2000-12-31 24:59 or 2000-12-31 24:59+00
+        else
+            fmt += "%T"; // 2000-12-31 24:59:59.000
+        if (str.ends_with("Z"))
+            fmt += "Z"; // 2000-12-31 24:59:59Z
+        else if (str.find('+',16) != std::string::npos || str.find('-',16) != std::string::npos)
+            fmt += "%Ez"; // 2000-12-31 24:59:59+01:00
+        try {
+            iss >> std::chrono::parse(fmt, timestamp);
+        } catch (...) {
+            LOG_ERROR("Timestamp parsing exception, format '{}' string '{}'", fmt, str);
+            return false;
+        }
+    }
+    else {
+        LOG_ERROR("Timestamp format unknown for: {}", str);
         return false;
+    }
     if (iss.fail()) {
-        LOG(ERROR) << "Timestamp parse failed, event corrupted?";
+        LOG_ERROR("Timestamp format unknown for: {}", str);
         return false;
     }
     return true;
+
+//    if (str.size() >= 20 && str[10] == 'T') {
+//        if (str[str.size()-1] == 'Z')
+//            iss >> std::chrono::parse("%FT%TZ", timestamp);
+//        else
+//            iss >> std::chrono::parse("%FT%T%Ez", timestamp);
+//    }
+//    else if (str.size() == 19 && str[10] == ' ')
+//        iss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", timestamp);
+//    else if (str.size() == 22 && str[10] == ' ' && str.ends_with("+00"))
+//        iss >> std::chrono::parse("%Y-%m-%d %H:%M:%S", timestamp);
+//    else
+//        return false;
+//    if (iss.fail()) {
+//        LOG(ERROR) << "Timestamp parse failed, event corrupted?";
+//        return false;
+//    }
+//    return true;
 }
 
 bool parseTimestamp(const js::value& value, Timestamp& timestamp) {

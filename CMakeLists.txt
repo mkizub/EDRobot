@@ -98,6 +98,13 @@ add_executable(EDRobot WIN32
         src/ai/TradeTasks.h
         src/ai/Types.h
 
+        src/db/DB.h
+        src/db/JsEnum.h
+        src/db/DB.cpp
+        src/db/Remap.cpp
+        src/db/JsonCode.cpp
+        src/db/CborCode.cpp
+
         src/detect/Detector.h
         src/detect/Detector.cpp
         src/detect/Compass.cpp
@@ -119,10 +126,6 @@ add_executable(EDRobot WIN32
         src/js/internal/str.h
         src/js/value.h
         src/js/parser.h
-
-        src/db/DB.h
-        src/db/DB.cpp
-        src/db/Remap.cpp
 
         src/net/NetUtils.cpp
         src/net/NetUtils.h
@@ -209,9 +212,6 @@ add_executable(EDRobot WIN32
         thirdparty/SQLiteCpp/Savepoint.cpp
         thirdparty/SQLiteCpp/Statement.cpp
         thirdparty/SQLiteCpp/Transaction.cpp
-        src/db/JsonCode.cpp
-        src/db/CborCode.cpp
-        src/db/JsEnum.h
 )
 
 
