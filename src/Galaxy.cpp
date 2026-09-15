@@ -7,7 +7,6 @@
 #include <unordered_set>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/identity.hpp>
 #include <boost/multi_index/member.hpp>
 
 #include "Galaxy.h"
@@ -15,16 +14,6 @@
 #include "net/Spansh.h"
 
 namespace gal {
-
-struct CompareStarSystem
-{
-    using is_transparent = void;
-    bool operator()(const spStarSystem& a, const spStarSystem& b) const {return a->systemName < b->systemName;}
-    bool operator()(const std::string& a, const spStarSystem& b) const {return a < b->systemName;}
-    bool operator()(const spStarSystem& a, const std::string& b) const {return a->systemName < b;}
-    bool operator()(std::string_view a, const spStarSystem& b) const {return a < b->systemName;}
-    bool operator()(const spStarSystem& a, std::string_view b) const {return a->systemName < b;}
-};
 
 struct LRUKey {
     int64_t  systemAddress;
@@ -122,11 +111,6 @@ spStarSystem StarSystemCache::get(std::string_view name) {
 
 std::unordered_map<int64_t,spMarket > gMarketById;
 spStarSystem gCurrentStarSystem = theCache.dummyStarSystem;
-
-static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
-}
 
 void saveMarket(Market* market) {
     if (!market || !market->marketId)
@@ -273,7 +257,7 @@ static void parseBodyId(const spStarSystem& ss, spEntity& entity, const js::valu
             entity->parentBodyId = jp.key_value().begin().value().as_int();
     }
     else if (j["body"].is_object() && j["body"]["name"].is_string()) {
-        auto body = j["body"]["name"].as_string();
+        const auto body = j["body"]["name"].as_string();
         for (auto& b : ss->bodies) {
             if (b->name == body && b->bodyId >= 0) {
                 entity->parentBodyId = b->bodyId;
@@ -286,7 +270,7 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
     auto systemAddress = jsystem["address"].exists()
             ? jsystem["address"].as_int()
             : jsystem["id64"].as_int();
-    auto systemName = jsystem["name"].as_string();
+    const auto systemName = jsystem["name"].as_string();
     double posX = jsystem["coords"]["x"].as_real_or();
     double posY = jsystem["coords"]["y"].as_real_or();
     double posZ = jsystem["coords"]["z"].as_real_or();
@@ -319,7 +303,7 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
     for (auto& jb : jsystem["bodies"].as_array_or()) {
         spEntity body(new Entity);
         if (jb["type"].is_string()) {
-            auto type = jb["type"].as_string();
+            const auto type = jb["type"].as_string();
             if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value())
                 body->type = typeNav.value();
         }
@@ -329,7 +313,7 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
         if (ss->getBodyById(body->bodyId))
             continue;
         if (jb["name"].is_string()) {
-            auto name = jb["name"].as_string();
+            const auto name = jb["name"].as_string();
             if (ss->getBody(name))
                 continue;
             body->setName(name);
@@ -354,7 +338,7 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
 
     //std::string lng = toLower(*enum_name<Lang>(Cfg.lng));
     for (auto& jb : jsystem["stations"].as_array_or()) {
-        auto name = jb["name"].as_string_or();
+        const auto name = jb["name"].as_string_or();
         if (ss->getDock(name))
             continue;
         spEntity site(new Entity);
@@ -981,8 +965,8 @@ void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEv
         auto& data = event->data;
         if (this->systemAddress != data["SystemAddress"].as_int_or())
             return;
-        auto stype = data["SignalType"].as_string();
-        auto sname = data["SignalName"].as_string();
+        const auto stype = data["SignalType"].as_string();
+        std::string sname = *data["SignalName"].as_string();
         std::string_view snloc;
         if (data["SignalName_Localised"].is_string()) {
             snloc = data["SignalName_Localised"].as_string();

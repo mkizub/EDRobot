@@ -219,7 +219,7 @@ void ShipSlot::setEngineering(const std::string& bp, int level, float quality, c
             effect = nullptr;
     }
 
-    auto module_mtype = (*module)["mtype"].as_string_or();
+    const auto module_mtype = (*module)["mtype"].as_string_or();
     //if (module_mtype.empty())
     //    LOG(ERROR) << "module_mtype.empty()"; // armour? not interested
     if (blueprint && !module_mtype.empty()) {

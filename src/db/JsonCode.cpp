@@ -34,9 +34,9 @@ struct from<FMT, db::JsEnum<E>>
             it += 4;
         }
         else  {
-            unsigned id{};
-            parse<FMT>::op<Opts>(id, ctx, it, end);
-            value.ptr = E::instance.get(id);
+            value.ptr = E::instance.get(it);
+            if (!value.ptr)
+                value.ptr = E::instance.addNewValue(it);
         }
     }
 };
@@ -47,12 +47,36 @@ struct to<FMT, db::JsEnum<E>>
     template <auto Opts>
     static void op(auto&& value, is_context auto&& ctx, auto&& b, auto&& ix) noexcept
     {
-        if (!value.ptr)
+        if (!value.has_value())
             serialize<FMT>::op<Opts>(nullptr, ctx, b, ix);
-        else if constexpr (Opts.js_enum_as_number)
-            serialize<FMT>::op<Opts>(value.ptr->id, ctx, b, ix);
         else
             serialize<FMT>::op<Opts>(value.ptr->str, ctx, b, ix);
+    }
+};
+
+template <>
+struct from<FMT, db::BodyParentJS>
+{
+    template <auto Opts>
+    static void op(auto&& value, auto&& ctx, auto&& it, auto&& end)
+    {
+        glz::ordered_small_map<int> m;
+        parse<FMT>::op<Opts>(m, ctx, it, end);
+        auto bgn = m.begin();
+        decltype(value.type) tp = decltype(value.type)::E::instance.get(bgn->first);
+        value = db::BodyParentJS{tp, bgn->second};
+    }
+};
+
+template <>
+struct to<FMT, db::BodyParentJS>
+{
+    template <auto Opts>
+    static void op(auto&& value, is_context auto&& ctx, auto&& b, auto&& ix) noexcept
+    {
+        glz::ordered_small_map<int> m;
+        m.emplace(value.type, value.bodyId);
+        serialize<FMT>::op<Opts>(m, ctx, b, ix);
     }
 };
 
@@ -82,21 +106,68 @@ struct to<FMT, Timestamp>
 
 } // namespace glz
 
-struct enum_as_num_opts : public glz::opts {
-    uint32_t format = FMT;
-    bool js_enum_as_number = true;
-};
-
-struct enum_as_str_opts : public glz::opts {
-    uint32_t format = FMT;
-    bool js_enum_as_number = false;
-};
-
 struct my_opts : public glz::opts {
     uint32_t format = FMT;
     bool skip_null_members_on_read = true;
 };
 
+
+template <>
+struct glz::meta<db::StationJS>
+{
+    using T = db::StationJS;
+
+    template <class T>
+    static constexpr bool skip_if(T&& value, std::string_view key, const glz::meta_context&) {
+        using V = std::decay_t<T>;
+        if constexpr (std::same_as<V, Timestamp>) {
+            return value.time_since_epoch().count();
+        }
+        if constexpr (std::same_as<T, bool>) {
+            return value == false;
+        }
+        if constexpr (std::is_floating_point_v<T>) {
+            return value.time_since_epoch().count();
+        }
+        if constexpr (std::is_integral_v<T>) {
+            return value == 0;
+        }
+        if constexpr (glz::string_t<T>) {
+            return value.empty();
+        }
+        if constexpr (glz::is_specialization_v<std::decay_t<T>, db::JsEnum>) {
+            return value->ptr != nullptr;
+        }
+
+        return false;
+    }
+
+    static constexpr auto value  = glz::object(
+            &T::id,
+            &T::type,
+            &T::name,
+            "updateTime", &T::updated_at,
+            &T::realName,
+            &T::carrierName,
+            &T::controllingFaction,
+            &T::controllingFactionState,
+            &T::distanceToArrival,
+            &T::primaryEconomy,
+            &T::secondaryEconomy,
+            &T::economies,
+            &T::allegiance,
+            &T::government,
+            &T::services,
+            &T::state,
+            &T::latitude,
+            &T::longitude,
+            &T::landingPads,
+            &T::carrierDockingAccess,
+            "market", glz::skip(),
+            "shipyard", glz::skip(),
+            "outfitting", glz::skip()
+    );
+};
 
 template <>
 struct glz::meta<db::BodyJS>
@@ -145,33 +216,33 @@ struct glz::meta<db::BodyJS>
             &T::rotationalPeriodTidallyLocked,
             "updateTime", &T::updated_at,
             &T::timestamps,
+            &T::stations,
             "belts", glz::skip(),
             "rings", glz::skip(),
             "signals", glz::skip(),
-            "stations", glz::skip(),
 
             // star part
             "mainStar",          glz::custom<&T::set_mainStar, &T::get_mainStar>,
-            "age",               glz::custom<&T::set_age, &T::set_age>,
-            "spectralClass",     glz::custom<&T::set_spectralClass, &T::set_spectralClass>,
-            "luminosity",        glz::custom<&T::set_luminosity, &T::set_luminosity>,
-            "absoluteMagnitude", glz::custom<&T::set_absoluteMagnitude, &T::set_absoluteMagnitude>,
-            "solarMasses",       glz::custom<&T::set_solarMasses, &T::set_solarMasses>,
-            "solarRadius",       glz::custom<&T::set_solarRadius, &T::set_solarRadius>,
+            "age",               glz::custom<&T::set_age, &T::get_age>,
+            "spectralClass",     glz::custom<&T::set_spectralClass, &T::get_spectralClass>,
+            "luminosity",        glz::custom<&T::set_luminosity, &T::get_luminosity>,
+            "absoluteMagnitude", glz::custom<&T::set_absoluteMagnitude, &T::get_absoluteMagnitude>,
+            "solarMasses",       glz::custom<&T::set_solarMasses, &T::get_solarMasses>,
+            "solarRadius",       glz::custom<&T::set_solarRadius, &T::get_solarRadius>,
 
             // plant part
-            "isLandable",                    glz::custom<&T::set_isLandable, &T::set_isLandable>,
-            "gravity",                       glz::custom<&T::set_gravity, &T::set_gravity>,
-            "earthMasses",                   glz::custom<&T::set_earthMasses, &T::set_earthMasses>,
-            "radius",                        glz::custom<&T::set_radius, &T::set_solarRadius>,
-            "surfacePressure",               glz::custom<&T::set_surfacePressure, &T::set_surfacePressure>,
-            "volcanismType",                 glz::custom<&T::set_volcanismType, &T::set_volcanismType>,
-            "atmosphereType",                glz::custom<&T::set_atmosphereType, &T::set_atmosphereType>,
-            "atmosphereComposition",         glz::custom<&T::set_atmosphereComposition, &T::set_atmosphereComposition>,
-            "solidComposition",              glz::custom<&T::set_solidComposition, &T::set_solidComposition>,
-            "materials",                     glz::custom<&T::set_materials, &T::set_materials>,
-            "terraformingState",             glz::custom<&T::set_terraformingState, &T::set_terraformingState>,
-            "reserveLevel",                  glz::custom<&T::set_reserveLevel, &T::set_reserveLevel>
+            "isLandable",                    glz::custom<&T::set_isLandable, &T::get_isLandable>,
+            "gravity",                       glz::custom<&T::set_gravity, &T::get_gravity>,
+            "earthMasses",                   glz::custom<&T::set_earthMasses, &T::get_earthMasses>,
+            "radius",                        glz::custom<&T::set_radius, &T::get_solarRadius>,
+            "surfacePressure",               glz::custom<&T::set_surfacePressure, &T::get_surfacePressure>,
+            "volcanismType",                 glz::custom<&T::set_volcanismType, &T::get_volcanismType>,
+            "atmosphereType",                glz::custom<&T::set_atmosphereType, &T::get_atmosphereType>,
+            "atmosphereComposition",         glz::custom<&T::set_atmosphereComposition, &T::get_atmosphereComposition>,
+            "solidComposition",              glz::custom<&T::set_solidComposition, &T::get_solidComposition>,
+            "materials",                     glz::custom<&T::set_materials, &T::get_materials>,
+            "terraformingState",             glz::custom<&T::set_terraformingState, &T::get_terraformingState>,
+            "reserveLevel",                  glz::custom<&T::set_reserveLevel, &T::get_reserveLevel>
     );
 };
 
@@ -183,8 +254,7 @@ struct glz::meta<db::StarSystemJS>
     static constexpr auto modify  = glz::object(
             "date", &T::updated_at,
             "rings", glz::skip(),
-            "signals", glz::skip(),
-            "stations", glz::skip()
+            "signals", glz::skip()
     );
 
     template <class T>
@@ -202,67 +272,40 @@ namespace db {
 
 void checkBody(BodyJS& body) {
     auto type = body.type;
-    if (!type) {
+    if (!type.has_value()) {
         LOG_ERROR("Error: Body '{}' has no type", body.name);
         return;
     }
     if (type.ptr->str == "Star") {
         if (!body.getStarPart()) {
-            LOG_WARNING("Error: Body '{}' with type {} has no star info", body.name, type.ptr->str);
+            //LOG_WARNING("Body '{}' with type {} has no star info", body.name, type.ptr->str);
         }
         if (body.getPlanetPart()) {
-            LOG_ERROR("Error: Body '{}' with type {} has planet info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has planet info", body.name, type.ptr->str);
         }
     }
     else if (type.ptr->str == "Planet") {
         if (body.getStarPart()) {
-            LOG_ERROR("Error: Body '{}' with type {} has star info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has star info", body.name, type.ptr->str);
         }
         if (!body.getPlanetPart()) {
-            LOG_WARNING("Error: Body '{}' with type {} has no planet info", body.name, type.ptr->str);
+            //LOG_WARNING("Body '{}' with type {} has no planet info", body.name, type.ptr->str);
         }
     }
     else {
         if (body.getPlanetPart()) {
-            LOG_ERROR("Error: Body '{}' with type {} has planet info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has planet info", body.name, type.ptr->str);
         }
         if (body.getStarPart()) {
-            LOG_ERROR("Error: Body '{}' with type {} has star info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has star info", body.name, type.ptr->str);
         }
     }
-//    for (const auto& [key,val] : body.timestamps) {
-//        if (!JsTimestamps::instance.get(key)) {
-//            LOG_ERROR("Error: Unknown body timestamp key \"{}\"", key);
-//            JsTimestamps::instance.addNewValue(key);
-//        }
-//    }
-//    for (auto& p : body.parents) {
-//        for (const auto &[key, val]: p) {
-//            if (!JsParentBodyType::instance.get(key)) {
-//                LOG_ERROR("Error: Unknown parent body type \"{}\"", key);
-//                JsParentBodyType::instance.addNewValue(key);
-//            }
-//        }
-//    }
-//    for (const auto& [key,val] : body.atmosphereComposition) {
-//        if (!JsAtmosphereType::instance.get(key)) {
-//            LOG_ERROR("Error: Unknown atmosphere composition type \"{}\"", key);
-//            JsAtmosphereType::instance.addNewValue(key);
-//        }
-//    }
-//    for (const auto& [key,val] : body.solidComposition) {
-//        if (!JsSolidType::instance.get(key)) {
-//            LOG_ERROR("Error: Unknown solid composition type \"{}\"", key);
-//            JsSolidType::instance.addNewValue(key);
-//        }
-//    }
-//    for (const auto& [key,val] : body.materials) {
-//        if (!JsMaterials::instance.get(key)) {
-//            LOG_ERROR("Error: Unknown planet material type \"{}\"", key);
-//            JsMaterials::instance.addNewValue(key);
-//        }
-//    }
 }
+
+extern void test_cbor_start();
+extern void test_cbor_end();
+extern int test_cbor(StarSystemJS& ss_js);
+int64_t totalSizeCBOR = 0;
 
 void checkStarSystem(StarSystemJS& ss) {
 //    for (const auto& [key,val] : ss.timestamps) {
@@ -274,6 +317,8 @@ void checkStarSystem(StarSystemJS& ss) {
     for (auto& b : ss.bodies) {
         checkBody(b);
     }
+    int64_t& total = totalSizeCBOR;
+    total += test_cbor(ss);
 }
 
 void test_json_system(glz::context& ctx, std::string& strbuf) {
@@ -282,7 +327,7 @@ void test_json_system(glz::context& ctx, std::string& strbuf) {
     glz::error_ctx err;
     err = glz::read<my_opts{}>(ss_js,strbuf,ctx);
     if (err)
-        LOG_ERROR("Error: {}", glz::format_error(err));
+        LOG_ERROR("Serialization Error: {}", glz::format_error(err));
     checkStarSystem(ss_js);
 
     strbuf.clear();
@@ -292,9 +337,11 @@ void test_json(StarSystemJS& ss_js) {
     glz::error_ctx err;
     std::string strbuf;
 
+    test_cbor_start();
+
     err = glz::read_file_json<glz::opts{.error_on_unknown_keys=false}>(ss_js,"10477373803.json",strbuf);
     if (err)
-        LOG_ERROR("Error: {}", glz::format_error(err));
+        LOG_ERROR("Serialization Error: {}", glz::format_error(err));
     checkStarSystem(ss_js);
 
     const char* filePath = "D:\\Work\\ED\\EDMapFilter\\galaxy.json.gz";
@@ -366,5 +413,8 @@ void test_json(StarSystemJS& ss_js) {
     }
 
     gzclose(file);
+
+    test_cbor_end();
+
 }
 }

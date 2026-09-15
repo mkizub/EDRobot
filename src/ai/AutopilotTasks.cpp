@@ -1074,10 +1074,10 @@ bool DepartureStep::run() {
         setSpeed(0, true, "Departure: got autopilot");
         notAutoPilotCounter = 0;
         int waitCounter = 4;
-        //if (fromStarPort && st::shipInfo.shipType == "panthermkii") {
-        //    LOG_DEBUG("Departure: panthermkii from StarPort");
-        //    waitCounter = 7;
-        //}
+        if (fromStarPort && st::shipInfo.shipType == "panthermkii") {
+            LOG_DEBUG("Departure: panthermkii from StarPort");
+            waitCounter = 7;
+        }
         for (;;) {
             if (timer.expired()) {
                 if (fromSpaceConstruction) {
@@ -1106,13 +1106,13 @@ bool DepartureStep::run() {
                 notify_info("Departure complete (autopilot off)");
                 break;
             } else {
-                //notify_info("Auto-pilot off counter: {}", notAutoPilotCounter);
-                //if ((notAutoPilotCounter%3)==0 && fromStarPort && st::shipInfo.shipType == "panthermkii") {
-                //    setSpeed(-50, true, "panthermkii bug");
-                //    sleep(1000);
-                //    setSpeed(0, true, "panthermkii bug");
-                //    kbd::send("SetSpeedZero", 2500);
-                //}
+                notify_info("Auto-pilot off counter: {}", notAutoPilotCounter);
+                if ((notAutoPilotCounter%3)==0 && fromStarPort && st::shipInfo.shipType == "panthermkii") {
+                    setSpeed(-50, true, "panthermkii bug");
+                    sleep(1000);
+                    setSpeed(0, true, "panthermkii bug");
+                    kbd::send("SetSpeedZero", 2500);
+                }
             }
         }
         Axis::resetAll(true);
@@ -2089,7 +2089,7 @@ bool DockSpaceStation::run() {
         }
         // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
         if (de->event == "DockingDenied") {
-            auto reason = de->data["Reason"].as_string_or();
+            const auto reason = de->data["Reason"].as_string_or();
             if (reason == "NoSpace") {
                 LOG_ERROR("DockingDenied reason: NoSpace, waiting...");
                 sleep(5000);
@@ -2387,7 +2387,7 @@ bool DockPlanetPort::run() {
         }
         // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
         if (de->event == "DockingDenied") {
-            auto reason = de->data["Reason"].as_string();
+            const auto reason = de->data["Reason"].as_string();
             if (reason == "NoSpace") {
                 LOG_ERROR("DockingDenied reason: NoSpace, waiting...");
                 sleep(5000);

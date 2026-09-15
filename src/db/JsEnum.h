@@ -61,6 +61,10 @@ JS_ENUM_DECL(TerraformingState)
 JS_ENUM_DECL(Materials)
 JS_ENUM_DECL(ReserveLevel)
 JS_ENUM_DECL(Timestamps)
+JS_ENUM_DECL(Services)
+JS_ENUM_DECL(StationType)
+JS_ENUM_DECL(StationState)
+JS_ENUM_DECL(CarrierDockingAccess)
 
 template <typename ES>
 struct JsEnum {
@@ -84,6 +88,8 @@ struct JsEnum {
     }
     JsEnum& operator=(JsEnumVal* p) { assert(!p || p->ES == &ES::instance); ptr = p; return *this; }
     operator bool() const noexcept { return ptr; }
+    bool has_value() const noexcept { return ptr != nullptr; }
+    JsEnum& value() const noexcept { return *this; }
     bool operator==(const JsEnum& other) const {
         if (ptr == other.ptr)
             return true;

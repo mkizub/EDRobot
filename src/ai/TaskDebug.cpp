@@ -825,7 +825,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
             for (auto &js: spanshSystemInfo.at("bodies").as_array()) {
                 if (!js["type"].is_string() || !contains(nav_type->typeAliases, *js["type"].as_string()))
                     continue;
-                auto name = js["name"].as_string();
+                const auto name = js["name"].as_string();
                 std::wstring name_ocr = fm.toOCR(toUtf16(name));
                 double rate = fm.ratio(text_ocr, name_ocr);
                 if (rate > best_rate) {
@@ -838,7 +838,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::StarSystem:
         if (spanshNearSystems.is_array()) {
             for (auto &js: spanshNearSystems.as_array()) {
-                auto name = js["name"].as_string();
+                const auto name = js["name"].as_string();
                 std::wstring name_ocr = fm.toOCR(toUtf16(name));
                 double rate = fm.ratio(text_ocr, name_ocr);
                 if (rate > best_rate) {

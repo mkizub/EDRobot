@@ -64,11 +64,11 @@ public:
     bool run() final;
     bool processTradeDialog(bool force);
 
-    Commodity* mCommodity;
-    const int mTotal;
-    int mBought;
-    int mLeft;
-    int mInitial;
+    Commodity* mCommodity {};
+    const int mTotal {};
+    int mBought {};
+    int mLeft {};
+    int mInitial {};
 
     std::string getTitle() override;
     std::string getStatus() override;

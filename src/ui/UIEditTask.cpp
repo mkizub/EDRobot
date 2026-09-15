@@ -241,7 +241,7 @@ void UIEditTask::init_templ_list() {
     for (auto& tt : ai::getTemplates()) {
         templates.push_back(tt);
         auto name = toUtf16(gettext(tt.nm.c_str()));
-        auto group = *tt.meta["group"].as_string_or();
+        const auto group = *tt.meta["group"].as_string_or();
         if (group.empty()) {
             menu_tasks.append_item(idx++, name);
         } else {

@@ -7,14 +7,12 @@
 #include "Button.h"
 #include "List.h"
 
-#include "../detect/Detector.h"
 #include "../detect/Lines.h"
 #include "../detect/Tiles.h"
 #include "../detect/NavPanel.h"
 #include "../detect/TextDetector.h"
 #include "../detect/Compass.h"
 
-#include "../ClassifyEnv.h"
 #include "../FuzzyMatch.h"
 
 using namespace widget;
@@ -364,7 +362,7 @@ static void image_template_from_json(const js::value& j, ImageTemplate* templ) {
     minmax_from_json(j["t"], templ->threshold_min, templ->threshold_max);
 
     if (j.at("method").is_string()) {
-        auto method = j.at("method").as_string();
+        const auto method = j.at("method").as_string();
         if (method == "coeff")
             templ->matchMethod = cv::TM_CCOEFF_NORMED;
         else if (method == "corr")
@@ -533,11 +531,11 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
                 for (auto [key,val] : j["labels"].key_value()) {
                     std::vector<std::wstring>& texts = tiles->labels[key.data()];
                     if (val.is_string()) {
-                        auto txt = val.as_string();
+                        const auto txt = val.as_string();
                         texts.push_back(fm.toOCR(toUtf16(txt)));
                     } else if (val.is_array()) {
                         for (auto& t : val.as_array()) {
-                            auto txt = t.as_string();
+                            const auto txt = t.as_string();
                             texts.push_back(fm.toOCR(toUtf16(txt)));
                         }
                     }
@@ -547,7 +545,7 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             return tiles;
         }
         if (j.has_key("texts")) {
-            std::string name = *j["name"].as_string_or();
+            const std::string name = *j["name"].as_string_or();
             spEvalRect textsRect = makeEvalRect(widget, name.c_str(), j["rect"], fov_scale, false);
 
             auto* tdet = new TextDetector(name, textsRect);
@@ -556,11 +554,11 @@ static Detector* detector_from_json(const js::value& j, Widget& widget, FovScale
             for (auto [key,val] : j["texts"].key_value()) {
                 std::vector<std::wstring>& texts = tdet->labels[key.data()];
                 if (val.is_string()) {
-                    auto txt = val.as_string();
+                    const auto txt = val.as_string();
                     texts.push_back(fm.toOCR(toUtf16(txt)));
                 } else if (val.is_array()) {
                     for (auto& t : val.as_array()) {
-                        auto txt = t.as_string();
+                        const auto txt = t.as_string();
                         texts.push_back(fm.toOCR(toUtf16(txt)));
                     }
                 }

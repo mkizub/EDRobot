@@ -96,14 +96,7 @@ const std::list<TaskTemplate>& getUserTasks();
 const std::list<TaskTemplate>& getTemplates();
 const TaskTemplate& getTemplate(const std::string& id);
 bool saveUserTask(TaskTemplate& templ);
-bool delUserTask(TaskTemplate& templ);
 bool delUserTask(int index);
-
-enum class CheckResult {
-    Failure,
-    Resume,
-    Replan,
-};
 
 bool detectEDState(DetectLevel level);
 bool detectEDStateGrayIm(DetectLevel level, cv::Mat& grayImage);

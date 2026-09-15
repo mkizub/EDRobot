@@ -375,13 +375,90 @@ JsTimestamps JsTimestamps::instance {
     {7, "powers"}
 };
 
+JsServices JsServices::instance {
+    {1, "Flight Controller"},
+    {2, "Station Operations"},
+    {3, "Dock"},
+    {4, "Autodock"},
+    {5, "Station Menu"},
+    {6, "Contacts"},
+    {7, "Refuel"},
+    {8, "Market"},
+    {9, "Repair"},
+    {10, "Workshop"},
+    {11, "Missions"},
+    {12, "Search and Rescue"},
+    {13, "Missions Generated"},
+    {14, "Restock"},
+    {15, "Social Space"},
+    {16, "Black Market"},
+    {17, "Interstellar Factors Contact"},
+    {18, "Powerplay"},
+    {19, "System Colonisation"},
+    {20, "Crew Lounge"},
+    {21, "Universal Cartographics"},
+    {22, "Outfitting"},
+    {23, "Livery"},
+    {24, "Construction Services"},
+    {25, "Shop"},
+    {26, "Bartender"},
+    {27, "Vista Genomics"},
+    {28, "Shipyard"},
+    {29, "Pioneer Supplies"},
+    {30, "Apex Interstellar"},
+    {31, "Tuning"},
+    {32, "Fleet Carrier Fuel"},
+    {33, "Fleet Carrier Management"},
+    {34, "Frontline Solutions"},
+    {35, "Refinery Contact"},
+    {36, "Redemption Office"},
+    {37, "Technology Broker"},
+    {38, "Material Trader"},
+    {39, "Squadron Bank"},
+    {40, "Fleet Carrier Administration"},
+    {41, "On Dock Mission"},
+    {42, "Fleet Carrier Vendor"},
+};
+
+JsStationType JsStationType::instance {
+    {1, "Asteroid base"},
+    {2, "Coriolis Starport"},
+    {3, "Dockable Planet Station"},
+    {4, "Dodec Starport"},
+    {5, "Drake-Class Carrier"},
+    {6, "Mega ship"},
+    {7, "Ocellus Starport"},
+    {8, "Orbis Starport"},
+    {9, "Outpost"},
+    {10, "Planetary Construction Depot"},
+    {11, "Planetary Outpost"},
+    {12, "Planetary Port"},
+    {13, "Settlement"},
+    {14, "Space Construction Depot"},
+    {15, "Surface Settlement"},
+};
+
+JsStationState JsStationState::instance {
+    {1, "Construction"},
+    {2, "Damaged"},
+    {3, "DamagedHuman"},
+    {4, "UnderAttack"},
+    {5, "UnderRepairs"},
+};
+
+JsCarrierDockingAccess JsCarrierDockingAccess::instance {
+    {1, "None"},
+    {2, "Friends"},
+    {3, "Squadron"},
+    {4, "Squadron Friends"},
+    {5, "All"},
+};
+
 
 extern void test_json(StarSystemJS& ss_js);
-extern void test_beve(StarSystemJS& ss_js);
 void test() {
 //    StarSystemJS ss_js;
 //    test_json(ss_js);
-//    test_beve(ss_js);
 }
 
 void db::init_js_remapping() {
@@ -416,74 +493,6 @@ void db::init_js_remapping() {
         "Metal Rich",
         "Metallic",
         "Rocky",
-
-        // station services
-        "Flight Controller",
-        "Station Operations",
-        "Dock",
-        "Autodock",
-        "Station Menu",
-        "Contacts",
-        "Refuel",
-        "Market",
-        "Repair",
-        "Workshop",
-        "Missions",
-        "Search and Rescue",
-        "Missions Generated",
-        "Restock",
-        "Social Space",
-        "Black Market",
-        "Interstellar Factors Contact",
-        "Powerplay",
-        "System Colonisation",
-        "Crew Lounge",
-        "Universal Cartographics",
-        "Outfitting",
-        "Livery",
-        "Construction Services",
-        "Shop",
-        "Bartender",
-        "Vista Genomics",
-        "Shipyard",
-        "Pioneer Supplies",
-        "Apex Interstellar",
-        "Tuning",
-        "Fleet Carrier Fuel",
-        "Fleet Carrier Management",
-        "Frontline Solutions",
-        "Refinery Contact",
-        "Redemption Office",
-        "Technology Broker",
-        "Material Trader",
-        "Squadron Bank",
-        "Fleet Carrier Administration",
-        "On Dock Mission",
-        "Fleet Carrier Vendor",
-
-        // station types
-        "Asteroid base",
-        "Coriolis Starport",
-        "Dockable Planet Station",
-        "Dodec Starport",
-        "Drake-Class Carrier",
-        "Mega ship",
-        "Ocellus Starport",
-        "Orbis Starport",
-        "Outpost",
-        "Planetary Construction Depot",
-        "Planetary Outpost",
-        "Planetary Port",
-        "Settlement",
-        "Space Construction Depot",
-        "Surface Settlement",
-
-        // station states
-        "Construction",
-        "Damaged",
-        "DamagedHuman",
-        "UnderAttack",
-        "UnderRepairs",
 
         // ship types
         "Adder",

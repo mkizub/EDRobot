@@ -120,7 +120,7 @@ static bool loadMarket(int64_t marketId, std::string stationName, std::string st
 static void parseStation(const gal::spStarSystem &ss, const js::value &jb, int parentBodyId = -1) {
     bool is_new = true;
     auto marketId = jb["id"].as_int_or();
-    auto name = jb["name"].as_string_or();
+    const auto name = jb["name"].as_string_or();
     gal::spEntity site(new gal::Entity);
     if (auto old = ss->getDock(marketId)) {
         site = old;
@@ -176,7 +176,7 @@ static void parseStation(const gal::spStarSystem &ss, const js::value &jb, int p
 static void parseBody(const gal::spStarSystem &ss, const js::value &jb) {
     gal::spEntity body(new gal::Entity);
     if (jb["type"].is_string()) {
-        auto type = jb["type"].as_string();
+        const auto type = jb["type"].as_string();
         if (type == "Star") body->type = TypeNav::Star;
         else if (type == "Planet") body->type = TypeNav::Planet;
         else if (type == "AsteroidCluster") body->type = TypeNav::AsteroidCluster;
@@ -192,7 +192,7 @@ static void parseBody(const gal::spStarSystem &ss, const js::value &jb) {
         body = b;
         is_new = false;
     } else if (jb["name"].is_string()) {
-        auto name = jb["name"].as_string();
+        const auto name = jb["name"].as_string();
         if (auto b = ss->getBody(name); b && b->bodyId < 0) {
             TypeNav tp = body->type;
             body = b;
@@ -232,7 +232,7 @@ gal::spStarSystem loadStarSystem(int64_t systemAddress) {
 
         const js::value jsystem = cr_body["system"];
 
-        auto systemName = jsystem["name"].as_string();
+        const auto systemName = jsystem["name"].as_string();
         cv::Point3d systemPos{jsystem["coords"]["x"].as_real_or(),
                               jsystem["coords"]["y"].as_real_or(),
                               jsystem["coords"]["z"].as_real_or()};
@@ -284,7 +284,7 @@ gal::spStarSystem loadStarSystem(std::string_view name) {
         gal::spStarSystem found;
         for (auto &ss: cr_body["min_max"].as_array_or()) {
             int64_t it_address = ss["id64"].as_int();
-            auto it_name = ss["name"].as_string();
+            const auto it_name = ss["name"].as_string();
             cv::Point3d it_pos {ss["x"].as_real(), ss["y"].as_real(), ss["z"].as_real()};
             auto it_ss = gal::makeStarSystem(it_name, it_address, &it_pos, false);
             if (it_name == name)
@@ -318,7 +318,7 @@ std::vector<gal::spStarSystem> listSystemsUsingRequest(js::value j_request, int 
 
         auto jresult = cr_body["results"].as_array_or();
         for (auto jr: jresult) {
-            auto name = jr["name"].as_string();
+            const auto name = jr["name"].as_string();
             int64_t address = jr["id64"].as_int();
             double x = jr["x"].as_real_or();
             double y = jr["y"].as_real_or();
@@ -430,7 +430,7 @@ std::vector<gal::spStarSystem> listSystemsUsingRecall(const std::string uuid, li
 
         auto jresult = cr_body["results"].as_array_or();
         for (auto jr: jresult) {
-            auto name = jr["name"].as_string();
+            const auto name = jr["name"].as_string();
             int64_t address = jr["id64"].as_int();
             Timestamp updated_at;
             if (check_time_filter && parseTimestamp(jr["updated_at"], updated_at)) {

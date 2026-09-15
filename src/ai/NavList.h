@@ -66,7 +66,7 @@ public:
 
 class NavListScanTask : public Task {
 public:
-    NavListScanTask(const TaskTemplate& templ);
+    explicit NavListScanTask(const TaskTemplate& templ);
     bool run() final;
     bool gotoNavPageNavigation();
 
@@ -76,7 +76,7 @@ public:
 
 class NavListScanSystemsTask : public Task {
 public:
-    NavListScanSystemsTask(const TaskTemplate& templ);
+    explicit NavListScanSystemsTask(const TaskTemplate& templ);
     bool run() final;
 
     NavList nl;

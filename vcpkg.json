@@ -57,5 +57,10 @@
   }, {
     "name" : "glaze",
     "version>=" : "8.0.0"
+  }, {
+    "name" : "msgpack",
+    "version>=" : "9.0.0",
+    "features" : [],
+    "default-features" : false
   } ]
 }

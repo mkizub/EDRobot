@@ -22,11 +22,11 @@ std::string BaseColonizationTask::constructionPrefixes[] {
 
 
 void BaseColonizationTask::addDepotInfo(const js::value& dv) {
-    auto systemName = dv["system"].as_string_or();
+    const auto systemName = dv["system"].as_string_or();
     auto starSystem = gal::getStarSystem(systemName);
     if (!starSystem)
         throw_failed("Star system '{}' not known", systemName);
-    auto fullName = dv["dock"].as_string_or();
+    const auto fullName = *dv["dock"].as_string_or();
     //if (fullName == "*") {
     //    RavenColonial::carrierGetCargo()
     //}
@@ -64,7 +64,7 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
     }
     if (depotMarket && !depotMarket->raven)
         depotMarket->raven = std::make_shared<RavenProj>();
-    auto& depotInfo = depots.emplace_back(*systemName, *fullName, *shortName);
+    auto& depotInfo = depots.emplace_back(*systemName, fullName, *shortName);
     depotInfo.marketId = depot->marketId;
     if (depotMarket && depotMarket->raven) {
         depotInfo.ravenBuildId = depotMarket->raven->buildId;

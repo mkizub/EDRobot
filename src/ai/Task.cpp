@@ -373,7 +373,7 @@ TaskRepeat::TaskRepeat(const TaskTemplate& templ_)
             mDuration = p.as_integer();
         else if (p.id == "tasks") {
             if (p.value.is_array()) {
-                for (auto task : p.value.as_array()) {
+                for (auto& task : p.value.as_array()) {
                     TaskTemplate tt = TaskTemplate::loadTask(task);
                     if (!tt.id.empty())
                         steps.emplace_back(std::move(tt));

@@ -123,7 +123,7 @@ bool Param::set(const js::value& val, bool silent) {
         break;
     case Enum:
         if (val.is_string()) {
-            auto text = val.as_string();
+            const auto text = val.as_string();
             auto arr = meta["values"].as_array();
             for (auto v: arr) {
                 if (v.is_string() && text == v.as_string()) {
@@ -158,7 +158,7 @@ bool Param::set(const js::value& val, bool silent) {
             return true;
         }
         if (val.is_string()) {
-            auto str = val.as_string();
+            const auto str = val.as_string();
             int64_t result = 0;
             if (parseInt(str, result)) {
                 value = result;
@@ -172,7 +172,7 @@ bool Param::set(const js::value& val, bool silent) {
             return true;
         }
         if (val.is_string()) {
-            auto str = val.as_string();
+            const auto str = val.as_string();
             double result = 0;
             if (parseReal(str, result)) {
                 value = result;
@@ -194,7 +194,7 @@ bool Param::set(const js::value& val, bool silent) {
         break;
     case Commodity:
         if (val.is_string()) {
-            auto text = val.as_string();
+            const auto text = val.as_string();
             auto* commodity = Cfg.getCommodityByName(text, false);
             if (commodity) {
                 value = commodity->nameId;
@@ -618,7 +618,7 @@ void initTemplates() {
 }
 
 TaskTemplate TaskTemplate::loadTask(const js::value& j_task) {
-    auto templ_id = j_task["templ"].as_string_or();
+    const auto templ_id = j_task["templ"].as_string_or();
     const TaskTemplate *templ_ptr = nullptr;
     for (auto &tt: AllTaskTemplates) {
         if (tt.id == templ_id) {
@@ -729,17 +729,6 @@ bool saveUserTask(TaskTemplate& templ) {
     AllUserTasks.emplace_front(templ);
     TaskTemplate::saveUserTasks();
     return true;
-}
-
-bool delUserTask(TaskTemplate& templ) {
-    for (auto it=AllUserTasks.begin(); it != AllUserTasks.end(); it++) {
-        if (it->id == templ.id && it->nm == templ.nm) {
-            AllUserTasks.erase(it);
-            TaskTemplate::saveUserTasks();
-            return true;
-        }
-    }
-    return false;
 }
 
 bool delUserTask(int index) {

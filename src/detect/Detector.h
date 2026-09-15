@@ -25,7 +25,7 @@ public:
 
 class Sequence : public Detector {
 public:
-    Sequence(std::vector<std::unique_ptr<Detector>>&& oracles)
+    explicit Sequence(std::vector<std::unique_ptr<Detector>>&& oracles)
         : oracles(std::move(oracles))
     {}
     ~Sequence() override = default;
@@ -37,7 +37,7 @@ private:
 
 class BestOf : public Detector {
 public:
-    BestOf(std::vector<std::unique_ptr<Detector>>&& oracles)
+    explicit BestOf(std::vector<std::unique_ptr<Detector>>&& oracles)
             : oracles(std::move(oracles))
     {}
     ~BestOf() override = default;
@@ -49,8 +49,8 @@ private:
 
 class ReferDetector : public Detector {
 public:
-    ReferDetector(std::string referred)
-            : referred(referred)
+    explicit ReferDetector(std::string referred)
+            : referred(std::move(referred))
     {}
     ~ReferDetector() override = default;
 
@@ -61,7 +61,7 @@ private:
 
 class ConstDetector : public Detector {
 public:
-    ConstDetector(double value)
+    explicit ConstDetector(double value)
             : value(value)
     {}
     ~ConstDetector() override = default;
@@ -76,7 +76,7 @@ public:
     enum class Mode {
         Gray, Hsv, Luv, BGR
     };
-    Histogram(Mode mode, int bin=8) : mMode(mode), mBin(bin) {}
+    explicit Histogram(Mode mode, int bin=8) : mMode(mode), mBin(bin) {}
 
 #ifdef EDROBOT_USE_OPENCL
     bool calc(XMat image);
@@ -185,7 +185,7 @@ public:
 class AnchorDetector : public ImageTemplate {
 public:
     AnchorDetector(const std::string& filename, spEvalRect rect, cv::Point anchor_of)
-        : ImageTemplate(filename, rect)
+        : ImageTemplate(filename, std::move(rect))
         , anchor_of(anchor_of)
         {}
     ~AnchorDetector() override = default;
@@ -197,7 +197,7 @@ class BlackScreenDetector : public Detector {
 public:
     BlackScreenDetector(bool black, spEvalRect rect)
         : isBlack(black)
-        , refEvalRect(rect)
+        , refEvalRect(std::move(rect))
     {}
     ~BlackScreenDetector() override = default;
 

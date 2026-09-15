@@ -41,14 +41,14 @@ struct Faction {
 
 struct FactionStateJS {
     JsEnum<JsFactionState> state;
-    std::optional<double> trend;
+    float trend {FNaN};
 };
 struct FactionJS {
     std::string name;
     JsEnum<JsFactionState> state;
     JsEnum<JsAllegiance> allegiance;
     JsEnum<JsGovernment> government;
-    std::optional<double> influence;
+    float influence {FNaN};
     std::vector<FactionStateJS> activeStates;
     std::vector<FactionStateJS> pendingStates;
     std::vector<FactionStateJS> recoveringStates;
@@ -59,8 +59,39 @@ struct StarSystem {
     std::string name;
     double x, y, z;
     int64_t population;
-    Faction* faction; // controllingFaction
+    Faction* controllingFaction;
     int64_t blobId;
+};
+
+struct LandingPadsJS {
+    int8_t large {};
+    int8_t medium {};
+    int8_t small {};
+    bool empty() const { return large==0 && medium==0 && small==0; }
+};
+
+
+struct StationJS {
+    int64_t id; // market id
+    JsEnum<JsStationType> type;
+    std::string name;
+    Timestamp updated_at;
+    std::string realName; // Real name of the station, for colonisation stations.
+    std::string carrierName; // Player given name of the station, for fleet carriers.
+    std::string controllingFaction;
+    JsEnum<JsFactionState> controllingFactionState;
+    JsEnum<JsEconomy> primaryEconomy;
+    JsEnum<JsEconomy> secondaryEconomy;
+    ed::small_map<JsEnum<JsEconomy>,float> economies;
+    JsEnum<JsAllegiance> allegiance;
+    JsEnum<JsGovernment> government;
+    JsEnum<JsStationState> state;
+    float distanceToArrival {FNaN};
+    float latitude {FNaN}; // Planetary stations only.
+    float longitude {FNaN}; // Planetary stations only.
+    LandingPadsJS landingPads;
+    JsEnum<JsCarrierDockingAccess> carrierDockingAccess; // Carrier only.
+    std::vector<JsEnum<JsServices>> services;
 };
 
 struct CoordsJS {
@@ -68,22 +99,30 @@ struct CoordsJS {
     double y {};
     double z {};
 };
+
+struct BodyParentJS {
+    JsEnum<JsParentBodyType> type;
+    int bodyId;
+};
+
 struct PowerConflictJS {
     JsEnum<JsPower> power;
-    double progress;
+    float progress;
 };
+
 struct ThargoidWarJS {
     JsEnum<JsThargoidState> currentState;
     JsEnum<JsThargoidState> successState;
     JsEnum<JsThargoidState> failureState;
-    double progress;
+    float progress;
     int daysRemaining;
     int portsRemaining;
     bool successReached;
 };
+
 struct StarPartJS {
     bool mainStar;
-    int64_t age;
+    uint64_t age;
     std::string spectralClass;
     std::string luminosity;
     float absoluteMagnitude {FNaN};
@@ -111,6 +150,7 @@ struct BodyJS {
     int bodyId {};
     std::string name;
     JsEnum<JsBodySubType> subType;
+    Timestamp updated_at;
     float orbitalPeriod {FNaN};
     float semiMajorAxis {FNaN};
     float orbitalEccentricity {FNaN};
@@ -125,19 +165,17 @@ struct BodyJS {
     bool rotationalPeriodTidallyLocked {};
 
     ed::small_map<JsEnum<JsTimestamps>,Timestamp> timestamps;
-    Timestamp updated_at;
-    std::vector<ed::small_map<JsEnum<JsParentBodyType>,int>> parents;
-    // stations
+    std::vector<BodyParentJS> parents;
+    std::vector<StationJS> stations;
     // "rings"
     // "belts"
-
 
     // StarPart accessors
     bool get_mainStar() const { return starPart && starPart->mainStar; }
     void set_mainStar(bool v) { ensureStarPart()->mainStar = v; }
 
-    int64_t get_age() const { return starPart ? starPart->age : 0; }
-    void set_age(int64_t v) { ensureStarPart()->age = v; }
+    uint64_t get_age() const { return starPart ? starPart->age : 0; }
+    void set_age(uint64_t v) { ensureStarPart()->age = v; }
 
     std::string_view get_spectralClass() const { if (starPart) return starPart->spectralClass; return {}; }
     void set_spectralClass(std::string_view v) { ensureStarPart()->spectralClass = v; }
@@ -171,7 +209,7 @@ struct BodyJS {
     void set_surfacePressure(float v) { ensurePlanedPart()->surfacePressure = v; }
 
     std::optional<JsEnum<JsVolcanismType>> get_volcanismType()const  {
-        if (planetPart && planetPart->volcanismType)
+        if (planetPart && planetPart->volcanismType.has_value())
             return planetPart->volcanismType;
         return {};
     }
@@ -181,7 +219,7 @@ struct BodyJS {
     }
 
     std::optional<JsEnum<JsAtmosphereType>> get_atmosphereType() const {
-        if (planetPart && planetPart->atmosphereType)
+        if (planetPart && planetPart->atmosphereType.has_value())
             return planetPart->atmosphereType;
         return {};
     }
@@ -221,7 +259,7 @@ struct BodyJS {
     }
 
     std::optional<JsEnum<JsTerraformingState>> get_terraformingState() const {
-        if (planetPart && planetPart->terraformingState)
+        if (planetPart && planetPart->terraformingState.has_value())
             return planetPart->terraformingState;
         return {};
     }
@@ -231,7 +269,7 @@ struct BodyJS {
     }
 
     std::optional<JsEnum<JsReserveLevel>> get_reserveLevel() const {
-        if (planetPart && planetPart->reserveLevel)
+        if (planetPart && planetPart->reserveLevel.has_value())
             return planetPart->reserveLevel;
         return {};
     }
@@ -240,8 +278,8 @@ struct BodyJS {
             ensurePlanedPart()->reserveLevel = v.value();
     }
 
-    StarPartJS* getStarPart() { return starPart.get(); }
-    PlanetPartJS* getPlanetPart() { return planetPart.get(); }
+    StarPartJS* getStarPart() const { return starPart.get(); }
+    PlanetPartJS* getPlanetPart() const { return planetPart.get(); }
 private:
     std::unique_ptr<StarPartJS> starPart;
     std::unique_ptr<PlanetPartJS> planetPart;
@@ -276,12 +314,13 @@ struct StarSystemJS {
     std::vector<PowerConflictJS> powerConflictProgress;
     std::vector<JsEnum<JsPower>> powers;
     JsEnum<JsPower> controllingPower {};
-    std::optional<double> powerStateControlProgress;
-    std::optional<double> powerStateReinforcement;
-    std::optional<double> powerStateUndermining;
+    float powerStateControlProgress {FNaN};
+    float powerStateReinforcement {FNaN};
+    float powerStateUndermining {FNaN};
     std::unique_ptr<ThargoidWarJS> thargoidWar {};
     ed::small_map<JsEnum<JsTimestamps>,Timestamp> timestamps;
     std::vector<BodyJS> bodies;
+    std::vector<StationJS> stations;
 };
 
 }

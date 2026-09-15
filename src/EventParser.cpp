@@ -519,7 +519,7 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto& cmdr = const_cast<st::Commander&>(st::cmdr);
-    auto type = je["CarrierType"].as_string_or();
+    const auto type = je["CarrierType"].as_string_or();
     if (gal::FLEET_CARRIER.match_type(type)) {
         cmdr.fleetCarrierId = je["CarrierID"].as_int_or();
         cmdr.fleetCarrierInSystem = je["StarSystem"].as_string_or();
@@ -588,8 +588,8 @@ void parseEvent_Loadout(spGameEvent& ge) {
         auto& modules = je["Modules"].as_array();
         for (auto& m : modules) {
             ss->setSlotModule(m);
-            auto slot_name = m["Slot"].as_string_or();
-            auto item_name = m["Item"].as_string_or();
+            const auto slot_name = m["Slot"].as_string_or();
+            const auto item_name = m["Item"].as_string_or();
             if (slot_name == "FrameShiftDrive" || item_name == "int_dockingcomputer_advanced") {
                 auto health = m["Health"].as_real_or(1.0);
                 if (health < 0.05)
@@ -901,7 +901,7 @@ void parseEvent_FSSBodySignals(spGameEvent& ge) {
 void parseEvent_Scan(spGameEvent& ge) {
     auto& je = ge->data;
 
-    auto systemName = je["StarSystem"].as_string_or();
+    const auto systemName = je["StarSystem"].as_string_or();
     int64_t systemAddress = je["SystemAddress"].as_int_or();
     cv::Point3d* systemPos = nullptr;
     if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
@@ -1017,7 +1017,7 @@ void parseEvent_Scan(spGameEvent& ge) {
 void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     auto& je = ge->data;
 
-    auto systemName = je["StarSystem"].as_string_or();
+    const auto systemName = je["StarSystem"].as_string_or();
     int64_t systemAddress = je["SystemAddress"].as_int_or();
     cv::Point3d* systemPos = nullptr;
     if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
@@ -1098,7 +1098,7 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
     for (auto &jr: je["ResourcesRequired"].as_array_or()) {
         if (!jr["Name"].is_string())
             continue;
-        auto name = jr["Name"].as_string();
+        std::string name = *jr["Name"].as_string();
         // "$aluminium_name;"
         if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
             continue;

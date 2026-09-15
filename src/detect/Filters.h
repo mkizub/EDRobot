@@ -106,7 +106,7 @@ public:
 };
 class EdgeByBoxFilter : public ImageFilter {
 public:
-    EdgeByBoxFilter(int kern=5, double scale=2.0, double thr=0) : kern(kern), scale(scale), threshold(thr)  {}
+    explicit EdgeByBoxFilter(int kern=5, double scale=2.0, double thr=0) : kern(kern), scale(scale), threshold(thr)  {}
     XMat apply(XMat image, Params params) final;
     const int kern;
     const double scale;
@@ -114,7 +114,7 @@ public:
 };
 class DilateFilter : public ImageFilter {
 public:
-    DilateFilter(int kX, int kY, int iter=1) : kernX(kX), kernY(kY), iterations(iter) {}
+    explicit DilateFilter(int kX, int kY, int iter=1) : kernX(kX), kernY(kY), iterations(iter) {}
     XMat apply(XMat image, Params params) final;
     const int kernX;
     const int kernY;
@@ -130,7 +130,7 @@ public:
 };
 class HsvMaskFilter : public ImageFilter {
 public:
-    HsvMaskFilter() {}
+    HsvMaskFilter() = default;
     std::vector<std::pair<cv::Vec3b,cv::Vec3b>> rangesU;
     std::vector<std::pair<cv::Vec3f,cv::Vec3f>> rangesF;
     void calcMask(XMat image, XMat& mask, XMat& hsv);
@@ -138,17 +138,17 @@ public:
 };
 class HsvColorCropFilter : public HsvMaskFilter {
 public:
-    HsvColorCropFilter() {}
+    HsvColorCropFilter() = default;
     XMat apply(XMat image, Params params) final;
 };
 class HsvGrayCropFilter : public HsvMaskFilter {
 public:
-    HsvGrayCropFilter() {}
+    HsvGrayCropFilter() = default;
     XMat apply(XMat image, Params params) final;
 };
 class HsvValueCropFilter : public HsvMaskFilter {
 public:
-    HsvValueCropFilter() {}
+    HsvValueCropFilter() = default;
     XMat apply(XMat image, Params params) final;
 };
 

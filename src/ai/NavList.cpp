@@ -8,11 +8,8 @@
 #include "Task.h"
 #include "AIManager.h"
 #include "../Keyboard.h"
-#include "../Galaxy.h"
 #include "../FuzzyMatch.h"
 #include "../OCR.h"
-#include "../detect/NavPanel.h"
-#include "../net/Spansh.h"
 
 namespace {
 

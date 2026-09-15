@@ -489,10 +489,6 @@ bool TaskBuyAll::run() {
 
 TaskBuy::TaskBuy(const TaskTemplate& templ_)
         : BaseMarketTask(templ_)
-        , mCommodity(nullptr)
-        , mTotal(0)
-        , mBought(0)
-        , mLeft(0)
 {
     assert (templ.id == ED_TASK_MARKET_BUY);
     for (auto& p : templ.params) {
@@ -816,8 +812,8 @@ bool TaskBuyConstr::run() {
         if (firstListed && !commodities.empty()) {
             const auto& lc = commodities;
             std::stable_sort(buy_queue.begin(), buy_queue.end(), [lc](const SubTask &a, const SubTask &b) {
-                int a_pos = 10000;
-                int b_pos = 10000;
+                int64_t a_pos = 10000;
+                int64_t b_pos = 10000;
                 auto it = std::find(lc.begin(), lc.end(), a.commodity);
                 if (it != lc.end())
                     a_pos = it - lc.begin();
@@ -1001,7 +997,7 @@ bool TaskTradeAt::run() {
     TaskTemplate impl = getTemplate(ED_TASK_TRAVEL);
     impl.nm.clear();
     impl.set("dock", market);
-    auto dockName = market["dock"].as_string_or();
+    const auto dockName = market["dock"].as_string_or();
     if (!run_sub_step(impl.factory(impl)))
         throw_trouble("Trouble traveling to market {}", dockName);
     auto dock = getCurrDock();

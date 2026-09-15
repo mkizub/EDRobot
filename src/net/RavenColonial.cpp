@@ -329,7 +329,7 @@ void RavenColonial::reportContribution(spGameEvent& ge) {
     int contributed = 0;
     js::value post_json = js::object({});
     for (auto& jc : je["Contributions"].as_array_or()) {
-        auto name = jc["Name"].as_string_or();
+        std::string name = *jc["Name"].as_string_or();
         int amount = jc["Amount"].as_int_or();
         if (name.empty() || name[0] != '$' || !name.ends_with("_name;") || amount <= 0)
             continue;

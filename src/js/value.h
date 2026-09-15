@@ -396,7 +396,7 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] value::string_type as_string() const
+    [[nodiscard]] const value::string_type as_string() const
     {
         return std::get<TYPE_STRING>(content);
     }
@@ -406,7 +406,7 @@ public:
      *
      * @return default value if not a string
      */
-    [[nodiscard]] value::string_type as_string_or(std::string_view default_value={}) const noexcept
+    [[nodiscard]] const value::string_type as_string_or(std::string_view default_value={}) const noexcept
     {
         if (is_string())
             return std::get<TYPE_STRING>(content);
@@ -936,18 +936,18 @@ public:
         if (!v) { return default_value; }
         return v->as_int_or(default_value);
     }
-    [[nodiscard]] value::string_type as_string() requires (!M) {
+    [[nodiscard]] const value::string_type as_string() requires (!M) {
         const V* v = try_deref();
         if (!v) { throw std::bad_variant_access(); }
         return v->as_string();
     }
-    [[nodiscard]] value::string_type as_string() requires M {
+    [[nodiscard]] const value::string_type as_string() requires M {
         V& v = deref();
         if (v.is_null()) { v = ""; }
         if (!v.is_string()) { throw std::bad_variant_access(); }
         return v.as_string();
     }
-    [[nodiscard]] value::string_type as_string_or(std::string_view default_value={}) const noexcept {
+    [[nodiscard]] const value::string_type as_string_or(std::string_view default_value={}) const noexcept {
         V* v = try_deref();
         if (!v) { return default_value; }
         return v->as_string_or(default_value);

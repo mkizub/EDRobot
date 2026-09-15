@@ -250,10 +250,10 @@ bool Configuration::load() {
 
         js::value j_bookmarks = parseJsonFile(L"bookmarks.json5");
         for (auto& jbm : j_bookmarks.as_array_or()) {
-            auto name = *jbm["name"].as_string_or();
-            auto dock = *jbm["dock"].as_string_or();
-            auto system = *jbm["system"].as_string_or();
-            auto comment = *jbm["comment"].as_string_or();
+            std::string name = *jbm["name"].as_string_or();
+            const auto dock = *jbm["dock"].as_string_or();
+            const auto system = *jbm["system"].as_string_or();
+            const auto comment = *jbm["comment"].as_string_or();
             if (system.empty() || dock.empty())
                 continue;
             if (name.empty())
