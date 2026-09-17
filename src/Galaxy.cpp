@@ -553,6 +553,8 @@ spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d*
     }
     if (!ss || ss->bodies.empty())
         ss = loadStarSystem(ss, *name, address, network_load);
+    if (!ss && address && !name.empty())
+        ss = theCache.put(address, name, 0, 0, 0);
     return ss;
 }
 
@@ -916,6 +918,13 @@ spEntity StarSystem::addStation(spEntity station) {
         stations.push_back(station);
     }
     return station;
+}
+
+spEntity StarSystem::addBody(spEntity body) {
+    if (body) {
+        bodies.push_back(body);
+    }
+    return body;
 }
 
 spEntity StarSystem::addSignal(spEntity signal) {

@@ -142,6 +142,8 @@ void parseEvent_Cargo(spGameEvent& ge);
 void parseEvent_Market(spGameEvent& ge);
 void parseEvent_NavRoute(spGameEvent& ge);
 void parseEvent_NavRouteClear(spGameEvent& ge);
+void parseEvent_PowerplayCollect(spGameEvent& ge);
+void parseEvent_PowerplayDeliver(spGameEvent& ge);
 void parseEvent_ColonisationConstructionDepot(spGameEvent& ge);
 void parseEvent_ColonisationContribution(spGameEvent& ge);
 void parseEvent_MarketBuy(spGameEvent& ge);
@@ -182,6 +184,8 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"Market", parseEvent_Market},
         {"NavRoute", parseEvent_NavRoute},
         {"NavRouteClear", parseEvent_NavRouteClear},
+        {"PowerplayCollect", parseEvent_PowerplayCollect},
+        {"PowerplayDeliver", parseEvent_PowerplayDeliver},
         {"ColonisationConstructionDepot", parseEvent_ColonisationConstructionDepot},
         {"ColonisationContribution", parseEvent_ColonisationContribution},
         {"MarketBuy", parseEvent_MarketBuy},
@@ -474,8 +478,9 @@ void parseEvent_Commander(spGameEvent& ge) {
 void parseEvent_LoadGame(spGameEvent& ge) {
     {
         // for relogin
-        Cfg.dockingEvent.reset();
-        Cfg.marketEvent.reset();
+        Cfg.dockingEvents.clear();
+        Cfg.marketEvents.clear();
+        Cfg.scanEvents.clear();
         st::compass = {};
     }
     auto& je = ge->data;
@@ -613,6 +618,8 @@ void parseEvent_Resurrect(spGameEvent& ge) {
 
 void parseEvent_Cargo(spGameEvent& ge) {
     CM.loadShipCargo(ge);
+    if (!ge->expired)
+        Cfg.marketEvents.push(ge);
 }
 void parseEvent_Market(spGameEvent& ge) {
     Cfg.loadMarket(ge);
@@ -623,6 +630,17 @@ void parseEvent_NavRoute(spGameEvent& ge) {
 void parseEvent_NavRouteClear(spGameEvent& ge) {
     st::currentNavRoute = std::make_shared<NavRoute>();
 }
+
+void parseEvent_PowerplayCollect(spGameEvent& ge) {
+    if (!ge->expired)
+        Cfg.marketEvents.push(ge);
+}
+
+void parseEvent_PowerplayDeliver(spGameEvent& ge) {
+    if (!ge->expired)
+        Cfg.marketEvents.push(ge);
+}
+
 
 void parseEvent_ShipyardSwap(spGameEvent& ge) {
     auto& je = ge->data;
@@ -638,8 +656,6 @@ void parseEvent_ShipyardSwap(spGameEvent& ge) {
 }
 
 void parseEvent_Docked(spGameEvent& ge) {
-    Cfg.dockingEvent = ge;
-
     auto& je = ge->data;
 
     auto systemName = je["StarSystem"].as_string();
@@ -655,21 +671,24 @@ void parseEvent_Docked(spGameEvent& ge) {
     gal::getCurrentStarSystem()->addStation(ge);
     st::space = {};
 
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_Docked(ge);
+        Cfg.dockingEvents.push(ge);
+    }
 }
 
 void parseEvent_Undocked(spGameEvent& ge) {
-    Cfg.dockingEvent.reset();
     auto& je = ge->data;
     st::space.marketId = je["MarketID"].as_int_or(st::dockedAt.marketId);
     st::space.stationName = je["StationName"].as_string_or(st::dockedAt.stationName);
     st::space.stationType = je["StationType"].as_string_or(st::dockedAt.stationType);
     st::dockedAt = {};
+    if (!ge->expired) {
+        Cfg.dockingEvents.push(ge);
+    }
 }
 
 void parseEvent_Docking(spGameEvent& ge) {
-    Cfg.dockingEvent = ge;
     auto& je = ge->data;
     st::space.marketId = je["MarketID"].as_int_or();
     st::space.stationName = je["StationName"].as_string_or();
@@ -683,6 +702,9 @@ void parseEvent_Docking(spGameEvent& ge) {
 //    } else {
 //        dockingStatus = event;
 //    }
+    if (!ge->expired) {
+        Cfg.dockingEvents.push(ge);
+    }
 }
 
 void parseEvent_StartJump(spGameEvent& ge) {
@@ -872,30 +894,40 @@ static void saveBodyCount(spGameEvent& ge, const char* prop) {
 
 void parseEvent_NavBeaconScan(spGameEvent& ge) {
     saveBodyCount(ge, "NumBodies");
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_NavBeaconScan(ge);
+        Cfg.scanEvents.push(ge);
+    }
 }
 
 void parseEvent_SAASignalsFound(spGameEvent& ge) {
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_SAASignalsFound(ge);
+        Cfg.scanEvents.push(ge);
+    }
 }
 
 void parseEvent_FSSDiscoveryScan(spGameEvent& ge) {
     saveBodyCount(ge, "BodyCount");
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_FSSDiscoveryScan(ge);
+        Cfg.scanEvents.push(ge);
+    }
 }
 
 void parseEvent_FSSAllBodiesFound(spGameEvent& ge) {
     saveBodyCount(ge, "Count");
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_FSSAllBodiesFound(ge);
+        Cfg.scanEvents.push(ge);
+    }
 }
 
 void parseEvent_FSSBodySignals(spGameEvent& ge) {
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_FSSBodySignals(ge);
+        Cfg.scanEvents.push(ge);
+    }
 }
 
 void parseEvent_Scan(spGameEvent& ge) {
@@ -1010,8 +1042,10 @@ void parseEvent_Scan(spGameEvent& ge) {
     if (!ss->saved)
         ss->save();
 
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_Scan(ge);
+        Cfg.scanEvents.push(ge);
+    }
 }
 
 void parseEvent_ScanBaryCentre(spGameEvent& ge) {
@@ -1039,8 +1073,10 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     if (!ss->saved)
         ss->save();
 
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_ScanBaryCentre(ge);
+        Cfg.scanEvents.push(ge);
+    }
 }
 
 void parseEvent_ApproachBody(spGameEvent& ge) {
@@ -1145,19 +1181,126 @@ void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
  }
 
 void parseEvent_ColonisationContribution(spGameEvent& ge) {
-    Cfg.marketEvent = ge;
     RavenColonial::reportContribution(ge);
     CM.processColonisationContribution(ge);
+    if (!ge->expired) {
+        Cfg.marketEvents.push(ge);
+    }
 }
 void parseEvent_MarketBuy(spGameEvent& ge) {
     CM.processMarketBuy(ge);
-    Cfg.marketEvent = ge;
+    if (!ge->expired) {
+        Cfg.marketEvents.push(ge);
+    }
 }
 void parseEvent_MarketSell(spGameEvent& ge) {
     CM.processMarketSell(ge);
-    Cfg.marketEvent = ge;
+    if (!ge->expired) {
+        Cfg.marketEvents.push(ge);
+    }
 }
 
 void parseEvent_CargoTransfer(spGameEvent& ge) {
     CM.processCargoTransfer(ge);
+    if (!ge->expired) {
+        Cfg.marketEvents.push(ge);
+    }
+}
+
+
+void GameEventQueue::clear() {
+    std::scoped_lock<std::mutex> lock(mutex);
+    events.clear();
+}
+
+void GameEventQueue::clear(std::chrono::milliseconds expired) {
+    std::scoped_lock<std::mutex> lock(mutex);
+    Timestamp old = Timestamp::clock::now() - expired;
+    while (!events.empty()) {
+        if (events.front()->timestamp > old)
+            break;
+        events.pop_front();
+
+    }
+}
+
+void GameEventQueue::push(spGameEvent& ge) {
+    std::scoped_lock<std::mutex> lock(mutex);
+    Timestamp old = Timestamp::clock::now() - std::chrono::seconds(seconds_to_keep);
+    while (!events.empty()) {
+        if (events.front()->timestamp > old)
+            break;
+        events.pop_front();
+    }
+    events.push_back(ge);
+    condvar.notify_all();
+}
+
+spGameEvent GameEventQueue::pop(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (events.empty()) {
+        if (timeout.count() <= 0)
+            return {};
+        if (timeout > 1s && ai::is_ai_thread()) {
+            auto total_until = Timestamp::clock::now() + timeout;
+            while (events.empty() && Timestamp::clock::now() < total_until) {
+                auto until = Timestamp::clock::now() + 250ms;
+                if (until > total_until)
+                    until = total_until;
+                condvar.wait_until(lock, until, [this]() -> bool { return !events.empty(); });
+                ai::check_interrupted();
+            }
+        } else {
+            condvar.wait_for(lock, timeout, [this]() -> bool { return !events.empty(); });
+        }
+        if (events.empty())
+            return {};
+    }
+    auto ge = events.front();
+    events.pop_front();
+    return ge;
+}
+
+std::deque<spGameEvent>::iterator GameEventQueue::find_event_locked(const std::initializer_list<std::string_view>& lst) {
+    std::deque<spGameEvent>::iterator it;
+    for (it = events.begin(); it != events.end(); ++it) {
+        if (std::find(lst.begin(), lst.end(), (*it)->event) != lst.end())
+            return it;
+    }
+    return events.end();
+}
+
+spGameEvent GameEventQueue::wait_event(std::chrono::milliseconds timeout, bool pop, std::initializer_list<std::string_view> ids) {
+    std::unique_lock<std::mutex> lock(mutex);
+    Timestamp old = Timestamp::clock::now() - std::chrono::seconds(seconds_to_keep);
+    while (!events.empty()) {
+        if (events.front()->timestamp > old)
+            break;
+        events.pop_front();
+    }
+    auto it = find_event_locked(ids);
+    if (it != events.end())
+        return (*it);
+    auto total_until = Timestamp::clock::now() + timeout;
+    while (Timestamp::clock::now() < total_until) {
+        auto until = Timestamp::clock::now() + 250ms;
+        if (until > total_until)
+            until = total_until;
+        condvar.wait_until(lock, until);
+        if (ai::is_ai_thread())
+            ai::check_interrupted();
+        it = find_event_locked(ids);
+        if (it != events.end())
+            break;
+    }
+    spGameEvent ge;
+    if (it == events.end())
+        return ge;
+    ge = *it;
+    if (pop) {
+        events.erase(events.begin(), it);
+        assert (it == events.begin());
+        events.pop_front();
+    }
+    return ge;
 }

@@ -59,8 +59,12 @@ UIState uiState;
 CompassInfo compassInfo;
 
 
+bool is_ai_thread() {
+    return taskThread.get_id() == std::this_thread::get_id() || turnThread.get_id() == std::this_thread::get_id();
+}
+
 void check_interrupted() {
-    assert (taskThread.get_id() == std::this_thread::get_id() || turnThread.get_id() == std::this_thread::get_id());
+    assert (is_ai_thread());
     while (isDebugPaused) {
         if (isInterrupted) {
             isDebugPaused = false;

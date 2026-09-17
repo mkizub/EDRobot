@@ -1197,6 +1197,8 @@ bool NavListScanSystemsTask::run() {
         if (address == gal::getCurrentStarSystem()->systemAddress)
             break;
         gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr, true);
+        if (!ss)
+            LOG_ERROR("Cannot create star system: name '{}' address {}", name, address);
         foundSystems.push_back(ss);
         kbd::send("UI_Down");
     }

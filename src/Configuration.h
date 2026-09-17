@@ -90,8 +90,9 @@ public:
 
     bool isHeadlookSmoothing() const { return configHeadlookSmoothing; }
 
-    spGameEvent dockingEvent;
-    spGameEvent marketEvent;
+    GameEventQueue dockingEvents;
+    GameEventQueue marketEvents;
+    GameEventQueue scanEvents;
 
     js::value jprefs;
 

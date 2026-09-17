@@ -42,6 +42,9 @@ Configuration& Configuration::getInstance() {
 
 Configuration::Configuration()
     : mCommodityDatabaseUpdated(true)
+    , dockingEvents(5)
+    , marketEvents(5)
+    , scanEvents(5)
 {
 }
 
@@ -468,7 +471,7 @@ std::ostream& operator<<(std::ostream& os, const GameKey& obj) {
 }
 
 static bool getBoolNodeValue(XMLNode* root, const char* tag) {
-    if (auto node = xml_node_find_tag(root, tag, true)) {
+    if (auto node = xml_node_find_tag_ignore_case(root, tag)) {
         if (auto val = xml_node_attr(node, "Value"))
             return (val[0] != '0');
     }
@@ -717,7 +720,7 @@ bool Configuration::loadPlayerOptions(bool initial) {
             npf.landablePlanetOrMoon = getBoolNodeValue(filters, "LandablePlanetOrMoon");
             npf.settlement = getBoolNodeValue(filters, "Settlement");
             npf.station = getBoolNodeValue(filters, "station");
-            npf.fleetCarrier = getBoolNodeValue(filters, "fleetCarrier");
+            npf.fleetCarrier = getBoolNodeValue(filters, "FleetCarrier");
             npf.pointOfInterest = getBoolNodeValue(filters, "PointOfInterest");
             npf.signalSource = getBoolNodeValue(filters, "SignalSource");
             npf.system = getBoolNodeValue(filters, "System");
@@ -834,6 +837,12 @@ bool Configuration::loadInputBindings() {
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "YawAxisRaw");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "PitchAxisRaw");
             ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "RollAxisRaw");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "ExplorationFSSEnter");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "ExplorationFSSQuit");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "ExplorationFSSDiscoveryScan");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "PrimaryFire");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "SecondaryFire");
+            ok &= parseKeyBindings(rootNode, mKeyBindingsMap, "CycleFireGroupNext");
             configHeadlookSmoothing = getBoolNodeValue(rootNode, "HeadlookSmoothing");
             xml_node_free(rootNode);
             rootNode = nullptr;

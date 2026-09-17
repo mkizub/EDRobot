@@ -317,7 +317,6 @@ bool CargoManager::processColonisationContribution(spGameEvent ge) {
 }
 
 bool CargoManager::processCargoTransfer(spGameEvent ge) {
-    Cfg.marketEvent = ge;
     auto& je = ge->data;
 
     if (!je["Transfers"].is_array())

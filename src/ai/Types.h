@@ -39,6 +39,7 @@ enum MessageSeverity { MSG_INFO, MSG_WARN, MSG_ERROR, MSG_FATAL };
 
 enum class InterruptReason { UNKNOWN, DEATH, SHUTDOWN };
 
+bool is_ai_thread();
 void check_interrupted();
 void sleep(int milliseconds, bool precise=false);
 

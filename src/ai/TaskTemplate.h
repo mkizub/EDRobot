@@ -85,6 +85,7 @@ extern const std::string ED_TASK_NAV_SCAN;          // scan navigation panel
 extern const std::string ED_TASK_NAV_SCAN_SYSTEMS;  // scan systems in navigation panel
 extern const std::string ED_TASK_EXPL_SYSTEMS_AROUND; // explore systems around specified system
 extern const std::string ED_TASK_EXPL_VISIT_SYSTEMS; // visit systems by search criteria
+extern const std::string ED_TASK_EXPL_VISIT_PLANETS; // visit planets withing system
 
 extern const std::string ED_TASK_RELOGIN;           // relogin
 extern const std::string ED_TASK_RESURRECT;         // resurrect on death

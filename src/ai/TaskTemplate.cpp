@@ -38,6 +38,7 @@ const std::string ED_TASK_NAV_SCAN = "tsk-nav-scan";
 const std::string ED_TASK_NAV_SCAN_SYSTEMS = "tsk-nav-scan-systems";
 const std::string ED_TASK_EXPL_SYSTEMS_AROUND = "tsk-expl-systems-around";
 const std::string ED_TASK_EXPL_VISIT_SYSTEMS = "tsk-expl-visit-systems";
+const std::string ED_TASK_EXPL_VISIT_PLANETS = "tsk-expl-visit-planets";
 
 
 const std::string ED_TASK_RELOGIN = "tsk-relogin";
@@ -548,6 +549,13 @@ void initTemplates() {
             { Param::String,  "list",   _lc("Url or file"), META("{placeholder:'file or spansh.co.uk search url'}") },
             },
            META("{group:'Exploration'}")
+    );
+    templates.emplace_back(ED_TASK_EXPL_VISIT_PLANETS, _lc("Visit planets"), FACTORY(TaskVisitPlanets), P{
+            { Param::Enum, "scan_fg", _lc("Scan fire group"), META(R"({values: [
+                         "A1", "A2", "B1", "B2", "C1", "C2", "D1", "D2"]})")},
+            { Param::Bool,  "unknown", _lc("Uknown") },
+            },
+            META("{group:'Exploration'}")
     );
     templates.emplace_back(ED_TASK_VISIT_SYSTEM, _lc("Visit star system"), FACTORY(TaskVisitSystem), P{
             { Param::String,   "system",   _lc("Visit system"), META("{placeholder:'name'}") },

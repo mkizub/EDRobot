@@ -125,15 +125,17 @@ bool TaskMyCarrierUnload::run() {
         throw_trouble("Cannot enter transfer panel");
 
     status = UNLOAD;
+    Cfg.marketEvents.clear();
+
     kbd::send("UI_Up", 1500, 500);
     kbd::send("UI_Up", 0, 500);
     kbd::send("UI_Left", 0, 250);
     kbd::send("UI_Select", 0, 500);
     kbd::send("UI_Select", 0, 1500);
 
-    waitMarketEvent(4s);
-    if (Cfg.marketEvent && Cfg.marketEvent->event == "CargoTransfer") {
-        for (auto& item : Cfg.marketEvent->data["Transfers"].as_array()) {
+    auto ge = Cfg.marketEvents.wait_event(4s, true, {"CargoTransfer"});
+    if (ge) {
+        for (auto& item : ge->data["Transfers"].as_array()) {
             contributed += item["Count"].as_int_or();
         }
     }

@@ -43,11 +43,14 @@ bool ai::TaskAcquirePPC::run() {
                 ai::detectEDState(DetectLevel::Buttons);
                 clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:spn-amount", 100, 500, 0.2);
                 kbd::send("UI_Right", 3000);
-                //kbd::send("UI_Right");
                 ai::detectEDState(DetectLevel::Buttons);
+                Cfg.marketEvents.clear();
                 clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-acquire-res:btn-commit", 100, 500, 0.2);
-                if (waitMarketEvent(4s))
-                    acquiredCount += Cfg.marketEvent->data["Count"].as_int_or();
+                auto ge = Cfg.marketEvents.wait_event(10s, true, {"PowerplayCollect"});
+                if (ge) {
+                    acquiredCount += ge->data["Count"].as_int_or();
+                    Cfg.marketEvents.wait_event(4s, true, {"Cargo"});
+                }
             }
         }
     }
@@ -94,13 +97,14 @@ bool ai::TaskDeliverPPC::run() {
                 mouseMoveTo(pos, 0.3);
                 kbd::sendMouseClick(pos, 100,500);
                 sleep(1000);
-                //ai::detectEDState(DetectLevel::Buttons);
-                //clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-deliver-res:spn-amount", 100, 500, 0.2);
-                //kbd::send("UI_Right", 3000);
                 ai::detectEDState(DetectLevel::Buttons);
+                Cfg.marketEvents.clear();
                 clickWidget("scr-contacts:mod-contact:dlg-power-play:dlg-deliver-res:btn-commit", 100, 500, 0.2);
-                if (waitMarketEvent(4s))
-                    deliveredCount += Cfg.marketEvent->data["Count"].as_int_or();
+                auto ge = Cfg.marketEvents.wait_event(10s, true, {"PowerplayDeliver"});
+                if (ge) {
+                    deliveredCount += ge->data["Count"].as_int_or();
+                    Cfg.marketEvents.wait_event(4s, true, {"Cargo"});
+                }
             }
         }
     }

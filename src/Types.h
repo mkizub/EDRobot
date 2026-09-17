@@ -391,6 +391,21 @@ typedef std::shared_ptr<ShipCargo> spShipCargo;
 typedef std::shared_ptr<NavRoute> spNavRoute;
 typedef std::shared_ptr<GameEvent> spGameEvent;
 
+class GameEventQueue {
+    std::deque<spGameEvent> events;
+    std::mutex mutex;
+    std::condition_variable condvar;
+    int seconds_to_keep;
+    std::deque<spGameEvent>::iterator find_event_locked(const std::initializer_list<std::string_view>& lst);
+public:
+    GameEventQueue(int seconds_to_keep) : seconds_to_keep(seconds_to_keep) {}
+    void clear();
+    void clear(std::chrono::milliseconds seconds_expired);
+    void push(spGameEvent& ge);
+    spGameEvent pop(std::chrono::milliseconds timeout);
+    spGameEvent wait_event(std::chrono::milliseconds timeout, bool pop, std::initializer_list<std::string_view> ids);
+};
+
 struct Bookmark {
     const std::string name;
     const std::string system;

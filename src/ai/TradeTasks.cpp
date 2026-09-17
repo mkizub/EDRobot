@@ -59,7 +59,7 @@ bool BaseMarketTask::enterTradeDialog(Commodity* commodity, std::string state, b
 }
 
 bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) {
-    Cfg.marketEvent.reset();
+    Cfg.marketEvents.clear();
     lastCommitCount = 0;
     std::string dlg_mod = state + ":dlg-trade:*";
     ai::detectEDState(DetectLevel::Buttons);
@@ -68,8 +68,11 @@ bool BaseMarketTask::commitTradeDialog(Commodity* commodity, std::string state) 
     if (ai::uiState.focused_name() != "btn-commit")
         return false;
     kbd::send("UI_Select");
-    if (waitMarketEvent(35s)) {
-        lastCommitCount = Cfg.marketEvent->data["Count"].as_int_or();
+    spGameEvent trade_ge, cargo_ge;
+    trade_ge = Cfg.marketEvents.wait_event(35s, true, {"MarketBuy", "MarketSell"});
+    if (trade_ge) {
+        lastCommitCount = trade_ge->data["Count"].as_int_or();
+        cargo_ge = Cfg.marketEvents.wait_event(5s, true, {"Cargo"});
     }
     // wait for market screem
     if (!waitUiState(state, 4s)) {
@@ -895,7 +898,7 @@ TaskConstrUnload::TaskConstrUnload(const TaskTemplate& templ_)
 }
 
 bool TaskConstrUnload::run() {
-    Cfg.marketEvent.reset();
+    Cfg.marketEvents.clear();
 
     if (spMarket market = gal::getMarket(st::dockedAt.marketId); market && market->raven && market->raven->status == "complete") {
         on_complete();
@@ -913,7 +916,7 @@ bool TaskConstrUnload::run() {
     if (!ai::uiState.match("scr-constr"))
         throw_trouble("Cannot enter unload screen");
 
-    Cfg.marketEvent.reset();
+    Cfg.marketEvents.clear();
 
     status = UNLOAD;
     clickButton("btn-all");
@@ -921,12 +924,12 @@ bool TaskConstrUnload::run() {
     clickButton("btn-commit");
     sleep(2000);
 
-    waitMarketEvent(8s);
-    if (Cfg.marketEvent && Cfg.marketEvent->event == "ColonisationContribution") {
-        for (auto& item : Cfg.marketEvent->data["Contributions"].as_array()) {
+    if (auto ge = Cfg.marketEvents.wait_event(8s, true, {"ColonisationContribution"})) {
+        for (auto& item : ge->data["Contributions"].as_array()) {
             int amount = item["Amount"].as_int_or();
             contributed += amount;
         }
+        Cfg.marketEvents.wait_event(4s, true, {"Cargo"});
     }
     status = DONE;
 

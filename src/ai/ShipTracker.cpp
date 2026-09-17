@@ -333,7 +333,7 @@ ExpextedCruiseTime expectingTimeToDest(int in_seconds) {
         auto delta_time = std::chrono::duration<double>(dist[0].timestamp - dist[1].timestamp);
         double tsec_speed = delta_tsec / delta_time.count();
         int expected = dist[0].dist.tsec + tsec_speed*in_time;
-        LOG_INFO("expecting time: {}sec (current {}, speed {})", expected, dist[0].dist.tsec, tsec_speed);
+//        LOG_INFO("expecting time: {}sec (current {}, speed {})", expected, dist[0].dist.tsec, tsec_speed);
         return {dist[0].dist.tsec,expected};
 //    }
 //    int delta_tsec_1 = dist[0].dist.tsec - dist[1].dist.tsec;

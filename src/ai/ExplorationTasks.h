@@ -37,6 +37,28 @@ public:
     std::vector<gal::spStarSystem> systems;
 };
 
+class TaskVisitPlanets final : public BaseAutopilotTask {
+public:
+    explicit TaskVisitPlanets(const TaskTemplate& templ);
+    bool run() final;
+
+    std::string getStatus() override;
+    enum {
+        READY, FSS, VISITING, DONE
+    } status {READY};
+    std::string nextSystemName;
+    std::string scanFireGroup {"A1"};
+
+private:
+    bool selectFireGroup();
+    bool fireScan();
+    bool selectUnexploredBody(gal::spEntity& selected);
+
+    double scanProgress {};
+    int bodyCount {};
+    int nonBodyCount {};
+};
+
 class TaskVisitSystems final : public Task {
 public:
     explicit TaskVisitSystems(const TaskTemplate& templ);

@@ -71,14 +71,6 @@ bool waitUiState(const std::string& state, std::chrono::seconds duration) {
     return ai::uiState.match(state);
 }
 
-bool waitMarketEvent(std::chrono::seconds duration) {
-    utc_timer timer(duration);
-    while (!Cfg.marketEvent && !timer.expired()) {
-        sleep(250);
-    }
-    return bool(Cfg.marketEvent);
-}
-
 bool leaveScrGalaxy() {
     if (ai::uiState.guiFocus != GuiFocus::GalaxyMap)
         return true;
@@ -175,23 +167,25 @@ void gotoMarketScreen(bool buy) {
         }
         if (ai::uiState.match("scr-market:mod-buy")) {
             if (buy) {
-                moveToWidget("lst-goods");
+                if (ai::uiState.focused_name() != "lst-goods")
+                    moveToWidget("lst-goods");
                 return;
             }
             // go to sell mode
             clickButton("btn-to-sell");
-            if (waitUiState("scr-market:mod-buy", 2s))
+            if (waitUiState("scr-market:mod-sell", 2s))
                 kbd::send("UI_Right", 0, 300);
             continue;
         }
         if (ai::uiState.match("scr-market:mod-sell")) {
             if (!buy) {
-                moveToWidget("lst-goods");
+                if (ai::uiState.focused_name() != "lst-goods")
+                    moveToWidget("lst-goods");
                 return;
             }
             // go to sell mode
             clickButton("btn-to-buy");
-            if (waitUiState("scr-market:mod-sell", 2s))
+            if (waitUiState("scr-market:mod-buy", 2s))
                 kbd::send("UI_Right", 0, 300);
             continue;
         }

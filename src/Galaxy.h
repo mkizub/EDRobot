@@ -67,6 +67,7 @@ public:
     spEntity addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& name, int bodyId);
     spEntity addStation(spGameEvent& ge);
     spEntity addStation(spEntity station);
+    spEntity addBody(spEntity body);
     spEntity addSignal(spEntity signal);
     void addDestination();
     void removeEntity(const spEntity& entity);

@@ -1860,22 +1860,18 @@ spGameEvent BaseDockStep::requestDockingPermit() {
         }
 
         LOG_INFO("Docking requesting landing permission, {}", retry);
-        Cfg.dockingEvent.reset();
+        Cfg.dockingEvents.clear();
         // poll for docking event
         timer = utc_timer(5s);
         kbd::send("UI_Right");
         kbd::send("UI_Select", 100, 700);
         kbd::send("UI_Select");
         while (!timer.expired()) {
-            auto de = Cfg.dockingEvent;
-            if (!de) {
-                sleep(250);
+            auto de = Cfg.dockingEvents.pop(1s);
+            if (!de)
                 continue;
-            }
-            if (de->event == "DockingRequested") {
-                sleep(250);
+            if (de->event == "DockingRequested")
                 continue;
-            }
             LOG_DEBUG("Docking event {}", de->event);
             return de;
         }
@@ -1896,6 +1892,7 @@ bool BaseDockStep::autopilot() {
     setSpeed(0, true, "Docking, autopilot"); // set speed to 0 to start autopilot
     sendUiBack();
 
+    Cfg.dockingEvents.clear();
     // wait at least 5 seconds for autopilot to start docking
     LOG_INFO("Docking autopilot waiting...");
     for (int i=0; i < 40; i++) {
@@ -1919,18 +1916,15 @@ bool BaseDockStep::autopilot() {
         }
         sleep(2000);
         ai::detectEDState(DetectLevel::Screen);
-        if (st::ship.flags.docked) {
-            LOG_INFO("Docking complete, status docked: {}, docking event: {}",
-                     bool(st::ship.flags.docked), (Cfg.dockingEvent ? Cfg.dockingEvent->event : "null"));
+        if (st::ship.flags.docked)
             break;
-        }
-        auto de = Cfg.dockingEvent;
-        if (!de || !(de->event == "DockingGranted" || de->event == "Docked")) {
-            LOG_ERROR("Docking permission revoked, docking event: {}",
-                      (Cfg.dockingEvent ? Cfg.dockingEvent->event : "null"));
+        auto de = Cfg.dockingEvents.pop(1s);
+        if (de && !(de->event == "DockingGranted" || de->event == "Docked")) {
+            LOG_ERROR("Docking permission revoked, docking event: {}", (de ? de->event : "null"));
             return false;
         }
     }
+    Cfg.dockingEvents.clear();
 
     if (st::ship.flags.docked) {
         LOG_DEBUG("Docking: docked");
@@ -2033,23 +2027,41 @@ bool DockSpaceStation::run() {
             throw_trouble("Cannot enter cockpit mode");
     }
 
-    if (!run_sub_step(new NavDockSelect))
-        throw_trouble("Cannot target destination dock");
+    if (!st::autopilot.destDock->nameEq(st::destination.name) || !ai::compassInfo.has_nav_target) {
+        if (!run_sub_step(new NavDockSelect))
+            throw_trouble("Cannot target destination dock");
+    }
     if (!task->orientTowardTarget(5))
         throw_trouble("Cannot orient ship towards dock");
 
+
+    // This does not work because of panel movement out of the screen
+    // due to ship accelerate/decelerate
+//    switch (st::autopilot.destDock->type) {
+//    case TypeNav::SpaceOutpost:
+//    case TypeNav::SpaceConstrDepot:
+//    case TypeNav::StationMegaShip:
+//    case TypeNav::FleetCarrier:
+//    case TypeNav::SquadronCarrier:
+//    case TypeNav::ColonisationShip:
+//        if (st::autopilot.distanceToDock > 8800_m) {
+//            CourseLocker course(0);
+//            setSpeed(100, true, "DockSpaceStation: approach fast start");
+//            kbd::send("UseBoostJuice", 100);
+//            setSpeed(0, true, "DockSpaceStation: approach fast stop");
+//            sleep(3000);
+//        }
+//    default:
+//        break;
+//    }
+
     // clear expired docking event
-    auto de = Cfg.dockingEvent;
-    if (de) {
-        if ((de->timestamp - std::chrono::utc_clock::now()) > 15min) {
-            Cfg.dockingEvent.reset();
-            de.reset();
-        }
-    }
+    Cfg.dockingEvents.clear();
+    spGameEvent de;
     // try to dock, retry if something goes wrong
-    for (int cnt=0; cnt < 10; cnt++) {
+    for (int cnt=0; cnt < 10 && !st::ship.flags.docked; cnt++) {
         status = WAITING;
-        de = Cfg.dockingEvent;
+        de = Cfg.dockingEvents.pop(0ms);
         // end loop if we granted to tock
         if (de && (de->event == "DockingGranted" || de->event == "Docked")) {
             LOG_DEBUG("DockSpaceStation: docking event {}", de->event);
@@ -2092,7 +2104,7 @@ bool DockSpaceStation::run() {
             const auto reason = de->data["Reason"].as_string_or();
             if (reason == "NoSpace") {
                 LOG_ERROR("DockingDenied reason: NoSpace, waiting...");
-                sleep(5000);
+                sleep(10000);
                 cnt = 0;
                 continue;
             }
@@ -2189,7 +2201,7 @@ bool DockSpaceStation::getDockDistance() {
         }
         if (di >= 2) {
             for (int i=1; i < di; i++) {
-                if (dist[i] != dist[0]) {
+                if ((dist[i] - dist[0]) > 2_km) {
                     dist = {};
                     di = 0;
                     break;
@@ -2338,17 +2350,12 @@ bool DockPlanetPort::run() {
         normalizeOrientation();
 
     // clear expired docking event
-    auto de = Cfg.dockingEvent;
-    if (de) {
-        if ((de->timestamp - std::chrono::utc_clock::now()) > 15min) {
-            Cfg.dockingEvent.reset();
-            de.reset();
-        }
-    }
+    Cfg.dockingEvents.clear();
+    spGameEvent de;
     // try to dock, retry if something goes wrong
-    for (int cnt=0; cnt < 10; cnt++) {
+    for (int cnt=0; cnt < 10 && !st::ship.flags.docked; cnt++) {
         status = WAITING;
-        de = Cfg.dockingEvent;
+        de = Cfg.dockingEvents.pop(1s);
         // end loop if we granted to tock
         if (de && (de->event == "DockingGranted" || de->event == "Docked")) {
             LOG_DEBUG("DockSpaceStation: docking event {}", de->event);

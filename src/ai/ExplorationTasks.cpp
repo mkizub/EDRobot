@@ -81,6 +81,8 @@ bool TaskSystemsAround::run() {
         auto& foundSystems = std::static_pointer_cast<NavListScanSystemsTask>(scan_task)->foundSystems;
         for (int sidx=0; sidx < foundSystems.size(); sidx++) {
             auto& ss = foundSystems[sidx];
+            if (!ss)
+                continue;
             if (ss->starPos == cv::Point3d{}) {
                 if (ss->systemName != "Sol") {
                     LOG_INFO("Selected system[{:2d}] address {:14d} name \"{}\" is unknown", sidx, ss->systemAddress,
@@ -123,6 +125,188 @@ bool TaskSystemsAround::run() {
 std::string TaskSystemsAround::getStatus() {
     return {};
 }
+
+TaskVisitPlanets::TaskVisitPlanets(const TaskTemplate &templ)
+    : BaseAutopilotTask(templ)
+{
+    assert (templ.id == ED_TASK_EXPL_VISIT_PLANETS);
+    for (auto& p : templ.params) {
+        if (p.id == "scan_fg")
+            scanFireGroup = p.as_string();
+    }
+
+}
+
+bool TaskVisitPlanets::run() {
+
+    for (int retry=0; retry < 10 && ai::uiState.guiFocus != GuiFocus::None; retry++) {
+        ai::detectEDState(DetectLevel::Screen);
+        kbd::send("UI_Back", 100, 1000);
+    }
+    if (ai::uiState.guiFocus != GuiFocus::None)
+        return false;
+
+    setSpeed(0, true, "For FSS");
+
+    if (!bodyCount) {
+        status = FSS;
+        sleep(2000);
+        Cfg.scanEvents.clear();
+        if (!selectFireGroup() || !fireScan()) {
+            for (int retry = 0; retry < 10 && ai::uiState.guiFocus != GuiFocus::None; retry++) {
+                ai::detectEDState(DetectLevel::Screen);
+                kbd::send("UI_Back", 100, 1000);
+            }
+            if (ai::uiState.guiFocus != GuiFocus::None)
+                return false;
+            kbd::send("ExplorationFSSEnter", 100, 2000);
+            ai::detectEDState(DetectLevel::Screen);
+            if (ai::uiState.guiFocus != GuiFocus::FSS)
+                return false;
+            fireScan();
+            kbd::send("ExplorationFSSQuit", 100, 1000);
+        }
+    }
+
+    if (!bodyCount)
+        return false;
+
+    status = VISITING;
+    gal::spEntity nextToVisit;
+    while (selectUnexploredBody(nextToVisit)) {
+        st::autopilot.setDestBody(nextToVisit);
+        st::autopilot.isDestBodyFocused = true;
+
+        dist_t min_dist = 0.5_ls;
+        dist_t max_dist = 10.0_ls;
+        run_sub_step(new CruiseToDistStep(min_dist, max_dist));
+    }
+
+    return true;
+}
+
+bool TaskVisitPlanets::selectFireGroup() {
+    if (scanFireGroup.size() != 2 || scanFireGroup[0] < 'A' || scanFireGroup[0] > 'F')
+        return false;
+    const int needGroup = scanFireGroup[0] - 'A';
+    for (int i=0; i < 10 && needGroup != st::ship.fireGroup; i++) {
+        int wasGroup = st::ship.fireGroup;
+        kbd::send("CycleFireGroupNext", 100, 500);
+        for (int j=0; j < 10 && wasGroup != st::ship.fireGroup; j++)
+            sleep(250);
+    }
+    return (needGroup == st::ship.fireGroup);
+}
+
+bool TaskVisitPlanets::fireScan() {
+    const char* key_name;
+    if (ai::uiState.guiFocus == GuiFocus::FSS)
+        key_name = "ExplorationFSSDiscoveryScan";
+    else if (scanFireGroup[1] == '1')
+        key_name = "PrimaryFire";
+    else if (scanFireGroup[1] == '2')
+        key_name = "SecondaryFire";
+    else
+        return false;
+
+    auto handle = kbd::post(key_name, 10000);
+    while (!bodyCount) {
+        spGameEvent ge = Cfg.scanEvents.wait_event(10s, true, {"FSSDiscoveryScan"});
+        if (ge) {
+            scanProgress = ge->data["Progress"].as_real_or();
+            bodyCount = ge->data["BodyCount"].as_int_or();
+            nonBodyCount = ge->data["NonBodyCount"].as_int_or();
+            LOG_INFO("FSSDiscoveryScan: progress {:.2f}, total bodies {}, non-bodies {}",
+                     scanProgress, bodyCount, nonBodyCount);
+        }
+    }
+    kbd::clearInput(handle);
+    sleep(1000);
+    return bodyCount > 0;
+}
+
+bool TaskVisitPlanets::selectUnexploredBody(gal::spEntity& selected) {
+    selected.reset();
+
+    st::NavPanelFilters filters {};
+    filters.star = true;
+    filters.planetOrMoon = true;
+    filters.landablePlanetOrMoon = true;
+    nl.init(filters);
+
+    nl.focusTopEntry();
+
+    int topUnexploredIdx = -1;
+    for (int page=0; page < 10; page++) {
+        int focusIdx;
+        cv::Mat grayImage;
+        nl.recognizeWholePage(grayImage, focusIdx);
+        auto rows = nl.recognizeWholePage(grayImage, focusIdx);
+        if (rows.empty()) {
+            notify_error("Cannot recognize nav list");
+            return false;
+        }
+
+        for (auto &nle: nl.list) {
+            if (nle.indent > 1)
+                continue;
+            if (nle.icon != gal::UNEXPLORED.charOCR)
+                continue;
+            topUnexploredIdx = nle.index;
+            break;
+        }
+        if (topUnexploredIdx < 0) {
+            // not found in current page, scroll page down
+            int count = int(rows.size()) - focusIdx - 1;
+            for (int i = 0; i < count; i++)
+                kbd::send("UI_Down");
+            int hold = 300 + 8*50;
+            kbd::send("UI_Down", hold);
+            continue;
+        }
+        if (topUnexploredIdx == focusIdx)
+            break;
+        if (focusIdx < topUnexploredIdx) {
+            for (int i = 0; i < topUnexploredIdx - focusIdx; i++)
+                kbd::send("UI_Down");
+        } else {
+            for (int i = 0; i < focusIdx - topUnexploredIdx; i++)
+                kbd::send("UI_Up");
+        }
+    }
+
+    if (topUnexploredIdx < 0)
+        return false;
+    if (nl.selectFocused(nullptr)) {
+        selected = nl.list[topUnexploredIdx].item;
+        if (!selected && !st::destination.name.empty()) {
+            selected = gal::getCurrentStarSystem()->getBody(st::destination.name);
+            if (!selected) {
+                selected.reset(new gal::Entity());
+                selected->type = TypeNav::Body;
+                selected->name = st::destination.name;
+                selected->bodyId = st::destination.bodyId;
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+std::string TaskVisitPlanets::getStatus() {
+    switch (status) {
+    case READY:
+    case DONE:
+        return {};
+    case FSS:
+        return lc_format("Performing FSS");
+    case VISITING:
+        return lc_format("Visiting planet");
+    }
+    return {};
+}
+
 
 static std::vector<int> nearest_neighbor(const std::vector<cv::Point3d>& points);
 // Вычисление полной длины маршрута (с возвратом в начало)

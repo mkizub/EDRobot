@@ -100,9 +100,11 @@ XMLNode *xml_node_find_by_path(XMLNode *root, const char *path, bool exact);
 // Get first matching tag in the tree.
 // If exact is "false" - will return first tag which name contains "tag"
 XMLNode *xml_node_find_tag(XMLNode *node, const char *tag, bool exact);
+XMLNode *xml_node_find_tag_ignore_case(XMLNode *node, const char *tag);
 // Get value of the tag attribute.
 // Returns NULL if not found.
 const char *xml_node_attr(XMLNode *node, const char *attr_key);
+const char *xml_node_attr_ignore_case(XMLNode *node, const char *attr_key);
 // Cleanup node and all it's children.
 void xml_node_free(XMLNode *node);
 
@@ -205,6 +207,20 @@ XMLNode *xml_node_find_tag(XMLNode *node, const char *tag, bool exact) {
   return NULL;
 }
 
+XMLNode *xml_node_find_tag_ignore_case(XMLNode *node, const char *tag) {
+    if (!node || !tag) return NULL; // Invalid input
+    // Check if the current node matches the tag
+    if (node->tag && stricmp(node->tag, tag) == 0) return node;
+    // Recursively search through the children of the node
+    for (size_t i = 0; i < node->children->len; i++) {
+        XMLNode *result = xml_node_find_tag_ignore_case((XMLNode*)node->children->data[i], tag);
+        if (result) return result; // Return the first match found
+    }
+    // No match found in this subtree
+    return NULL;
+}
+
+
 XMLNode *xml_node_find_by_path(XMLNode *root, const char *path, bool exact) {
   if (!root || !path) return NULL;
   char *tokenized_path = strdup(path);
@@ -238,6 +254,15 @@ const char *xml_node_attr(XMLNode *node, const char *attr_key) {
     if (!strcmp(attr->key, attr_key)) return attr->value;
   }
   return NULL;
+}
+
+const char *xml_node_attr_ignore_case(XMLNode *node, const char *attr_key) {
+    if (!node || !attr_key) return NULL;
+    for (size_t i = 0; i < node->attrs->len; i++) {
+        XMLAttr *attr = (XMLAttr *)node->attrs->data[i];
+        if (!stricmp(attr->key, attr_key)) return attr->value;
+    }
+    return NULL;
 }
 
 void xml_node_free(XMLNode *node) {

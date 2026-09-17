@@ -10,6 +10,7 @@
 #include "Capturer.h"
 
 namespace ai {
+bool is_ai_thread();
 void check_interrupted();
 }
 
