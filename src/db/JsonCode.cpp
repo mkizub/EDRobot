@@ -270,6 +270,48 @@ struct glz::meta<db::StarSystemJS>
 
 namespace db {
 
+void checkStation(StationJS& st, bool is_planetary) {
+    auto& type = st.type;
+    if (!type.has_value()) {
+        if (is_planetary)
+            st.type = JsStationType::instance.get("Planetary Installation");
+        else
+            st.type = JsStationType::instance.get("Space Installation");
+        //LOG_ERROR("Error: Station '{}' has no type", st.name);
+        return;
+    }
+    if (!st.realName.empty()) {
+        if (st.name == "System Colonisation Ship") {
+            st.type = JsStationType::instance.get("System Colonisation Ship");
+            st.name = st.realName;
+            st.realName.clear();
+        }
+        else if (st.type.operator std::string_view() == "Space Construction Depot") {
+            st.name = st.realName;
+            st.realName.clear();
+        }
+        else
+            LOG_ERROR("Error: Station '{}' has real name {}", st.name, st.realName);
+    }
+    if (!st.carrierName.empty()) {
+        if (st.type.operator std::string_view() == "Drake-Class Carrier") {
+            if (st.name.size() == 7 && st.name[3] == '-') {
+                st.name = st.carrierName + " " + st.name;
+                st.carrierName.clear();
+            }
+            else if (st.name.size() == 4) {
+                st.type = JsStationType::instance.get("Squadron Carrier");
+                st.name = st.carrierName + " | " + st.name;
+                st.carrierName.clear();
+            }
+            else
+                LOG_ERROR("Error: Carrier '{}' has carrier name {}", st.name, st.carrierName);
+        }
+        else
+            LOG_ERROR("Error: Station '{}' with type {} has carrier name {}", st.name, std::string_view(st.type), st.carrierName);
+    }
+}
+
 void checkBody(BodyJS& body) {
     auto type = body.type;
     if (!type.has_value()) {
@@ -300,6 +342,9 @@ void checkBody(BodyJS& body) {
             LOG_ERROR("Body '{}' with type {} has star info", body.name, type.ptr->str);
         }
     }
+    for (auto& st : body.stations) {
+        checkStation(st, true);
+    }
 }
 
 extern void test_cbor_start();
@@ -316,6 +361,9 @@ void checkStarSystem(StarSystemJS& ss) {
 //    }
     for (auto& b : ss.bodies) {
         checkBody(b);
+    }
+    for (auto& st : ss.stations) {
+        checkStation(st, false);
     }
     int64_t& total = totalSizeCBOR;
     total += test_cbor(ss);

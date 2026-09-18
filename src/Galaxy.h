@@ -45,14 +45,15 @@ public:
     const int64_t systemAddress;
     const std::string systemName;
     cv::Point3d starPos;
-    int64_t dbBlobId {};
+    Timestamp updated_at {};
     Timestamp eddn_updated_at {};
-    int game_body_count {};
-    bool loaded {};
+    js::value ext;
 
     std::vector<spEntity> bodies;
     std::vector<spEntity> stations;
     std::vector<spEntity> signals;
+    int game_body_count {}; // TODO: remove, save in ext
+    bool loaded {false};
     bool saved {false};
     bool savedDbBase {false};
     void save();

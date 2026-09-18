@@ -8,146 +8,94 @@
 #define EDROBOT_JS_STR_H
 
 namespace js {
+
+class value;
+
 namespace impl {
+
+static const int str_buf_size = 16-1;
+static const int val_type_off = 16-1;
 
 class str {
 private:
-#pragma pack(push, 1)
-    union {
-        struct {
-            char buf[7 + 8 + 8];
-            uint8_t sz;
-        } s;
-        struct {
-            const char *ptr;
-            uint32_t sz;
-        } l;
-    };
-#pragma pack(pop)
+    friend class js::value;
 
-public:
+    union {
+        char buf[sizeof(void*)];
+        const char *ptr;
+    };
+
+    inline void set_buf(std::string_view sv);
+    inline void set_own(std::string_view sv);
+    inline void set_ext(std::string_view sv);
+    inline bool is_buf() const;
+    inline bool is_own() const;
+    inline bool is_ext() const;
+
     str(std::string_view sv) {
-#ifndef NDEBUG
-        std::memset((void*)this, 0, sizeof(*this));
-#endif
-        if (sv.empty()) {
-            s.sz = 0;
-            s.buf[0] = 0;
-            l.ptr = 0;
-        }
-        else if (sv.size() < sizeof(s.buf)) {
-            s.sz = sv.size();
-            strncpy_s(s.buf, sizeof(s.buf), sv.data(), sv.size());
-        }
-        else if (const auto& it = gStrSet.find(sv); it != gStrSet.end()) {
-            s.sz = 127;
-            l.sz = it->size();
-            l.ptr = it->data();
-        }
-        else {
-            s.sz = 255;
-            l.sz = sv.size();
-            auto *tmp = (char *) malloc(sv.size() + 1);
-            strncpy_s(tmp, sv.size() + 1, sv.data(), sv.size());
-            l.ptr = tmp;
-        }
+        if (sv.size() < str_buf_size)
+            set_buf(sv);
+        else if (const auto& it = gStrSet.find(sv); it != gStrSet.end())
+            set_ext({it->data(), it->size()});
+        else
+            set_own(sv);
     }
+public:
     str(const str& other) {
-        if (other.s.sz == 0) {
-            s.sz = 0;
-            s.buf[0] = 0;
-        }
-        else if (other.s.sz < sizeof(s.buf)) {
-            s.sz = other.s.sz;
-            strncpy_s(s.buf, sizeof(s.buf), other.s.buf, other.s.sz);
-        }
-        else if (other.s.sz == 127) {
-            s.sz = 127;
-            l.sz = other.l.sz;
-            l.ptr = other.l.ptr;
-        }
-        else {
-            s.sz = 255;
-            l.sz = other.l.sz;
-            auto* tmp = (char*)malloc(l.sz + 1);
-            strncpy_s(tmp, l.sz + 1, other.l.ptr, l.sz);
-            l.ptr = tmp;
-        }
+        if (other.size() < str_buf_size)
+            set_buf(other.sv());
+        else if (other.is_ext())
+            set_ext(other.sv());
+        else if (const auto& it = gStrSet.find(other.sv()); it != gStrSet.end())
+            set_ext({it->data(), it->size()});
+        else
+            set_own(other.sv());
     }
     str(str&& other) {
-        if (other.s.sz == 0) {
-            s.sz = 0;
-            s.buf[0] = 0;
-        }
-        else if (other.s.sz < sizeof(s.buf)) {
-            s.sz = other.s.sz;
-            strncpy_s(s.buf, sizeof(s.buf), other.s.buf, other.s.sz);
-        }
+        if (other.is_buf())
+            set_buf(other.sv());
+        else if (other.is_ext())
+            set_ext(other.sv());
         else {
-            s.sz = other.s.sz;
-            l.sz = other.l.sz;
-            l.ptr = other.l.ptr;
-            other.s.sz = 0;
+            set_own(other.sv());
+            other.set_buf(std::string_view{});
         }
     }
     str& operator=(const str& other) {
         if (this == &other)
             return *this;
-        if (other.s.sz == 0) {
-            s.sz = 0;
-            s.buf[0] = 0;
-        }
-        else if (other.s.sz < sizeof(s.buf)) {
-            s.sz = other.s.sz;
-            strncpy_s(s.buf, sizeof(s.buf), other.s.buf, other.s.sz);
-        }
-        else if (other.s.sz == 127) {
-            s.sz = 127;
-            l.sz = other.l.sz;
-            l.ptr = other.l.ptr;
-        }
-        else {
-            s.sz = 255;
-            l.sz = other.l.sz;
-            auto* tmp = (char*)malloc(l.sz + 1);
-            strncpy_s(tmp, l.sz + 1, other.l.ptr, l.sz);
-            l.ptr = tmp;
-        }
+        if (other.size() < str_buf_size)
+            set_buf(other.sv());
+        else if (other.is_ext())
+            set_ext(other.sv());
+        else if (const auto& it = gStrSet.find(other.sv()); it != gStrSet.end())
+            set_ext({it->data(), it->size()});
+        else
+            set_own(other.sv());
         return *this;
     }
 
-    ~str() noexcept {
-        if (s.sz == 255)
-            free((void *) l.ptr);
-    }
-    explicit operator const char*() const {
-        if (s.sz >= sizeof(s.buf))
-            return l.ptr;
-        return s.buf;
-    }
-    operator std::string_view() const {
-        if (s.sz >= sizeof(s.buf))
-            return {l.ptr, l.sz};
-        return {s.buf, s.sz};
-    }
+    inline const char* data() const;
+    inline uint32_t size() const;
+    inline std::string_view sv() const;
+
+    explicit operator const char*() const { return data(); }
+    operator std::string_view() const { return sv(); }
+
     bool operator==(const str& other) const {
-        return this->operator std::string_view() == other.operator std::string_view();
+        return sv() == other.sv();
     }
     bool operator==(const std::string_view& other) const {
-        return this->operator std::string_view() == other;
+        return sv() == other;
     }
     bool operator<(const str& other) const {
-        const char* p1 = this->operator const char *();
-        const char* p2 = other.operator const char *();
-        return strcmp(p1, p2) < 0;
+        return sv() < other.sv();
     }
     bool operator<(std::string_view other) const {
-        const char* p1 = this->operator const char *();
-        const char* p2 = other.data();
-        return strcmp(p1, p2) < 0;
+        return sv() < other;
     }
     bool empty() const {
-        return s.sz == 0;
+        return size() == 0;
     }
 };
 

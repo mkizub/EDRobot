@@ -353,8 +353,6 @@ JsMaterials JsMaterials::instance {
     {23, "Mercury"},
     {24, "Technetium"},
     {25, "Polonium"},
-
-
 };
 
 JsReserveLevel JsReserveLevel::instance {
@@ -436,6 +434,11 @@ JsStationType JsStationType::instance {
     {13, "Settlement"},
     {14, "Space Construction Depot"},
     {15, "Surface Settlement"},
+
+    {20, "Space Installation"},
+    {21, "Planetary Installation"},
+    {22, "System Colonisation Ship"},
+    {22, "Squadron Carrier"},
 };
 
 JsStationState JsStationState::instance {

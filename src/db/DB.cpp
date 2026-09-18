@@ -65,13 +65,11 @@ FOREIGN KEY(allegiance) REFERENCES Allegiance(id),
 FOREIGN KEY(government) REFERENCES Government(id)
 ) )SQL");
 
-    // 'table' is 1:Systems, 2:Bodies, 3:Stations
-    DB->exec(R"SQL(CREATE TABLE JsBlobs (
-id INTEGER PRIMARY KEY,
-tbl INTEGER,
+    DB->exec(R"SQL(CREATE TABLE Markets (
+marketId INTEGER PRIMARY KEY,
+updated REAL,
 data BLOB
-) )SQL");
-
+)  WITHOUT ROWID )SQL");
 
     // 'id' is a system address, population and (controlling)faction for SQL requests
     DB->exec(R"SQL(CREATE TABLE Systems (
@@ -80,49 +78,28 @@ name TEXT NOT NULL UNIQUE COLLATE NOCASE,
 x REAL NOT NULL,
 y REAL NOT NULL,
 z REAL NOT NULL,
-population INTEGER,
-faction INTEGER,
-js INTEGER,
-FOREIGN KEY(faction) REFERENCES Factions(id),
-FOREIGN KEY(js) REFERENCES JsBlobs(id)
+updated REAL,
+eddn_updated REAL
 )  WITHOUT ROWID
 )SQL");
 
-    // 'id' = (bodyId << 55) | (systemId)
-    // types: S-star, P-planet, R-ring, B-Barycenter, A-AsteroidCluster, NULL for unknown (TypeNav:Body)
-    DB->exec(R"SQL(CREATE TABLE Bodies (
-id INTEGER PRIMARY KEY,
-systemId INTEGER NOT NULL,
-bodyId INTEGER NOT NULL,
-type TEXT,
-name TEXT NOT NULL,
-js INTEGER,
-FOREIGN KEY(js) REFERENCES JsBlobs(id)
-)  WITHOUT ROWID
-)SQL");
+    DB->exec(R"SQL(CREATE TABLE SystemBlobs (
+systemId INTEGER PRIMARY KEY,
+data BLOB,
+FOREIGN KEY(systemId) REFERENCES Systems(id)
+)  WITHOUT ROWID )SQL");
 
-    // 'bodyId' - station bodyId, NULL for installations
-    // 'parentId' - planet (star, barycenter, etc) bodyId
-    // stations include megaships and carriers, they can be moved between systems
-    DB->exec(R"SQL(CREATE TABLE Stations (
+
+    // megaships and carriers can be moved between systems
+    DB->exec(R"SQL(CREATE TABLE Megaships (
 systemId INTEGER NOT NULL,
 marketId INTEGER UNIQUE,
 type TEXT,
 name TEXT NOT NULL,
-bodyId INTEGER,
 parentId INTEGER,
 updated REAL,
-js INTEGER,
-FOREIGN KEY(js) REFERENCES JsBlobs(id)
-)
-)SQL");
-
-    // usually signals are created temporary, but in cased we'll want to save them add this table
-    DB->exec(R"SQL(CREATE TABLE Signals (
-systemId INTEGER NOT NULL,
-type TEXT,
-name TEXT,
-eddn BLOB
+eddn_updated REAL,
+data BLOB
 )
 )SQL");
 
@@ -184,8 +161,29 @@ bool shutdown() {
     return true;
 }
 
+inline Timestamp ts_from_db(SQLite::Column c) {
+    if (c.isFloat()) {
+        std::chrono::duration<double> dur_real{c.getDouble()};
+        Timestamp tp{std::chrono::duration_cast<Timestamp::duration>(dur_real)};
+        return tp;
+    }
+    if (c.isNull())
+        return {};
+    LOG_ERROR("Bad timestamp column type {}", c.getType());
+    return {};
+}
+
+inline void bind(SQLite::Statement* stmt, int idx, Timestamp ts) {
+    if (!ts.time_since_epoch().count()) {
+        stmt->bind(idx);
+    } else {
+        auto dur = std::chrono::duration_cast<std::chrono::duration<double>>(ts.time_since_epoch());
+        stmt->bind(idx, dur.count());
+    }
+}
+
 StarSystem loadStarSystem(std::string_view name) {
-    static std::string sql = "SELECT id,x,y,z,js FROM Systems WHERE name = ?;";
+    static std::string sql = "SELECT id,x,y,z,updated,eddn_updated FROM Systems WHERE name = ?;";
 
     std::unique_lock<std::mutex> lock(dbMutex);
     auto* stmt = getStat(sql);
@@ -204,7 +202,8 @@ StarSystem loadStarSystem(std::string_view name) {
                 .x = stmt->getColumn(1).getDouble(),
                 .y = stmt->getColumn(2).getDouble(),
                 .z = stmt->getColumn(3).getDouble(),
-                .blobId = stmt->getColumn(4).getInt64(),
+                .updated = ts_from_db(stmt->getColumn(4)),
+                .eddn_updated = ts_from_db(stmt->getColumn(5)),
         };
     } catch (SQLite::Exception& e) {
         LOG_ERROR("DB loadStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
@@ -213,7 +212,7 @@ StarSystem loadStarSystem(std::string_view name) {
 }
 
 StarSystem loadStarSystem(int64_t address) {
-    static std::string sql = "SELECT name,x,y,z,js FROM Systems WHERE id = ?;";
+    static std::string sql = "SELECT name,x,y,z,updated,eddn_updated FROM Systems WHERE id = ?;";
 
     std::unique_lock<std::mutex> lock(dbMutex);
     auto* stmt = getStat(sql);
@@ -232,7 +231,8 @@ StarSystem loadStarSystem(int64_t address) {
                 .x = stmt->getColumn(1).getDouble(),
                 .y = stmt->getColumn(2).getDouble(),
                 .z = stmt->getColumn(3).getDouble(),
-                .blobId = stmt->getColumn(4).getInt64(),
+                .updated = ts_from_db(stmt->getColumn(4)),
+                .eddn_updated = ts_from_db(stmt->getColumn(5)),
         };
     } catch (SQLite::Exception& e) {
         LOG_ERROR("DB loadStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
@@ -240,9 +240,38 @@ StarSystem loadStarSystem(int64_t address) {
     }
 }
 
+extern js::value decode_system_blob(const std::string& system_name, const void* data, int size);
+extern bool encode_system_blob(const std::string& system_name, std::stringstream& buffer, const js::value& ext);
+
+js::value loadStarSystemBlob(const std::string& system_name, int64_t address) {
+    static std::string sql = "SELECT data FROM SystemBlobs WHERE systemId = ?;";
+
+    std::unique_lock<std::mutex> lock(dbMutex);
+    auto* stmt = getStat(sql);
+    if (!stmt)
+        return {};
+
+    try {
+        stmt->bind(1, address);
+
+        if (!stmt->executeStep())
+            return {};
+
+        auto column = stmt->getColumn(0);
+        if (!column.isBlob())
+            return {};
+        return decode_system_blob(system_name, column.getBlob(), column.getBytes());
+    } catch (SQLite::Exception& e) {
+        LOG_ERROR("DB loadStarSystemBlob SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+        return {};
+    }
+}
+
+
 bool saveStarSystem(const StarSystem& ss) {
-    static std::string sql = R"SQL(INSERT INTO Systems(id,name,x,y,z) VALUES (?,?,?,?,?)
-                                     ON CONFLICT DO UPDATE SET x=excluded.x, y=excluded.y, z=excluded.z; )SQL";
+    static std::string sql = R"SQL(INSERT INTO Systems(id,name,x,y,z,updated,eddn_updated) VALUES (?,?,?,?,?,?,?)
+ON CONFLICT DO UPDATE SET
+x=excluded.x, y=excluded.y, z=excluded.z, updated=excluded.updated, eddn_updated=excluded.eddn_updated; )SQL";
 
     if (!ss.id || ss.name.empty())
         return false;
@@ -257,16 +286,46 @@ bool saveStarSystem(const StarSystem& ss) {
 
     try {
         stmt->bind(1, ss.id);
-        stmt->bind(2, ss.name.data(), (int)ss.name.length());
+        stmt->bind(2, ss.name);
         stmt->bind(3, ss.x);
         stmt->bind(4, ss.y);
         stmt->bind(5, ss.z);
+        bind(stmt, 6, ss.updated);
+        bind(stmt, 7, ss.eddn_updated);
         return stmt->executeStep();
     } catch (SQLite::Exception& e) {
         LOG_ERROR("DB loadStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
     }
     return false;
 }
+
+bool saveStarSystemBlob(const std::string& system_name, int64_t address, const js::value& ext) {
+    if (!address || system_name.empty())
+        return false;
+    std::stringstream buffer;
+    bool ok = encode_system_blob(system_name, buffer, ext);
+    if (!ok)
+        return false;
+
+    static std::string sql = R"SQL(INSERT INTO SystemBlobs(systemId,data) VALUES (?,?)
+ON CONFLICT DO UPDATE SET data=excluded.data;)SQL";
+
+    std::unique_lock<std::mutex> lock(dbMutex);
+    auto* stmt = getStat(sql);
+    if (!stmt)
+        return {};
+
+    auto sv = buffer.view();
+    try {
+        stmt->bind(1, address);
+        stmt->bind(2, sv.data(), sv.size());
+        return stmt->executeStep();
+    } catch (SQLite::Exception& e) {
+        LOG_ERROR("DB saveStarSystemBlob SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+    }
+    return false;
+}
+
 
 
 //void loadJsBlobs(int64_t blobId) {

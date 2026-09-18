@@ -17,22 +17,36 @@
 
 namespace js {
 
-enum class force : std::uint8_t
-{
-    none              = 0,
-    no_indent         = (1u<<0),
-    no_object_nulls   = (1u<<1),
-    no_array_nulls    = (1u<<2),
-    hexadecimal       = (1u<<3),
-    single_quote      = (1u<<4),
-    unquoted_key      = (1u<<5),
+struct force_flags {
+    union {
+        struct {
+            bool no_indent: 1;
+            bool no_object_nulls: 1;
+            bool no_array_nulls: 1;
+            bool hexadecimal: 1;
+            bool single_quote: 1;
+            bool unquoted_key: 1;
+        };
+        uint8_t mask;
+    };
+
+    constexpr bool empty() {
+        return (mask & 0x3F) == 0;
+    }
 };
-inline force operator|(force f1, force f2) {
-    return (force)(unsigned(f1) | unsigned(f2));
-}
-inline force operator&(force f1, force f2) {
-    return (force)(unsigned(f1) & unsigned(f2));
-}
+
+enum class TYPE : uint8_t {
+    NIL,
+    BOOL,
+    INT,
+    REAL,
+    STR_BUF,
+    STR_EXT,
+    STR_OWN,
+    ARR,
+    OBJ,
+};
+
 
 namespace impl {
 

@@ -751,22 +751,22 @@ public:
             , ostream(ostream)
     {}
 
-    stringifier(force ff, stringifier s)
+    stringifier(force_flags ff, stringifier s)
             : flags_(s.flags_)
             , indent_(s.indent_)
             , ostream(s.ostream)
     {
-        if ((ff & force::no_indent) != force::none)
+        if (ff.no_indent)
             const_cast<indent_type&>(indent_) = 0;
-        if ((ff & force::no_object_nulls) != force::none)
+        if (ff.no_object_nulls)
             const_cast<flags_type&>(flags_) = flags::no_object_nulls;
-        if ((ff & force::no_array_nulls) != force::none)
+        if (ff.no_array_nulls)
             const_cast<flags_type&>(flags_) = flags::no_array_nulls;
-        if ((ff & force::hexadecimal) != force::none)
+        if (ff.hexadecimal)
             const_cast<flags_type&>(flags_) |= flags::hexadecimal;
-        if ((ff & force::single_quote) != force::none)
+        if (ff.single_quote)
             const_cast<flags_type&>(flags_) |= flags::single_quote;
-        if ((ff & force::unquoted_key) != force::none)
+        if (ff.unquoted_key)
             const_cast<flags_type&>(flags_) |= flags::unquoted_key;
     }
 
@@ -917,11 +917,11 @@ private:
      */
     void stringify_value(const value& v, const std::string& indent, bool ignore_container_flags)
     {
-        switch (v.content.index()) {
-        case value::TYPE_BOOLEAN:
+        switch (v.type) {
+        case TYPE::BOOL:
             ostream << (v.as_bool() ? "true" : "false");
             break;
-        case value::TYPE_FLOATING:
+        case TYPE::REAL:
             {
                 auto num = v.as_real();
                 if (std::isnan(num)) {
@@ -939,18 +939,20 @@ private:
                 }
             }
             break;
-        case value::TYPE_INTEGER:
+        case TYPE::INT:
             ostream << v.as_int();
             break;
-        case value::TYPE_STRING:
+        case TYPE::STR_BUF:
+        case TYPE::STR_EXT:
+        case TYPE::STR_OWN:
             stringify_string(v.as_string());
             break;
-        case value::TYPE_ARRAY:
+        case TYPE::ARR:
             if (v.empty()) {
                 ostream << "[]";
             } else {
                 auto av_flags = v.get_flags();
-                if (!ignore_container_flags && av_flags != force::none) {
+                if (!ignore_container_flags && !av_flags.empty()) {
                     stringifier s(av_flags, *this);
                     s.stringify_value(v, indent, true);
                 } else {
@@ -980,12 +982,12 @@ private:
                 }
             }
             break;
-        case value::TYPE_OBJECT:
+        case TYPE::OBJ:
             if (v.empty()) {
                 ostream << "{}";
             } else {
                 auto ov_flags = v.get_flags();
-                if (!ignore_container_flags && ov_flags != force::none) {
+                if (!ignore_container_flags && !ov_flags.empty()) {
                     stringifier s(ov_flags, *this);
                     s.stringify_value(v, indent, true);
                 } else {
@@ -1019,6 +1021,7 @@ private:
                 }
             }
             break;
+        case TYPE::NIL:
         default:
         null:
             ostream << "null";

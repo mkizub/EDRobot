@@ -182,7 +182,7 @@ bool CargoManager::saveCarrierCargo(Timestamp timestamp, const std::map<Commodit
                                                         });
             if (st::lng != Lang::XX && !c.translation[int(st::lng)].empty())
                 jv["Name_Localised"] = c.name;
-            jv.add_flags(js::force::no_indent);
+            jv.set_no_indent();
         }
         int countTotal = 0;
         for (auto* c: savedCargo) {

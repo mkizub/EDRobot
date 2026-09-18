@@ -15,15 +15,17 @@ namespace db {
 
 constexpr static double DNaN = std::numeric_limits<double>::quiet_NaN();
 constexpr static double FNaN = std::numeric_limits<float>::quiet_NaN();
-
+struct StarSystem;
 
 void init_js_remapping();
 
 bool init();
 bool shutdown();
-struct StarSystem loadStarSystem(std::string_view name);
-struct StarSystem loadStarSystem(int64_t address);
+StarSystem loadStarSystem(std::string_view name);
+StarSystem loadStarSystem(int64_t address);
+js::value loadStarSystemBlob(const std::string& system_name, int64_t address);
 bool saveStarSystem(const StarSystem& starSystem);
+bool saveStarSystemBlob(const std::string& system_name, int64_t address, const js::value& ext);
 //enum class JsBlobTable : int {
 //    Systems = 1,
 //    Bodies = 2,
@@ -58,9 +60,8 @@ struct StarSystem {
     int64_t id;
     std::string name;
     double x, y, z;
-    int64_t population;
-    Faction* controllingFaction;
-    int64_t blobId;
+    Timestamp updated;
+    Timestamp eddn_updated;
 };
 
 struct LandingPadsJS {
@@ -70,10 +71,18 @@ struct LandingPadsJS {
     bool empty() const { return large==0 && medium==0 && small==0; }
 };
 
+struct MarketLineJS {
+    int64_t id {};
+    unsigned demand {};
+    unsigned supply {};
+    unsigned buyPrice {};
+    unsigned sellPrice {};
+};
 
 struct StationJS {
     int64_t id; // market id
     JsEnum<JsStationType> type;
+    int bodyId {};  // space stations have bodyId
     std::string name;
     Timestamp updated_at;
     std::string realName; // Real name of the station, for colonisation stations.
@@ -280,10 +289,6 @@ struct BodyJS {
 
     StarPartJS* getStarPart() const { return starPart.get(); }
     PlanetPartJS* getPlanetPart() const { return planetPart.get(); }
-private:
-    std::unique_ptr<StarPartJS> starPart;
-    std::unique_ptr<PlanetPartJS> planetPart;
-
     StarPartJS* ensureStarPart() {
         if (!starPart)
             starPart = std::make_unique<StarPartJS>();
@@ -294,6 +299,10 @@ private:
             planetPart = std::make_unique<PlanetPartJS>();
         return planetPart.get();
     }
+
+private:
+    std::unique_ptr<StarPartJS> starPart;
+    std::unique_ptr<PlanetPartJS> planetPart;
 };
 
 struct StarSystemJS {

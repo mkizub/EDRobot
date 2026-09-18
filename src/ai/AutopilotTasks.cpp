@@ -3965,7 +3965,7 @@ bool ExitCruiseToPlanet::run() {
         while (st::ship.flags.cruise && !timer.expired()) {
             sleep(250);
             if (check_dist_pitch) {
-                if ((st::shipAtBody.nearBody && st::shipAtBody.altitude < 30) || st::autopilot.distanceToDock < 100_km) {
+                if ((st::shipAtBody.nearBody && st::shipAtBody.altitude < 30) || st::autopilot.distanceToDock < 200_km) {
                     check_dist_pitch = false;
                     course.requestPitchRoll(0);
                 }

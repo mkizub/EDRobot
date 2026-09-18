@@ -124,6 +124,7 @@ add_executable(EDRobot WIN32
         src/js/internal/impl.h
         src/js/internal/key.h
         src/js/internal/str.h
+        src/js/internal/arr.h
         src/js/value.h
         src/js/parser.h
 

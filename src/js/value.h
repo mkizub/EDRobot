@@ -15,7 +15,7 @@
 #include "internal/impl.h"
 #include "internal/key.h"
 #include "internal/str.h"
-#include "../compact_vector.h"
+#include "internal/arr.h"
 
 namespace js {
 
@@ -33,49 +33,50 @@ class ordered_range;
 class value
 {
 private:
-    enum type_enum {
-        TYPE_NULL,
-        TYPE_BOOLEAN,
-        TYPE_INTEGER,
-        TYPE_FLOATING,
-        TYPE_STRING,
-        TYPE_ARRAY,
-        TYPE_OBJECT,
-    }; // type;
-    struct obj_val {
-        using map_type = std::map<impl::key, value>;
-
-        map_type map;
-        unsigned short force_flags {};
-        unsigned short key_count {};
-        [[nodiscard]] bool empty() const {
-            return map.empty();
-        }
-        [[nodiscard]] bool contains(std::string_view sv) const {
-            impl::key key(0, sv);
-            return map.contains(key);
-        }
-        bool operator==(const obj_val& other) const {
-            return this->map == other.map;
-        }
-    };
-    struct arr_val {
-        using arr_type = compact_vector<value>;
-
-        arr_type arr;
-        unsigned short force_flags {};
-        unsigned short key_count {};
-        [[nodiscard]] bool empty() const {
-            return arr.empty();
-        }
-        bool operator==(const arr_val& other) const {
-            return this->arr == other.arr;
-        }
-    };
+//    struct obj_val {
+//        using map_type = std::map<impl::key, value>;
+//
+//        map_type map;
+//        unsigned short force_flags {};
+//        unsigned short key_count {};
+//        [[nodiscard]] bool empty() const {
+//            return map.empty();
+//        }
+//        [[nodiscard]] bool contains(std::string_view sv) const {
+//            impl::key key(0, sv);
+//            return map.contains(key);
+//        }
+//        bool operator==(const obj_val& other) const {
+//            return this->map == other.map;
+//        }
+//    };
+//    struct arr_val {
+//        using arr_type = impl::arr<value>;
+//
+//        arr_type arr;
+//        unsigned short force_flags {};
+//        unsigned short key_count {};
+//        [[nodiscard]] bool empty() const {
+//            return arr.empty();
+//        }
+//        bool operator==(const arr_val& other) const {
+//            return this->arr == other.arr;
+//        }
+//    };
 
     template<unsigned N, bool M> friend class ref;
     template <bool C> friend class object_iterator;
     friend class ordered_range;
+    friend class js::impl::str;
+
+    inline constexpr void ctor_erase(TYPE ctor_type) {
+        content.integer = 0;
+        count = {};
+        reserved0 = {};
+        reserved1 = {};
+        flags = {};
+        type = ctor_type;
+    }
 
 public:
     using null_type = std::nullptr_t;
@@ -84,11 +85,9 @@ public:
     using unsigned_type = uint64_t;
     using floating_type = double;
     using string_type = std::string_view;
-    using array_type = compact_vector<value>;
-    using object_type = std::map<impl::key, value>;
+    using array_type = impl::arr<value>;
+    using object_type = std::map<impl::key, value, std::less<void>>;
     using pair_type = std::pair<std::string_view,value>;
-    using arr_val_type = arr_val;
-    using obj_val_type = obj_val;
 
     /*================================================================================
      * Construction
@@ -97,74 +96,109 @@ public:
     /**
      * @brief JSON value default constructor for "null" type.
      */
-    constexpr value() noexcept : content(nullptr) {}
+    constexpr value() noexcept {
+        ctor_erase(TYPE::NIL);
+    }
 
     /**
      * @brief JSON value constructor for "null" type.
      * @param val A dummy argument for nullptr
      */
-    constexpr value(null_type val) noexcept : content(nullptr) {}
+    constexpr value(null_type val) noexcept {
+        ctor_erase(TYPE::NIL);
+    }
 
     /**
      * @brief JSON value constructor for "boolean" type.
      * @param val A boolean value to be set.
      */
-    constexpr value(boolean_type val) noexcept : content(val) {}
+    constexpr value(boolean_type val) noexcept {
+        ctor_erase(TYPE::BOOL);
+        content.boolean = val;
+    }
 
     /**
      * @brief JSON value constructor for "number" type.
      * @param val A number to be set.
      */
-    constexpr value(double val) noexcept : content((floating_type)val) {}
-    constexpr value(float val) noexcept : content((floating_type)val) {}
+    constexpr value(double val) noexcept {
+        ctor_erase(TYPE::REAL);
+        content.real = val;
+    }
+    constexpr value(float val) noexcept {
+        ctor_erase(TYPE::REAL);
+        content.real = static_cast<floating_type>(val);
+    }
 
     /**
      * @brief JSON value constructor with integer for "number" type.
      * @param val An integer value to be set.
      */
-    constexpr value(int64_t val) noexcept : content((integer_type)val) {}
-    constexpr value(int32_t val) noexcept : content((integer_type)val) {}
-    constexpr value(int16_t val) noexcept : content((integer_type)val) {}
-    constexpr value(int8_t val) noexcept : content((integer_type)val) {}
-    constexpr value(uint64_t val) noexcept : content((integer_type)val) {}
-    constexpr value(uint32_t val) noexcept : content((integer_type)val) {}
-    constexpr value(uint16_t val) noexcept : content((integer_type)val) {}
-    constexpr value(uint8_t val) noexcept : content((integer_type)val) {}
+    constexpr value(int64_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
+    constexpr value(int32_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
+    constexpr value(int16_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
+    constexpr value(int8_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
+    constexpr value(uint64_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
+    constexpr value(uint32_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
+    constexpr value(uint16_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
+    constexpr value(uint8_t val) noexcept {
+        ctor_erase(TYPE::INT);
+        content.integer = static_cast<integer_type>(val);
+    }
 
     /**
      * @brief JSON value constructor for "string" type.
      * @param val A string value to be set.
      */
-    constexpr value(std::string_view val) : content(impl::str(val)) {}
+    constexpr value(std::string_view val) noexcept {
+        ctor_erase(TYPE::NIL);
+        new(&content.str) impl::str(val);
+    }
 
     /**
      * @brief JSON value constructor for "string" type.
      * @param val A string value to be set.
      */
-    constexpr value(const std::string& val) : content(impl::str(val)) {}
+    constexpr value(const std::string& val) : value(std::string_view(val)) {}
 
     /**
      * @brief JSON value constructor for "string" type. (const char* version)
      * @param val A string value to be set.
      */
-    constexpr value(const char* val) : content(impl::str(val)) {}
-
-    /**
-     * @brief JSON value constructor for "string" type. (const char* version)
-     * @param val A string value to be set.
-     */
-    constexpr value(const impl::str& val) : content(val) {}
+    constexpr value(const char* val) : value(std::string_view(val)) {}
 
     /**
      * @brief JSON value constructor for "array" type.
      * @param elements An initializer list of elements.
      */
-    constexpr explicit value(std::initializer_list<value> elements) : content(arr_val()) {
+    constexpr explicit value(std::initializer_list<value> elements) {
+        ctor_erase(TYPE::ARR);
+        new(&content.array) array_type();
         if (elements.size() > 0) {
-            auto &av = std::get<TYPE_ARRAY>(content);
-            av.arr.reserve(elements.size());
+            content.array.reserve(elements.size());
             for (auto &el: elements) {
-                av.arr.push_back(el);
+                content.array.push_back(el);
             }
         }
     }
@@ -173,11 +207,13 @@ public:
      * @brief JSON value constructor with key,value pair for "object" type.
      * @param elements An initializer list of key,value pair.
      */
-    constexpr explicit value(std::initializer_list<pair_type> elements) : content(obj_val()) {
+    constexpr explicit value(std::initializer_list<pair_type> elements) {
+        ctor_erase(TYPE::OBJ);
+        content.object = new object_type();
         if (elements.size() > 0) {
-            auto &ov = std::get<TYPE_OBJECT>(content);
             for (auto &el: elements) {
-                ov.map.emplace(impl::key(ov.key_count++, el.first), el.second);
+                // also increments key count
+                content.object->emplace(impl::key(count++, el.first), el.second);
             }
         }
     }
@@ -186,13 +222,49 @@ public:
      * @brief JSON value copy constructor.
      * @param src A value to be copied from.
      */
-    value(const value& src) : content(src.content) {}
+    constexpr value(const value& src) {
+        ctor_erase(TYPE::NIL);
+        *this = src;
+    }
 
     /**
      * @brief JSON value move constructor.
      * @param src A value to be moved from.
      */
-    value(value&& src)  noexcept : content(std::move(src.content)) {}
+    constexpr value(value&& src)  noexcept {
+        count = src.count;
+        reserved0 = {};
+        reserved1 = {};
+        flags = src.flags;
+        type = src.type;
+
+        switch (type) {
+        case TYPE::NIL:
+        case TYPE::BOOL:
+        case TYPE::INT:
+            content.integer = src.content.integer;
+            break;
+        case TYPE::REAL:
+            content.real = src.content.real;
+            break;
+        case TYPE::STR_BUF:
+        case TYPE::STR_EXT:
+        case TYPE::STR_OWN:
+            type = TYPE::NIL;
+            content.integer = 0;
+            new (&content.str) impl::str(std::move(src.content.str));
+            break;
+        case TYPE::ARR:
+            new (&content.array) array_type(std::move(src.content.array));
+            break;
+        case TYPE::OBJ:
+            content.object = src.content.object;
+            break;
+        default:
+            break;
+        }
+        src.ctor_erase(TYPE::NIL);
+    }
 
     friend value array(std::initializer_list<value> elements);
     friend value object(std::initializer_list<pair_type> elements);
@@ -204,8 +276,40 @@ public:
     /**
      * @brief JSON value destructor.
      */
-    ~value() {
-        content = nullptr;
+    constexpr ~value() {
+        release();
+    }
+
+    /**
+     * @brief Release content
+     *
+     * @param new_type A new type id
+     */
+    constexpr void release()
+    {
+        switch (type) {
+        case TYPE::NIL:
+        case TYPE::BOOL:
+        case TYPE::INT:
+        case TYPE::REAL:
+            break;
+        case TYPE::STR_BUF:
+        case TYPE::STR_EXT:
+            break;
+        case TYPE::STR_OWN:
+            if (content.str.ptr) {
+                free((void *) content.str.ptr);
+                content.str.ptr = nullptr;
+            }
+            break;
+        case TYPE::ARR:
+            content.array.~array_type();
+            break;
+        case TYPE::OBJ:
+            std::free(content.object);
+            break;
+        }
+        ctor_erase(TYPE::NIL);
     }
 
     /*================================================================================
@@ -215,64 +319,71 @@ public:
     /**
      * @brief Check if stored value is null.
      */
-    bool is_null() const noexcept { return content.valueless_by_exception() || content.index() == TYPE_NULL; }
+    constexpr bool is_null() const noexcept { return type == TYPE::NIL; }
 
     /**
      * @brief Check if type of stored value is boolean.
      */
-    bool is_bool() const noexcept { return content.index() == TYPE_BOOLEAN; }
+    constexpr bool is_bool() const noexcept { return type == TYPE::BOOL; }
 
     /**
      * @brief Check if type of stored value is number (includes integer).
      */
-    bool is_number() const noexcept { return is_real() || is_int(); }
+    constexpr bool is_number() const noexcept { return is_real() || is_int(); }
 
     /**
      * @brief Check if type of stored value is floating point number.
      */
-    bool is_real() const noexcept { return content.index() == TYPE_FLOATING; }
+    constexpr bool is_real() const noexcept { return type == TYPE::REAL; }
 
     /**
      * @brief Check if type of stored value is integer.
      */
-    bool is_int() const noexcept { return content.index() == TYPE_INTEGER; }
+    constexpr bool is_int() const noexcept { return type == TYPE::INT; }
 
     /**
      * @brief Check if type of stored value is string.
      */
-    bool is_string() const noexcept { return content.index() == TYPE_STRING; }
+    constexpr bool is_string() const noexcept { return type == TYPE::STR_BUF || type == TYPE::STR_EXT || type == TYPE::STR_OWN; }
 
     /**
      * @brief Check if type of stored value is array.
      */
-    bool is_array() const noexcept { return content.index() == TYPE_ARRAY; }
+    constexpr bool is_array() const noexcept { return type == TYPE::ARR; }
 
     /**
      * @brief Check if type of stored value is object.
      */
-    bool is_object() const noexcept { return content.index() == TYPE_OBJECT; }
+    constexpr bool is_object() const noexcept { return type == TYPE::OBJ; }
 
     /**
      * @brief Check if value is empty (null, empty string, array, object)
      */
-    bool empty() const noexcept {
-        switch (content.index()) {
-        case TYPE_NULL:
+    constexpr bool empty() const noexcept {
+        switch (type) {
+        case TYPE::NIL:
             return true;
-        case TYPE_STRING:
-            return std::get<TYPE_STRING>(content).empty();
-        case TYPE_ARRAY:
-            return std::get<TYPE_ARRAY>(content).empty();
-        case TYPE_OBJECT:
-            return std::get<TYPE_OBJECT>(content).empty();
+        case TYPE::BOOL:
+        case TYPE::INT:
+        case TYPE::REAL:
+            return false;
+        case TYPE::STR_BUF:
+            return reinterpret_cast<const char*>(this)[0] == 0;
+        case TYPE::STR_EXT:
+        case TYPE::STR_OWN:
+            return count == 0;
+        case TYPE::ARR:
+            return content.array.empty();
+        case TYPE::OBJ:
+            return content.object->empty();
         }
         return false;
     }
 
-    bool has_key(std::string_view key) const noexcept {
-        if (content.index() != TYPE_OBJECT)
+    constexpr bool has_key(std::string_view key) const noexcept {
+        if (type != TYPE::OBJ)
             return false;
-        return std::get<TYPE_OBJECT>(content).contains(key);
+        return content.object->contains(key);
     }
 
     /*================================================================================
@@ -284,9 +395,10 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a null
      */
-    [[nodiscard]] null_type as_null() const
+    [[nodiscard]] constexpr null_type as_null() const
     {
-        return std::get<TYPE_NULL>(content);
+        if (!is_null()) { throw std::bad_variant_access(); }
+        return nullptr;
     }
 
     /**
@@ -294,9 +406,10 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a boolean
      */
-    [[nodiscard]] boolean_type as_bool() const
+    [[nodiscard]] constexpr boolean_type as_bool() const
     {
-        return std::get<TYPE_BOOLEAN>(content);
+        if (!is_bool()) { throw std::bad_variant_access(); }
+        return content.boolean;
     }
 
     /**
@@ -304,10 +417,10 @@ public:
      *
      * @return default value if not a boolean
      */
-    [[nodiscard]] boolean_type as_bool_or(bool default_value=false) const noexcept
+    [[nodiscard]] constexpr boolean_type as_bool_or(bool default_value=false) const noexcept
     {
         if (is_bool())
-            return std::get<TYPE_BOOLEAN>(content);
+            return content.boolean;
         return default_value;
     }
 
@@ -316,11 +429,13 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] auto as_real() const -> floating_type
+    [[nodiscard]] constexpr auto as_real() const -> floating_type
     {
+        if (is_real())
+            return content.real;
         if (is_int())
-            return static_cast<floating_type>(std::get<TYPE_INTEGER>(content));
-        return std::get<TYPE_FLOATING>(content);
+            return static_cast<floating_type>(content.integer);
+        throw std::bad_variant_access();
     }
 
     /**
@@ -328,12 +443,12 @@ public:
      *
      * @return default value if not a number
      */
-    [[nodiscard]] auto as_real_or(floating_type default_value=0.0) const noexcept -> floating_type
+    [[nodiscard]] constexpr auto as_real_or(floating_type default_value=0.0) const noexcept -> floating_type
     {
         if (is_real())
-            return std::get<TYPE_FLOATING>(content);
+            return content.real;
         if (is_int())
-            return static_cast<floating_type>(std::get<TYPE_INTEGER>(content));
+            return static_cast<floating_type>(content.integer);
         return default_value;
     }
 
@@ -342,38 +457,12 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] auto as_int() const -> integer_type
+    [[nodiscard]] constexpr auto as_int() const -> integer_type
     {
+        if (is_int())
+            return content.integer;
         if (is_real())
-            return static_cast<integer_type>(std::get<TYPE_FLOATING>(content));
-        return std::get<TYPE_INTEGER>(content);
-    }
-
-    /**
-     * @brief Cast to integer number
-     *
-     * @return default value if not a number
-     */
-    [[nodiscard]] auto as_int_or(integer_type default_value=0) const noexcept -> integer_type
-    {
-        if (is_int())
-            return std::get<TYPE_INTEGER>(content);
-        else if (is_real())
-            return static_cast<integer_type>(std::get<TYPE_FLOATING>(content));
-        return default_value;
-    }
-
-    /**
-     * @brief Cast to integer number
-     *
-     * @throws std::bad_variant_access if the value is not a number nor integer
-     */
-    [[nodiscard]] auto as_unsigned() const -> unsigned_type
-    {
-        if (is_int())
-            return std::get<TYPE_INTEGER>(content);
-        else if (is_real())
-            return static_cast<integer_type>(std::get<TYPE_FLOATING>(content));
+            return static_cast<integer_type>(content.real);
         throw std::bad_variant_access();
     }
 
@@ -382,12 +471,40 @@ public:
      *
      * @return default value if not a number
      */
-    [[nodiscard]] auto as_unsigned_or(unsigned_type default_value=0U) const noexcept -> unsigned_type
+    [[nodiscard]] constexpr auto as_int_or(integer_type default_value=0) const noexcept -> integer_type
     {
         if (is_int())
-            return std::get<TYPE_INTEGER>(content);
-        else if (is_real())
-            return static_cast<integer_type>(std::get<TYPE_FLOATING>(content));
+            return content.integer;
+        if (is_real())
+            return static_cast<integer_type>(content.real);
+        return default_value;
+    }
+
+    /**
+     * @brief Cast to integer number
+     *
+     * @throws std::bad_variant_access if the value is not a number nor integer
+     */
+    [[nodiscard]] constexpr auto as_unsigned() const -> unsigned_type
+    {
+        if (is_int())
+            return static_cast<unsigned_type>(content.integer);
+        if (is_real())
+            return static_cast<unsigned_type>(content.real);
+        throw std::bad_variant_access();
+    }
+
+    /**
+     * @brief Cast to integer number
+     *
+     * @return default value if not a number
+     */
+    [[nodiscard]] constexpr auto as_unsigned_or(unsigned_type default_value=0U) const noexcept -> unsigned_type
+    {
+        if (is_int())
+            return static_cast<unsigned_type>(content.integer);
+        if (is_real())
+            return static_cast<unsigned_type>(content.real);
         return default_value;
     }
 
@@ -396,9 +513,11 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] const value::string_type as_string() const
+    [[nodiscard]] constexpr const value::string_type as_string() const
     {
-        return std::get<TYPE_STRING>(content);
+        if (is_string())
+            return content.str.sv();
+        throw std::bad_variant_access();
     }
 
     /**
@@ -406,10 +525,10 @@ public:
      *
      * @return default value if not a string
      */
-    [[nodiscard]] const value::string_type as_string_or(std::string_view default_value={}) const noexcept
+    [[nodiscard]] constexpr const value::string_type as_string_or(std::string_view default_value={}) const noexcept
     {
         if (is_string())
-            return std::get<TYPE_STRING>(content);
+            return content.str.sv();
         return default_value;
     }
 
@@ -418,9 +537,11 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] const value::array_type& as_array() const
+    [[nodiscard]] constexpr const value::array_type& as_array() const
     {
-        return std::get<TYPE_ARRAY>(content).arr;
+        if (is_array())
+            return content.array;
+        throw std::bad_variant_access();
     }
 
     /**
@@ -428,18 +549,20 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a number nor integer
      */
-    [[nodiscard]] value::array_type& as_array()
+    [[nodiscard]] constexpr value::array_type& as_array()
     {
-        return std::get<TYPE_ARRAY>(content).arr;
+        if (is_array())
+            return content.array;
+        throw std::bad_variant_access();
     }
 
     /**
      * @brief Cast to array, return [] if not array
      */
-    [[nodiscard]] const value::array_type& as_array_or() const noexcept
+    [[nodiscard]] constexpr const value::array_type& as_array_or() const noexcept
     {
         if (is_array())
-            return std::get<TYPE_ARRAY>(content).arr;
+            return content.array;
         static value::array_type dummy;
         return dummy;
     }
@@ -449,9 +572,11 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a object
      */
-    [[nodiscard]] const value::object_type& as_object() const
+    [[nodiscard]] constexpr const value::object_type& as_object() const
     {
-        return std::get<TYPE_OBJECT>(content).map;
+        if (is_object())
+            return *content.object;
+        throw std::bad_variant_access();
     }
 
     /**
@@ -459,18 +584,20 @@ public:
      *
      * @throws std::bad_variant_access if the value is not a object
      */
-    [[nodiscard]] value::object_type& as_object()
+    [[nodiscard]] constexpr value::object_type& as_object()
     {
-        return std::get<TYPE_OBJECT>(content).map;
+        if (is_object())
+            return *content.object;
+        throw std::bad_variant_access();
     }
 
     /**
      * @brief Cast to object, return {} if not object
      */
-    [[nodiscard]] const value::object_type& as_object_or() const noexcept
+    [[nodiscard]] constexpr const value::object_type& as_object_or() const noexcept
     {
         if (is_object())
-            return std::get<TYPE_OBJECT>(content).map;
+            return *content.object;
         static value::object_type dummy;
         return dummy;
     }
@@ -490,24 +617,25 @@ public:
      */
     explicit operator bool() const
     {
-        switch (content.index()) {
-        default:
-        case TYPE_NULL:
+        switch (type) {
+        case TYPE::NIL:
             return false;
-        case TYPE_BOOLEAN:
-            return std::get<TYPE_BOOLEAN>(content);
-        case TYPE_INTEGER:
-            return std::get<TYPE_INTEGER>(content) != 0;
-        case TYPE_FLOATING:
-            if (auto f = std::get<TYPE_FLOATING>(content); f != 0 && !std::isnan(f))
-                return true;
-            return false;
-        case TYPE_STRING:
-            return !std::get<TYPE_STRING>(content).empty();
-        case TYPE_ARRAY:
-        case TYPE_OBJECT:
+        case TYPE::BOOL:
+            return content.boolean;
+        case TYPE::INT:
+            return content.integer != 0;
+        case TYPE::REAL:
+            return !std::isnan(content.real) && content.real != 0.0;
+        case TYPE::STR_BUF:
+            return reinterpret_cast<const char*>(this)[0] != 0;
+        case TYPE::STR_EXT:
+        case TYPE::STR_OWN:
+            return count > 0;
+        case TYPE::ARR:
+        case TYPE::OBJ:
             return true;
         }
+        return false;
     }
 
     /*================================================================================
@@ -516,9 +644,8 @@ public:
     [[nodiscard]] const value& at(const int index, const value& default_value) const
     {
         if (is_array()) {
-            if (auto& arr=std::get<TYPE_ARRAY>(content); index >= 0 && index < (int)arr.arr.size()) {
-                return arr.arr[index];
-            }
+            if (index >= 0 && index < (int)content.array.size())
+                return content.array[index];
         }
         return default_value;
     }
@@ -540,11 +667,9 @@ public:
     [[nodiscard]] const value& at(std::string_view sv, const value& default_value) const
     {
         if (is_object()) {
-            auto& ov = std::get<TYPE_OBJECT>(content);
-            impl::key key(0, sv);
-            auto iter = ov.map.find(key);
-            if (iter != ov.map.end())
-                return iter->second;
+            auto it = content.object->find(sv);
+            if (it != content.object->end())
+                return it->second;
         }
         return default_value;
     }
@@ -578,11 +703,9 @@ public:
     void erase(std::string_view sv)
     {
         if (is_object()) {
-            auto& ov = std::get<TYPE_OBJECT>(content);
-            impl::key key(0, sv);
-            auto iter = ov.map.find(key);
-            if (iter != ov.map.end())
-                ov.map.erase(iter);
+            auto it = content.object->find(sv);
+            if (it != content.object->end())
+                content.object->erase(it);
         }
     }
 
@@ -594,74 +717,126 @@ public:
      * @brief Copy from another JSON value object.
      * @param src A value object.
      */
-    value& operator=(const value& src) { content = src.content; return *this; }
+    constexpr value& operator=(const value& src) {
+        release();
+        type = src.type;
+        flags = src.flags;
+        count = src.count;
+        switch (type) {
+        case TYPE::NIL:
+            content.integer = 0;
+            break;
+        case TYPE::BOOL:
+            content.boolean = src.content.boolean;
+            break;
+        case TYPE::INT:
+            content.integer = src.content.integer;
+            break;
+        case TYPE::REAL:
+            content.real = src.content.real;
+            break;
+        case TYPE::STR_BUF:
+        case TYPE::STR_EXT:
+        case TYPE::STR_OWN:
+            type = TYPE::NIL;
+            new (&content.str) impl::str(src.content.str);
+            break;
+        case TYPE::ARR:
+            new (&content.array) array_type(src.content.array);
+            break;
+        case TYPE::OBJ:
+            content.object = new object_type(*src.content.object);
+            break;
+        default:
+            break;
+        }
+        return *this;
+    }
 
     /**
      * @brief Assign null value.
      * @param null A dummy value.
      */
-    value& operator=(null_type null) { content = null; return *this; }
+    value& operator=(null_type null) {
+        release();
+        return *this;
+    }
 
     /**
      * @brief Assign boolean value.
      * @param boolean A boolean value to be set.
      */
-    value& operator=(boolean_type boolean) { content = boolean; return *this; }
+    value& operator=(boolean_type boolean) {
+        release();
+        type = TYPE::BOOL;
+        content.boolean = boolean;
+        return *this;
+    }
 
     /**
      * @brief Assign number value.
      * @param number A number to be set.
      */
-    value& operator=(double number) { content = floating_type(number); return *this; }
-    value& operator=(float number) { content = floating_type(number); return *this; }
+    value& operator=(double number) {
+        release();
+        type = TYPE::REAL;
+        content.real = number;
+        return *this;
+    }
+    value& operator=(float number) {
+        release();
+        type = TYPE::REAL;
+        content.real = static_cast<floating_type>(number);
+        return *this;
+    }
 
     /**
      * @brief Assign number value by integer type.
      * @param integer A integer number to be set.
      */
-    value& operator=(int64_t integer) { content = integer_type(integer); return *this; }
-    value& operator=(int32_t integer) { content = integer_type(integer); return *this; }
-    value& operator=(int16_t integer) { content = integer_type(integer); return *this; }
-    value& operator=(int8_t integer) { content = integer_type(integer); return *this; }
-    value& operator=(uint64_t integer) { content = integer_type(integer); return *this; }
-    value& operator=(uint32_t integer) { content = integer_type(integer); return *this; }
-    value& operator=(uint16_t integer) { content = integer_type(integer); return *this; }
-    value& operator=(uint8_t integer) { content = integer_type(integer); return *this; }
+    value& operator=(int64_t integer)  { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
+    value& operator=(int32_t integer)  { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
+    value& operator=(int16_t integer)  { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
+    value& operator=(int8_t integer)   { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
+    value& operator=(uint64_t integer) { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
+    value& operator=(uint32_t integer) { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
+    value& operator=(uint16_t integer) { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
+    value& operator=(uint8_t integer)  { release(); type = TYPE::INT; content.integer = integer_type(integer); return *this; }
 
     /**
      * @brief Assign string value.
      * @param string A string to be set.
      */
-    value& operator=(const std::string& string) { content = impl::str(string); return *this; }
+    value& operator=(const std::string& string) { return operator=(std::string_view(string)); }
 
     /**
      * @brief Assign string value from const char*
      * @param string A string to be set.
      */
-    value& operator=(const char* string) { content = impl::str(string); return *this; }
+    value& operator=(const char* string) { return operator=(std::string_view(string)); }
 
     /**
      * @brief Assign string value from string_view
      * @param string A string to be set.
      */
-    value& operator=(std::string_view string) { content = impl::str(string); return *this; }
-
-    /**
-     * @brief Assign string value from string_view
-     * @param string A string to be set.
-     */
-    value& operator=(impl::str string) { content = string; return *this; }
+    value& operator=(std::string_view string) {
+        release();
+        new (&content.str) impl::str(string);
+        return *this;
+    }
 
     /**
      * @brief Assign array value by deep copy.
      * @param elements An array to be set.
      */
     value& operator=(std::initializer_list<value> elements) {
-        auto& av = content.emplace<arr_val>();
+        release();
+        type = TYPE::ARR;
+        new (&content.array) array_type();
         if (elements.size() > 0) {
-            av.arr.reserve(elements.size());
-            for (auto &el: elements)
-                av.arr.push_back(el);
+            content.array.reserve(elements.size());
+            for (const value& el: elements)
+                content.array.push_back(el);
         }
         return *this;
     }
@@ -671,22 +846,25 @@ public:
      * @param object An object to be set.
      */
     value& operator=(std::initializer_list<value::pair_type> elements) {
-        auto& ov = content.emplace<obj_val>();
+        release();
+        type = TYPE::OBJ;
+        content.object = new object_type();
         if (elements.size() > 0) {
             for (auto &el: elements) {
-                ov.map.emplace(impl::key(ov.key_count++, el.first), el.second);
+                content.object->emplace(impl::key(count++, el.first), el.second);
             }
         }
         return *this;
     }
 
     value& set(std::string_view sv, value& value) {
-        auto& ov = std::get<TYPE_OBJECT>(content);
-        impl::key key(ov.key_count, sv);
-        auto it = ov.map.find(key);
-        if (it == ov.map.end()) {
-            auto res = ov.map.emplace(key, value);
-            ov.key_count += 1;
+        if (!is_object())
+            throw std::bad_variant_access();
+        impl::key key(count, sv);
+        auto it = content.object->find(key);
+        if (it == content.object->end()) {
+            auto res = content.object->emplace(key, value);
+            count += 1;
             return res.first->second;
         } else {
             it->second = value;
@@ -694,37 +872,37 @@ public:
         }
     }
 
-    force get_flags() const {
-        if (is_object()) {
-            auto &ov = std::get<TYPE_OBJECT>(content);
-            return (force)ov.force_flags;
-        }
-        else if (is_array()) {
-            auto &av = std::get<TYPE_ARRAY>(content);
-            return (force)av.force_flags;
-        }
-        return (force)0;
+    [[nodiscard]] force_flags get_flags() const {
+        return *reinterpret_cast<const force_flags*>(&flags);
     }
-    value& add_flags(force flags) {
-        if (is_object()) {
-            auto &ov = std::get<TYPE_OBJECT>(content);
-            ov.force_flags |= unsigned(flags);
-        }
-        else if (is_array()) {
-            auto &av = std::get<TYPE_ARRAY>(content);
-            av.force_flags |= unsigned(flags);
-        }
+    value& set_no_indent(bool val = true) {
+        if (type != TYPE::STR_BUF)
+            reinterpret_cast<force_flags&>(flags).no_indent = val;
         return *this;
     }
-    value& clear_flags(force flags) {
-        if (is_object()) {
-            auto &ov = std::get<TYPE_OBJECT>(content);
-            ov.force_flags &= ~unsigned(flags);
-        }
-        else if (is_array()) {
-            auto &av = std::get<TYPE_ARRAY>(content);
-            av.force_flags &= ~unsigned(flags);
-        }
+    value& set_no_object_nulls(bool val = true) {
+        if (type != TYPE::STR_BUF)
+            reinterpret_cast<force_flags&>(flags).no_object_nulls = val;
+        return *this;
+    }
+    value& set_no_array_nulls(bool val = true) {
+        if (type != TYPE::STR_BUF)
+            reinterpret_cast<force_flags&>(flags).no_array_nulls = val;
+        return *this;
+    }
+    value& set_hexadecimal(bool val = true) {
+        if (type != TYPE::STR_BUF)
+            reinterpret_cast<force_flags&>(flags).hexadecimal = val;
+        return *this;
+    }
+    value& set_single_quote(bool val = true) {
+        if (type != TYPE::STR_BUF)
+            reinterpret_cast<force_flags&>(flags).single_quote = val;
+        return *this;
+    }
+    value& set_unquoted_key(bool val = true) {
+        if (type != TYPE::STR_BUF)
+            reinterpret_cast<force_flags&>(flags).unquoted_key = val;
         return *this;
     }
 
@@ -734,27 +912,27 @@ public:
      */
     bool operator==(const value& other) const
     {
-        auto idx = content.index();
-        if (idx != other.content.index())
+        if (type != other.type)
             return false;
-        switch (idx) {
-        case TYPE_NULL:
+        switch (type) {
+        case TYPE::NIL:
             return true;
-        case TYPE_BOOLEAN:
-            return std::get<TYPE_BOOLEAN>(content) == std::get<TYPE_BOOLEAN>(other.content);
-        case TYPE_FLOATING:
-            return std::get<TYPE_FLOATING>(content) == std::get<TYPE_FLOATING>(other.content);
-        case TYPE_INTEGER:
-            return std::get<TYPE_INTEGER>(content) == std::get<TYPE_INTEGER>(other.content);
-        case TYPE_STRING:
-            return std::get<TYPE_STRING>(content) == std::get<TYPE_STRING>(other.content);
-        case TYPE_ARRAY:
-            return std::get<TYPE_ARRAY>(content) == std::get<TYPE_ARRAY>(other.content);
-        case TYPE_OBJECT:
-            return std::get<TYPE_OBJECT>(content) == std::get<TYPE_OBJECT>(other.content);
-        default:
-            return false;
+        case TYPE::BOOL:
+            return content.boolean == other.content.boolean;
+        case TYPE::INT:
+            return content.integer == other.content.integer;
+        case TYPE::REAL:
+            return content.real == other.content.real;
+        case TYPE::STR_BUF:
+        case TYPE::STR_EXT:
+        case TYPE::STR_OWN:
+            return content.str == other.content.str;
+        case TYPE::ARR:
+            return content.array == other.content.array;
+        case TYPE::OBJ:
+            return *content.object == *other.content.object;
         }
+        return false;
     }
 
     /**
@@ -792,8 +970,23 @@ public:
      * Internal data structure
      */
 private:
-    // nust match type_enum
-    std::variant<null_type,boolean_type,integer_type,floating_type,impl::str,arr_val,obj_val> content;
+    union content {
+        bool boolean;
+        int64_t integer;
+        double real;
+        impl::str str;
+        array_type array;
+        object_type* object;
+        constexpr content() : integer{} {}
+        constexpr ~content() {}
+    } content;
+#pragma pack(push, 1)
+    uint32_t count {}; // key cunted for object, string length for strptr
+    char reserved0;
+    char reserved1;
+    uint8_t flags;
+    TYPE type;
+#pragma pack(pop)
 };
 
 /**
@@ -1038,26 +1231,22 @@ public:
     [[nodiscard]] V& operator[](const int index) {
         return operator V&().at(index);
     }
-    force get_flags() {
+    force_flags get_flags() {
         V* v = try_deref();
-        if (!v) return force::none;
+        if (!v) return {};
         return v->get_flags();
     }
-    value& add_flags(force flags) requires M {
-        return deref().add_flags(flags);
-    }
-    value& clear_flags(force flags) requires M {
-        return deref().clear_flags(flags);
-    }
+//    value& add_flags(force flags) requires M {
+//        return deref().add_flags(flags);
+//    }
     [[nodiscard]] constexpr V* try_deref() const {
         V* ptr = &vref;
         for (int idx=0; idx < N; idx++) {
             if (!ptr->is_object())
                 return nullptr;
-            auto& ov = std::get<value::TYPE_OBJECT>(ptr->content);
-            impl::key key(0,keys[idx]);
-            auto it = ov.map.find(key);
-            if (it == ov.map.end())
+            auto& map = *ptr->content.object;
+            auto it = map.find(keys[idx]);
+            if (it == map.end())
                 return nullptr;
             ptr = &it->second;
         }
@@ -1079,12 +1268,12 @@ public:
             }
             if (!ptr->is_object())
                 throw std::bad_variant_access();
-            auto& ov = std::get<value::TYPE_OBJECT>(ptr->content);
-            impl::key key(ov.key_count,keys[idx]);
-            auto it = ov.map.find(key);
-            if (it == ov.map.end()) {
-                auto res = ov.map.emplace(std::move(key), value());
-                ov.key_count++;
+            auto& map = *ptr->content.object;
+            impl::key key(ptr->count,keys[idx]);
+            auto it = map.find(key);
+            if (it == map.end()) {
+                auto res = map.emplace(std::move(key), value());
+                ptr->count++;
                 ptr = &res.first->second;
             } else {
                 ptr = &it->second;
@@ -1138,7 +1327,7 @@ class object_iterator
 {
 public:
     using map_type = typename std::conditional<
-            IsConst, typename std::add_const<value::obj_val::map_type>::type, typename value::obj_val::map_type>::type;
+            IsConst, typename std::add_const<value::object_type>::type, typename value::object_type>::type;
     using value_type = class value;
 
     explicit object_iterator(map_type& map)
@@ -1192,7 +1381,7 @@ private:
 class ordered_range
 {
 public:
-    using map_type = typename std::add_const<value::obj_val::map_type>::type;
+    using map_type = typename std::add_const<value::object_type>::type;
     using vector_type = std::vector<std::pair<const map_type::key_type*,const map_type::mapped_type*>>;
     using value_type = class value;
 
@@ -1245,11 +1434,15 @@ private:
 };
 
 inline object_iterator<true> value::key_value() const {
-    return object_iterator<true>(std::get<value::TYPE_OBJECT>(content).map);
+    if (!is_object())
+        throw std::bad_variant_access();
+    return object_iterator<true>(*content.object);
 }
 
 inline ordered_range value::key_value_ordered() const {
-    return ordered_range(std::get<value::TYPE_OBJECT>(content).map);
+    if (!is_object())
+        throw std::bad_variant_access();
+    return ordered_range(*content.object);
 }
 
 template<unsigned N, bool M>
@@ -1260,6 +1453,83 @@ template<unsigned N, bool M>
 }
 
 } // namespace js
+
+namespace js::impl {
+
+inline void str::set_buf(std::string_view sv) {
+    assert (sv.size()+1 < sizeof(js::value));
+    reinterpret_cast<js::value*>(this)->type = TYPE::STR_BUF;
+    if (sv.size() == 0)
+        reinterpret_cast<char*>(this)[0] = 0;
+    else
+        strncpy_s(reinterpret_cast<char*>(this), sizeof(js::value)-1, sv.data(), sv.size());
+}
+
+inline void str::set_ext(std::string_view sv) {
+    reinterpret_cast<js::value*>(this)->type = TYPE::STR_EXT;
+    reinterpret_cast<js::value*>(this)->count = sv.size();
+    ptr = sv.data();
+}
+
+inline void str::set_own(std::string_view sv) {
+    reinterpret_cast<js::value*>(this)->type = TYPE::STR_OWN;
+    reinterpret_cast<js::value*>(this)->count = sv.size();
+    ptr = strdup(sv.data());
+}
+
+inline bool str::is_buf() const {
+    return reinterpret_cast<const js::value*>(this)->type == TYPE::STR_BUF;
+}
+
+inline bool str::is_own() const {
+    return reinterpret_cast<const js::value*>(this)->type == TYPE::STR_OWN;
+}
+
+inline bool str::is_ext() const {
+    return reinterpret_cast<const js::value*>(this)->type == TYPE::STR_EXT;
+}
+
+inline const char* str::data() const {
+    TYPE tp = reinterpret_cast<const js::value*>(this)->type;
+    switch (tp) {
+    case TYPE::STR_BUF:
+        return reinterpret_cast<const char*>(this);
+    case TYPE::STR_OWN:
+    case TYPE::STR_EXT:
+        return ptr;
+    default:
+        throw std::bad_variant_access();
+    }
+}
+
+inline uint32_t str::size() const {
+    TYPE tp = reinterpret_cast<const js::value*>(this)->type;
+    switch (tp) {
+    case TYPE::STR_BUF:
+        return strlen(reinterpret_cast<const char*>(this));
+    case TYPE::STR_OWN:
+    case TYPE::STR_EXT:
+        return reinterpret_cast<const js::value*>(this)->count;
+    default:
+        throw std::bad_variant_access();
+    }
+}
+
+std::string_view str::sv() const {
+    TYPE tp = reinterpret_cast<const js::value*>(this)->type;
+    switch (tp) {
+    case TYPE::STR_BUF:
+        return std::string_view(reinterpret_cast<const char*>(this));
+    case TYPE::STR_OWN:
+    case TYPE::STR_EXT:
+        return std::string_view(ptr, reinterpret_cast<const js::value*>(this)->count);
+    default:
+        throw std::bad_variant_access();
+    }
+}
+
+
+} // namespace js::impl
 
 template <>
 struct std::formatter<js::value> : std::formatter<std::string> {

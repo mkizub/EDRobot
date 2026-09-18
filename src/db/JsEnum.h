@@ -86,6 +86,10 @@ struct JsEnum {
         if (!ptr) return {};
         return {ptr->str.data(), ptr->str.size()};
     }
+    std::string_view sv() const noexcept {
+        if (!ptr) return {};
+        return {ptr->str.data(), ptr->str.size()};
+    }
     JsEnum& operator=(JsEnumVal* p) { assert(!p || p->ES == &ES::instance); ptr = p; return *this; }
     operator bool() const noexcept { return ptr; }
     bool has_value() const noexcept { return ptr != nullptr; }

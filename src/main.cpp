@@ -132,11 +132,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     SetUnhandledExceptionFilter(UnhandledExceptionHandler);
     std::set_terminate(GlobalTerminateHandler);
 
+//    js::impl::gStrSet.insert("long static string");
+//
 //    js::value j_null;
 //    js::value j_bool = true;
 //    js::value j_int = 64;
 //    js::value j_num = 0.125;
 //    js::value j_str = "json string";
+//    js::value j_st_str = "long static string";
 //    js::value j_arr0 = js::array({});
 //    js::value j_arr1 = js::array({1});
 //    js::value j_arr2 = js::array({1, "str"});
@@ -152,11 +155,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //
 //    int j_sz = sizeof(j_null);
 //    int j_key_sz = sizeof(js::impl::key);
-//    int j_str_sz = sizeof(js::impl::str);
-//    int j_arr_sz = sizeof(js::value::arr_val_type);
-//    int j_obj_sz = sizeof(js::value::obj_val_type);
 //
-//    LOG_INFO("{} {} {} {} {}", j_sz, j_key_sz, j_str_sz, j_arr_sz, j_obj_sz);
+//    LOG_INFO("{} {}", j_sz, j_key_sz);
 
 
     db::init_js_remapping();

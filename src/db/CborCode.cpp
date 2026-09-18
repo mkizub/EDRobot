@@ -6,219 +6,15 @@
 
 #include "DB.h"
 #include "JsEnum.h"
-#include <glaze/cbor.hpp>
 
 #define MSGPACK_NO_BOOST 1
 #include <msgpack.hpp>
 
-const int FMT = glz::CBOR;
-
-namespace glz
-{
-
-template <JsEnumDeclType E>
-struct from<FMT, db::JsEnum<E>>
-{
-    template <auto Opts>
-    static void op(auto&& value, auto&& ctx, auto&& it, auto&& end)
-    {
-        uint8_t type = *reinterpret_cast<uint8_t*>(it);
-        uint8_t major_type = glz::cbor::get_major_type(type);
-        if (major_type == glz::cbor::major::tstr) {
-            std::string str;
-            parse<FMT>::op<Opts>(str, ctx, it, end);
-            value.ptr = E::instance.get(str);
-            if (!value.ptr)
-                value.ptr = E::instance.addNewValue(str);
-        } else {
-            unsigned id{};
-            parse<FMT>::op<Opts>(id, ctx, it, end);
-            value.ptr = E::instance.get(id);
-        }
-    }
-};
-
-template <JsEnumDeclType E>
-struct to<FMT, db::JsEnum<E>>
-{
-    template <auto Opts>
-    static void op(auto&& value, is_context auto&& ctx, auto&& b, auto&& ix) noexcept
-    {
-        if (!value.ptr)
-            serialize<JSON>::op<Opts>(nullptr, ctx, b, ix);
-        else if (!value.ptr->id && !value.ptr->str.empty())
-            serialize<JSON>::op<Opts>(value.ptr->str, ctx, b, ix);
-        else
-            serialize<JSON>::op<Opts>(value.ptr->id, ctx, b, ix);
-    }
-};
-
-template <>
-struct from<FMT, Timestamp>
-{
-    template <auto Opts>
-    static void op(auto&& value, auto&& ctx, auto&& it, auto&& end)
-    {
-        glz::epoch_millis tp;
-        parse<FMT>::op<Opts>(tp, ctx, it, end);
-        value = Timestamp(std::chrono::duration_cast<Timestamp::duration>(tp.value.time_since_epoch()));
-    }
-};
-
-template <>
-struct to<FMT, Timestamp>
-{
-    template <auto Opts>
-    static void op(auto&& value, is_context auto&& ctx, auto&& b, auto&& ix) noexcept
-    {
-        std::chrono::system_clock::time_point tp(std::chrono::duration_cast<std::chrono::milliseconds>(value.time_since_epoch()));
-        serialize<FMT>::op<Opts>(glz::epoch_millis(tp), ctx, b, ix);
-    }
-};
-
-} // namespace glz
-
-#define F_KEY(id) "f-key-" id
-#define S_KEY(id) "s-key-" id
-#define B_KEY(id) "b-key-" id
-#define SS_KEY(id) "ss-key-" id
-
-template <>
-struct glz::meta<db::Faction>
-{
-    using T = db::Faction;
-    static constexpr auto value = glz::object(
-            F_KEY("1"), &T::id,
-            F_KEY("2"), &T::name,
-            F_KEY("3"), &T::allegiance,
-            F_KEY("4"), &T::government
-    );
-};
-
-template <>
-struct glz::meta<db::StationJS>
-{
-    using T = db::StationJS;
-
-    static constexpr auto value = glz::object(
-            S_KEY("1"), &T::id,
-            S_KEY("2"), &T::type,
-            S_KEY("3"), &T::name,
-            S_KEY("4"), &T::updated_at,
-            S_KEY("5"), &T::realName,
-            S_KEY("6"), &T::carrierName,
-            S_KEY("7"), &T::controllingFaction,
-            S_KEY("8"), &T::controllingFactionState,
-            S_KEY("9"), &T::distanceToArrival,
-            S_KEY("A"), &T::primaryEconomy,
-            S_KEY("B"), &T::secondaryEconomy,
-            S_KEY("C"), &T::economies,
-            S_KEY("D"), &T::allegiance,
-            S_KEY("E"), &T::government,
-            S_KEY("F"), &T::services,
-            S_KEY("G"), &T::state,
-            S_KEY("I"), &T::latitude,
-            S_KEY("H"), &T::longitude,
-            S_KEY("J"), &T::landingPads,
-            S_KEY("K"), &T::carrierDockingAccess,
-            "market", glz::skip(),
-            "shipyard", glz::skip(),
-            "outfitting", glz::skip()
-    );
-};
-
-template <>
-struct glz::meta<db::BodyJS>
-{
-    using T = db::BodyJS;
-
-    static constexpr auto value  = glz::object(
-            B_KEY("1"), &T::type,
-            B_KEY("2"), &T::bodyId,
-            B_KEY("3"), &T::name,
-            B_KEY("4"), &T::subType,
-            B_KEY("5"), &T::parents,
-            B_KEY("6"), &T::orbitalPeriod,
-            B_KEY("7"), &T::semiMajorAxis,
-            B_KEY("8"), &T::orbitalEccentricity,
-            B_KEY("9"), &T::orbitalInclination,
-            B_KEY("A"), &T::argOfPeriapsis,
-            B_KEY("B"), &T::meanAnomaly,
-            B_KEY("C"), &T::ascendingNode,
-            B_KEY("D"), &T::distanceToArrival,
-            B_KEY("E"), &T::surfaceTemperature,
-            B_KEY("F"), &T::rotationalPeriod,
-            B_KEY("G"), &T::axialTilt,
-            B_KEY("H"), &T::updated_at,
-            B_KEY("I"), &T::timestamps,
-            B_KEY("J"), &T::rotationalPeriodTidallyLocked,
-            B_KEY("K"), &T::stations,
-            "belts", glz::skip(),
-            "rings", glz::skip(),
-            "signals", glz::skip(),
-
-            // star part
-            B_KEY("a"), glz::custom<&T::set_mainStar, &T::get_mainStar>,
-            B_KEY("b"), glz::custom<&T::set_age, &T::get_age>,
-            B_KEY("c"), glz::custom<&T::set_spectralClass, &T::get_spectralClass>,
-            B_KEY("d"), glz::custom<&T::set_luminosity, &T::get_luminosity>,
-            B_KEY("e"), glz::custom<&T::set_absoluteMagnitude, &T::get_absoluteMagnitude>,
-            B_KEY("f"), glz::custom<&T::set_solarMasses, &T::get_solarMasses>,
-            B_KEY("g"), glz::custom<&T::set_solarRadius, &T::get_solarRadius>,
-
-            // plant part
-            B_KEY("k"), glz::custom<&T::set_isLandable, &T::get_isLandable>,
-            B_KEY("l"), glz::custom<&T::set_gravity, &T::get_gravity>,
-            B_KEY("m"), glz::custom<&T::set_earthMasses, &T::get_earthMasses>,
-            B_KEY("n"), glz::custom<&T::set_radius, &T::get_solarRadius>,
-            B_KEY("o"), glz::custom<&T::set_surfacePressure, &T::get_surfacePressure>,
-            B_KEY("p"), glz::custom<&T::set_volcanismType, &T::get_volcanismType>,
-            B_KEY("q"), glz::custom<&T::set_atmosphereType, &T::get_atmosphereType>,
-            B_KEY("r"), glz::custom<&T::set_atmosphereComposition, &T::get_atmosphereComposition>,
-            B_KEY("s"), glz::custom<&T::set_solidComposition, &T::get_solidComposition>,
-            B_KEY("t"), glz::custom<&T::set_materials, &T::get_materials>,
-            B_KEY("u"), glz::custom<&T::set_terraformingState, &T::get_terraformingState>,
-            B_KEY("v"), glz::custom<&T::set_reserveLevel, &T::get_reserveLevel>
-    );
-};
-
-template <>
-struct glz::meta<db::StarSystemJS>
-{
-    using T = db::StarSystemJS;
-
-    static constexpr auto value = glz::object(
-            SS_KEY("1"), &T::id64,
-            SS_KEY("2"), &T::name,
-            SS_KEY("3"), &T::coords,
-            SS_KEY("4"), &T::allegiance,
-            SS_KEY("5"), &T::government,
-            SS_KEY("6"), &T::primaryEconomy,
-            SS_KEY("7"), &T::secondaryEconomy,
-            SS_KEY("8"), &T::security,
-            SS_KEY("9"), &T::population,
-            SS_KEY("A"), &T::bodyCount,
-            SS_KEY("B"), &T::updated_at,
-            SS_KEY("C"), &T::controllingFaction,
-            SS_KEY("D"), &T::factions,
-            SS_KEY("E"), &T::powerState,
-            SS_KEY("F"), &T::powerConflictProgress,
-            SS_KEY("G"), &T::powers,
-            SS_KEY("H"), &T::controllingPower,
-            SS_KEY("I"), &T::powerStateControlProgress,
-            SS_KEY("J"), &T::powerStateReinforcement,
-            SS_KEY("K"), &T::powerStateUndermining,
-            SS_KEY("L"), &T::thargoidWar,
-            SS_KEY("M"), &T::bodies,
-            SS_KEY("N"), &T::stations
-    );
-};
-
-
 thread_local std::string tlStarSystemName;
+thread_local bool tlDumpFull;
 
 namespace msgpack {
-namespace v3 {
+MSGPACK_API_VERSION_NAMESPACE(v3) {
 namespace adaptor {
 
 template <typename Stream>
@@ -232,27 +28,20 @@ inline msgpack::packer<Stream>& pack_key(const char* nm, msgpack::packer<Stream>
 
 template <typename T>
 inline bool need_value(const T& val) {
-    if constexpr (std::same_as<T, Timestamp>) {
+    if constexpr (std::same_as<T, Timestamp>)
         return val.time_since_epoch().count() != 0;
-    }
-    else if constexpr (std::same_as<T, bool>) {
+    else if constexpr (std::same_as<T, bool>)
         return val;
-    }
-    else if constexpr (std::is_floating_point_v<T>) {
+    else if constexpr (std::is_floating_point_v<T>)
         return !std::isnan(val);
-    }
-    else if constexpr (std::is_integral_v<T>) {
+    else if constexpr (std::is_integral_v<T>)
         return val != 0;
-    }
-    else if constexpr (std::same_as<std::string, T>) {
+    else if constexpr (std::same_as<std::string, T>)
         return !val.empty();
-    }
-    else if constexpr (std::same_as<std::string, T>) {
+    else if constexpr (std::same_as<std::string_view, T>)
         return !val.empty();
-    }
-    else if constexpr (std::same_as<db::LandingPadsJS, T>) {
+    else if constexpr (std::same_as<db::LandingPadsJS, T>)
         return !val.empty();
-    }
     return true;
 }
 
@@ -277,116 +66,32 @@ inline bool need_value(const db::JsEnum<E>& v) {
 }
 
 
+#define PK_MAP_START(o)     {   uint32_t key_count = 0;     \
+                                msgpack::sbuffer mb;        \
+                                msgpack::packer<msgpack::sbuffer> m(mb);
 
-#define MAP_START(o)    {   uint32_t key_count = 0;     \
-                            msgpack::sbuffer mb;        \
-                            msgpack::packer<msgpack::sbuffer> m(mb);
+#define PK_MAP_END(o)           o.pack_map(key_count);      \
+                                o.pack_bin_body(mb.data(),mb.size());   }
 
-#define MAP_END(o)          o.pack_map(key_count);      \
-                            o.pack_bin_body(mb.data(),mb.size());   }
+#define UN_MAP_START(m)     uint32_t sz = m.size;                       \
+                            msgpack::object_kv* p = m.ptr;              \
+                            for (uint32_t j = 0; j < sz; ++j) {         \
+                                unsigned key = p[j].key.as<unsigned>(); \
+                                auto& val = p[j].val;                   \
+                                switch (key) {
 
-#define PK(nm, k)           pack_key(nm, m, key_count, k)
+#define UN_MAP_END()            }                                       \
+                            }
+
+
+//#define PK(nm, k)           pack_key(nm, m, key_count, k)
 
 #define PK_IF(nm, k, v)     if (need_value(v)) pack_key(nm, m, key_count, k).pack(v)
 
+#define UN_PK(nm, k, v)         case k: v = val.as<decltype(v)>(); continue
+#define UN_PK_STAR(nm, k, v, f) case k: v.ensureStarPart()->f = val.as<decltype(db::StarPartJS::f)>(); continue
+#define UN_PK_PLNT(nm, k, v, f) case k: v.ensurePlanedPart()->f = val.as<decltype(db::PlanetPartJS::f)>(); continue
 
-template<>
-struct pack<bool> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const bool& v) const {
-        if (v)
-            o.pack_true();
-        else
-            o.pack_false();
-        return o;
-    }
-};
-
-template<>
-struct pack<float> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const float& v) const {
-        if (v == 0)
-            o.pack_unsigned_int(0);
-        else
-            o.pack_float(v);
-        return o;
-    }
-};
-
-template<>
-struct pack<double> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const double& v) const {
-        if (v == 0)
-            o.pack_unsigned_int(0);
-        else
-            o.pack_double(v);
-        return o;
-    }
-};
-
-template<>
-struct pack<int64_t> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const int64_t& v) const {
-        o.pack_long_long(v);
-        return o;
-    }
-};
-
-template<>
-struct pack<uint64_t> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const uint64_t& v) const {
-        o.pack_unsigned_long_long(v);
-        return o;
-    }
-};
-
-template<>
-struct pack<Timestamp> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const Timestamp& v) const {
-        if (v.time_since_epoch().count() == 0)
-            o.pack_nil();
-        else if ((v.time_since_epoch().count() % Timestamp::period::den) == 0)
-            o.pack_fix_uint32(v.time_since_epoch().count() / Timestamp::period::den);
-        else
-            o.pack_fix_int64(v.time_since_epoch().count());
-        return o;
-    }
-};
-
-template<>
-struct pack<std::string> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const std::string& v) const {
-        o.pack_str(v.size()).pack_str_body(v.data(), v.size());
-        return o;
-    }
-};
-
-template<>
-struct pack<std::string_view> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const std::string_view& v) const {
-        o.pack_str(v.size()).pack_str_body(v.data(), v.size());
-        return o;
-    }
-};
-
-template<typename T>
-struct pack<std::unique_ptr<T>> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const std::unique_ptr<T>& v) const {
-        if (v.get() == nullptr)
-            o.pack_nil();
-        else
-            o.pack(*v.get());
-        return o;
-    }
-};
 
 template<typename ES>
 struct pack<db::JsEnum<ES>> {
@@ -403,18 +108,57 @@ struct pack<db::JsEnum<ES>> {
     }
 };
 
-
-template<typename E>
-struct pack<std::vector<E>> {
-    using T = std::vector<E>;
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
-        o.pack_array(v.size());
-        for (int i=0; i < v.size(); i++)
-            o.pack(v[i]);
+template<typename ES>
+struct convert<db::JsEnum<ES>> {
+    using T = db::JsEnum<ES>;
+    msgpack::object const& operator()(msgpack::object const& o, T& v) const {
+        if (o.type == msgpack::type::NIL) {
+            v = {};
+        }
+        else if (o.type == msgpack::type::STR) {
+            v.ptr = ES::instance.get(o.as<std::string>());
+            if (!v.ptr)
+                v.ptr = ES::instance.addNewValue(o.as<std::string>());
+        }
+        else if (o.type == msgpack::type::POSITIVE_INTEGER) {
+            v.ptr = ES::instance.get(o.as<unsigned>());
+        }
+        else {
+            throw msgpack::type_error();
+        }
         return o;
     }
 };
+
+
+template<>
+struct pack<db::MarketLineJS> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const db::MarketLineJS& v) const {
+        o.pack_array(5);
+        o.pack_unsigned_long_long(v.id);
+        o.pack_unsigned(v.demand);
+        o.pack_unsigned(v.supply);
+        o.pack_unsigned(v.buyPrice);
+        o.pack_unsigned(v.sellPrice);
+        return o;
+    }
+};
+
+template<>
+struct convert<db::MarketLineJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::MarketLineJS& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 5) { throw msgpack::type_error(); }
+        v.id = o.as<decltype(v.id)>();
+        v.demand = o.as<decltype(v.demand)>();
+        v.supply = o.as<decltype(v.supply)>();
+        v.buyPrice = o.as<decltype(v.buyPrice)>();
+        v.sellPrice = o.as<decltype(v.sellPrice)>();
+        return o;
+    }
+};
+
 
 template<>
 struct pack<std::vector<db::BodyParentJS>> {
@@ -430,6 +174,24 @@ struct pack<std::vector<db::BodyParentJS>> {
     }
 };
 
+template<>
+struct convert<std::vector<db::BodyParentJS>> {
+    msgpack::object const& operator()(msgpack::object const& o, std::vector<db::BodyParentJS>& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size & 1) { throw msgpack::type_error(); }
+        auto sz = o.via.array.size / 2;
+        v.reserve(sz);
+        for (int i=0; i < sz; i++) {
+            db::BodyParentJS bp {};
+            bp.type = o.via.array.ptr[i*2].as<decltype(bp.type)>();
+            bp.bodyId = o.via.array.ptr[i*2].as<decltype(bp.bodyId)>();
+            v.push_back(bp);
+        }
+        return o;
+    }
+};
+
+
 template<typename E, typename V>
 struct pack<ed::small_map<db::JsEnum<E>,V>> {
     using T = ed::small_map<db::JsEnum<E>,V>;
@@ -438,27 +200,22 @@ struct pack<ed::small_map<db::JsEnum<E>,V>> {
         o.pack_map(v.size());
         for (auto& [key,val] : v) {
             o.pack(key);
-            if constexpr (std::same_as<V, Timestamp>) {
-                return o.pack_fix_int64(val.time_since_epoch().count());
-            }
-            else if constexpr (std::same_as<V, bool>) {
-                if (val)
-                    o.pack_true();
-                else
-                    o.pack_false();
-            }
-            else if constexpr (std::same_as<V, double>) {
-                o.pack_double(val);
-            }
-            else if constexpr (std::same_as<V, float>) {
-                o.pack_float(val);
-            }
-            else if constexpr (std::is_integral_v<V>) {
-                o.pack_int(val);
-            }
-            else {
-                o.pack(val);
-            }
+            o.pack(val);
+        }
+        return o;
+    }
+};
+
+template<typename E, typename V>
+struct convert<ed::small_map<db::JsEnum<E>,V>> {
+    using T = ed::small_map<db::JsEnum<E>,V>;
+    msgpack::object const& operator()(msgpack::object const& o, T& v) const {
+        if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
+        uint32_t sz = o.via.map.size;
+        msgpack::object_kv* p = o.via.map.ptr;
+        for (uint32_t i = 0; i < sz; ++i) {
+            auto key = p[i].key.as<db::JsEnum<E>>();
+            v[key] = p[i].val.as<V>();
         }
         return o;
     }
@@ -470,17 +227,31 @@ struct pack<db::PowerConflictJS> {
     using T = db::PowerConflictJS;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
+        o.pack_array(2);
         o.pack(v.power);
-        o.pack_double(v.progress);
+        o.pack_float(v.progress);
         return o;
     }
 };
+
+template<>
+struct convert<db::PowerConflictJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::PowerConflictJS& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 2) { throw msgpack::type_error(); }
+        v.power = o.via.array.ptr[0].as<decltype(v.power)>();
+        v.progress = o.via.array.ptr[1].as<decltype(v.progress)>();
+        return o;
+    }
+};
+
 
 template<>
 struct pack<db::FactionStateJS> {
     using T = db::FactionStateJS;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
+        o.pack_array(2);
         o.pack(v.state);
         if (!std::isnan(v.trend))
             o.pack_float(v.trend);
@@ -491,30 +262,63 @@ struct pack<db::FactionStateJS> {
 };
 
 template<>
+struct convert<db::FactionStateJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::FactionStateJS& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 2) { throw msgpack::type_error(); }
+        v.state = o.via.array.ptr[0].as<decltype(v.state)>();
+        if (!o.via.array.ptr[1].is_nil())
+            v.trend = o.via.array.ptr[1].as<decltype(v.trend)>();
+        return o;
+    }
+};
+
+
+template<>
 struct pack<db::FactionJS> {
     using T = db::FactionJS;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
-        o.pack(v.name);
-        MAP_START(o)
-            PK_IF("fa", 1, v.state);
-            PK_IF("fa", 2, v.allegiance);
-            PK_IF("fa", 3, v.government);
-            PK_IF("fa", 4, v.influence);
-            PK_IF("fa", 5, v.activeStates);
-            PK_IF("fa", 6, v.pendingStates);
-            PK_IF("fa", 7, v.recoveringStates);
-        MAP_END(o)
+        PK_MAP_START(o)
+            PK_IF("fa", 1, v.name);
+            PK_IF("fa", 2, v.state);
+            PK_IF("fa", 3, v.allegiance);
+            PK_IF("fa", 4, v.government);
+            PK_IF("fa", 5, v.influence);
+            PK_IF("fa", 6, v.activeStates);
+            PK_IF("fa", 7, v.pendingStates);
+            PK_IF("fa", 8, v.recoveringStates);
+        PK_MAP_END(o)
         return o;
     }
 };
+
+template<>
+struct convert<db::FactionJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::FactionJS& v) const {
+        if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
+        auto& m = o.via.map;
+        UN_MAP_START(m)
+            UN_PK("fa", 1, v.name);
+            UN_PK("fa", 2, v.state);
+            UN_PK("fa", 3, v.allegiance);
+            UN_PK("fa", 4, v.government);
+            UN_PK("fa", 5, v.influence);
+            UN_PK("fa", 6, v.activeStates);
+            UN_PK("fa", 7, v.pendingStates);
+            UN_PK("fa", 8, v.recoveringStates);
+        UN_MAP_END()
+        return o;
+    }
+};
+
 
 template<>
 struct pack<db::ThargoidWarJS> {
     using T = db::ThargoidWarJS;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
-        MAP_START(o)
+        PK_MAP_START(o)
             PK_IF("tw", 1, v.currentState);
             PK_IF("tw", 2, v.successState);
             PK_IF("tw", 3, v.failureState);
@@ -522,10 +326,30 @@ struct pack<db::ThargoidWarJS> {
             PK_IF("tw", 5, v.daysRemaining);
             PK_IF("tw", 6, v.portsRemaining);
             PK_IF("tw", 7, v.successReached);
-        MAP_END(o)
+        PK_MAP_END(o)
         return o;
     }
 };
+
+template<>
+struct convert<db::ThargoidWarJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::ThargoidWarJS& v) const {
+        if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
+        auto& m = o.via.map;
+        UN_MAP_START(m)
+            UN_PK("tw", 1, v.currentState);
+            UN_PK("tw", 2, v.successState);
+            UN_PK("tw", 3, v.failureState);
+            UN_PK("tw", 4, v.progress);
+            UN_PK("tw", 5, v.daysRemaining);
+            UN_PK("tw", 6, v.portsRemaining);
+            UN_PK("tw", 7, v.currentState);
+            UN_PK("tw", 8, v.successReached);
+        UN_MAP_END()
+        return o;
+    }
+};
+
 
 template<>
 struct pack<db::LandingPadsJS> {
@@ -541,35 +365,87 @@ struct pack<db::LandingPadsJS> {
 };
 
 template<>
+struct convert<db::LandingPadsJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::LandingPadsJS& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 3) { throw msgpack::type_error(); }
+        v.large = o.via.array.ptr[0].as<decltype(v.large)>();
+        v.medium = o.via.array.ptr[1].as<decltype(v.medium)>();
+        v.small = o.via.array.ptr[2].as<decltype(v.small)>();
+        return o;
+    }
+};
+
+
+template<>
 struct pack<db::StationJS> {
 
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, db::StationJS const& v) const {
+        o.pack_array(4);
         o.pack_fix_int64(v.id);
         o.pack(v.type);
         o.pack(v.name);
-        MAP_START(o)
+        PK_MAP_START(o)
             PK_IF("st", 1, v.updated_at);
-            PK_IF("st", 2, v.realName);
-            PK_IF("st", 3, v.carrierName);
-            PK_IF("st", 4, v.controllingFaction);
-            PK_IF("st", 5, v.controllingFactionState);
-            PK_IF("st", 6, v.primaryEconomy);
-            PK_IF("st", 7, v.secondaryEconomy);
-            PK_IF("st", 8, v.economies);
-            PK_IF("st", 9, v.allegiance);
-            PK_IF("st", 10, v.government);
-            PK_IF("st", 11, v.state);
-            PK_IF("st", 12, v.distanceToArrival);
-            PK_IF("st", 13, v.latitude);
-            PK_IF("st", 14, v.latitude);
-            PK_IF("st", 15, v.landingPads);
-            PK_IF("st", 16, v.carrierDockingAccess);
-            //PK_IF("st", 17, v.services);
-        MAP_END(o)
+            PK_IF("st", 2, v.bodyId);
+            PK_IF("st", 3, v.controllingFaction);
+            PK_IF("st", 4, v.controllingFactionState);
+            PK_IF("st", 5, v.primaryEconomy);
+            PK_IF("st", 6, v.secondaryEconomy);
+            PK_IF("st", 7, v.economies);
+            PK_IF("st", 8, v.allegiance);
+            PK_IF("st", 9, v.government);
+            PK_IF("st", 10, v.state);
+            PK_IF("st", 11, v.distanceToArrival);
+            PK_IF("st", 12, v.latitude);
+            PK_IF("st", 13, v.longitude);
+            PK_IF("st", 14, v.landingPads);
+            PK_IF("st", 15, v.carrierDockingAccess);
+            if (tlDumpFull) {
+                PK_IF("st", 16, v.services);
+            }
+        PK_MAP_END(o)
         return o;
     }
 };
+
+template<>
+struct convert<db::StationJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::StationJS& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 4) { throw msgpack::type_error(); }
+        v.id = o.via.array.ptr[0].as<int64_t>();
+        v.type = o.via.array.ptr[1].as<decltype(v.type)>();
+        v.name = o.via.array.ptr[2].as<decltype(v.name)>();
+
+        auto& m = o.via.array.ptr[3].via.map;
+        UN_MAP_START(m)
+            UN_PK("st", 1, v.updated_at);
+            UN_PK("st", 2, v.bodyId);      // space stations have bodyId
+            UN_PK("st", 3, v.controllingFaction);
+            UN_PK("st", 4, v.controllingFactionState);
+            UN_PK("st", 5, v.primaryEconomy);
+            UN_PK("st", 6, v.secondaryEconomy);
+            UN_PK("st", 7, v.economies);
+            UN_PK("st", 8, v.allegiance);
+            UN_PK("st", 9, v.government);
+            UN_PK("st", 10, v.state);
+            UN_PK("st", 11, v.distanceToArrival);
+            UN_PK("st", 12, v.latitude);
+            UN_PK("st", 13, v.longitude);
+            UN_PK("st", 14, v.landingPads);
+            UN_PK("st", 15, v.carrierDockingAccess);
+            UN_PK("st", 16, v.services);
+        UN_MAP_END()
+        return o;
+    }
+};
+
+
+//
+// db::BodyJS
+//
 
 template<>
 struct pack<db::BodyJS> {
@@ -580,49 +456,54 @@ struct pack<db::BodyJS> {
             o.pack_nil();
             return o;
         }
+        o.pack_array(4);
         o.pack(v.type);
         o.pack_int(v.bodyId);
+
+        std::string v_name = v.name;
         bool is_star = v.type == db::JsBodyType::instance.get("Star");
         bool is_planet = v.type == db::JsBodyType::instance.get("Planet");
         bool is_cluster = v.type == db::JsBodyType::instance.get("Asteroid Cluster");
-        MAP_START(o)
-            if ((is_star || is_planet || is_cluster) && !v.name.empty()) {
-                std::string v_name = v.name;
-                auto &sn = tlStarSystemName;
-                if (!sn.empty()) {
-                    if (is_star && v_name == sn)
-                        v_name = "";
-                    else if (v_name.size() >= sn.size() + 2 && v_name.starts_with(sn) && v_name[sn.size()] == ' ')
-                        v_name = v_name.substr(sn.size());
-                    if (is_cluster) {
-                        auto p = v_name.find("Belt Cluster");
-                        if (p != std::string::npos)
-                            v_name = v_name.replace(p, 12, "$");
-                    }
+        if ((is_star || is_planet || is_cluster) && !v.name.empty()) {
+            auto &sn = tlStarSystemName;
+            if (!sn.empty()) {
+                if (is_star && v_name == sn)
+                    v_name = "";
+                else if (v_name.size() >= sn.size() + 2 && v_name.starts_with(sn) && v_name[sn.size()] == ' ')
+                    v_name = v_name.substr(sn.size());
+                if (is_cluster) {
+                    auto p = v_name.find("Belt Cluster");
+                    if (p != std::string::npos)
+                        v_name = v_name.replace(p, 12, "$");
                 }
-                //if (v_name == v.name)
-                //    LOG_INFO("Special body name: {}", v_name);
-                PK("bo", 1).pack(v_name);
             }
+            //if (v_name == v.name)
+            //    LOG_INFO("Special body name: {}", v_name);
+        } else {
+            v_name = {};
+        }
+        o.pack(v_name);
+
+        PK_MAP_START(o)
+            PK_IF("bo", 1, v.updated_at);
             PK_IF("bo", 2, v.subType);
-            PK_IF("bo", 3, v.updated_at);
-            PK_IF("bo", 4, v.orbitalPeriod);
-            PK_IF("bo", 5, v.semiMajorAxis);
-            PK_IF("bo", 6, v.orbitalEccentricity);
-            PK_IF("bo", 7, v.orbitalInclination);
-            PK_IF("bo", 8, v.argOfPeriapsis);
-            PK_IF("bo", 9, v.meanAnomaly);
-            PK_IF("bo", 10, v.ascendingNode);
-            PK_IF("bo", 11, v.distanceToArrival);
-            PK_IF("bo", 12, v.surfaceTemperature);
-            PK_IF("bo", 13, v.rotationalPeriod);
-            PK_IF("bo", 14, v.axialTilt);
-            PK_IF("bo", 15, v.rotationalPeriodTidallyLocked);
-            PK_IF("bo", 16, v.timestamps);
-            PK_IF("bo", 17, v.parents);
-            PK_IF("bo", 18, v.stations);
-            // "rings"
-            // "belts"
+            PK_IF("bo", 3, v.orbitalPeriod);
+            PK_IF("bo", 4, v.semiMajorAxis);
+            PK_IF("bo", 5, v.orbitalEccentricity);
+            PK_IF("bo", 6, v.orbitalInclination);
+            PK_IF("bo", 7, v.argOfPeriapsis);
+            PK_IF("bo", 8, v.meanAnomaly);
+            PK_IF("bo", 9, v.ascendingNode);
+            PK_IF("bo", 10, v.distanceToArrival);
+            PK_IF("bo", 11, v.surfaceTemperature);
+            PK_IF("bo", 12, v.rotationalPeriod);
+            PK_IF("bo", 13, v.axialTilt);
+            PK_IF("bo", 14, v.rotationalPeriodTidallyLocked);
+            PK_IF("bo", 15, v.timestamps);
+            PK_IF("bo", 16, v.parents);
+            PK_IF("bo", 17, v.stations);
+//            // "rings"
+//            // "belts"
             if (auto* st=v.getStarPart(); st && is_star) {
                 PK_IF("bs", 30, st->mainStar);
                 PK_IF("bs", 31, st->age);
@@ -633,75 +514,187 @@ struct pack<db::BodyJS> {
                 PK_IF("bs", 36, st->solarRadius);
             }
             else if (auto* pl=v.getPlanetPart(); pl && is_planet) {
-                PK_IF("bp", 50, pl->isLandable);
-                PK_IF("bp", 51, pl->gravity);
-                PK_IF("bp", 52, pl->earthMasses);
-                PK_IF("bp", 53, pl->radius);
-                PK_IF("bp", 54, pl->terraformingState);
-                PK_IF("bp", 55, pl->reserveLevel);
-                PK_IF("bp", 56, pl->surfacePressure);
-                PK_IF("bp", 57, pl->volcanismType);
-                PK_IF("bp", 58, pl->atmosphereType);
-                //PK_IF("bp", 59, pl->atmosphereComposition);
-                //PK_IF("bp", 60, pl->solidComposition);
-                //PK_IF("bp", 61, pl->materials);
-                // "signals"
+                PK_IF("bp", 40, pl->isLandable);
+                PK_IF("bp", 41, pl->gravity);
+                PK_IF("bp", 42, pl->earthMasses);
+                PK_IF("bp", 43, pl->radius);
+                PK_IF("bp", 44, pl->terraformingState);
+                PK_IF("bp", 45, pl->reserveLevel);
+                PK_IF("bp", 46, pl->surfacePressure);
+                PK_IF("bp", 47, pl->volcanismType);
+                PK_IF("bp", 48, pl->atmosphereType);
+                if (tlDumpFull) {
+                    PK_IF("bp", 49, pl->atmosphereComposition);
+                    PK_IF("bp", 50, pl->solidComposition);
+                    PK_IF("bp", 51, pl->materials);
+                    // "signals"
+                }
             }
-        MAP_END(o)
+        PK_MAP_END(o)
         return o;
     }
 };
 
 template<>
+struct convert<db::BodyJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::BodyJS& v) const {
+        if (o.type == msgpack::type::NIL) return o;
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 4) { throw msgpack::type_error(); }
+
+        v.type = o.via.array.ptr[0].as<decltype(v.type)>();
+        v.bodyId = o.via.array.ptr[1].as<decltype(v.bodyId)>();
+        v.name = o.via.array.ptr[2].as<decltype(v.name)>();
+        {
+            bool is_star = v.type == db::JsBodyType::instance.get("Star");
+            //bool is_planet = v.type == db::JsBodyType::instance.get("Planet");
+            bool is_cluster = v.type == db::JsBodyType::instance.get("Asteroid Cluster");
+            auto &sn = tlStarSystemName;
+            if (!sn.empty()) {
+                if (is_star && v.name.empty()) {
+                    v.name = sn;
+                }
+                else if (v.name.size() > 1 && v.name[0] == ' ')
+                    v.name = sn + v.name;
+                if (is_cluster) {
+                    auto p = v.name.find('$');
+                    if (p != std::string::npos)
+                        v.name = v.name.replace(p, 1, "Belt Cluster");
+                }
+            }
+        }
+
+        auto& m = o.via.array.ptr[3].via.map;
+        UN_MAP_START(m)
+            UN_PK("st", 1, v.updated_at);
+            UN_PK("st", 2, v.subType);
+            UN_PK("st", 3, v.orbitalPeriod);
+            UN_PK("st", 4, v.semiMajorAxis);
+            UN_PK("st", 5, v.orbitalEccentricity);
+            UN_PK("st", 6, v.orbitalInclination);
+            UN_PK("st", 7, v.argOfPeriapsis);
+            UN_PK("st", 8, v.meanAnomaly);
+            UN_PK("st", 9, v.ascendingNode);
+            UN_PK("st", 10, v.distanceToArrival);
+            UN_PK("st", 11, v.surfaceTemperature);
+            UN_PK("st", 12, v.rotationalPeriod);
+            UN_PK("st", 13, v.axialTilt);
+            UN_PK("st", 14, v.rotationalPeriodTidallyLocked);
+            UN_PK("st", 15, v.timestamps);
+            UN_PK("st", 16, v.parents);
+            UN_PK("st", 17, v.stations);
+                // "rings"
+                // "belts"
+
+            UN_PK_STAR("st", 30, v, mainStar);
+            UN_PK_STAR("st", 31, v, age);
+            UN_PK_STAR("st", 32, v, spectralClass);
+            UN_PK_STAR("st", 33, v, luminosity);
+            UN_PK_STAR("st", 34, v, absoluteMagnitude);
+            UN_PK_STAR("st", 35, v, solarMasses);
+            UN_PK_STAR("st", 36, v, solarRadius);
+
+            UN_PK_PLNT("st", 40, v, isLandable);
+            UN_PK_PLNT("st", 41, v, gravity);
+            UN_PK_PLNT("st", 42, v, earthMasses);
+            UN_PK_PLNT("st", 43, v, radius);
+            UN_PK_PLNT("st", 44, v, terraformingState);
+            UN_PK_PLNT("st", 45, v, reserveLevel);
+            UN_PK_PLNT("st", 46, v, surfacePressure);
+            UN_PK_PLNT("st", 47, v, volcanismType);
+            UN_PK_PLNT("st", 48, v, atmosphereType);
+            UN_PK_PLNT("st", 49, v, atmosphereComposition);
+            UN_PK_PLNT("st", 50, v, solidComposition);
+            UN_PK_PLNT("st", 51, v, materials);
+                // "signals"
+        UN_MAP_END()
+        return o;
+    }
+};
+
+
+//
+// db::StarSystemJS
+//
+
+template<>
 struct pack<db::StarSystemJS> {
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, db::StarSystemJS const& v) const {
+        o.pack_array(6);
         o.pack_fix_int64(v.id64);
         o.pack(v.name);
         o.pack_double(v.coords.x);
         o.pack_double(v.coords.y);
         o.pack_double(v.coords.z);
-        MAP_START(o)
-            PK_IF("ss", 1, v.allegiance);
-            PK_IF("ss", 2, v.government);
-            PK_IF("ss", 3, v.primaryEconomy);
-            PK_IF("ss", 4, v.secondaryEconomy);
-            PK_IF("ss", 5, v.security);
-            PK_IF("ss", 6, v.population);
-            PK_IF("ss", 7, v.bodyCount);
-            PK_IF("ss", 8, v.updated_at);
+        PK_MAP_START(o)
+            PK_IF("ss", 1, v.updated_at);
+            PK_IF("ss", 2, v.allegiance);
+            PK_IF("ss", 3, v.government);
+            PK_IF("ss", 4, v.primaryEconomy);
+            PK_IF("ss", 5, v.secondaryEconomy);
+            PK_IF("ss", 6, v.security);
+            PK_IF("ss", 7, v.population);
+            PK_IF("ss", 8, v.bodyCount);
             PK_IF("ss", 9, v.controllingFaction);
             PK_IF("ss", 10, v.bodies);
             PK_IF("ss", 11, v.stations);
-            //PK_IF("ss", 12, v.factions);
-            //PK_IF("ss", 13, v.powerState);
-            //PK_IF("ss", 14, v.powerConflictProgress);
-            //PK_IF("ss", 15, v.powers);
-            //PK_IF("ss", 16, v.controllingPower);
-            //PK_IF("ss", 17, v.powerStateControlProgress);
-            //PK_IF("ss", 18, v.powerStateReinforcement);
-            //PK_IF("ss", 19, v.powerStateUndermining);
-            //PK_IF("ss", 20, v.thargoidWar);
-        MAP_END(o)
+            if (tlDumpFull) {
+                PK_IF("ss", 12, v.factions);
+                PK_IF("ss", 13, v.powerState);
+                PK_IF("ss", 14, v.powerConflictProgress);
+                PK_IF("ss", 15, v.powers);
+                PK_IF("ss", 16, v.controllingPower);
+                PK_IF("ss", 17, v.powerStateControlProgress);
+                PK_IF("ss", 18, v.powerStateReinforcement);
+                PK_IF("ss", 19, v.powerStateUndermining);
+                PK_IF("ss", 20, v.thargoidWar);
+                PK_IF("ss", 21, v.timestamps);
+            }
+        PK_MAP_END(o)
         return o;
     }
 };
 
-//template<>
-//struct convert<db::StarSystemJS> {
-//    msgpack::object const& operator()(msgpack::object const& o, db::StarSystemJS& v) const {
-//        v.id64 = o.as<int64_t>();
-////        // Ensure the incoming object is actually an array with expected elements
-////        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
-////        if (o.via.array.size < 2) { throw msgpack::type_error(); }
-////
-////        // Manually map array elements back to class fields
-////        v.name = o.via.array.ptr[0].as<std::string>();
-////        v.age  = o.via.array.ptr[1].as<int>();
-//
-//        return o;
-//    }
-//};
+template<>
+struct convert<db::StarSystemJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::StarSystemJS& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 6) { throw msgpack::type_error(); }
+        v.id64 = o.via.array.ptr[0].as<int64_t>();
+        v.name = o.via.array.ptr[1].as<std::string>();
+        v.coords.x = o.via.array.ptr[2].as<double>();
+        v.coords.y = o.via.array.ptr[3].as<double>();
+        v.coords.z = o.via.array.ptr[4].as<double>();
+
+        tlStarSystemName = v.name;
+
+        auto& m = o.via.array.ptr[5].via.map;
+        UN_MAP_START(m)
+            UN_PK("ss", 1, v.updated_at);
+            UN_PK("ss", 2, v.allegiance);
+            UN_PK("ss", 3, v.government);
+            UN_PK("ss", 4, v.primaryEconomy);
+            UN_PK("ss", 5, v.secondaryEconomy);
+            UN_PK("ss", 6, v.security);
+            UN_PK("ss", 7, v.population);
+            UN_PK("ss", 8, v.bodyCount);
+            UN_PK("ss", 9, v.controllingFaction);
+            UN_PK("ss", 10, v.bodies);
+            UN_PK("ss", 11, v.stations);
+            UN_PK("ss", 12, v.factions);
+            UN_PK("ss", 13, v.powerState);
+            UN_PK("ss", 14, v.powerConflictProgress);
+            UN_PK("ss", 15, v.powers);
+            UN_PK("ss", 16, v.controllingPower);
+            UN_PK("ss", 17, v.powerStateControlProgress);
+            UN_PK("ss", 18, v.powerStateReinforcement);
+            UN_PK("ss", 19, v.powerStateUndermining);
+            UN_PK("ss", 20, v.thargoidWar);
+        UN_MAP_END()
+        return o;
+    }
+};
 
 } // namespace adaptor
 } // namespace MSGPACK_DEFAULT_API_NS
@@ -721,6 +714,7 @@ void test_cbor_end() {
 
 int test_cbor(StarSystemJS& ss_js) {
     tlStarSystemName = ss_js.name;
+    tlDumpFull = true;
     try {
         msgpack::sbuffer buffer;
         msgpack::pack(buffer, ss_js);
@@ -728,11 +722,66 @@ int test_cbor(StarSystemJS& ss_js) {
         if (dbg_cbor.is_open())
             dbg_cbor.write(buffer.data(), buffer.size());
 
+        StarSystemJS ss_back;
+        auto obj = msgpack::unpack(buffer.data(), buffer.size());
+        obj->convert(ss_back);
+
         return (int)buffer.size();
     } catch (const std::exception& e) {
         LOG_ERROR("Packing error");
         return 0;
     }
 }
+
+js::value decode_system_blob(const std::string& system_name, const void* data, int size) {
+    tlStarSystemName = system_name;
+    try {
+        msgpack::sbuffer buffer;
+        StarSystemJS ss;
+        auto obj = msgpack::unpack(buffer.data(), buffer.size());
+        obj->convert(ss);
+
+        js::value res = js::object({});
+        if (ss.allegiance) res["allegiance"] = ss.allegiance.sv();
+        if (ss.government) res["government"] = ss.government.sv();
+        if (ss.primaryEconomy) res["primaryEconomy"] = ss.primaryEconomy.sv();
+        if (ss.secondaryEconomy) res["secondaryEconomy"] = ss.secondaryEconomy.sv();
+        if (ss.security) res["security"] = ss.security.sv();
+        if (ss.population) res["population"] = ss.population;
+        if (ss.bodyCount) res["bodyCount"] = ss.bodyCount;
+        if (ss.powerState) res["powerState"] = ss.powerState.sv();
+        if (ss.controllingPower) res["controllingPower"] = ss.controllingPower.sv();
+        if (!std::isnan(ss.powerStateControlProgress)) res["powerStateControlProgress"] = ss.powerStateControlProgress;
+        if (!std::isnan(ss.powerStateReinforcement)) res["powerStateReinforcement"] = ss.powerStateReinforcement;
+        if (!std::isnan(ss.powerStateUndermining)) res["powerStateUndermining"] = ss.powerStateUndermining;
+        if (!ss.powers.empty()) {
+            res["powers"] = js::array({});
+            auto& powers = res["powers"].as_array();
+            powers.reserve(ss.powers.size());
+            for (auto& pw : ss.powers)
+                powers.push_back(pw.sv());
+        }
+        if (!ss.timestamps.empty()) {
+            res["timestamps"] = js::object({});
+            js::value::object_type& timestamps = res["timestamps"].as_object();
+            for (auto& [key,val] : ss.timestamps)
+                res["timestamps"][key.sv()] = formatTimestampString(val);
+        }
+//        std::unique_ptr<FactionJS> controllingFaction;
+//        std::vector<FactionJS> factions;
+//        std::vector<PowerConflictJS> powerConflictProgress;
+//        std::unique_ptr<ThargoidWarJS> thargoidWar {};
+
+        return res;
+    } catch (const std::exception& e) {
+        LOG_ERROR("decode_system_blob error");
+        return {};
+    }
+}
+
+bool encode_system_blob(const std::string& system_name, std::stringstream& buffer, const js::value& ext) {
+    return false;
+}
+
 
 }

@@ -32,7 +32,7 @@ static cv::Rect rect_from_json(const js::value& v) {
 
 static js::value rect_to_json(const cv::Rect& r) {
     js::value jr = js::array({r.x, r.y, r.width, r.height});
-    jr.add_flags(js::force::no_indent);
+    jr.set_no_indent();
     return jr;
 }
 

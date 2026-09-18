@@ -28,6 +28,23 @@
     </Expand>
   </Type>
 
+  <Type Name="js::impl::arr&lt;*&gt;">
+    <DisplayString Condition="!m_storage">[]</DisplayString>
+    <DisplayString Condition="m_storage->m_size == 0">[]</DisplayString>
+    <DisplayString Condition="m_storage->m_size == 1">[{m_storage->m_data[0]}]</DisplayString>
+    <DisplayString Condition="m_storage->m_size == 2">[{m_storage->m_data[0]}, {m_storage->m_data[1]}]</DisplayString>
+    <DisplayString Condition="m_storage->m_size == 3">[{m_storage->m_data[0]}, {m_storage->m_data[1]}, {m_storage->m_data[2]}]</DisplayString>
+    <DisplayString                                   >[{m_storage->m_data[0]}, {m_storage->m_data[1]}, {m_storage->m_data[2]}, ...] size={m_size}</DisplayString>
+    <Expand>
+      <Item Name="size">m_storage->m_size</Item>
+      <Item Name="capacity">m_storage->m_capacity</Item>
+      <ArrayItems>
+        <Size>m_storage->m_size</Size>
+        <ValuePointer>($T1 *) &amp; m_storage->m_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
   <Type Name="ed::small_map&lt;*,*&gt;">
     <DisplayString Condition="size_ == 0 &amp;&amp; capacity_ == 0">empty</DisplayString>
     <DisplayString Condition="size_ == 0">size={size_} ({capacity_})</DisplayString>
@@ -42,22 +59,6 @@
     </Expand>
   </Type>
 
-  <Type Name="js::value::arr_val">
-    <DisplayString Condition="arr.m_size == 0">[]</DisplayString>
-    <DisplayString Condition="arr.m_size == 1">[{*arr.m_data}]</DisplayString>
-    <DisplayString Condition="arr.m_size == 2">[{arr.m_data[0]}, {arr.m_data[1]}]</DisplayString>
-    <DisplayString Condition="arr.m_size == 3">[{arr.m_data[0]}, {arr.m_data[1]}, {arr.m_data[2]}]</DisplayString>
-    <DisplayString                            >[{arr.m_data[0]}, {arr.m_data[1]}, {arr.m_data[2]}, ...] size={arr.m_size}</DisplayString>
-    <Expand>
-      <Item Name="size">arr.m_size</Item>
-      <Item Name="capacity">arr.m_capacity</Item>
-      <ArrayItems>
-        <Size>arr.m_size</Size>
-        <ValuePointer>arr.m_data</ValuePointer>
-      </ArrayItems>
-    </Expand>
-  </Type>
-
   <Type Name="js::value::obj_val">
     <DisplayString                             >{map}</DisplayString>
     <Expand>
@@ -66,16 +67,45 @@
   </Type>
 
   <Type Name="js::value">
-    <DisplayString Condition="content._Which == 0">null</DisplayString>
-    <DisplayString Condition="content._Which == '\x1'">{*(bool*)&amp;content}</DisplayString>
-    <DisplayString Condition="content._Which == '\x2'">{*(__int64*)&amp;content}</DisplayString>
-    <DisplayString Condition="content._Which == '\x3'">{*(double*)&amp;content}</DisplayString>
-    <DisplayString Condition="content._Which == '\x4'">{*(js::impl::str*)&amp;content}</DisplayString>
-    <DisplayString Condition="content._Which == '\x5'">{*(js::value::arr_val*)&amp;content}</DisplayString>
-    <DisplayString Condition="content._Which == '\x6'">{*(js::value::obj_val*)&amp;content}</DisplayString>
+    <Intrinsic Name="isNull" Expression="type == 0" />
+    <Intrinsic Name="isBool" Expression="type == 1" />
+    <Intrinsic Name="isInt"  Expression="type == 2" />
+    <Intrinsic Name="isReal" Expression="type == 3" />
+    <Intrinsic Name="isStrB" Expression="type == 4" />
+    <Intrinsic Name="isStrX" Expression="type == 5" />
+    <Intrinsic Name="isStrO" Expression="type == 6" />
+    <Intrinsic Name="isArr0" Expression="type == 7 &amp;&amp; !content.array.m_storage" />
+    <Intrinsic Name="isArrN" Expression="type == 7 &amp;&amp; content.array.m_storage" />
+    <Intrinsic Name="isMap"  Expression="type == 8" />
+    <DisplayString Condition="isNull()">null</DisplayString>
+    <DisplayString Condition="isBool()">{content.boolean}</DisplayString>
+    <DisplayString Condition="isInt()" >{content.integer}</DisplayString>
+    <DisplayString Condition="isReal()">{content.real}</DisplayString>
+    <DisplayString Condition="isStrB()">{(char*) &amp; content.str.buf}</DisplayString>
+    <DisplayString Condition="isStrX()">{content.str.ptr}</DisplayString>
+    <DisplayString Condition="isStrO()">{content.str.ptr}</DisplayString>
+    <DisplayString Condition="isArr0()">[]</DisplayString>
+    <DisplayString Condition="isArrN()">{content.array}</DisplayString>
+    <DisplayString Condition="isMap() ">{*content.object}</DisplayString>
     <DisplayString>{content}</DisplayString>
     <Expand>
-      <ExpandedItem>content</ExpandedItem>
+      <Item Name="type">type</Item>
+      <Item Name="value" Condition="isBool()">content.boolean</Item>
+      <Item Name="value" Condition="isInt()" >content.integer</Item>
+      <Item Name="value" Condition="isReal()">content.real</Item>
+
+      <Item Name="size"  Condition="isStrX()">count</Item>
+      <Item Name="size"  Condition="isStrO()">count</Item>
+      <Item Name="value" Condition="isStrB()">content.str.buf</Item>
+      <Item Name="value" Condition="isStrX()">content.str.ptr</Item>
+      <Item Name="value" Condition="isStrO()">content.str.ptr</Item>
+
+      <ExpandedItem      Condition="isArrN()">content.array</ExpandedItem>
+
+      <Item Name="nkeys" Condition="isMap() ">count</Item>
+      <ExpandedItem      Condition="isMap() ">*content.object</ExpandedItem>
+
+      <Item Name="flags">flags</Item>
     </Expand>
   </Type>
 

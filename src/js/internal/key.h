@@ -7,8 +7,7 @@
 #ifndef EDROBOT_JS_KEY_H
 #define EDROBOT_JS_KEY_H
 
-namespace js {
-namespace impl {
+namespace js::impl {
 
 class key {
 private:
@@ -127,7 +126,6 @@ public:
     }
 };
 
-} // namespace impl
-} // namespace js
+} // namespace js::impl
 
 #endif //EDROBOT_JS_KEY_H

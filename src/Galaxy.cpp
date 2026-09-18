@@ -146,7 +146,7 @@ void saveMarket(Market* market) {
                 for (Commodity* c : ci.assigned)
                     ja.as_array().push_back(c->nameId);
                 jcmdr["assigned"] = ja;
-                jcmdr.add_flags(js::force::no_indent);
+                jcmdr.set_no_indent();
             }
         }
     }
@@ -168,7 +168,7 @@ void saveMarket(Market* market) {
             jv["Consumer"] = ml.isConsumer;
         if (ml.isProducer)
             jv["Producer"] = true;
-        jv.add_flags(js::force::no_indent);
+        jv.set_no_indent();
     }
 
     std::filesystem::path fp(std::format(L"cache/markets/{}.json", market->marketId));
@@ -281,15 +281,15 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
     }
     if (!ss->savedDbBase) {
         db::StarSystem db_ss = db::loadStarSystem(systemAddress);
-        if (db_ss.id) {
-            ss->dbBlobId = db_ss.blobId;
-        } else {
+        if (!db_ss.id) {
             db_ss = {
                     .id = ss->systemAddress,
                     .name = ss->systemName,
                     .x = ss->starPos.x,
                     .y = ss->starPos.y,
                     .z = ss->starPos.z,
+                    .updated = ss->updated_at,
+                    .eddn_updated = ss->eddn_updated_at,
             };
             db::saveStarSystem(db_ss);
         }
@@ -390,7 +390,8 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
 
 void StarSystem::save() {
     if (!savedDbBase) {
-        savedDbBase = db::saveStarSystem({systemAddress, systemName, starPos.x, starPos.y, starPos.z, dbBlobId});
+        savedDbBase = db::saveStarSystem({systemAddress, systemName, starPos.x, starPos.y, starPos.z,
+                                          updated_at, eddn_updated_at});
     }
     std::vector sorted_bodies = bodies;
     std::sort(sorted_bodies.begin(), sorted_bodies.end(), [](const spEntity& a, const spEntity& b) {
@@ -431,7 +432,7 @@ void StarSystem::save() {
             if (seconds)
                 jb["updateTime"] = seconds;
         }
-        jb.add_flags(js::force::no_indent);
+        jb.set_no_indent();
         jbodies.as_array().push_back(jb);
     }
     for (auto& st : stations) {
@@ -453,7 +454,7 @@ void StarSystem::save() {
             if (seconds)
                 jst["updateTime"] = seconds;
         }
-        jst.add_flags(js::force::no_indent);
+        jst.set_no_indent();
         jstations.as_array().push_back(jst);
     }
 
@@ -471,7 +472,7 @@ void StarSystem::save() {
     };
     if (eddn_updated_at.time_since_epoch().count() != 0)
         jout["eddn_updated_at"] = formatTimestampString(eddn_updated_at, false);
-    jout["coords"].add_flags(js::force::no_indent);
+    jout["coords"].deref().set_no_indent();
 
     std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(systemName)));
     std::ofstream ofs(fp);
@@ -501,7 +502,8 @@ static spStarSystem loadStarSystem(spStarSystem ss, std::string_view name, int64
             .x = ss->starPos.x,
             .y = ss->starPos.y,
             .z = ss->starPos.z,
-            .blobId = ss->dbBlobId,
+            .updated = ss->updated_at,
+            .eddn_updated = ss->eddn_updated_at,
         };
         ss->savedDbBase = db::saveStarSystem(s);
     }
@@ -533,7 +535,8 @@ spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d*
         db::StarSystem s = db::loadStarSystem(address);
         if (!s.name.empty()) {
             ss = theCache.put(address, name, s.x, s.y, s.z);
-            ss->dbBlobId = s.blobId;
+            ss->updated_at = s.updated;
+            ss->eddn_updated_at = s.eddn_updated;
             ss->savedDbBase = true;
         }
         else if (address && !name.empty()) {
@@ -543,10 +546,11 @@ spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d*
             ss = theCache.put(address, name, x, y, z);
             s = { .id = ss->systemAddress,
                   .name = ss->systemName,
-                  .x = ss->starPos.x,
-                  .y = ss->starPos.y,
-                  .z = ss->starPos.z,
-                  .blobId = ss->dbBlobId,
+                  .x = x,
+                  .y = y,
+                  .z = z,
+                  .updated = ss->updated_at,
+                  .eddn_updated = ss->eddn_updated_at,
             };
             db::saveStarSystem(s);
         }
