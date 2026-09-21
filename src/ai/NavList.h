@@ -9,7 +9,7 @@
 
 #include "Types.h"
 #include "Task.h"
-#include "../Galaxy.h"
+#include "../gal/Galaxy.h"
 
 namespace ai {
 

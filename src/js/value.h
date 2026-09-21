@@ -15,7 +15,12 @@
 #include "internal/impl.h"
 #include "internal/key.h"
 #include "internal/str.h"
-#include "internal/arr.h"
+#include "small_map.h"
+#include "symbol.h"
+#include "vector.h"
+#include "Enum.h"
+
+#include <boost/pool/pool_alloc.hpp>
 
 namespace js {
 
@@ -33,36 +38,6 @@ class ordered_range;
 class value
 {
 private:
-//    struct obj_val {
-//        using map_type = std::map<impl::key, value>;
-//
-//        map_type map;
-//        unsigned short force_flags {};
-//        unsigned short key_count {};
-//        [[nodiscard]] bool empty() const {
-//            return map.empty();
-//        }
-//        [[nodiscard]] bool contains(std::string_view sv) const {
-//            impl::key key(0, sv);
-//            return map.contains(key);
-//        }
-//        bool operator==(const obj_val& other) const {
-//            return this->map == other.map;
-//        }
-//    };
-//    struct arr_val {
-//        using arr_type = impl::arr<value>;
-//
-//        arr_type arr;
-//        unsigned short force_flags {};
-//        unsigned short key_count {};
-//        [[nodiscard]] bool empty() const {
-//            return arr.empty();
-//        }
-//        bool operator==(const arr_val& other) const {
-//            return this->arr == other.arr;
-//        }
-//    };
 
     template<unsigned N, bool M> friend class ref;
     template <bool C> friend class object_iterator;
@@ -85,8 +60,9 @@ public:
     using unsigned_type = uint64_t;
     using floating_type = double;
     using string_type = std::string_view;
-    using array_type = impl::arr<value>;
-    using object_type = std::map<impl::key, value, std::less<void>>;
+    using array_type = js::vector<value>;
+    //using object_type = std::map<impl::key, value, std::less<void>, boost::fast_pool_allocator<std::pair<const impl::key,value>>>;
+    using object_type = js::small_map<impl::key, value>;
     using pair_type = std::pair<std::string_view,value>;
 
     /*================================================================================

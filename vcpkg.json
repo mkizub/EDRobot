@@ -32,10 +32,16 @@
     "name" : "curl",
     "version>=" : "8.14.1"
   }, {
+    "name" : "boost-container",
+    "version>=" : "1.92.0"
+  }, {
     "name" : "boost-circular-buffer",
     "version>=" : "1.92.0"
   }, {
     "name" : "boost-multi-index",
+    "version>=" : "1.92.0"
+  }, {
+    "name" : "boost-pool",
     "version>=" : "1.92.0"
   }, {
     "name" : "zlib",
@@ -60,7 +66,7 @@
   }, {
     "name" : "msgpack",
     "version>=" : "9.0.0",
-    "features" : [],
+    "features" : [ ],
     "default-features" : false
   } ]
 }

@@ -8,7 +8,7 @@
 #include "UILayout.h"
 #include "UIManager.h"
 #include "UIMainDialog.h"
-#include "../Galaxy.h"
+#include "../gal/Galaxy.h"
 
 #include "../../ui/resource.h"
 #include <winlamb/dialog_modal.h>
@@ -614,7 +614,7 @@ void EntityDialog::on_save() {
         if (t_idx >= 0 && t_idx < typeNavEntries.size())
             tp = typeNavEntries[t_idx].first;
         if (tp != ctrl->entity->type) {
-            ctrl->entity->type = tp;
+            ctrl->entity->setType(tp);
             ctrl->ui->currStarSystem->saved = false;
             ctrl->icon_site.set_icon(ctrl->icon_name());
             UILayout lo(ctrl->ui->hwnd());

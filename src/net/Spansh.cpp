@@ -5,7 +5,7 @@
 
 #include "Spansh.h"
 #include "HttpInterceptor.h"
-#include "../Galaxy.h"
+#include "../gal/Galaxy.h"
 #include "../db/DB.h"
 
 #include <curl/curl.h>
@@ -62,7 +62,7 @@ static void parseBodyId(const gal::spStarSystem &ss, gal::spEntity &entity, cons
             auto p = ss->getBodyById(p_id);
             if (!p) {
                 p = std::make_shared<gal::Entity>();
-                p->type = p_type;
+                p->setType(p_type);
                 p->bodyId = p_id;
                 ss->bodies.push_back(p);
                 ss->saved = false;
@@ -138,11 +138,11 @@ static void parseStation(const gal::spStarSystem &ss, const js::value &jb, int p
         type = "PlanetaryInstallation";
 
     if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value()) {
-        site->type = typeNav.value();
+        site->setType(typeNav.value());
     } else {
         for (auto nt: gal::ALL_NAV_TYPES) {
             if (nt->match_name(name)) {
-                site->type = nt->type;
+                site->setType(nt->type);
                 break;
             }
         }
@@ -150,7 +150,7 @@ static void parseStation(const gal::spStarSystem &ss, const js::value &jb, int p
             TypeNav tp = TypeNav::Other;
             for (auto nt: gal::ALL_NAV_TYPES) {
                 if (nt->match_type(type)) {
-                    site->type = nt->type;
+                    site->setType(nt->type);
                     break;
                 }
             }
@@ -177,13 +177,13 @@ static void parseBody(const gal::spStarSystem &ss, const js::value &jb) {
     gal::spEntity body(new gal::Entity);
     if (jb["type"].is_string()) {
         const auto type = jb["type"].as_string();
-        if (type == "Star") body->type = TypeNav::Star;
-        else if (type == "Planet") body->type = TypeNav::Planet;
-        else if (type == "AsteroidCluster") body->type = TypeNav::AsteroidCluster;
-        else if (type == "Ring") body->type = TypeNav::Ring;
-        else if (type == "Barycentre") body->type = TypeNav::Barycenter;
+        if (type == "Star") body->setType(TypeNav::Star);
+        else if (type == "Planet") body->setType(TypeNav::Planet);
+        else if (type == "Asteroid Cluster") body->setType(TypeNav::AsteroidCluster);
+        else if (type == "Ring") body->setType(TypeNav::Ring);
+        else if (type == "Barycentre") body->setType(TypeNav::Barycenter);
         else
-            body->type = TypeNav::Body;
+            body->setType(TypeNav::Body);
     }
     parseBodyId(ss, body, jb);
 
@@ -196,7 +196,7 @@ static void parseBody(const gal::spStarSystem &ss, const js::value &jb) {
         if (auto b = ss->getBody(name); b && b->bodyId < 0) {
             TypeNav tp = body->type;
             body = b;
-            body->type = tp;
+            body->setType(tp);
             is_new = false;
         } else
             body->setName(name);
@@ -239,8 +239,8 @@ gal::spStarSystem loadStarSystem(int64_t systemAddress) {
         gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, &systemPos, false);
         parseTimestampString(jsystem["date"].as_string_or(), ss->eddn_updated_at);
         int body_count = jsystem["bodyCount"].as_int_or();
-        if (body_count > 0 && body_count != ss->game_body_count)
-            ss->game_body_count = body_count;
+        if (body_count > 0 && body_count != ss->ext.bodyCount)
+            ss->ext.bodyCount = body_count;
 
         for (auto &jb: jsystem["bodies"].as_array_or()) {
             parseBody(ss, jb);

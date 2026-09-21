@@ -2,7 +2,7 @@
 // Created by mkizub on 22.08.2025.
 //
 
-#include "pch.h"
+#include "../pch.h"
 
 #include <unordered_set>
 #include <boost/multi_index_container.hpp>
@@ -10,8 +10,8 @@
 #include <boost/multi_index/member.hpp>
 
 #include "Galaxy.h"
-#include "db/DB.h"
-#include "net/Spansh.h"
+#include "../db/DB.h"
+#include "../net/Spansh.h"
 
 namespace gal {
 
@@ -298,14 +298,14 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
     if (jsystem["eddn_updated_at"].is_string())
         parseTimestampString(jsystem["eddn_updated_at"].as_string_or(), ss->eddn_updated_at);
     if (jsystem["bodyCount"].is_int())
-        ss->game_body_count = jsystem["bodyCount"].as_int_or();
+        ss->ext.bodyCount = jsystem["bodyCount"].as_int_or();
 
     for (auto& jb : jsystem["bodies"].as_array_or()) {
         spEntity body(new Entity);
         if (jb["type"].is_string()) {
             const auto type = jb["type"].as_string();
             if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value())
-                body->type = typeNav.value();
+                body->setType(typeNav.value());
         }
         parseUpdated(body, jb);
         parseBodyId(ss, body, jb);
@@ -346,11 +346,11 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
         if (jb["type"].is_string())
              type = jb["type"].as_string();
         if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value()) {
-            site->type = typeNav.value();
+            site->setType(typeNav.value());
         } else {
             for (auto nt: ALL_NAV_TYPES) {
                 if (nt->match_name(name)) {
-                    site->type = nt->type;
+                    site->setType(nt->type);
                     break;
                 }
             }
@@ -358,7 +358,7 @@ static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool sav
                 TypeNav tp = TypeNav::Other;
                 for (auto nt: ALL_NAV_TYPES) {
                     if (nt->match_type(type)) {
-                        site->type = nt->type;
+                        site->setType(nt->type);
                         break;
                     }
                 }
@@ -393,6 +393,17 @@ void StarSystem::save() {
         savedDbBase = db::saveStarSystem({systemAddress, systemName, starPos.x, starPos.y, starPos.z,
                                           updated_at, eddn_updated_at});
     }
+
+    js::value jinfo = js::object({});
+    jinfo.set_no_indent().set_no_object_nulls();
+    if (ext.bodyCount) jinfo["bodyCount"] = ext.bodyCount;
+    if (ext.population) jinfo["population"] = ext.population;
+    if (ext.allegiance) jinfo["allegiance"] = ext.allegiance;
+    if (ext.government) jinfo["government"] = ext.government;
+    if (ext.primaryEconomy) jinfo["primaryEconomy"] = ext.primaryEconomy;
+    if (ext.secondaryEconomy) jinfo["secondaryEconomy"] = ext.secondaryEconomy;
+    if (ext.security) jinfo["security"] = ext.security;
+
     std::vector sorted_bodies = bodies;
     std::sort(sorted_bodies.begin(), sorted_bodies.end(), [](const spEntity& a, const spEntity& b) {
         return a->bodyId < b->bodyId;
@@ -466,7 +477,7 @@ void StarSystem::save() {
                 {"y", starPos.y},
                 {"z", starPos.z},
                 })},
-            {"bodyCount", game_body_count},
+            {"info",     jinfo},
             {"bodies",   jbodies},
             {"stations", jstations},
     };
@@ -733,7 +744,7 @@ void StarSystem::addDestination() {
     }
     else if (dname.starts_with("Orbital Construction Site:")) {
         spEntity site = std::make_shared<Entity>();
-        site->type = TypeNav::SpaceConstrDepot;
+        site->setType(TypeNav::SpaceConstrDepot);
         site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
         stations.push_back(site);
@@ -741,7 +752,7 @@ void StarSystem::addDestination() {
     }
     else if (dname.starts_with("Planetary Construction Site:")) {
         spEntity site = std::make_shared<Entity>();
-        site->type = TypeNav::PlanetaryConstrDepot;
+        site->setType(TypeNav::PlanetaryConstrDepot);
         site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
         stations.push_back(site);
@@ -749,7 +760,7 @@ void StarSystem::addDestination() {
     }
     else if (dname.starts_with("$EXT_PANEL_ColonisationShip;")) {
         spEntity site = std::make_shared<Entity>();
-        site->type = TypeNav::ColonisationShip;
+        site->setType(TypeNav::ColonisationShip);
         site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
         stations.push_back(site);
@@ -791,7 +802,7 @@ spEntity StarSystem::addNavListEntry(wchar_t charOCR, const std::string& nav_ico
     }
 
     if (typeNav != TypeNav::Other && entity->type != typeNav) {
-        entity->type = typeNav;
+        entity->setType(typeNav);
         saved = false;
     }
     if (entity->name.empty() || !entity->nameEq(sname)) {
@@ -892,7 +903,7 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
             typeNav = TypeNav::EngineerPort;
     }
     if (typeNav != TypeNav::Other && dock->type != typeNav) {
-        dock->type = typeNav;
+        dock->setType(typeNav);
         saved = false;
     }
     if (!sname.empty() && (dock->name.empty() || !dock->nameEq(sname))) {
@@ -941,7 +952,7 @@ spEntity StarSystem::addSignal(spEntity signal) {
 
 void StarSystem::checkType(spEntity& site, TypeNav type, Timestamp timestamp) {
     if (site && /*type != TypeNav::Other &&*/ site->type != type && site->updated < timestamp) {
-        site->type = type;
+        site->setType(type);
         site->updated = timestamp;
         saved = false;
     }
@@ -991,11 +1002,11 @@ void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEv
         if (!site) {
             site.reset(new Entity());
             if (stype == "NavBeacon")
-                site->type = TypeNav::NavBeacon;
+                site->setType(TypeNav::NavBeacon);
             else if (stype == "FleetCarrier")
-                site->type = TypeNav::FleetCarrier;
+                site->setType(TypeNav::FleetCarrier);
             else if (stype == "SquadronCarrier")
-                site->type = TypeNav::SquadronCarrier;
+                site->setType(TypeNav::SquadronCarrier);
             site->setName(sname);
             stations.push_back(site);
             saved = false;
@@ -1051,6 +1062,80 @@ void setMarketData(spMarket market) {
     }
     gMarketById[market->marketId] = market;
     saveMarket(market.get());
+}
+
+void Entity::setType(TypeNav tp) {
+    if (tp == type)
+        return;
+
+    TypeNav old_type = this->type;
+    TypeNav& new_type = const_cast<TypeNav&>(this->type);
+    new_type = tp;
+
+    if (isBody(new_type)) {
+        Entity::BodyData body_ext {};
+        if (old_type == TypeNav::Star)
+            body_ext = std::get<Entity::StarData>(ext);
+        else if (old_type == TypeNav::Planet)
+            body_ext = std::get<Entity::StarData>(ext);
+        else if (isBody(old_type))
+            body_ext = std::get<Entity::BodyData>(ext);
+
+        if (new_type == TypeNav::Star) {
+            Entity::StarData s_ext {};
+            static_cast<Entity::BodyData &>(s_ext) = body_ext;
+            ext = s_ext;
+        }
+        else if (new_type == TypeNav::Planet) {
+            Entity::PlanetData p_ext {};
+            static_cast<Entity::BodyData &>(p_ext) = body_ext;
+            ext = p_ext;
+        }
+        else {
+            ext = body_ext;
+        }
+        return;
+    }
+
+    if (isSpaceSite(new_type) || isPlanetarySite(new_type)) {
+        if (!std::holds_alternative<Entity::StationData>(ext)) {
+            Entity::StationData station_data {};
+            ext = station_data;
+        }
+        return;
+    }
+
+    if (!std::holds_alternative<std::monostate>(ext))
+        ext = std::monostate{};
+}
+
+Entity::BodyData& Entity::getBodyData() {
+    if (isBody(type)) {
+        if (std::holds_alternative<Entity::BodyData>(ext))
+            return std::get<Entity::BodyData>(ext);
+        if (std::holds_alternative<Entity::StarData>(ext))
+            return std::get<Entity::StarData>(ext);
+        if (std::holds_alternative<Entity::PlanetData>(ext))
+            return std::get<Entity::PlanetData>(ext);
+    }
+    throw std::bad_variant_access();
+}
+
+Entity::StarData& Entity::getStarData() {
+    if (type == TypeNav::Star)
+        return std::get<Entity::StarData>(ext);
+    throw std::bad_variant_access();
+}
+
+Entity::PlanetData& Entity::getPlanetData() {
+    if (type == TypeNav::Planet)
+        return std::get<Entity::PlanetData>(ext);
+    throw std::bad_variant_access();
+}
+Entity::StationData& Entity::getStationData() {
+    if (isSpaceSite(type))
+        return std::get<Entity::StationData>(ext);
+    throw std::bad_variant_access();
 }
 
 bool Entity::nameEq(std::string_view nm) const {

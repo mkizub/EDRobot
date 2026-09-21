@@ -2,7 +2,7 @@
 // Created by mkizub on 13.11.2025.
 //
 
-#include "pch.h"
+#include "../pch.h"
 
 #include "Galaxy.h"
 

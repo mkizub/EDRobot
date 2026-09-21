@@ -6,7 +6,7 @@
 
 #include "CargoManager.h"
 
-#include "Galaxy.h"
+#include "gal/Galaxy.h"
 #include "ui/UIManager.h"
 #include "net/RavenColonial.h"
 

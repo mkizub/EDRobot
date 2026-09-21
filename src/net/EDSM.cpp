@@ -6,7 +6,7 @@
 
 #include "EDSM.h"
 #include "HttpInterceptor.h"
-#include "../Galaxy.h"
+#include "../gal/Galaxy.h"
 
 #include <curl/curl.h>
 #include <cpr/cpr.h>

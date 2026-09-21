@@ -6,7 +6,7 @@
 
 #include "EDDN.h"
 #include "HttpInterceptor.h"
-#include "../Galaxy.h"
+#include "../gal/Galaxy.h"
 
 #include <cpr/cpr.h>
 

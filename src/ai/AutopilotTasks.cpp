@@ -9,9 +9,9 @@
 #include "AIUtils.h"
 #include "AutopilotTasks.h"
 #include "EmergencyTasks.h"
-#include "../Galaxy.h"
 #include "../Keyboard.h"
 #include "../ShipStats.h"
+#include "../gal/Galaxy.h"
 #include "../widget/EDWidget.h"
 
 namespace ai {

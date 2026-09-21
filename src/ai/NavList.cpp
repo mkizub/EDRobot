@@ -274,8 +274,8 @@ gal::spEntity NavList::guessNavItem(int idx) {
                 if (match >= 60 && match > bestMatch) {
                     bestMatch = match;
                     bestItem = std::make_shared<gal::Entity>();
-                    bestItem->type = gal::STAR_SYSTEM.type;
-                    bestItem->name = toUtf8(ws);
+                    bestItem->setType(gal::STAR_SYSTEM.type);
+                    bestItem->setName(toUtf8(ws));
                 }
             }
         }
@@ -347,8 +347,8 @@ gal::spEntity NavList::guessNavItem(int idx) {
                     if (match >= 80 && match > bestMatch) {
                         bestMatch = match;
                         bestItem = std::make_shared<gal::Entity>();
-                        bestItem->type = nt->type;
-                        bestItem->name = nl.second;
+                        bestItem->setType(nt->type);
+                        bestItem->setName(nl.second);
                     }
                 }
             }

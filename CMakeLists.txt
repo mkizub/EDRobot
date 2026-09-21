@@ -42,7 +42,6 @@ add_executable(EDRobot WIN32
         src/pch.h
         src/ed_opencv.h
         src/ed_spdlog.h
-        src/compact_vector.h
         src/Types.h
         src/main.cpp
         src/CargoManager.cpp
@@ -54,9 +53,6 @@ add_executable(EDRobot WIN32
         src/Configuration.h
         src/FuzzyMatch.cpp
         src/FuzzyMatch.h
-        src/Galaxy.cpp
-        src/Galaxy.h
-        src/GalaxyNav.cpp
         src/Keyboard.cpp
         src/Keyboard.h
         src/Master.cpp
@@ -99,7 +95,6 @@ add_executable(EDRobot WIN32
         src/ai/Types.h
 
         src/db/DB.h
-        src/db/JsEnum.h
         src/db/DB.cpp
         src/db/Remap.cpp
         src/db/JsonCode.cpp
@@ -121,12 +116,23 @@ add_executable(EDRobot WIN32
         src/detect/Tiles.cpp
         src/detect/Tiles.h
 
+        src/gal/Galaxy.h
+        src/gal/Galaxy.cpp
+        src/gal/GalaxyNav.cpp
+        src/gal/Symbols.cpp
+        src/gal/Convert.cpp
+
         src/js/internal/impl.h
         src/js/internal/key.h
         src/js/internal/str.h
         src/js/internal/arr.h
         src/js/value.h
         src/js/parser.h
+        src/js/small_map.h
+        src/js/symbol.h
+        src/js/vector.h
+        src/js/Enum.h
+        src/js/Enum.cpp
 
         src/net/NetUtils.cpp
         src/net/NetUtils.h

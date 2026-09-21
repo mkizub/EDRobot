@@ -414,4 +414,101 @@ struct Bookmark {
 };
 typedef std::shared_ptr<Bookmark> spBookmark;
 
+
+struct opt_float {
+    float val;
+
+    opt_float() : val {std::numeric_limits<float>::quiet_NaN()} {}
+    opt_float(float value) : val {value} {}
+
+    constexpr opt_float& operator=(const opt_float& other) noexcept {
+        val = other.val;
+        return *this;
+    }
+    constexpr opt_float& operator=(float value) noexcept {
+        val = value;
+        return *this;
+    }
+
+    constexpr void reset() noexcept {
+        val = std::numeric_limits<float>::quiet_NaN();
+    }
+
+    float& emplace() noexcept {
+        val = std::numeric_limits<float>::quiet_NaN();
+        return val;
+    }
+
+    float& emplace(float value) noexcept {
+        val = value;
+        return val;
+    }
+
+    bool has_value() const {
+        return !std::isnan(val);
+    }
+
+    float& value() & {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return val;
+    }
+    const float& value() const & {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return val;
+    }
+    float&& value() && {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return std::move(val);
+    }
+    const float&& value() const && {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return std::move(val);
+    }
+    float value_or(float&& default_value) && {
+        if (std::isnan(val)) return default_value;
+        return val;
+    }
+    float value_or(float&& default_value) const & {
+        if (std::isnan(val)) return default_value;
+        return val;
+    }
+};
+
+struct LandingPads {
+    int8_t large {};
+    int8_t medium {};
+    int8_t small {};
+    [[nodiscard]] bool empty() const { return large==0 && medium==0 && small==0; }
+};
+
+#define JS_ENUM_DECL(NAME)                                                      \
+    struct Js##NAME##Decl : public js::EnumDecl<struct Js##NAME> {};            \
+    struct Js##NAME : public js::Enum<Js##NAME##Decl> {};
+
+JS_ENUM_DECL(Allegiance)
+JS_ENUM_DECL(Government)
+JS_ENUM_DECL(Economy)
+JS_ENUM_DECL(Security)
+JS_ENUM_DECL(FactionState)
+JS_ENUM_DECL(Power)
+JS_ENUM_DECL(PowerState)
+JS_ENUM_DECL(ThargoidState)
+JS_ENUM_DECL(ParentBodyType)
+JS_ENUM_DECL(BodyType)
+JS_ENUM_DECL(BodySubType)
+JS_ENUM_DECL(VolcanismType)
+JS_ENUM_DECL(AtmosphereType)
+JS_ENUM_DECL(SolidType)
+JS_ENUM_DECL(TerraformingState)
+JS_ENUM_DECL(Materials)
+JS_ENUM_DECL(ReserveLevel)
+JS_ENUM_DECL(Timestamps)
+JS_ENUM_DECL(Services)
+JS_ENUM_DECL(StationType)
+JS_ENUM_DECL(StationState)
+JS_ENUM_DECL(CarrierDockingAccess)
+JS_ENUM_DECL(SpectralClass)
+JS_ENUM_DECL(Luminosity)
+
+
 #endif //EDROBOT_TYPES_H

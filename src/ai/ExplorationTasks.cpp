@@ -76,7 +76,7 @@ bool TaskSystemsAround::run() {
             throw_failed("Failed to scan systems around '{}'", systemName);
             return false;
         }
-        LOG_INFO("Scanned around systems address {:14d} name \"{}\" is unknown",
+        LOG_INFO("Scanned around systems address {:14d} name \"{}\"",
                  starSystem->systemAddress, starSystem->systemName);
         auto& foundSystems = std::static_pointer_cast<NavListScanSystemsTask>(scan_task)->foundSystems;
         for (int sidx=0; sidx < foundSystems.size(); sidx++) {
@@ -91,7 +91,7 @@ bool TaskSystemsAround::run() {
                 }
             } else {
                 auto eddn_updated_at = formatTimestampString(ss->eddn_updated_at);
-                if (ss->game_body_count <= 0) {
+                if (ss->ext.bodyCount <= 0) {
                     LOG_INFO("Selected system[{:2d}] address {:14d} name \"{}\" not scanned: updated at {}",
                              sidx, ss->systemAddress, ss->systemName, eddn_updated_at);
                     systems.push_back(ss);
@@ -101,13 +101,13 @@ bool TaskSystemsAround::run() {
                         if (b->type == TypeNav::Star || b->type == TypeNav::Planet)
                             known_body_count += 1;
                     }
-                    if (known_body_count == ss->game_body_count) {
+                    if (known_body_count == ss->ext.bodyCount) {
                         LOG_INFO("Selected system[{:2d}] address {:14d} name \"{}\" fully scanned with {} bodies: updated at {}",
                                  sidx, ss->systemAddress, ss->systemName, known_body_count, eddn_updated_at);
                     }
                     else {
                         LOG_INFO("Selected system[{:2d}] address {:14d} name \"{}\" has only {} known bodies out of {}: updated at {}",
-                                 sidx, ss->systemAddress, ss->systemName, known_body_count, ss->game_body_count, eddn_updated_at);
+                                 sidx, ss->systemAddress, ss->systemName, known_body_count, ss->ext.bodyCount, eddn_updated_at);
                         systems.push_back(ss);
                     }
                 }
@@ -283,8 +283,8 @@ bool TaskVisitPlanets::selectUnexploredBody(gal::spEntity& selected) {
             selected = gal::getCurrentStarSystem()->getBody(st::destination.name);
             if (!selected) {
                 selected.reset(new gal::Entity());
-                selected->type = TypeNav::Body;
-                selected->name = st::destination.name;
+                selected->setType(TypeNav::Body);
+                selected->setName(st::destination.name);
                 selected->bodyId = st::destination.bodyId;
             }
         }

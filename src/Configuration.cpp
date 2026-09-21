@@ -11,7 +11,7 @@
 #include "widget/EDWidget.h"
 #include "Capturer.h"
 #include "ShipStats.h"
-#include "Galaxy.h"
+#include "gal/Galaxy.h"
 #include "OCR.h"
 #include "net/EDDN.h"
 

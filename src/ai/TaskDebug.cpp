@@ -11,7 +11,7 @@
 #include "../widget/List.h"
 #include "../FuzzyMatch.h"
 #include "../OCR.h"
-#include "../Galaxy.h"
+#include "../gal/Galaxy.h"
 
 #include <tesseract/baseapi.h>
 #include <curl/curl.h>

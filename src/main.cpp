@@ -1,7 +1,6 @@
 #include "pch.h"
 
 #include "Configuration.h"
-#include "DB/DB.h"
 
 #include <spdlog/sinks/ansicolor_sink.h>
 #include "spdlog/sinks/ansicolor_sink-inl.h"
@@ -10,10 +9,12 @@
 #include <io.h>
 #include <fcntl.h>
 
-#include "small_map.hpp"
-
 std::thread::id main_thread_id;
 spdlog::sink_ptr console_sink;
+
+namespace db{
+void test();
+}
 
 BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
     static bool shutdownCalled = false;
@@ -157,9 +158,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    int j_key_sz = sizeof(js::impl::key);
 //
 //    LOG_INFO("{} {}", j_sz, j_key_sz);
+//
+//    LandingPads lp;
+//    db::StationJS st;
+//    int lp_sz = sizeof(lp);
+//    int st_sz = sizeof(st);
+//    LOG_INFO("{} {}", lp_sz, st_sz);
 
-
-    db::init_js_remapping();
+    js::symbol::DefineSymbols({"test"});
+    db::test();
 
     Master& master = Master::getInstance();
     if (master.initialize())

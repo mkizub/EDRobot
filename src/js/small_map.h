@@ -39,7 +39,7 @@
 // - Lazily builds a sorted hash index for larger maps (O(log n) lookup)
 // - Bloom filter accelerates inserts by skipping duplicate checks for new keys
 
-namespace ed
+namespace js
 {
    template <class K, class T>
    struct small_map

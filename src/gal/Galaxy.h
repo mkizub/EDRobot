@@ -9,6 +9,8 @@
 
 namespace gal {
 
+void init_symbols();
+
 class StarSystemCache;
 
 class Entity {
@@ -16,10 +18,10 @@ public:
     virtual ~Entity() = default;
     bool nameEq(std::string_view nm) const;
     bool setName(std::string_view nm);
-    TypeNav type {TypeNav::Other};
+    const TypeNav type {TypeNav::Other};
     Timestamp updated {};
     short bodyId {-1};
-    short parentBodyId {-1}; // on orbit of
+    short parentBodyId {-1}; // planet for planetary stations, or on orbit of body
     int64_t marketId {0};
     double radius {0};
     dist_t main_star_distance; // approximate distance to arrival from main star
@@ -28,6 +30,68 @@ public:
     std::string nloc; // localized name
     std::string code; // star class or planet type, fleet carrier code, etc
     bool special {false}; // main star, dockable for stations, landable for planets
+
+    struct BodyData {
+        JsBodySubType subType;
+        bool tidallyLocked{};
+        js::symbol controllingFaction;
+        opt_float orbitalPeriod;
+        opt_float semiMajorAxis;
+        opt_float orbitalEccentricity;
+        opt_float orbitalInclination;
+        opt_float argOfPeriapsis;
+        opt_float meanAnomaly;
+        opt_float ascendingNode;
+        opt_float distanceToArrival;
+        opt_float surfaceTemperature;
+        opt_float rotationalPeriod;
+        opt_float axialTilt;
+    };
+    struct StarData : public BodyData {
+        bool mainStar;
+        JsSpectralClass spectralClass;
+        JsLuminosity luminosity;
+        uint32_t age; // in millions years
+        opt_float solarRadius;
+        opt_float solarMasses;
+        opt_float absoluteMagnitude;
+    };
+    struct PlanetData : public BodyData {
+        bool isLandable;
+        JsVolcanismType volcanismType;
+        JsAtmosphereType atmosphereType;
+        JsTerraformingState terraformingState;
+        JsReserveLevel reserveLevel;
+        opt_float radius;
+        opt_float earthMasses;
+        opt_float gravity;
+        opt_float surfacePressure;
+    };
+    struct StationData {
+        js::symbol controllingFaction;
+        JsAllegiance allegiance;
+        JsGovernment government;
+        JsStationState state;
+        JsFactionState controllingFactionState;
+        JsEconomy primaryEconomy;
+        JsEconomy secondaryEconomy;
+        JsCarrierDockingAccess carrierDockingAccess; // Carrier only.
+        js::small_map<JsEconomy,float> economies;
+        opt_float distanceToArrival;
+        opt_float latitude; // Planetary stations only.
+        opt_float longitude; // Planetary stations only.
+        LandingPads landingPads;
+        js::vector<JsServices> services;
+    };
+
+    void setType(TypeNav tp);
+
+    BodyData& getBodyData();
+    StarData& getStarData();
+    PlanetData& getPlanetData();
+    StationData& getStationData();
+
+    std::variant<std::monostate, BodyData, StarData, PlanetData, StationData> ext;
 };
 
 typedef std::shared_ptr<Entity> spEntity;
@@ -47,12 +111,20 @@ public:
     cv::Point3d starPos;
     Timestamp updated_at {};
     Timestamp eddn_updated_at {};
-    js::value ext;
+
+    struct Extra {
+        JsAllegiance allegiance;
+        JsGovernment government;
+        JsEconomy primaryEconomy {};
+        JsEconomy secondaryEconomy {};
+        JsSecurity security {};
+        uint16_t bodyCount {};
+        uint64_t population {};
+    } ext;
 
     std::vector<spEntity> bodies;
     std::vector<spEntity> stations;
     std::vector<spEntity> signals;
-    int game_body_count {}; // TODO: remove, save in ext
     bool loaded {false};
     bool saved {false};
     bool savedDbBase {false};

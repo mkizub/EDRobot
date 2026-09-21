@@ -240,30 +240,30 @@ StarSystem loadStarSystem(int64_t address) {
     }
 }
 
-extern js::value decode_system_blob(const std::string& system_name, const void* data, int size);
-extern bool encode_system_blob(const std::string& system_name, std::stringstream& buffer, const js::value& ext);
+bool loadStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address) {
+    if (!address || system_name.empty())
+        return false;
 
-js::value loadStarSystemBlob(const std::string& system_name, int64_t address) {
     static std::string sql = "SELECT data FROM SystemBlobs WHERE systemId = ?;";
 
     std::unique_lock<std::mutex> lock(dbMutex);
     auto* stmt = getStat(sql);
     if (!stmt)
-        return {};
+        return false;
 
     try {
         stmt->bind(1, address);
 
         if (!stmt->executeStep())
-            return {};
+            return false;
 
         auto column = stmt->getColumn(0);
         if (!column.isBlob())
-            return {};
-        return decode_system_blob(system_name, column.getBlob(), column.getBytes());
+            return false;
+        return decode_system_blob(ss, system_name, address, column.getBlob(), column.getBytes());
     } catch (SQLite::Exception& e) {
         LOG_ERROR("DB loadStarSystemBlob SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
-        return {};
+        return false;
     }
 }
 
@@ -299,12 +299,9 @@ x=excluded.x, y=excluded.y, z=excluded.z, updated=excluded.updated, eddn_updated
     return false;
 }
 
-bool saveStarSystemBlob(const std::string& system_name, int64_t address, const js::value& ext) {
-    if (!address || system_name.empty())
-        return false;
+bool saveStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address) {
     std::stringstream buffer;
-    bool ok = encode_system_blob(system_name, buffer, ext);
-    if (!ok)
+    if (!encode_system_blob(ss, system_name, address, buffer))
         return false;
 
     static std::string sql = R"SQL(INSERT INTO SystemBlobs(systemId,data) VALUES (?,?)

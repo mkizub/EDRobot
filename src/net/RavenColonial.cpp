@@ -6,7 +6,7 @@
 
 #include "RavenColonial.h"
 #include "HttpInterceptor.h"
-#include "../Galaxy.h"
+#include "../gal/Galaxy.h"
 
 #include <curl/curl.h>
 #include <cpr/cpr.h>
@@ -119,11 +119,11 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
     if (!depot) {
         depot = std::make_shared<gal::Entity>();
         if (cr_body["isPrimaryPort"].as_bool_or() || gal::COLONIZATION_SHIP.match_name(fullName))
-            depot->type = TypeNav::ColonisationShip;
+            depot->setType(TypeNav::ColonisationShip);
         else if (fullName.starts_with("Orbital Construction Site:"))
-            depot->type = TypeNav::SpaceConstrDepot;
+            depot->setType(TypeNav::SpaceConstrDepot);
         else if (fullName.starts_with("Planetary Construction Site:"))
-            depot->type = TypeNav::PlanetaryConstrDepot;
+            depot->setType(TypeNav::PlanetaryConstrDepot);
         depot->setName(fullName);
         depot->marketId = cr_body["marketId"].as_int_or();
         depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);

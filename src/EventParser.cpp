@@ -5,8 +5,8 @@
 #include "pch.h"
 #include "Configuration.h"
 #include "CargoManager.h"
-#include "Galaxy.h"
 #include "ShipStats.h"
+#include "gal/Galaxy.h"
 #include "ai/AIManager.h"
 #include "net/RavenColonial.h"
 #include "net/EDDN.h"
@@ -885,8 +885,8 @@ static void saveBodyCount(spGameEvent& ge, const char* prop) {
         return;
     int body_count = ge->data[prop].as_int();
     auto ss = gal::getCurrentStarSystem();
-    if (ss->game_body_count != body_count) {
-        ss->game_body_count = body_count;
+    if (ss->ext.bodyCount != body_count) {
+        ss->ext.bodyCount = body_count;
         ss->saved = false;
         ss->save();
     }
@@ -949,7 +949,7 @@ void parseEvent_Scan(spGameEvent& ge) {
     }
     if (je["StarType"].is_string()) {
         if (body->type != TypeNav::Star) {
-            body->type = TypeNav::Star;
+            body->setType(TypeNav::Star);
             ss->saved = false;
         }
         std::string code = *je["StarType"].as_string();
@@ -961,7 +961,7 @@ void parseEvent_Scan(spGameEvent& ge) {
         }
     } else {
         if (je["PlanetClass"].is_string()) {
-            body->type = TypeNav::Planet;
+            body->setType(TypeNav::Planet);
             ss->saved = false;
             bool landable = (bool)je["Landable"];
             if (landable != body->special) {
@@ -971,11 +971,11 @@ void parseEvent_Scan(spGameEvent& ge) {
         }
         else if (gal::BELT.match_name(je["BodyName"].as_string_or())) {
             if (body->type != TypeNav::AsteroidCluster) {
-                body->type = TypeNav::AsteroidCluster;
+                body->setType(TypeNav::AsteroidCluster);
                 ss->saved = false;
             }
         } else if (!isBody(body->type)) {
-            body->type = TypeNav::Body;
+            body->setType(TypeNav::Body);
             ss->saved = false;
         }
         if (je["Parents"].is_array()) {
@@ -1012,7 +1012,7 @@ void parseEvent_Scan(spGameEvent& ge) {
                 auto p = ss->getBodyById(p_id);
                 if (!p) {
                     p = std::make_shared<gal::Entity>();
-                    p->type = p_type;
+                    p->setType(p_type);
                     p->bodyId = p_id;
                     ss->bodies.push_back(p);
                     ss->saved = false;
@@ -1061,13 +1061,13 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     auto body = ss->getBodyById(bodyId);
     if (!body) {
         body = std::make_shared<gal::Entity>();
-        body->type = TypeNav::Barycenter;
+        body->setType(TypeNav::Barycenter);
         body->bodyId = bodyId;
         ss->bodies.push_back(body);
         ss->saved = false;
     }
     else if (body->type != TypeNav::Barycenter) {
-        body->type = TypeNav::Barycenter;
+        body->setType(TypeNav::Barycenter);
         ss->saved = false;
     }
     if (!ss->saved)

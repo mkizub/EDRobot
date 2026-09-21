@@ -35,8 +35,8 @@ private:
     str(std::string_view sv) {
         if (sv.size() < str_buf_size)
             set_buf(sv);
-        else if (const auto& it = gStrSet.find(sv); it != gStrSet.end())
-            set_ext({it->data(), it->size()});
+        else if (auto* sym = js::symbol::FindString(sv))
+            set_ext({sym->data(), sym->size()});
         else
             set_own(sv);
     }
@@ -46,8 +46,8 @@ public:
             set_buf(other.sv());
         else if (other.is_ext())
             set_ext(other.sv());
-        else if (const auto& it = gStrSet.find(other.sv()); it != gStrSet.end())
-            set_ext({it->data(), it->size()});
+        else if (auto* sym = js::symbol::FindString(other.sv()))
+            set_ext({sym->data(), sym->size()});
         else
             set_own(other.sv());
     }
@@ -68,8 +68,8 @@ public:
             set_buf(other.sv());
         else if (other.is_ext())
             set_ext(other.sv());
-        else if (const auto& it = gStrSet.find(other.sv()); it != gStrSet.end())
-            set_ext({it->data(), it->size()});
+        else if (auto* sym = js::symbol::FindString(other.sv()))
+            set_ext({sym->data(), sym->size()});
         else
             set_own(other.sv());
         return *this;

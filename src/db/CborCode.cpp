@@ -5,7 +5,7 @@
 #include "../pch.h"
 
 #include "DB.h"
-#include "JsEnum.h"
+#include "../gal/Galaxy.h"
 
 #define MSGPACK_NO_BOOST 1
 #include <msgpack.hpp>
@@ -32,6 +32,8 @@ inline bool need_value(const T& val) {
         return val.time_since_epoch().count() != 0;
     else if constexpr (std::same_as<T, bool>)
         return val;
+    else if constexpr (std::same_as<T, opt_float>)
+        return val.has_value();
     else if constexpr (std::is_floating_point_v<T>)
         return !std::isnan(val);
     else if constexpr (std::is_integral_v<T>)
@@ -40,13 +42,18 @@ inline bool need_value(const T& val) {
         return !val.empty();
     else if constexpr (std::same_as<std::string_view, T>)
         return !val.empty();
-    else if constexpr (std::same_as<db::LandingPadsJS, T>)
+    else if constexpr (std::same_as<LandingPads, T>)
         return !val.empty();
     return true;
 }
 
 template <typename K, typename V>
-inline bool need_value(const ed::small_map<K,V>& v) {
+inline bool need_value(const js::small_map<K,V>& v) {
+    return !v.empty();
+}
+
+template <typename V>
+inline bool need_value(const js::vector<V>& v) {
     return !v.empty();
 }
 
@@ -60,9 +67,9 @@ inline bool need_value(const std::unique_ptr<V>& v) {
     return v.get() != nullptr;
 }
 
-template <typename E>
-inline bool need_value(const db::JsEnum<E>& v) {
-    return bool(v);
+template <js::IsEnum E>
+inline bool need_value(const E& v) {
+    return v.id != 0;
 }
 
 
@@ -92,36 +99,79 @@ inline bool need_value(const db::JsEnum<E>& v) {
 #define UN_PK_STAR(nm, k, v, f) case k: v.ensureStarPart()->f = val.as<decltype(db::StarPartJS::f)>(); continue
 #define UN_PK_PLNT(nm, k, v, f) case k: v.ensurePlanedPart()->f = val.as<decltype(db::PlanetPartJS::f)>(); continue
 
-
-template<typename ES>
-struct pack<db::JsEnum<ES>> {
-    using T = db::JsEnum<ES>;
+template<>
+struct pack<opt_float> {
     template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
-        if (!v.ptr)
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const opt_float& v) const {
+        if (!v.has_value())
             o.pack_nil();
-        else if (!v.ptr->id && !v.ptr->str.empty())
-            o.pack_str(v.ptr->str.size()).pack_str_body(v.ptr->str.data(), v.ptr->str.size());
         else
-            o.pack_unsigned_int(v.ptr->id);
+            o.pack_float(v.value());
         return o;
     }
 };
 
-template<typename ES>
-struct convert<db::JsEnum<ES>> {
-    using T = db::JsEnum<ES>;
-    msgpack::object const& operator()(msgpack::object const& o, T& v) const {
+template<>
+struct convert<opt_float> {
+    msgpack::object const& operator()(msgpack::object const& o, opt_float& v) const {
+        if (o.type == msgpack::type::NIL)
+            v = opt_float{};
+        else
+            v = o.as<float>();
+        return o;
+    }
+};
+
+template<>
+struct pack<js::symbol> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const js::symbol& v) const {
+        o.pack_str(v.size()).pack_str_body(v.data(), v.size());
+        return o;
+    }
+};
+
+template<>
+struct convert<js::symbol> {
+    msgpack::object const& operator()(msgpack::object const& o, js::symbol& v) const {
+        if (o.type == msgpack::type::NIL)
+            v.clear();
+        else
+            v = o.as<std::string_view>();
+        return o;
+    }
+};
+
+template <js::IsEnum E>
+struct pack<E> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const E& v) const {
+        if (!v)
+            o.pack_nil();
+        else if (v.is_predefined())
+            o.pack_unsigned_int(v.id);
+        else {
+            auto sv = v.sv();
+            o.pack_str(sv.size()).pack_str_body(sv.data(), sv.size());
+        }
+        return o;
+    }
+};
+
+template <js::IsEnum E>
+struct convert<E> {
+    msgpack::object const& operator()(msgpack::object const& o, E& v) const {
         if (o.type == msgpack::type::NIL) {
             v = {};
         }
         else if (o.type == msgpack::type::STR) {
-            v.ptr = ES::instance.get(o.as<std::string>());
-            if (!v.ptr)
-                v.ptr = ES::instance.addNewValue(o.as<std::string>());
+            auto* ptr = E::ED::instance.get_ptr(o.as<std::string>());
+            if (!ptr)
+                ptr = E::ED::instance.addNewValue(o.as<std::string>());
+            v = E(ptr);
         }
         else if (o.type == msgpack::type::POSITIVE_INTEGER) {
-            v.ptr = ES::instance.get(o.as<unsigned>());
+            v = E::ED::instance.get(o.as<unsigned>());
         }
         else {
             throw msgpack::type_error();
@@ -161,8 +211,8 @@ struct convert<db::MarketLineJS> {
 
 
 template<>
-struct pack<std::vector<db::BodyParentJS>> {
-    using T = std::vector<db::BodyParentJS>;
+struct pack<js::vector<db::BodyParentJS>> {
+    using T = js::vector<db::BodyParentJS>;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
         o.pack_array(v.size()*2);
@@ -175,16 +225,18 @@ struct pack<std::vector<db::BodyParentJS>> {
 };
 
 template<>
-struct convert<std::vector<db::BodyParentJS>> {
-    msgpack::object const& operator()(msgpack::object const& o, std::vector<db::BodyParentJS>& v) const {
+struct convert<js::vector<db::BodyParentJS>> {
+    using T = js::vector<db::BodyParentJS>;
+    msgpack::object const& operator()(msgpack::object const& o, T& v) const {
         if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
         if (o.via.array.size & 1) { throw msgpack::type_error(); }
         auto sz = o.via.array.size / 2;
         v.reserve(sz);
+        auto* p = o.via.array.ptr;
         for (int i=0; i < sz; i++) {
             db::BodyParentJS bp {};
-            bp.type = o.via.array.ptr[i*2].as<decltype(bp.type)>();
-            bp.bodyId = o.via.array.ptr[i*2].as<decltype(bp.bodyId)>();
+            bp.type = p[i*2].as<decltype(bp.type)>();
+            bp.bodyId = p[i*2+1].as<decltype(bp.bodyId)>();
             v.push_back(bp);
         }
         return o;
@@ -192,9 +244,37 @@ struct convert<std::vector<db::BodyParentJS>> {
 };
 
 
-template<typename E, typename V>
-struct pack<ed::small_map<db::JsEnum<E>,V>> {
-    using T = ed::small_map<db::JsEnum<E>,V>;
+template<typename V>
+struct pack<js::vector<V>> {
+    using T = js::vector<V>;
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
+        o.pack_array(v.size());
+        for (auto& val : v) {
+            o.pack(val);
+        }
+        return o;
+    }
+};
+
+template<typename V>
+struct convert<js::vector<V>> {
+    using T = js::vector<V>;
+    msgpack::object const& operator()(msgpack::object const& o, T& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        uint32_t sz = o.via.array.size;
+        v.reserve(sz);
+        auto* p = o.via.array.ptr;
+        for (uint32_t i = 0; i < sz; ++i) {
+            v.push_back(p[i].as<V>());
+        }
+        return o;
+    }
+};
+
+template<js::IsEnum E, typename V>
+struct pack<js::small_map<E,V>> {
+    using T = js::small_map<E,V>;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
         o.pack_map(v.size());
@@ -206,15 +286,15 @@ struct pack<ed::small_map<db::JsEnum<E>,V>> {
     }
 };
 
-template<typename E, typename V>
-struct convert<ed::small_map<db::JsEnum<E>,V>> {
-    using T = ed::small_map<db::JsEnum<E>,V>;
+template<js::IsEnum E, typename V>
+struct convert<js::small_map<E,V>> {
+    using T = js::small_map<E,V>;
     msgpack::object const& operator()(msgpack::object const& o, T& v) const {
         if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
         uint32_t sz = o.via.map.size;
         msgpack::object_kv* p = o.via.map.ptr;
         for (uint32_t i = 0; i < sz; ++i) {
-            auto key = p[i].key.as<db::JsEnum<E>>();
+            auto key = p[i].key.as<E>();
             v[key] = p[i].val.as<V>();
         }
         return o;
@@ -253,10 +333,7 @@ struct pack<db::FactionStateJS> {
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
         o.pack_array(2);
         o.pack(v.state);
-        if (!std::isnan(v.trend))
-            o.pack_float(v.trend);
-        else
-            o.pack_nil();
+        o.pack(v.trend);
         return o;
     }
 };
@@ -352,8 +429,8 @@ struct convert<db::ThargoidWarJS> {
 
 
 template<>
-struct pack<db::LandingPadsJS> {
-    using T = db::LandingPadsJS;
+struct pack<LandingPads> {
+    using T = LandingPads;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
         o.pack_array(3);
@@ -365,8 +442,8 @@ struct pack<db::LandingPadsJS> {
 };
 
 template<>
-struct convert<db::LandingPadsJS> {
-    msgpack::object const& operator()(msgpack::object const& o, db::LandingPadsJS& v) const {
+struct convert<LandingPads> {
+    msgpack::object const& operator()(msgpack::object const& o, LandingPads& v) const {
         if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
         if (o.via.array.size != 3) { throw msgpack::type_error(); }
         v.large = o.via.array.ptr[0].as<decltype(v.large)>();
@@ -402,9 +479,7 @@ struct pack<db::StationJS> {
             PK_IF("st", 13, v.longitude);
             PK_IF("st", 14, v.landingPads);
             PK_IF("st", 15, v.carrierDockingAccess);
-            if (tlDumpFull) {
-                PK_IF("st", 16, v.services);
-            }
+            PK_IF("st", 16, v.services);
         PK_MAP_END(o)
         return o;
     }
@@ -436,7 +511,9 @@ struct convert<db::StationJS> {
             UN_PK("st", 13, v.longitude);
             UN_PK("st", 14, v.landingPads);
             UN_PK("st", 15, v.carrierDockingAccess);
-            UN_PK("st", 16, v.services);
+            if (tlDumpFull) {
+                UN_PK("st", 16, v.services);
+            }
         UN_MAP_END()
         return o;
     }
@@ -461,9 +538,9 @@ struct pack<db::BodyJS> {
         o.pack_int(v.bodyId);
 
         std::string v_name = v.name;
-        bool is_star = v.type == db::JsBodyType::instance.get("Star");
-        bool is_planet = v.type == db::JsBodyType::instance.get("Planet");
-        bool is_cluster = v.type == db::JsBodyType::instance.get("Asteroid Cluster");
+        bool is_star = v.type == JsBodyType::get("Star");
+        bool is_planet = v.type == JsBodyType::get("Planet");
+        bool is_cluster = v.type == JsBodyType::get("Asteroid Cluster");
         if ((is_star || is_planet || is_cluster) && !v.name.empty()) {
             auto &sn = tlStarSystemName;
             if (!sn.empty()) {
@@ -498,7 +575,7 @@ struct pack<db::BodyJS> {
             PK_IF("bo", 11, v.surfaceTemperature);
             PK_IF("bo", 12, v.rotationalPeriod);
             PK_IF("bo", 13, v.axialTilt);
-            PK_IF("bo", 14, v.rotationalPeriodTidallyLocked);
+            PK_IF("bo", 14, v.tidallyLocked);
             PK_IF("bo", 15, v.timestamps);
             PK_IF("bo", 16, v.parents);
             PK_IF("bo", 17, v.stations);
@@ -546,9 +623,9 @@ struct convert<db::BodyJS> {
         v.bodyId = o.via.array.ptr[1].as<decltype(v.bodyId)>();
         v.name = o.via.array.ptr[2].as<decltype(v.name)>();
         {
-            bool is_star = v.type == db::JsBodyType::instance.get("Star");
-            //bool is_planet = v.type == db::JsBodyType::instance.get("Planet");
-            bool is_cluster = v.type == db::JsBodyType::instance.get("Asteroid Cluster");
+            bool is_star = v.type == JsBodyType::get("Star");
+            //bool is_planet = v.type == JsBodyType::get("Planet");
+            bool is_cluster = v.type == JsBodyType::get("Asteroid Cluster");
             auto &sn = tlStarSystemName;
             if (!sn.empty()) {
                 if (is_star && v.name.empty()) {
@@ -579,7 +656,7 @@ struct convert<db::BodyJS> {
             UN_PK("st", 11, v.surfaceTemperature);
             UN_PK("st", 12, v.rotationalPeriod);
             UN_PK("st", 13, v.axialTilt);
-            UN_PK("st", 14, v.rotationalPeriodTidallyLocked);
+            UN_PK("st", 14, v.tidallyLocked);
             UN_PK("st", 15, v.timestamps);
             UN_PK("st", 16, v.parents);
             UN_PK("st", 17, v.stations);
@@ -706,13 +783,14 @@ namespace db {
 std::ofstream dbg_cbor;
 
 void test_cbor_start() {
-    dbg_cbor.open("cache/dbg.cbor", std::ios::out|std::ios::trunc|std::ios::binary);
+    dbg_cbor.open("cache/dbg.cbor", std::ios::out | std::ios::trunc | std::ios::binary);
 }
+
 void test_cbor_end() {
     dbg_cbor.close();
 }
 
-int test_cbor(StarSystemJS& ss_js) {
+int test_cbor(StarSystemJS &ss_js) {
     tlStarSystemName = ss_js.name;
     tlDumpFull = true;
     try {
@@ -726,62 +804,44 @@ int test_cbor(StarSystemJS& ss_js) {
         auto obj = msgpack::unpack(buffer.data(), buffer.size());
         obj->convert(ss_back);
 
-        return (int)buffer.size();
-    } catch (const std::exception& e) {
+        return (int) buffer.size();
+    } catch (const std::exception &e) {
         LOG_ERROR("Packing error");
         return 0;
     }
 }
 
-js::value decode_system_blob(const std::string& system_name, const void* data, int size) {
+bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, const void* data, int size) {
+    if (!address || system_name.empty())
+        return false;
     tlStarSystemName = system_name;
     try {
         msgpack::sbuffer buffer;
-        StarSystemJS ss;
         auto obj = msgpack::unpack(buffer.data(), buffer.size());
         obj->convert(ss);
-
-        js::value res = js::object({});
-        if (ss.allegiance) res["allegiance"] = ss.allegiance.sv();
-        if (ss.government) res["government"] = ss.government.sv();
-        if (ss.primaryEconomy) res["primaryEconomy"] = ss.primaryEconomy.sv();
-        if (ss.secondaryEconomy) res["secondaryEconomy"] = ss.secondaryEconomy.sv();
-        if (ss.security) res["security"] = ss.security.sv();
-        if (ss.population) res["population"] = ss.population;
-        if (ss.bodyCount) res["bodyCount"] = ss.bodyCount;
-        if (ss.powerState) res["powerState"] = ss.powerState.sv();
-        if (ss.controllingPower) res["controllingPower"] = ss.controllingPower.sv();
-        if (!std::isnan(ss.powerStateControlProgress)) res["powerStateControlProgress"] = ss.powerStateControlProgress;
-        if (!std::isnan(ss.powerStateReinforcement)) res["powerStateReinforcement"] = ss.powerStateReinforcement;
-        if (!std::isnan(ss.powerStateUndermining)) res["powerStateUndermining"] = ss.powerStateUndermining;
-        if (!ss.powers.empty()) {
-            res["powers"] = js::array({});
-            auto& powers = res["powers"].as_array();
-            powers.reserve(ss.powers.size());
-            for (auto& pw : ss.powers)
-                powers.push_back(pw.sv());
-        }
-        if (!ss.timestamps.empty()) {
-            res["timestamps"] = js::object({});
-            js::value::object_type& timestamps = res["timestamps"].as_object();
-            for (auto& [key,val] : ss.timestamps)
-                res["timestamps"][key.sv()] = formatTimestampString(val);
-        }
-//        std::unique_ptr<FactionJS> controllingFaction;
-//        std::vector<FactionJS> factions;
-//        std::vector<PowerConflictJS> powerConflictProgress;
-//        std::unique_ptr<ThargoidWarJS> thargoidWar {};
-
-        return res;
-    } catch (const std::exception& e) {
+        return ss.id64 == address && ss.name == system_name;
+    } catch (const std::exception &e) {
         LOG_ERROR("decode_system_blob error");
-        return {};
+        return false;
     }
 }
 
-bool encode_system_blob(const std::string& system_name, std::stringstream& buffer, const js::value& ext) {
-    return false;
+bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, std::stringstream& buffer) {
+    if (!ss.id64 || ss.name.empty())
+        return false;
+
+    tlStarSystemName = system_name;
+    try {
+        msgpack::pack(buffer, ss);
+        ss.id64 = address;
+        ss.name = system_name;
+        return true;
+    } catch (const std::exception &e) {
+        LOG_ERROR("decode_system_blob error");
+        ss.id64 = 0;
+        ss.name.clear();
+        return false;
+    }
 }
 
-
-}
+} // namespoac db

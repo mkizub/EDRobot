@@ -7,6 +7,8 @@
 #ifndef EDROBOT_JS_KEY_H
 #define EDROBOT_JS_KEY_H
 
+#include "../symbol.h"
+
 namespace js::impl {
 
 class key {
@@ -44,9 +46,9 @@ public:
         }
         else {
             s.sz = 255;
-            auto k = gKeySet.emplace(sv);
-            l.ptr = k.first->data();
-            l.sz = sv.size();
+            auto sym = js::symbol(sv);
+            l.ptr = sym.data();
+            l.sz = sym.size();
             l.idx = idx > 0xFF ? 0xFF : idx;
         }
     }

@@ -50,17 +50,6 @@ enum class TYPE : uint8_t {
 
 namespace impl {
 
-struct string_hash {
-    using is_transparent = void; // Enables heterogeneous lookup
-
-    size_t operator()(std::string_view sv) const {
-        return std::hash<std::string_view>{}(sv);
-    }
-};
-
-static std::unordered_set<std::string, string_hash, std::equal_to<>> gKeySet;
-static std::unordered_set<std::string, string_hash, std::equal_to<>> gStrSet;
-
 /**
  * @brief Parser/stringifier flags
  */

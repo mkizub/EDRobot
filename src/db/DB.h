@@ -8,52 +8,45 @@
 #define EDROBOT_DB_H
 
 #include <unordered_set>
-#include "../small_map.hpp"
-#include "JsEnum.h"
 
 namespace db {
 
 constexpr static double DNaN = std::numeric_limits<double>::quiet_NaN();
 constexpr static double FNaN = std::numeric_limits<float>::quiet_NaN();
 struct StarSystem;
-
-void init_js_remapping();
+struct StarSystemJS;
 
 bool init();
 bool shutdown();
 StarSystem loadStarSystem(std::string_view name);
 StarSystem loadStarSystem(int64_t address);
-js::value loadStarSystemBlob(const std::string& system_name, int64_t address);
+bool loadStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address);
 bool saveStarSystem(const StarSystem& starSystem);
-bool saveStarSystemBlob(const std::string& system_name, int64_t address, const js::value& ext);
-//enum class JsBlobTable : int {
-//    Systems = 1,
-//    Bodies = 2,
-//    Stations = 3
-//};
-//void loadJsBlobs(int64_t blobId);
+bool saveStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address);
 
+bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, const void* data, int size);
+bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, std::stringstream& buffer);
 
 struct Faction {
     int64_t id;
     std::string name;
-    JsEnum<JsAllegiance> allegiance;
-    JsEnum<JsGovernment> government;
+    JsAllegiance allegiance;
+    JsGovernment government;
 };
 
 struct FactionStateJS {
-    JsEnum<JsFactionState> state;
-    float trend {FNaN};
+    JsFactionState state;
+    opt_float trend;
 };
 struct FactionJS {
     std::string name;
-    JsEnum<JsFactionState> state;
-    JsEnum<JsAllegiance> allegiance;
-    JsEnum<JsGovernment> government;
-    float influence {FNaN};
-    std::vector<FactionStateJS> activeStates;
-    std::vector<FactionStateJS> pendingStates;
-    std::vector<FactionStateJS> recoveringStates;
+    JsFactionState state;
+    JsAllegiance allegiance;
+    JsGovernment government;
+    opt_float influence;
+    js::vector<FactionStateJS> activeStates;
+    js::vector<FactionStateJS> pendingStates;
+    js::vector<FactionStateJS> recoveringStates;
 };
 
 struct StarSystem {
@@ -62,13 +55,6 @@ struct StarSystem {
     double x, y, z;
     Timestamp updated;
     Timestamp eddn_updated;
-};
-
-struct LandingPadsJS {
-    int8_t large {};
-    int8_t medium {};
-    int8_t small {};
-    bool empty() const { return large==0 && medium==0 && small==0; }
 };
 
 struct MarketLineJS {
@@ -81,26 +67,26 @@ struct MarketLineJS {
 
 struct StationJS {
     int64_t id; // market id
-    JsEnum<JsStationType> type;
+    JsStationType type;
     int bodyId {};  // space stations have bodyId
     std::string name;
     Timestamp updated_at;
     std::string realName; // Real name of the station, for colonisation stations.
     std::string carrierName; // Player given name of the station, for fleet carriers.
-    std::string controllingFaction;
-    JsEnum<JsFactionState> controllingFactionState;
-    JsEnum<JsEconomy> primaryEconomy;
-    JsEnum<JsEconomy> secondaryEconomy;
-    ed::small_map<JsEnum<JsEconomy>,float> economies;
-    JsEnum<JsAllegiance> allegiance;
-    JsEnum<JsGovernment> government;
-    JsEnum<JsStationState> state;
-    float distanceToArrival {FNaN};
-    float latitude {FNaN}; // Planetary stations only.
-    float longitude {FNaN}; // Planetary stations only.
-    LandingPadsJS landingPads;
-    JsEnum<JsCarrierDockingAccess> carrierDockingAccess; // Carrier only.
-    std::vector<JsEnum<JsServices>> services;
+    js::symbol controllingFaction;
+    JsAllegiance allegiance;
+    JsGovernment government;
+    JsStationState state;
+    JsFactionState controllingFactionState;
+    JsEconomy primaryEconomy;
+    JsEconomy secondaryEconomy;
+    JsCarrierDockingAccess carrierDockingAccess; // Carrier only.
+    js::small_map<JsEconomy,float> economies;
+    opt_float distanceToArrival;
+    opt_float latitude; // Planetary stations only.
+    opt_float longitude; // Planetary stations only.
+    LandingPads landingPads;
+    js::vector<JsServices> services;
 };
 
 struct CoordsJS {
@@ -110,19 +96,19 @@ struct CoordsJS {
 };
 
 struct BodyParentJS {
-    JsEnum<JsParentBodyType> type;
+    JsParentBodyType type;
     int bodyId;
 };
 
 struct PowerConflictJS {
-    JsEnum<JsPower> power;
+    JsPower power;
     float progress;
 };
 
 struct ThargoidWarJS {
-    JsEnum<JsThargoidState> currentState;
-    JsEnum<JsThargoidState> successState;
-    JsEnum<JsThargoidState> failureState;
+    JsThargoidState currentState;
+    JsThargoidState successState;
+    JsThargoidState failureState;
     float progress;
     int daysRemaining;
     int portsRemaining;
@@ -131,51 +117,51 @@ struct ThargoidWarJS {
 
 struct StarPartJS {
     bool mainStar;
-    uint64_t age;
-    std::string spectralClass;
-    std::string luminosity;
-    float absoluteMagnitude {FNaN};
-    float solarMasses {FNaN};
-    float solarRadius {FNaN};
+    JsSpectralClass spectralClass;
+    JsLuminosity luminosity;
+    uint32_t age; // in millions years
+    opt_float solarRadius;
+    opt_float solarMasses;
+    opt_float absoluteMagnitude;
 };
 struct PlanetPartJS {
     bool isLandable;
-    float gravity {FNaN};
-    float earthMasses {FNaN};
-    float radius {FNaN};
-    float surfacePressure {FNaN};
-    JsEnum<JsVolcanismType> volcanismType;
-    JsEnum<JsAtmosphereType> atmosphereType;
-    ed::small_map<JsEnum<JsAtmosphereType>,float> atmosphereComposition;
-    ed::small_map<JsEnum<JsSolidType>,float> solidComposition;
-    JsEnum<JsTerraformingState> terraformingState;
-    ed::small_map<JsEnum<JsMaterials>,float> materials;
-    JsEnum<JsReserveLevel> reserveLevel;
+    JsVolcanismType volcanismType;
+    JsAtmosphereType atmosphereType;
+    JsTerraformingState terraformingState;
+    JsReserveLevel reserveLevel;
+    opt_float radius;
+    opt_float earthMasses;
+    opt_float gravity;
+    opt_float surfacePressure;
+    js::small_map<JsAtmosphereType,float> atmosphereComposition;
+    js::small_map<JsSolidType,float> solidComposition;
+    js::small_map<JsMaterials,float> materials;
     // "signals"
 };
 
 struct BodyJS {
-    JsEnum<JsBodyType> type;
+    JsBodyType type;
     int bodyId {};
     std::string name;
-    JsEnum<JsBodySubType> subType;
+    JsBodySubType subType;
     Timestamp updated_at;
-    float orbitalPeriod {FNaN};
-    float semiMajorAxis {FNaN};
-    float orbitalEccentricity {FNaN};
-    float orbitalInclination {FNaN};
-    float argOfPeriapsis {FNaN};
-    float meanAnomaly {FNaN};
-    float ascendingNode {FNaN};
-    float distanceToArrival {FNaN};
-    float surfaceTemperature {FNaN};
-    float rotationalPeriod {FNaN};
-    float axialTilt {FNaN};
-    bool rotationalPeriodTidallyLocked {};
+    opt_float orbitalPeriod;
+    opt_float semiMajorAxis;
+    opt_float orbitalEccentricity;
+    opt_float orbitalInclination;
+    opt_float argOfPeriapsis;
+    opt_float meanAnomaly;
+    opt_float ascendingNode;
+    opt_float distanceToArrival;
+    opt_float surfaceTemperature;
+    opt_float rotationalPeriod;
+    opt_float axialTilt;
+    bool tidallyLocked {};
 
-    ed::small_map<JsEnum<JsTimestamps>,Timestamp> timestamps;
-    std::vector<BodyParentJS> parents;
-    std::vector<StationJS> stations;
+    js::small_map<JsTimestamps,Timestamp> timestamps;
+    js::vector<BodyParentJS> parents;
+    js::vector<StationJS> stations;
     // "rings"
     // "belts"
 
@@ -186,105 +172,101 @@ struct BodyJS {
     uint64_t get_age() const { return starPart ? starPart->age : 0; }
     void set_age(uint64_t v) { ensureStarPart()->age = v; }
 
-    std::string_view get_spectralClass() const { if (starPart) return starPart->spectralClass; return {}; }
-    void set_spectralClass(std::string_view v) { ensureStarPart()->spectralClass = v; }
+    JsSpectralClass get_spectralClass() const { if (starPart) return starPart->spectralClass; return {}; }
+    void set_spectralClass(JsSpectralClass v) { ensureStarPart()->spectralClass = v; }
 
-    std::string_view get_luminosity() const { if (starPart) return starPart->luminosity; return {}; }
-    void set_luminosity(std::string_view v) { ensureStarPart()->luminosity = v; }
+    JsLuminosity get_luminosity() const { if (starPart) return starPart->luminosity; return {}; }
+    void set_luminosity(JsLuminosity v) { ensureStarPart()->luminosity = v; }
 
-    float get_absoluteMagnitude() const { return starPart ? starPart->absoluteMagnitude : FNaN; }
+    opt_float get_absoluteMagnitude() const { return starPart ? starPart->absoluteMagnitude : opt_float{}; }
     void set_absoluteMagnitude(float v) { ensureStarPart()->absoluteMagnitude = v; }
 
-    float get_solarMasses() const { return starPart ? starPart->solarMasses : FNaN; }
+    opt_float get_solarMasses() const { return starPart ? starPart->solarMasses : opt_float{}; }
     void set_solarMasses(float v) { ensureStarPart()->solarMasses = v; }
 
-    float get_solarRadius() const { return starPart ? starPart->solarRadius : FNaN; }
+    opt_float get_solarRadius() const { return starPart ? starPart->solarRadius : opt_float{}; }
     void set_solarRadius(float v) { ensureStarPart()->solarRadius = v; }
 
     // PlanetPart accessors
     bool get_isLandable() const { return planetPart && planetPart->isLandable; }
     void set_isLandable(bool v) { ensurePlanedPart()->isLandable = v; }
 
-    float get_gravity() const { return planetPart ? planetPart->gravity : FNaN; }
+    opt_float get_gravity() const { return planetPart ? planetPart->gravity : opt_float{}; }
     void set_gravity(float v) { ensurePlanedPart()->gravity = v; }
 
-    float get_earthMasses() const { return planetPart ? planetPart->earthMasses : FNaN; }
+    opt_float get_earthMasses() const { return planetPart ? planetPart->earthMasses : opt_float{}; }
     void set_earthMasses(float v) { ensurePlanedPart()->earthMasses = v; }
 
-    float get_radius() const { return planetPart ? planetPart->radius : FNaN; }
+    opt_float get_radius() const { return planetPart ? planetPart->radius : opt_float{}; }
     void set_radius(float v) { ensurePlanedPart()->radius = v; }
 
-    float get_surfacePressure() const { return planetPart ? planetPart->surfacePressure : FNaN; }
+    opt_float get_surfacePressure() const { return planetPart ? planetPart->surfacePressure : opt_float{}; }
     void set_surfacePressure(float v) { ensurePlanedPart()->surfacePressure = v; }
 
-    std::optional<JsEnum<JsVolcanismType>> get_volcanismType()const  {
-        if (planetPart && planetPart->volcanismType.has_value())
+    JsVolcanismType get_volcanismType()const  {
+        if (planetPart)
             return planetPart->volcanismType;
         return {};
     }
-    void set_volcanismType(std::optional<JsEnum<JsVolcanismType>> v) {
-        if (v.has_value())
-            ensurePlanedPart()->volcanismType = v.value();
+    void set_volcanismType(JsVolcanismType v) {
+        ensurePlanedPart()->volcanismType = v;
     }
 
-    std::optional<JsEnum<JsAtmosphereType>> get_atmosphereType() const {
-        if (planetPart && planetPart->atmosphereType.has_value())
+    JsAtmosphereType get_atmosphereType() const {
+        if (planetPart)
             return planetPart->atmosphereType;
         return {};
     }
-    void set_atmosphereType(std::optional<JsEnum<JsAtmosphereType>> v) {
-        if (v.has_value())
-            ensurePlanedPart()->atmosphereType = v.value();
+    void set_atmosphereType(JsAtmosphereType v) {
+        ensurePlanedPart()->atmosphereType = v;
     }
 
-    std::optional<ed::small_map<JsEnum<JsAtmosphereType>,float>> get_atmosphereComposition() const {
+    std::optional<js::small_map<JsAtmosphereType,float>> get_atmosphereComposition() const {
         if (planetPart && !planetPart->atmosphereComposition.empty())
             return planetPart->atmosphereComposition;
         return {};
     }
-    void set_atmosphereComposition(std::optional<ed::small_map<JsEnum<JsAtmosphereType>,float>> v) {
+    void set_atmosphereComposition(std::optional<js::small_map<JsAtmosphereType,float>> v) {
         if (v.has_value())
             ensurePlanedPart()->atmosphereComposition = v.value();
     }
 
-    std::optional<ed::small_map<JsEnum<JsSolidType>,float>> get_solidComposition() const {
+    std::optional<js::small_map<JsSolidType,float>> get_solidComposition() const {
         if (planetPart && !planetPart->solidComposition.empty())
             return planetPart->solidComposition;
         return {};
     }
-    void set_solidComposition(std::optional<ed::small_map<JsEnum<JsSolidType>,float>> v) {
+    void set_solidComposition(std::optional<js::small_map<JsSolidType,float>> v) {
         if (v.has_value())
             ensurePlanedPart()->solidComposition = v.value();
     }
 
-    std::optional<ed::small_map<JsEnum<JsMaterials>,float>> get_materials() const {
+    std::optional<js::small_map<JsMaterials,float>> get_materials() const {
         if (planetPart && !planetPart->materials.empty())
             return planetPart->materials;
         return {};
     }
-    void set_materials(std::optional<ed::small_map<JsEnum<JsMaterials>,float>> v) {
+    void set_materials(std::optional<js::small_map<JsMaterials,float>> v) {
         if (v.has_value())
             ensurePlanedPart()->materials = v.value();
     }
 
-    std::optional<JsEnum<JsTerraformingState>> get_terraformingState() const {
-        if (planetPart && planetPart->terraformingState.has_value())
+    JsTerraformingState get_terraformingState() const {
+        if (planetPart)
             return planetPart->terraformingState;
         return {};
     }
-    void set_terraformingState(std::optional<JsEnum<JsTerraformingState>> v) {
-        if (v.has_value())
-            ensurePlanedPart()->terraformingState = v.value();
+    void set_terraformingState(JsTerraformingState v) {
+        ensurePlanedPart()->terraformingState = v;
     }
 
-    std::optional<JsEnum<JsReserveLevel>> get_reserveLevel() const {
-        if (planetPart && planetPart->reserveLevel.has_value())
+    JsReserveLevel get_reserveLevel() const {
+        if (planetPart)
             return planetPart->reserveLevel;
         return {};
     }
-    void set_reserveLevel(std::optional<JsEnum<JsReserveLevel>> v) {
-        if (v.has_value())
-            ensurePlanedPart()->reserveLevel = v.value();
+    void set_reserveLevel(JsReserveLevel v) {
+        ensurePlanedPart()->reserveLevel = v;
     }
 
     StarPartJS* getStarPart() const { return starPart.get(); }
@@ -309,29 +291,46 @@ struct StarSystemJS {
     int64_t id64 {};
     std::string name;
     CoordsJS coords {};
-    JsEnum<JsAllegiance> allegiance;
-    JsEnum<JsGovernment> government;
-    JsEnum<JsEconomy> primaryEconomy {};
-    JsEnum<JsEconomy> secondaryEconomy {};
-    JsEnum<JsSecurity> security {};
-    uint64_t population {};
+    JsAllegiance allegiance;
+    JsGovernment government;
+    JsEconomy primaryEconomy {};
+    JsEconomy secondaryEconomy {};
+    JsSecurity security {};
     uint16_t bodyCount {};
+    uint64_t population {};
     Timestamp updated_at {};
     std::unique_ptr<FactionJS> controllingFaction;
-    std::vector<FactionJS> factions;
-    JsEnum<JsPowerState> powerState {};
-    std::vector<PowerConflictJS> powerConflictProgress;
-    std::vector<JsEnum<JsPower>> powers;
-    JsEnum<JsPower> controllingPower {};
-    float powerStateControlProgress {FNaN};
-    float powerStateReinforcement {FNaN};
-    float powerStateUndermining {FNaN};
+    js::vector<FactionJS> factions;
+    JsPowerState powerState {};
+    js::vector<PowerConflictJS> powerConflictProgress;
+    js::vector<JsPower> powers;
+    JsPower controllingPower {};
+    opt_float powerStateControlProgress;
+    opt_float powerStateReinforcement;
+    opt_float powerStateUndermining;
     std::unique_ptr<ThargoidWarJS> thargoidWar {};
-    ed::small_map<JsEnum<JsTimestamps>,Timestamp> timestamps;
-    std::vector<BodyJS> bodies;
-    std::vector<StationJS> stations;
+    js::small_map<JsTimestamps,Timestamp> timestamps;
+    js::vector<BodyJS> bodies;
+    js::vector<StationJS> stations;
 };
 
-}
+} // namespace db
+
+
+#include <glaze/forward.hpp>
+
+template <js::IsEnum E>
+struct glz::meta<E>
+{
+    static constexpr bool custom_write = true;
+    static constexpr bool custom_read = true;
+};
+
+template <>
+struct glz::meta<Timestamp>
+{
+    static constexpr bool custom_write = true;
+    static constexpr bool custom_read = true;
+};
 
 #endif //EDROBOT_DB_H

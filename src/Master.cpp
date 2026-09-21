@@ -404,6 +404,8 @@ std::string Master::initializeInternal() {
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
 
+    gal::init_symbols();
+
     LOG(INFO) << "Loading configuration";
     if (!Cfg.load())
         return Cfg.getErrorMessage();

@@ -5,7 +5,6 @@
 #include "../pch.h"
 
 #include "DB.h"
-#include "JsEnum.h"
 #include <glaze/json.hpp>
 #include <glaze/json/flatten_map.hpp>
 #include <zlib.h>
@@ -15,8 +14,8 @@ const int FMT = glz::JSON;
 namespace glz
 {
 
-template <JsEnumDeclType E>
-struct from<FMT, db::JsEnum<E>>
+template <js::IsEnum E>
+struct from<FMT, E>
 {
     template <auto Opts>
     static void op(auto&& value, auto&& ctx, auto&& it, auto&& end)
@@ -25,24 +24,26 @@ struct from<FMT, db::JsEnum<E>>
         if (*it == '\"') {
             std::string str{};
             parse<FMT>::op<Opts>(str, ctx, it, end);
-            value.ptr = E::instance.get(str);
-            if (!value.ptr)
-                value.ptr = E::instance.addNewValue(str);
+            auto* ptr = E::ED::instance.get_ptr(str);
+            if (!ptr)
+                ptr = E::ED::instance.addNewValue(str);
+            value = E(ptr);
         }
         else if (*it == 'n' && strncmp(it,"null",4)==0) { // glz::match<"null",Opts>(ctx, it, end)
-            value.ptr = nullptr;
+            value = {};
             it += 4;
         }
         else  {
-            value.ptr = E::instance.get(it);
-            if (!value.ptr)
-                value.ptr = E::instance.addNewValue(it);
+            auto* ptr = E::ED::instance.get_ptr(it);
+            if (!ptr)
+                ptr = E::ED::instance.addNewValue(it);
+            value = E(ptr);
         }
     }
 };
 
-template <JsEnumDeclType E>
-struct to<FMT, db::JsEnum<E>>
+template <js::IsEnum E>
+struct to<FMT, E>
 {
     template <auto Opts>
     static void op(auto&& value, is_context auto&& ctx, auto&& b, auto&& ix) noexcept
@@ -50,7 +51,7 @@ struct to<FMT, db::JsEnum<E>>
         if (!value.has_value())
             serialize<FMT>::op<Opts>(nullptr, ctx, b, ix);
         else
-            serialize<FMT>::op<Opts>(value.ptr->str, ctx, b, ix);
+            serialize<FMT>::op<Opts>(value.sv(), ctx, b, ix);
     }
 };
 
@@ -63,7 +64,7 @@ struct from<FMT, db::BodyParentJS>
         glz::ordered_small_map<int> m;
         parse<FMT>::op<Opts>(m, ctx, it, end);
         auto bgn = m.begin();
-        decltype(value.type) tp = decltype(value.type)::E::instance.get(bgn->first);
+        auto tp = JsParentBodyType::get(bgn->first);
         value = db::BodyParentJS{tp, bgn->second};
     }
 };
@@ -77,6 +78,32 @@ struct to<FMT, db::BodyParentJS>
         glz::ordered_small_map<int> m;
         m.emplace(value.type, value.bodyId);
         serialize<FMT>::op<Opts>(m, ctx, b, ix);
+    }
+};
+
+template <>
+struct from<FMT, js::symbol>
+{
+    template <auto Opts>
+    static void op(auto&& value, auto&& ctx, auto&& it, auto&& end)
+    {
+        skip_ws<Opts>(ctx, it, end);
+        std::string str{};
+        parse<FMT>::op<Opts>(str, ctx, it, end);
+        value = js::symbol(str);
+    }
+};
+
+template <>
+struct to<FMT, js::symbol>
+{
+    template <auto Opts>
+    static void op(auto&& value, is_context auto&& ctx, auto&& b, auto&& ix) noexcept
+    {
+        if (!value.has_value())
+            serialize<FMT>::op<Opts>(nullptr, ctx, b, ix);
+        else
+            serialize<FMT>::op<Opts>(value.sv(), ctx, b, ix);
     }
 };
 
@@ -135,7 +162,7 @@ struct glz::meta<db::StationJS>
         if constexpr (glz::string_t<T>) {
             return value.empty();
         }
-        if constexpr (glz::is_specialization_v<std::decay_t<T>, db::JsEnum>) {
+        if constexpr (glz::is_specialization_v<std::decay_t<T>, js::Enum>) {
             return value->ptr != nullptr;
         }
 
@@ -213,7 +240,7 @@ struct glz::meta<db::BodyJS>
             &T::surfaceTemperature,
             &T::rotationalPeriod,
             &T::axialTilt,
-            &T::rotationalPeriodTidallyLocked,
+            "rotationalPeriodTidallyLocked", &T::tidallyLocked,
             "updateTime", &T::updated_at,
             &T::timestamps,
             &T::stations,
@@ -274,19 +301,19 @@ void checkStation(StationJS& st, bool is_planetary) {
     auto& type = st.type;
     if (!type.has_value()) {
         if (is_planetary)
-            st.type = JsStationType::instance.get("Planetary Installation");
+            st.type = JsStationType::get("Planetary Installation");
         else
-            st.type = JsStationType::instance.get("Space Installation");
+            st.type = JsStationType::get("Space Installation");
         //LOG_ERROR("Error: Station '{}' has no type", st.name);
         return;
     }
     if (!st.realName.empty()) {
         if (st.name == "System Colonisation Ship") {
-            st.type = JsStationType::instance.get("System Colonisation Ship");
+            st.type = JsStationType::get("System Colonisation Ship");
             st.name = st.realName;
             st.realName.clear();
         }
-        else if (st.type.operator std::string_view() == "Space Construction Depot") {
+        else if (st.type.sv() == "Space Construction Depot") {
             st.name = st.realName;
             st.realName.clear();
         }
@@ -300,7 +327,7 @@ void checkStation(StationJS& st, bool is_planetary) {
                 st.carrierName.clear();
             }
             else if (st.name.size() == 4) {
-                st.type = JsStationType::instance.get("Squadron Carrier");
+                st.type = JsStationType::get("Squadron Carrier");
                 st.name = st.carrierName + " | " + st.name;
                 st.carrierName.clear();
             }
@@ -318,28 +345,28 @@ void checkBody(BodyJS& body) {
         LOG_ERROR("Error: Body '{}' has no type", body.name);
         return;
     }
-    if (type.ptr->str == "Star") {
+    if (type.sv() == "Star") {
         if (!body.getStarPart()) {
-            //LOG_WARNING("Body '{}' with type {} has no star info", body.name, type.ptr->str);
+            //LOG_WARNING("Body '{}' with type {} has no star info", body.name, type.sv());
         }
         if (body.getPlanetPart()) {
-            LOG_ERROR("Body '{}' with type {} has planet info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has planet info", body.name, type.sv());
         }
     }
-    else if (type.ptr->str == "Planet") {
+    else if (type.sv() == "Planet") {
         if (body.getStarPart()) {
-            LOG_ERROR("Body '{}' with type {} has star info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has star info", body.name, type.sv());
         }
         if (!body.getPlanetPart()) {
-            //LOG_WARNING("Body '{}' with type {} has no planet info", body.name, type.ptr->str);
+            //LOG_WARNING("Body '{}' with type {} has no planet info", body.name, type.sv());
         }
     }
     else {
         if (body.getPlanetPart()) {
-            LOG_ERROR("Body '{}' with type {} has planet info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has planet info", body.name, type.sv());
         }
         if (body.getStarPart()) {
-            LOG_ERROR("Body '{}' with type {} has star info", body.name, type.ptr->str);
+            LOG_ERROR("Body '{}' with type {} has star info", body.name, type.sv());
         }
     }
     for (auto& st : body.stations) {
