@@ -156,7 +156,7 @@ NavType MEGASHIP {
         u'\u2672', // ♲
         TypeNav::Megaship,
         {"nav_select_icon_megaship.png"},
-        {"Megaship"}
+        {"Megaship", "Mega ship"}
 };
 NavType COLONIZATION_SHIP {
         u'\u267B', // ♻

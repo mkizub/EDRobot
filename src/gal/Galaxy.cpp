@@ -258,318 +258,337 @@ static void parseBodyId(const spStarSystem& ss, spEntity& entity, const js::valu
     }
     else if (j["body"].is_object() && j["body"]["name"].is_string()) {
         const auto body = j["body"]["name"].as_string();
-        for (auto& b : ss->bodies) {
-            if (b->name == body && b->bodyId >= 0) {
+        for (auto& b : ss->entities) {
+            if (isBody(b->type) && b->name == body && b->bodyId >= 0) {
                 entity->parentBodyId = b->bodyId;
                 break;
             }
         }
     }
 }
-static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool saved) {
-    auto systemAddress = jsystem["address"].exists()
-            ? jsystem["address"].as_int()
-            : jsystem["id64"].as_int();
-    const auto systemName = jsystem["name"].as_string();
-    double posX = jsystem["coords"]["x"].as_real_or();
-    double posY = jsystem["coords"]["y"].as_real_or();
-    double posZ = jsystem["coords"]["z"].as_real_or();
-    if (!ss) {
-        ss = theCache.put(systemAddress, systemName, posX, posY, posZ);
-        if (!ss)
-            return {};
-    }
-    if (!ss->savedDbBase) {
-        db::StarSystem db_ss = db::loadStarSystem(systemAddress);
-        if (!db_ss.id) {
-            db_ss = {
-                    .id = ss->systemAddress,
-                    .name = ss->systemName,
-                    .x = ss->starPos.x,
-                    .y = ss->starPos.y,
-                    .z = ss->starPos.z,
-                    .updated = ss->updated_at,
-                    .eddn_updated = ss->eddn_updated_at,
-            };
-            db::saveStarSystem(db_ss);
-        }
-    }
+//static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool saved) {
+//    auto systemAddress = jsystem["address"].exists()
+//            ? jsystem["address"].as_int()
+//            : jsystem["id64"].as_int();
+//    const auto systemName = jsystem["name"].as_string();
+//    double posX = jsystem["coords"]["x"].as_real_or();
+//    double posY = jsystem["coords"]["y"].as_real_or();
+//    double posZ = jsystem["coords"]["z"].as_real_or();
+//    if (!ss) {
+//        ss = theCache.put(systemAddress, systemName, posX, posY, posZ);
+//        if (!ss)
+//            return {};
+//    }
+//    if (!ss->savedDbBase) {
+//        db::StarSystem db_ss = db::loadStarSystem(systemAddress);
+//        if (!db_ss.id) {
+//            db_ss = {
+//                    .id = ss->systemAddress,
+//                    .name = ss->systemName,
+//                    .x = ss->starPos.x,
+//                    .y = ss->starPos.y,
+//                    .z = ss->starPos.z,
+//                    .updated = ss->updated_at,
+//                    .eddn_updated = ss->eddn_updated_at,
+//            };
+//            db::saveStarSystem(db_ss);
+//        }
+//    }
+//
+//    if (jsystem["eddn_updated_at"].is_string())
+//        parseTimestampString(jsystem["eddn_updated_at"].as_string_or(), ss->eddn_updated_at);
+//    if (jsystem["bodyCount"].is_int())
+//        ss->ext.bodyCount = jsystem["bodyCount"].as_int_or();
+//
+//    for (auto& jb : jsystem["bodies"].as_array_or()) {
+//        spEntity body(new Entity);
+//        if (jb["type"].is_string()) {
+//            const auto type = jb["type"].as_string();
+//            if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value())
+//                body->setType(typeNav.value());
+//        }
+//        parseUpdated(body, jb);
+//        parseBodyId(ss, body, jb);
+//
+//        if (ss->getBodyById(body->bodyId))
+//            continue;
+//        if (jb["name"].is_string()) {
+//            const auto name = jb["name"].as_string();
+//            if (ss->getBody(name))
+//                continue;
+//            body->setName(name);
+//        }
+//        if (jb["distanceToArrival"].is_number())
+//            body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_real());
+//        if (body->type == TypeNav::Star) {
+//            if (jb["radius"].is_number())
+//                body->radius = jb["radius"].as_real(); // KM
+//            else if (jb["solarRadius"].is_number())
+//                body->radius = jb["solarRadius"].as_real() * 6.957e5; // KM
+//            if (jb["spectralClass"].is_string())
+//                body->code = jb["spectralClass"].as_string();
+//            body->special = jb["isMainStar"].as_bool_or();
+//        }
+//        else if (body->type == TypeNav::Planet) {
+//            body->radius = jb["radius"].as_real_or(); // KM
+//            body->special = jb["isLandable"].as_bool_or();
+//        }
+//        ss->entities.push_back(body);
+//    }
+//
+//    //std::string lng = toLower(*enum_name<Lang>(Cfg.lng));
+//    for (auto& jb : jsystem["stations"].as_array_or()) {
+//        const auto name = jb["name"].as_string_or();
+//        if (ss->getDock(name))
+//            continue;
+//        spEntity site(new Entity);
+//        std::string type;
+//        if (jb["type"].is_string())
+//             type = jb["type"].as_string();
+//        if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value()) {
+//            site->setType(typeNav.value());
+//        } else {
+//            for (auto nt: ALL_NAV_TYPES) {
+//                if (nt->match_name(name)) {
+//                    site->setType(nt->type);
+//                    break;
+//                }
+//            }
+//            if (site->type == TypeNav::Other) {
+//                TypeNav tp = TypeNav::Other;
+//                for (auto nt: ALL_NAV_TYPES) {
+//                    if (nt->match_type(type)) {
+//                        site->setType(nt->type);
+//                        break;
+//                    }
+//                }
+//            }
+//            //if (typeNav == TypeNav::PlanetaryPort) {
+//            //    if (jb["government"].is_string() && jb["government"].as_string() == "$government_Engineer;")
+//            //        site->type = TypeNav::EngineerPort;
+//            //}
+//        }
+//        parseUpdated(site, jb);
+//        parseBodyId(ss, site, jb);
+//        if (ss->getBodyById(site->bodyId))
+//            continue;
+//        site->setName(name);
+//        if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_pattern && !nt->name_loc.empty())
+//            site->nloc = nt->get_nloc();
+//
+//        if (jb["marketId"].is_int())
+//            site->marketId = jb["marketId"].as_int();
+//        else if (jb["id64"].is_int())
+//            site->marketId = jb["id64"].as_int();
+//        ss->entities.push_back(site);
+//    }
+//
+//    ss->saved = saved;
+//    ss->loaded = true;
+//    return ss;
+//}
 
-    if (jsystem["eddn_updated_at"].is_string())
-        parseTimestampString(jsystem["eddn_updated_at"].as_string_or(), ss->eddn_updated_at);
-    if (jsystem["bodyCount"].is_int())
-        ss->ext.bodyCount = jsystem["bodyCount"].as_int_or();
-
-    for (auto& jb : jsystem["bodies"].as_array_or()) {
-        spEntity body(new Entity);
-        if (jb["type"].is_string()) {
-            const auto type = jb["type"].as_string();
-            if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value())
-                body->setType(typeNav.value());
-        }
-        parseUpdated(body, jb);
-        parseBodyId(ss, body, jb);
-
-        if (ss->getBodyById(body->bodyId))
-            continue;
-        if (jb["name"].is_string()) {
-            const auto name = jb["name"].as_string();
-            if (ss->getBody(name))
-                continue;
-            body->setName(name);
-        }
-        if (jb["distanceToArrival"].is_number())
-            body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_real());
-        if (body->type == TypeNav::Star) {
-            if (jb["radius"].is_number())
-                body->radius = jb["radius"].as_real(); // KM
-            else if (jb["solarRadius"].is_number())
-                body->radius = jb["solarRadius"].as_real() * 6.957e5; // KM
-            if (jb["spectralClass"].is_string())
-                body->code = jb["spectralClass"].as_string();
-            body->special = jb["isMainStar"].as_bool_or();
-        }
-        else if (body->type == TypeNav::Planet) {
-            body->radius = jb["radius"].as_real_or(); // KM
-            body->special = jb["isLandable"].as_bool_or();
-        }
-        ss->bodies.push_back(body);
-    }
-
-    //std::string lng = toLower(*enum_name<Lang>(Cfg.lng));
-    for (auto& jb : jsystem["stations"].as_array_or()) {
-        const auto name = jb["name"].as_string_or();
-        if (ss->getDock(name))
-            continue;
-        spEntity site(new Entity);
-        std::string type;
-        if (jb["type"].is_string())
-             type = jb["type"].as_string();
-        if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value()) {
-            site->setType(typeNav.value());
-        } else {
-            for (auto nt: ALL_NAV_TYPES) {
-                if (nt->match_name(name)) {
-                    site->setType(nt->type);
-                    break;
-                }
-            }
-            if (site->type == TypeNav::Other) {
-                TypeNav tp = TypeNav::Other;
-                for (auto nt: ALL_NAV_TYPES) {
-                    if (nt->match_type(type)) {
-                        site->setType(nt->type);
-                        break;
-                    }
-                }
-            }
-            //if (typeNav == TypeNav::PlanetaryPort) {
-            //    if (jb["government"].is_string() && jb["government"].as_string() == "$government_Engineer;")
-            //        site->type = TypeNav::EngineerPort;
-            //}
-        }
-        parseUpdated(site, jb);
-        parseBodyId(ss, site, jb);
-        if (ss->getBodyById(site->bodyId))
-            continue;
-        site->setName(name);
-        if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_pattern && !nt->name_loc.empty())
-            site->nloc = nt->get_nloc();
-
-        if (jb["marketId"].is_int())
-            site->marketId = jb["marketId"].as_int();
-        else if (jb["id64"].is_int())
-            site->marketId = jb["id64"].as_int();
-        ss->stations.push_back(site);
-    }
-
-    ss->saved = saved;
-    ss->loaded = true;
-    return ss;
+void StarSystem::load() {
+    if (isBlobLoaded)
+        return;
+    db::StarSystemJS db_ss;
+    if (db::loadStarSystemBlob(db_ss, systemName, systemAddress))
+        update_star_system(this, db_ss);
+    isBlobLoaded = true;
 }
 
 void StarSystem::save() {
-    if (!savedDbBase) {
-        savedDbBase = db::saveStarSystem({systemAddress, systemName, starPos.x, starPos.y, starPos.z,
-                                          updated_at, eddn_updated_at});
+    if (needCoreSave) {
+        db::saveStarSystem({systemAddress, systemName, starPos.x, starPos.y, starPos.z, updated_at, eddn_updated_at});
+        needCoreSave = false;
+    }
+    if (needBlobSave) {
+        db::StarSystemJS db_ss;
+        if (fill_star_system_db(this, db_ss))
+            db::saveStarSystemBlob(db_ss, systemName, systemAddress);
+        needBlobSave = false;
+        isBlobLoaded = true;
     }
 
-    js::value jinfo = js::object({});
-    jinfo.set_no_indent().set_no_object_nulls();
-    if (ext.bodyCount) jinfo["bodyCount"] = ext.bodyCount;
-    if (ext.population) jinfo["population"] = ext.population;
-    if (ext.allegiance) jinfo["allegiance"] = ext.allegiance;
-    if (ext.government) jinfo["government"] = ext.government;
-    if (ext.primaryEconomy) jinfo["primaryEconomy"] = ext.primaryEconomy;
-    if (ext.secondaryEconomy) jinfo["secondaryEconomy"] = ext.secondaryEconomy;
-    if (ext.security) jinfo["security"] = ext.security;
-
-    std::vector sorted_bodies = bodies;
-    std::sort(sorted_bodies.begin(), sorted_bodies.end(), [](const spEntity& a, const spEntity& b) {
-        return a->bodyId < b->bodyId;
-    });
-    js::value jbodies = js::array({});
-    js::value jstations = js::array({});
-    for (auto& body : sorted_bodies) {
-        js::value jb {
-                {"type", *enum_name<TypeNav>(body->type)},
-        };
-        if (body->type != TypeNav::Barycenter && !body->name.empty())
-            jb["name"] = body->name;
-        if (body->bodyId >= 0)
-            jb["bodyId"] = body->bodyId;
-        if (body->parentBodyId >= 0)
-            jb["parentBodyId"] = body->parentBodyId;
-        if (body->main_star_distance.valid())
-            jb["distanceToArrival"] = std::round(body->main_star_distance.get_ls()*10.0)/10.0;
-        if (body->radius)
-            jb["radius"] = std::round(body->radius*1000.0)/1000.0;
-        if (body->type == TypeNav::Star) {
-            if (body->special)
-                jb["isMainStar"] = true;
-            if (!body->code.empty())
-                jb["spectralClass"] = body->code;
-        }
-        else if (body->type == TypeNav::Planet) {
-            if (body->special)
-                jb["isLandable"] = true;
-            if (!body->code.empty())
-                jb["spectralClass"] = body->code;
-        }
-
-        {
-            auto ts = std::chrono::floor<std::chrono::seconds>(body->updated);
-            auto seconds = ts.time_since_epoch().count();
-            if (seconds)
-                jb["updateTime"] = seconds;
-        }
-        jb.set_no_indent();
-        jbodies.as_array().push_back(jb);
-    }
-    for (auto& st : stations) {
-        js::value jst {
-                {"type", *enum_name<TypeNav>(st->type)},
-                {"name", st->name},
-        };
-        if (st->bodyId >= 0)
-            jst["bodyId"] = st->bodyId;
-        if (st->parentBodyId >= 0)
-            jst["parentBodyId"] = st->parentBodyId;
-        if (st->main_star_distance.valid())
-            jst["distanceToArrival"] = std::round(st->main_star_distance.get_ls()*10.0)/10.0;
-        if (st->marketId)
-            jst["marketId"] = st->marketId;
-        {
-            auto ts = std::chrono::floor<std::chrono::seconds>(st->updated);
-            auto seconds = ts.time_since_epoch().count();
-            if (seconds)
-                jst["updateTime"] = seconds;
-        }
-        jst.set_no_indent();
-        jstations.as_array().push_back(jst);
-    }
-
-    js::value jout {
-            {"name",     systemName},
-            {"address",  systemAddress},
-            {"coords",   js::object({
-                {"x", starPos.x},
-                {"y", starPos.y},
-                {"z", starPos.z},
-                })},
-            {"info",     jinfo},
-            {"bodies",   jbodies},
-            {"stations", jstations},
-    };
-    if (eddn_updated_at.time_since_epoch().count() != 0)
-        jout["eddn_updated_at"] = formatTimestampString(eddn_updated_at, false);
-    jout["coords"].deref().set_no_indent();
-
-    std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(systemName)));
-    std::ofstream ofs(fp);
-    ofs << std::setprecision(15) << std::defaultfloat << js::rule::ecma404() << js::rule::space_indent<1>() << jout;
-    ofs.close();
-
-    saved = true;
+//    js::value jinfo = js::object({});
+//    jinfo.set_no_indent().set_no_object_nulls();
+//    if (ext.bodyCount) jinfo["bodyCount"] = ext.bodyCount;
+//    if (ext.population) jinfo["population"] = ext.population;
+//    if (ext.allegiance) jinfo["allegiance"] = ext.allegiance;
+//    if (ext.government) jinfo["government"] = ext.government;
+//    if (ext.primaryEconomy) jinfo["primaryEconomy"] = ext.primaryEconomy;
+//    if (ext.secondaryEconomy) jinfo["secondaryEconomy"] = ext.secondaryEconomy;
+//    if (ext.security) jinfo["security"] = ext.security;
+//
+//    std::vector<spEntity> sorted_bodies;
+//    sorted_bodies.reserve(entities.size());
+//    for (auto& b : entities) {
+//        if (isBody(b->type))
+//            sorted_bodies.push_back(b);
+//    }
+//    std::sort(sorted_bodies.begin(), sorted_bodies.end(), [](const spEntity& a, const spEntity& b) {
+//        return a->bodyId < b->bodyId;
+//    });
+//    js::value jbodies = js::array({});
+//    js::value jstations = js::array({});
+//    for (auto& body : sorted_bodies) {
+//        js::value jb {
+//                {"type", *enum_name<TypeNav>(body->type)},
+//        };
+//        if (body->type != TypeNav::Barycenter && !body->name.empty())
+//            jb["name"] = body->name;
+//        if (body->bodyId >= 0)
+//            jb["bodyId"] = body->bodyId;
+//        if (body->parentBodyId >= 0)
+//            jb["parentBodyId"] = body->parentBodyId;
+//        if (body->main_star_distance.valid())
+//            jb["distanceToArrival"] = std::round(body->main_star_distance.get_ls()*10.0)/10.0;
+//        if (body->radius)
+//            jb["radius"] = std::round(body->radius*1000.0)/1000.0;
+//        if (body->type == TypeNav::Star) {
+//            if (body->special)
+//                jb["isMainStar"] = true;
+//            if (!body->code.empty())
+//                jb["spectralClass"] = body->code;
+//        }
+//        else if (body->type == TypeNav::Planet) {
+//            if (body->special)
+//                jb["isLandable"] = true;
+//            if (!body->code.empty())
+//                jb["spectralClass"] = body->code;
+//        }
+//
+//        {
+//            auto ts = std::chrono::floor<std::chrono::seconds>(body->updated);
+//            auto seconds = ts.time_since_epoch().count();
+//            if (seconds)
+//                jb["updateTime"] = seconds;
+//        }
+//        jb.set_no_indent();
+//        jbodies.as_array().push_back(jb);
+//    }
+//    for (auto& st : entities) {
+//        if (!(isSpaceSite(st->type) || isPlanetarySite(st->type)))
+//            continue;
+//        js::value jst {
+//                {"type", *enum_name<TypeNav>(st->type)},
+//                {"name", st->name},
+//        };
+//        if (st->bodyId >= 0)
+//            jst["bodyId"] = st->bodyId;
+//        if (st->parentBodyId >= 0)
+//            jst["parentBodyId"] = st->parentBodyId;
+//        if (st->main_star_distance.valid())
+//            jst["distanceToArrival"] = std::round(st->main_star_distance.get_ls()*10.0)/10.0;
+//        if (st->marketId)
+//            jst["marketId"] = st->marketId;
+//        {
+//            auto ts = std::chrono::floor<std::chrono::seconds>(st->updated);
+//            auto seconds = ts.time_since_epoch().count();
+//            if (seconds)
+//                jst["updateTime"] = seconds;
+//        }
+//        jst.set_no_indent();
+//        jstations.as_array().push_back(jst);
+//    }
+//
+//    js::value jout {
+//            {"name",     systemName},
+//            {"address",  systemAddress},
+//            {"coords",   js::object({
+//                {"x", starPos.x},
+//                {"y", starPos.y},
+//                {"z", starPos.z},
+//                })},
+//            {"info",     jinfo},
+//            {"bodies",   jbodies},
+//            {"stations", jstations},
+//    };
+//    if (eddn_updated_at.time_since_epoch().count() != 0)
+//        jout["eddn_updated_at"] = formatTimestampString(eddn_updated_at, false);
+//    jout["coords"].deref().set_no_indent();
+//
+//    std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(systemName)));
+//    std::ofstream ofs(fp);
+//    ofs << std::setprecision(15) << std::defaultfloat << js::rule::ecma404() << js::rule::space_indent<1>() << jout;
+//    ofs.close();
+//
+//    saved = true;
 }
 
-static spStarSystem loadStarSystem(spStarSystem ss, std::string_view name, int64_t address, bool network_load) {
-    std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(name)));
-    if (std::filesystem::exists(fp)) {
-        auto jsystem = parseJsonFile(fp.wstring());
-        if (!jsystem.empty())
-            ss = fromEDDN(ss, jsystem, true);
-    }
-    if (network_load && (!ss || ss->bodies.empty())) {
-        if (address)
-            ss = Spansh::loadStarSystem(address);
-        else
-            ss = Spansh::loadStarSystem(name);
-    }
-    if (ss && !ss->savedDbBase) {
-        db::StarSystem s {
-            .id = ss->systemAddress,
-            .name = ss->systemName,
-            .x = ss->starPos.x,
-            .y = ss->starPos.y,
-            .z = ss->starPos.z,
-            .updated = ss->updated_at,
-            .eddn_updated = ss->eddn_updated_at,
-        };
-        ss->savedDbBase = db::saveStarSystem(s);
-    }
-    return ss;
-}
-
-spStarSystem getStarSystem(std::string_view name, bool network_load) {
+spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_load) {
     spStarSystem ss = theCache.get(name);
-    if (!ss)
-        ss = loadStarSystem(ss, *name, 0, network_load);
-    else if (ss->bodies.empty())
-        ss = loadStarSystem(ss, ss->systemName, ss->systemAddress, network_load);
-    if (ss && !ss->saved) {
-        assert (ss->systemName == name);
-        ss->save();
+    if (!ss) {
+        db::StarSystem s = db::loadStarSystem(name);
+        if (!s.name.empty()) {
+            ss = theCache.put(s.id, s.name, s.x, s.y, s.z);
+            ss->needCoreSave = false;
+            ss->isBlobLoaded = false;
+            ss->needBlobSave = false;
+
+            ss->updated_at = s.updated;
+            ss->eddn_updated_at = s.eddn_updated;
+        }
     }
+    if (!ss && network_load) {
+        ss = Spansh::loadStarSystem(name);
+    }
+    if (ss && blob_load && !ss->isBlobLoaded)
+        ss->load();
+    if (ss && !ss->isBlobLoaded && network_load)
+        Spansh::loadStarSystem(ss);
+    ss->save();
     return ss;
 }
 
-spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d* starPos, bool network_load) {
-    spStarSystem ss;
-    if (gCurrentStarSystem && gCurrentStarSystem->systemName == name)
-        ss = gCurrentStarSystem;
-    else if (address)
-        ss = theCache.get(address);
-    else if (!name.empty())
-        ss = theCache.get(name);
+spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d* starPos, bool blob_load, bool network_load) {
+    assert (!name.empty() && address != 0);
+    if (name.empty() || address == 0) {
+        LOG_ERROR("Attempt to create star system: address={}, name='{}', coords=[{},{},{}]",
+                  address, name, starPos ? starPos->x : 0, starPos ? starPos->y : 0, starPos ? starPos->z : 0);
+        return {};
+    }
+    spStarSystem ss = theCache.get(address);
     if (!ss) {
         db::StarSystem s = db::loadStarSystem(address);
         if (!s.name.empty()) {
             ss = theCache.put(address, name, s.x, s.y, s.z);
+            ss->needCoreSave = true;
+            ss->isBlobLoaded = false;
+            ss->needBlobSave = false;
+
             ss->updated_at = s.updated;
             ss->eddn_updated_at = s.eddn_updated;
-            ss->savedDbBase = true;
-        }
-        else if (address && !name.empty()) {
+            if (starPos && cv::norm(cv::Point3d(s.x,s.y,s.z)-*starPos) > 0.1) {
+                ss->starPos = *starPos;
+                ss->needCoreSave = true;
+            } else {
+                ss->needCoreSave = false; // just loaded from DB
+            }
+        } else {
             double x = starPos ? starPos->x : 0;
             double y = starPos ? starPos->y : 0;
             double z = starPos ? starPos->z : 0;
             ss = theCache.put(address, name, x, y, z);
-            s = { .id = ss->systemAddress,
-                  .name = ss->systemName,
-                  .x = x,
-                  .y = y,
-                  .z = z,
-                  .updated = ss->updated_at,
-                  .eddn_updated = ss->eddn_updated_at,
-            };
-            db::saveStarSystem(s);
+            ss->needCoreSave = true;
         }
     }
-    if (!ss || ss->bodies.empty())
-        ss = loadStarSystem(ss, *name, address, network_load);
-    if (!ss && address && !name.empty())
-        ss = theCache.put(address, name, 0, 0, 0);
+    if (ss->needCoreSave) {
+        db::StarSystem s {
+                .id = ss->systemAddress,
+                .name = ss->systemName,
+                .x = ss->starPos.x,
+                .y = ss->starPos.y,
+                .z = ss->starPos.z,
+                .updated = ss->updated_at,
+                .eddn_updated = ss->eddn_updated_at,
+        };
+        ss->needCoreSave = db::saveStarSystem(s);
+    }
+    if (blob_load || network_load)
+        ss->load();
+    if (network_load && (!ss->isBlobLoaded || (ss->entities.empty() && !ss->eddn_updated_at.time_since_epoch().count())))
+        ss = Spansh::loadStarSystem(ss);
     return ss;
 }
 
@@ -581,7 +600,7 @@ void setCurrentStarSystem(spStarSystem ss) {
 }
 
 spEntity StarSystem::getMainStar() {
-    for (auto& b : this->bodies) {
+    for (auto& b : this->entities) {
         if (b->type == TypeNav::Star && b->special)
             return b;
     }
@@ -591,17 +610,35 @@ spEntity StarSystem::getMainStar() {
 spEntity StarSystem::getEntity(const std::string& nm) {
     if (nm.empty())
         return {};
-    for (auto& e : this->bodies) {
+    for (auto& e : this->entities) {
         if (e->nameEq(nm))
             return e;
     }
-    for (auto& e : this->stations) {
-        if (e->nameEq(nm))
+    std::string xx_name;
+    std::string ru_name;
+    if (NavType::expandName(nm, xx_name, ru_name)) {
+        for (auto& s : this->entities) {
+            if (s->nameEq(xx_name) || s->nameEq(ru_name))
+                return s;
+        }
+    }
+    return {};
+}
+
+spEntity StarSystem::getDockOrSignal(std::string_view nm) {
+    if (nm.empty())
+        return {};
+    for (auto& e : this->entities) {
+        if (!isBody(e->type) && e->nameEq(nm))
             return e;
     }
-    for (auto& e : this->signals) {
-        if (e->nameEq(nm))
-            return e;
+    std::string xx_name;
+    std::string ru_name;
+    if (NavType::expandName(nm, xx_name, ru_name)) {
+        for (auto& s : this->entities) {
+            if (!isBody(s->type) && (s->nameEq(xx_name) || s->nameEq(ru_name)))
+                return s;
+        }
     }
     return {};
 }
@@ -609,13 +646,7 @@ spEntity StarSystem::getEntity(const std::string& nm) {
 void StarSystem::removeEntity(const spEntity& entity) {
     if (!entity)
         return;
-    std::erase_if(this->bodies, [entity](const auto& e) {
-        return e.get() == entity.get();
-    });
-    std::erase_if(this->stations, [entity](const auto& e) {
-        return e.get() == entity.get();
-    });
-    std::erase_if(this->signals, [entity](const auto& e) {
+    std::erase_if(this->entities, [entity](const auto& e) {
         return e.get() == entity.get();
     });
 }
@@ -624,14 +655,9 @@ void StarSystem::removeEntity(const spEntity& entity) {
 spEntity StarSystem::getBodyById(int bodyId) {
     if (bodyId < 0)
         return {};
-    for (auto& b : this->bodies) {
-        if (b->bodyId >= 0 && b->bodyId == bodyId)
+    for (auto& b : this->entities) {
+        if (b->bodyId == bodyId)
             return b;
-    }
-    // stations also have bodyId
-    for (auto& s : this->stations) {
-        if (s->bodyId >= 0 && s->bodyId == bodyId)
-            return s;
     }
     return {};
 }
@@ -639,8 +665,8 @@ spEntity StarSystem::getBodyById(int bodyId) {
 spEntity StarSystem::getBody(std::string_view bname) {
     if (bname.empty())
         return {};
-    for (auto& b : this->bodies) {
-        if (b->nameEq(bname))
+    for (auto& b : this->entities) {
+        if (isBody(b->type) && b->nameEq(bname))
             return b;
     }
     return {};
@@ -648,14 +674,18 @@ spEntity StarSystem::getBody(std::string_view bname) {
 spEntity StarSystem::getDock(std::string_view sname) {
     if (sname.empty())
         return {};
-    for (auto& s : this->stations) {
+    for (auto& s : this->entities) {
+        if (!isSite(s->type))
+            continue;
         if (s->nameEq(sname))
             return s;
     }
     std::string xx_name;
     std::string ru_name;
     if (NavType::expandName(sname, xx_name, ru_name)) {
-        for (auto& s : this->stations) {
+        for (auto& s : this->entities) {
+            if (!isSite(s->type))
+                continue;
             if (s->nameEq(xx_name) || s->nameEq(ru_name))
                 return s;
         }
@@ -666,7 +696,9 @@ spEntity StarSystem::getDock(std::string_view sname) {
 spEntity StarSystem::getDock(int64_t marketId) {
     if (marketId == 0)
         return {};
-    for (auto& s : this->stations) {
+    for (auto& s : this->entities) {
+        if (!isSite(s->type))
+            continue;
         if (s->marketId == marketId)
             return s;
     }
@@ -678,21 +710,21 @@ void StarSystem::addDestination() {
     if (this->systemAddress != st::destination.systemAddress)
         return;
     auto& dname = st::destination.name;
-    for (auto& b : this->bodies) {
-        if (b->nameEq(dname))
+    for (auto& b : this->entities) {
+        if (b->nameEq(dname) && isBody(b->type))
             return;
     }
     std::string xx_name;
     std::string ru_name;
     bool exp = NavType::expandName(dname, xx_name, ru_name);
-    for (auto& s : this->stations) {
+    for (auto& s : this->entities) {
         if (s->nameEq(dname) || (exp && s->nameEq(xx_name)) || (exp && s->nameEq(ru_name))) {
             switch (s->type) {
             case TypeNav::FleetCarrier:
             case TypeNav::SquadronCarrier:
                 if (s->name != dname) {
                     s->setName(dname);
-                    this->saved = false;
+                    this->needBlobSave = true;
                 }
                 // fall through
             case TypeNav::NavBeacon:
@@ -710,11 +742,9 @@ void StarSystem::addDestination() {
             case TypeNav::PlanetaryConstrDepot:
                 if (s->parentBodyId != st::destination.bodyId) {
                     s->parentBodyId = st::destination.bodyId;
-                    this->saved = false;
+                    this->needBlobSave = true;
                 }
-                if (!this->saved) {
-                    save();
-                }
+                save();
             }
             return;
         }
@@ -729,16 +759,16 @@ void StarSystem::addDestination() {
                 spEntity star = std::make_shared<Entity>();
                 star->setName(dname);
                 star->bodyId = st::destination.bodyId;
-                bodies.push_back(star);
-                this->saved = false;
+                entities.push_back(star);
+                this->needBlobSave = true;
             }
         } else {
             // a body
             spEntity body = std::make_shared<Entity>();
             body->setName(dname);
             body->bodyId = st::destination.bodyId;
-            bodies.push_back(body);
-            this->saved = false;
+            entities.push_back(body);
+            this->needBlobSave = true;
         }
         return;
     }
@@ -747,27 +777,26 @@ void StarSystem::addDestination() {
         site->setType(TypeNav::SpaceConstrDepot);
         site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
-        stations.push_back(site);
-        this->saved = false;
+        entities.push_back(site);
+        this->needBlobSave = true;
     }
     else if (dname.starts_with("Planetary Construction Site:")) {
         spEntity site = std::make_shared<Entity>();
         site->setType(TypeNav::PlanetaryConstrDepot);
         site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
-        stations.push_back(site);
-        this->saved = false;
+        entities.push_back(site);
+        this->needBlobSave = true;
     }
     else if (dname.starts_with("$EXT_PANEL_ColonisationShip;")) {
         spEntity site = std::make_shared<Entity>();
         site->setType(TypeNav::ColonisationShip);
         site->setName(dname);
         site->parentBodyId = st::destination.bodyId;
-        stations.push_back(site);
-        this->saved = false;
+        entities.push_back(site);
+        this->needBlobSave = true;
     }
-    if (!this->saved)
-        save();
+    save();
 }
 
 spEntity StarSystem::addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& sname, int bodyId) {
@@ -803,41 +832,32 @@ spEntity StarSystem::addNavListEntry(wchar_t charOCR, const std::string& nav_ico
 
     if (typeNav != TypeNav::Other && entity->type != typeNav) {
         entity->setType(typeNav);
-        saved = false;
+        needBlobSave = true;
     }
     if (entity->name.empty() || !entity->nameEq(sname)) {
         entity->setName(sname);
-        saved = false;
+        needBlobSave = true;
     }
 
     if (bodyId >= 0) {
         if (isBody(entity->type) || isSpaceStation(entity->type)) {
             if (entity->bodyId < 0) {
                 entity->bodyId = bodyId;
-                saved = false;
+                needBlobSave = true;
             }
         } else {
             if (entity->parentBodyId < 0) {
                 entity->parentBodyId = bodyId;
-                saved = false;
+                needBlobSave = true;
             }
         }
     }
 
     if (added) {
-        if (isBody(entity->type)) {
-            bodies.push_back(entity);
-            saved = false;
-        }
-        else if (isSite(entity->type)) {
-            stations.push_back(entity);
-            saved = false;
-        }
-        else
-            signals.push_back(entity);
+        entities.push_back(entity);
+        needBlobSave = true;
     }
-    if (!saved)
-        save();
+    save();
     return entity;
 }
 
@@ -867,14 +887,14 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
                 dock.reset();
             } else {
                 dock->marketId = marketId;
-                saved = false;
+                needBlobSave = true;
             }
         }
     }
     if (!dock) {
         dock.reset(new Entity);
         dock->marketId = marketId;
-        stations.push_back(dock);
+        entities.push_back(dock);
     }
 
     TypeNav typeNav = TypeNav::Other;
@@ -904,57 +924,40 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
     }
     if (typeNav != TypeNav::Other && dock->type != typeNav) {
         dock->setType(typeNav);
-        saved = false;
+        needBlobSave = true;
     }
     if (!sname.empty() && (dock->name.empty() || !dock->nameEq(sname))) {
         dock->setName(sname);
-        saved = false;
+        needBlobSave = true;
     }
     if (dock->parentBodyId < 0) {
         if (st::space.bodyType == "Planet" || st::space.bodyType == "Star") {
             dock->parentBodyId = st::space.bodyId;
-            saved = false;
+            needBlobSave = true;
         }
     }
-    if (je["DistFromStarLS"].is_number()) {
-        double dist = je["DistFromStarLS"].as_real_or();
-        if (!dock->main_star_distance || std::round(dock->main_star_distance.get_ls()) != std::round(dist)) {
-            dock->main_star_distance = dist_t(dist_t::LS, dist);
-            saved = false;
-        }
-    }
-    if (!saved)
-        save();
+//    if (je["DistFromStarLS"].is_number()) {
+//        double dist = je["DistFromStarLS"].as_real_or();
+//        if (!dock->main_star_distance || std::round(dock->main_star_distance.get_ls()) != std::round(dist)) {
+//            dock->main_star_distance = dist_t(dist_t::LS, dist);
+//            needBlobSave = true;
+//        }
+//    }
+    save();
     return dock;
 }
 
-spEntity StarSystem::addStation(spEntity station) {
-    if (station) {
-        stations.push_back(station);
-    }
-    return station;
-}
-
-spEntity StarSystem::addBody(spEntity body) {
-    if (body) {
-        bodies.push_back(body);
-    }
-    return body;
-}
-
-spEntity StarSystem::addSignal(spEntity signal) {
-    if (signal) {
-        assert (isSignal(signal->type));
-        signals.push_back(signal);
-    }
-    return signal;
+spEntity StarSystem::addEntity(spEntity entity) {
+    if (entity)
+        entities.push_back(entity);
+    return entity;
 }
 
 void StarSystem::checkType(spEntity& site, TypeNav type, Timestamp timestamp) {
     if (site && /*type != TypeNav::Other &&*/ site->type != type && site->updated < timestamp) {
         site->setType(type);
         site->updated = timestamp;
-        saved = false;
+        needBlobSave = true;
     }
 }
 void StarSystem::checkName(spEntity& site, std::string_view name, Timestamp timestamp) {
@@ -962,12 +965,12 @@ void StarSystem::checkName(spEntity& site, std::string_view name, Timestamp time
         if (site->type == TypeNav::FleetCarrier) {
             if (site->name != name && site->setName(name)) {
                 site->updated = timestamp;
-                saved = false;
+                needBlobSave = true;
             }
         }
         else if (!site->nameEq(name) && site->setName(name)) {
             site->updated = timestamp;
-            saved = false;
+            needBlobSave = true;
         }
     }
 
@@ -998,7 +1001,7 @@ void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEv
         }
         bool isStation = bool(data["IsStation"]);
 
-        spEntity site = getDock(sname);
+        spEntity site = getDockOrSignal(sname);
         if (!site) {
             site.reset(new Entity());
             if (stype == "NavBeacon")
@@ -1008,8 +1011,8 @@ void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEv
             else if (stype == "SquadronCarrier")
                 site->setType(TypeNav::SquadronCarrier);
             site->setName(sname);
-            stations.push_back(site);
-            saved = false;
+            entities.push_back(site);
+            needBlobSave = true;
         }
         else if (site->updated > timestamp)
             continue;
@@ -1037,8 +1040,7 @@ void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEv
         checkName(site, sname, timestamp);
         checkNloc(site, snloc, timestamp);
     }
-    if (!saved)
-        save();
+    save();
 }
 
 spMarket getMarket(int64_t marketId) {
@@ -1072,31 +1074,6 @@ void Entity::setType(TypeNav tp) {
     TypeNav& new_type = const_cast<TypeNav&>(this->type);
     new_type = tp;
 
-    if (isBody(new_type)) {
-        Entity::BodyData body_ext {};
-        if (old_type == TypeNav::Star)
-            body_ext = std::get<Entity::StarData>(ext);
-        else if (old_type == TypeNav::Planet)
-            body_ext = std::get<Entity::StarData>(ext);
-        else if (isBody(old_type))
-            body_ext = std::get<Entity::BodyData>(ext);
-
-        if (new_type == TypeNav::Star) {
-            Entity::StarData s_ext {};
-            static_cast<Entity::BodyData &>(s_ext) = body_ext;
-            ext = s_ext;
-        }
-        else if (new_type == TypeNav::Planet) {
-            Entity::PlanetData p_ext {};
-            static_cast<Entity::BodyData &>(p_ext) = body_ext;
-            ext = p_ext;
-        }
-        else {
-            ext = body_ext;
-        }
-        return;
-    }
-
     if (isSpaceSite(new_type) || isPlanetarySite(new_type)) {
         if (!std::holds_alternative<Entity::StationData>(ext)) {
             Entity::StationData station_data {};
@@ -1105,8 +1082,27 @@ void Entity::setType(TypeNav tp) {
         return;
     }
 
-    if (!std::holds_alternative<std::monostate>(ext))
-        ext = std::monostate{};
+    Entity::BodyData body_ext {};
+    if (old_type == TypeNav::Star)
+        body_ext = std::get<Entity::StarData>(ext);
+    else if (old_type == TypeNav::Planet)
+        body_ext = std::get<Entity::StarData>(ext);
+    else if (std::holds_alternative<Entity::BodyData>(ext))
+        body_ext = std::get<Entity::BodyData>(ext);
+
+    if (new_type == TypeNav::Star) {
+        Entity::StarData s_ext;
+        static_cast<Entity::BodyData &>(s_ext) = body_ext;
+        ext = s_ext;
+    }
+    else if (new_type == TypeNav::Planet) {
+        Entity::PlanetData p_ext;
+        static_cast<Entity::BodyData &>(p_ext) = body_ext;
+        ext = p_ext;
+    }
+    else {
+        ext = body_ext;
+    }
 }
 
 Entity::BodyData& Entity::getBodyData() {
@@ -1122,20 +1118,14 @@ Entity::BodyData& Entity::getBodyData() {
 }
 
 Entity::StarData& Entity::getStarData() {
-    if (type == TypeNav::Star)
-        return std::get<Entity::StarData>(ext);
-    throw std::bad_variant_access();
+    return std::get<Entity::StarData>(ext);
 }
 
 Entity::PlanetData& Entity::getPlanetData() {
-    if (type == TypeNav::Planet)
-        return std::get<Entity::PlanetData>(ext);
-    throw std::bad_variant_access();
+    return std::get<Entity::PlanetData>(ext);
 }
 Entity::StationData& Entity::getStationData() {
-    if (isSpaceSite(type))
-        return std::get<Entity::StationData>(ext);
-    throw std::bad_variant_access();
+    return std::get<Entity::StationData>(ext);
 }
 
 bool Entity::nameEq(std::string_view nm) const {

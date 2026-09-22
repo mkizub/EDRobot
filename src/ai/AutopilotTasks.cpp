@@ -636,9 +636,9 @@ bool TaskDebugAutopilot::run() {
     else if (test == "CruiseToDist") {
         dist_t min_dist(dist_t::MM, 20);
         dist_t max_dist(dist_t::MM, 50);
-        if (st::autopilot.destBody && st::autopilot.destBody->radius > 0) {
-            min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 20);
-            max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius * 50);
+        if (st::autopilot.destBody && st::autopilot.destBody->radius() > 0) {
+            min_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius() * 20);
+            max_dist = dist_t(dist_t::KM, st::autopilot.destBody->radius() * 50);
         }
         run_sub_step(new CruiseToDistStep(min_dist, max_dist));
     }
@@ -1132,7 +1132,7 @@ bool DepartureStep::run() {
         if ((fromSimpleMegaship || fromStarPort || fromSpaceConstruction) && st::autopilot.destDock && st::autopilot.destBody) {
             auto at_dock = gal::getCurrentStarSystem()->getDock(st::space.marketId);
             auto at_body = gal::getCurrentStarSystem()->getBodyById(at_dock ? at_dock->parentBodyId : -1);
-            if (at_body && at_body->radius) {
+            if (at_body && at_body->radius()) {
                 if (at_body == st::autopilot.destBody)
                     run_sub_step(new NavDockSelect);
                 else
@@ -1262,15 +1262,15 @@ bool EnterCruiseStep::run() {
         bool wasDestBodyFocused = st::autopilot.isDestBodyFocused;
         bool needToSelectNearest = true;
         gal::spEntity body = task->nl.focusNearestBody(&dist);
-        if (body && body->radius > 0 && dist) {
+        if (body && body->radius() > 0 && dist) {
             LOG_DEBUG("EnterCruise: body type {}", enum_name<TypeNav>(body->type));
             if (body->type == TypeNav::Star) {
-                if (dist > 20_ls || dist.get_km() / body->radius > 12) {
+                if (dist > 20_ls || dist.get_km() / body->radius() > 12) {
                     needToSelectNearest = false;
                     LOG_DEBUG("EnterCruise: far away from Star: {}", dist);
                 }
             } else {
-                if (dist.get_km() / body->radius > 5) {
+                if (dist.get_km() / body->radius() > 5) {
                     needToSelectNearest = false;
                     LOG_DEBUG("EnterCruise: far away from Planet: {}", dist);
                 }
@@ -1738,7 +1738,7 @@ bool LeaveBodyStep::run() {
         }
     }
     else if (auto body = gal::getCurrentStarSystem()->getBody(fromBody);
-            body && body->type == TypeNav::Planet && body->radius > 8000 && eddb::shipHasFsdSco())
+            body && body->type == TypeNav::Planet && body->radius() > 8000 && eddb::shipHasFsdSco())
     {
         status = LEAVING_BODY;
         useFsdOvercharge = true;
@@ -3374,7 +3374,7 @@ bool DiveUnderPlanetStep::run() {
             LOG_DEBUG("DiveUnderPlanet, dockIsVisible={}", dockIsVisible);
             float visible_body_angle = std::numeric_limits<float>::quiet_NaN();
             if (dist_body)
-                visible_body_angle = std::asin(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;
+                visible_body_angle = std::asin(st::autopilot.destBody->radius() / dist_body.get_km()) * 180 / M_PI;
             // nav target is not visible if obscured by body or is out of FOV
             if (!dockIsVisible) {
                 if (ai::compassInfo.hemisphere < 0) {
@@ -3408,11 +3408,11 @@ bool DiveUnderPlanetStep::run() {
                     LOG_DEBUG("DiveUnderPlanet, dockIsVisible && toPort");
                     float cruisePitch = 3;
                     float alphaO = std::numeric_limits<float>::quiet_NaN();
-                    if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius > 0) {
+                    if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius() > 0) {
                         const double angleEntry = 50;
-                        const double oA = orbitShowAltitude(st::autopilot.destBody->radius);
+                        const double oA = orbitShowAltitude(st::autopilot.destBody->radius());
                         double dP = dist_body.get_km();
-                        double dO = st::autopilot.destBody->radius + oA;
+                        double dO = st::autopilot.destBody->radius() + oA;
                         double xP = sqrt(dP * dP + dO * dO - 2 * dP * dO * std::cos(angleEntry * M_PI / 180));
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
@@ -3492,7 +3492,7 @@ bool DiveUnderPlanetStep::run() {
             dist_t dist_body = st::autopilot.distanceToBody;
             float visible_body_angle = std::numeric_limits<float>::quiet_NaN();
             if (dist_body)
-                visible_body_angle = std::asin(st::autopilot.destBody->radius / dist_body.get_km()) * 180 / M_PI;
+                visible_body_angle = std::asin(st::autopilot.destBody->radius() / dist_body.get_km()) * 180 / M_PI;
             float to_body_center_angle = std::numeric_limits<float>::quiet_NaN();
             if (ai::compassInfo.hemisphere != 0) {
                 to_body_center_angle = ai::compassInfo.targetAngle;
@@ -3514,11 +3514,11 @@ bool DiveUnderPlanetStep::run() {
                     // sin(alphaO) = dO * sin(60) / sqrt(dp^2 + do^2 - 2*dp*do*cos(60))
                     float cruisePitch = 3;
                     float alphaO = std::numeric_limits<float>::quiet_NaN();
-                    if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius > 0) {
+                    if (!std::isnan(to_body_center_angle) && dist_body && st::autopilot.destBody->radius() > 0) {
                         const double angleEntry = 50;
-                        const double oA = orbitShowAltitude(st::autopilot.destBody->radius);
+                        const double oA = orbitShowAltitude(st::autopilot.destBody->radius());
                         double dP = dist_body.get_km();
-                        double dO = st::autopilot.destBody->radius + oA;
+                        double dO = st::autopilot.destBody->radius() + oA;
                         double xP = sqrt(dP * dP + dO * dO - 2 * dP * dO * std::cos(angleEntry * M_PI / 180));
                         alphaO = std::asin(dO * std::sin(angleEntry * M_PI / 180) / xP) * 180 / M_PI;
                     }
@@ -3590,13 +3590,13 @@ bool DiveUnderPlanetStep::run() {
         if (pointingToDock)
             task->orientRollByTarget(0, 5);
         auto& dtb = st::autopilot.distanceToBody;
-        if (dtb && dtb.get_km() < 2.25*st::autopilot.destBody->radius)
+        if (dtb && dtb.get_km() < 2.25*st::autopilot.destBody->radius())
             return false; // need to fly away
         float angle_to_dive = 20;
         if (!std::isnan(disk_part) && disk_part > 0.6 && !toPort) {
             angle_to_dive = 50;
         } else if (dtb) {
-            angle_to_dive = std::asin(2*st::autopilot.destBody->radius / dtb.get_km()) * 180 / M_PI;
+            angle_to_dive = std::asin(2*st::autopilot.destBody->radius() / dtb.get_km()) * 180 / M_PI;
         }
         if (angle_to_dive < 20)
             angle_to_dive = 20;
@@ -3717,14 +3717,14 @@ bool ExitCruiseToSpace::run() {
     dist_t dist_too_far;
     int dist_alert = 3000;
     int speed_alert = 50;
-    if (st::autopilot.destBody && st::autopilot.destBody->radius > 0) {
+    if (st::autopilot.destBody && st::autopilot.destBody->radius() > 0) {
         if (st::autopilot.destBody->type == TypeNav::Star) {
-            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius * 15).convertTo(dist_t::LS);
+            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius() * 15).convertTo(dist_t::LS);
             dist_alert = 40000;
             speed_alert = 75;
         } else {
-            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius * 25).convertTo(dist_t::LS);
-            if (st::autopilot.destBody->radius > 40000) {
+            dist_too_far = dist_t(dist_t::KM, st::autopilot.destBody->radius() * 25).convertTo(dist_t::LS);
+            if (st::autopilot.destBody->radius() > 40000) {
                 dist_alert = 10000;
                 speed_alert = 75;
             }
@@ -3940,7 +3940,7 @@ bool ExitCruiseToPlanet::run() {
             throw_trouble("Cannot see destination site");
         double pitchToDock = st::compass.targetPitch;
         enteringDockToBodyAngle = std::abs(pitchToDock - pitchToBody);
-        double R = st::autopilot.destBody->radius;
+        double R = st::autopilot.destBody->radius();
         double altitude = st::shipAtBody.altitude * 0.001;
         double dist_to_body_center = R + altitude;
         double tangent = std::asin(R / dist_to_body_center) * 180 / M_PI;
@@ -4262,7 +4262,7 @@ bool CruiseAndDock::run() {
     if (!at_dest_dock && !st::ship.flags.cruise && !toPort && !fromPort && st::space.marketId && st::autopilot.destDock && st::autopilot.destBody) {
         auto at_dock = gal::getCurrentStarSystem()->getDock(st::space.marketId);
         auto at_body = gal::getCurrentStarSystem()->getBodyById(at_dock ? at_dock->parentBodyId : -1);
-        if (at_body && at_body->radius && at_body == st::autopilot.destBody) {
+        if (at_body && at_body->radius() && at_body == st::autopilot.destBody) {
             if (!run_sub_step(new NavDockSelect))
                 goto full_path;
             if (!task->orientTowardTarget(1))
@@ -4281,10 +4281,10 @@ bool CruiseAndDock::run() {
                     goto full_path;
             }
             if (ai::compassInfo.hemisphere > 0 && ai::compassInfo.targetAngle < 70) {
-                float visible_body_angle = std::asin(at_body->radius / dist_body.get_km()) * 180 / M_PI;
+                float visible_body_angle = std::asin(at_body->radius() / dist_body.get_km()) * 180 / M_PI;
                 float to_body_center_angle = ai::compassInfo.targetAngle;
-                const double orbitAltitude = orbitShowAltitude(at_body->radius);
-                const double bypassDistance = at_body->radius + orbitAltitude;
+                const double orbitAltitude = orbitShowAltitude(at_body->radius());
+                const double bypassDistance = at_body->radius() + orbitAltitude;
                 float bypassAngle = std::asin(bypassDistance / dist_body.get_km()) * 180 / M_PI;
                 if (to_body_center_angle < bypassAngle)
                     goto full_path;
@@ -4340,11 +4340,11 @@ full_path:
         dist_t max_dist = 5.0_ls;
         if (st::autopilot.destBody) {
             if (toPort || st::autopilot.destBody->type == TypeNav::Planet) {
-                auto radius = std::max(1000.0, st::autopilot.destBody->radius);
+                auto radius = std::max(1000., (double)st::autopilot.destBody->radius());
                 min_dist = dist_t(dist_t::KM, radius * (relaxed_min_dist ? 2 : 4)).convertTo(dist_t::MM);
                 max_dist = dist_t(dist_t::KM, radius * (toPort? 8 : 15)).convertTo(dist_t::MM);
             } else if (st::autopilot.destBody->type == TypeNav::Star) {
-                auto radius = std::max((1_ls).get_km(), st::autopilot.destBody->radius);
+                auto radius = std::max((1_ls).get_km(), (double)st::autopilot.destBody->radius());
                 min_dist = dist_t(dist_t::KM, radius * (relaxed_min_dist ? 3 : 5)).convertTo(dist_t::LS);
                 max_dist = dist_t(dist_t::KM, radius * 10).convertTo(dist_t::LS);
             }
@@ -4417,7 +4417,7 @@ full_path:
                     int bodyId = st::destination.bodyId;
                     st::autopilot.destDock->parentBodyId = bodyId;
                     auto starSystem = gal::getCurrentStarSystem();
-                    starSystem->saved = false;
+                    starSystem->needBlobSave = true;
                     starSystem->save();
                     st::autopilot.destBody = starSystem->getBodyById(bodyId);
                     if (st::autopilot.destBody)
@@ -4542,7 +4542,7 @@ bool TaskVisitSystem::run() {
     }
 
     if (gal::getCurrentStarSystem()->systemName != destSystemName) {
-        auto starSystem = gal::getStarSystem(destSystemName);
+        auto starSystem = gal::getStarSystem(destSystemName, true, true);
         if (!starSystem) {
             throw_trouble("Cannot select destination system");
             return false;
@@ -4591,7 +4591,7 @@ std::string TaskTravel::getTitle() {
 }
 
 bool TaskTravel::setDestDockAndBody(bool required, bool additive) {
-    auto starSystem = gal::getStarSystem(destSystemName);
+    auto starSystem = gal::getStarSystem(destSystemName, true, true);
     if (!starSystem) {
         if (required)
             throw_trouble("Cannot select destination dock");

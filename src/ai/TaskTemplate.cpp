@@ -539,8 +539,8 @@ void initTemplates() {
             },
             META("{group:'Trade'}")
     );
-    templates.emplace_back(ED_TASK_NAV_SCAN_SYSTEMS, _lc("Scan systems around"), FACTORY(TaskSystemsAround), P{
-            { Param::String,  "system", _lc("Around system"), META("{optional:true, placeholder:'current'}") },
+    templates.emplace_back(ED_TASK_EXPL_SYSTEMS_AROUND, _lc("Explore nearby systems"), FACTORY(TaskSystemsAround), P{
+            //{ Param::String,  "system", _lc("Around system"), META("{optional:true, placeholder:'current'}") },
             },
             META("{group:'Exploration'}")
     );

@@ -64,7 +64,7 @@ struct from<FMT, db::BodyParentJS>
         glz::ordered_small_map<int> m;
         parse<FMT>::op<Opts>(m, ctx, it, end);
         auto bgn = m.begin();
-        auto tp = JsParentBodyType::get(bgn->first);
+        auto tp = JsBodyType::get(bgn->first);
         value = db::BodyParentJS{tp, bgn->second};
     }
 };
@@ -170,7 +170,7 @@ struct glz::meta<db::StationJS>
     }
 
     static constexpr auto value  = glz::object(
-            &T::id,
+            "id", &T::marketId,
             &T::type,
             &T::name,
             "updateTime", &T::updated_at,
@@ -240,7 +240,7 @@ struct glz::meta<db::BodyJS>
             &T::surfaceTemperature,
             &T::rotationalPeriod,
             &T::axialTilt,
-            "rotationalPeriodTidallyLocked", &T::tidallyLocked,
+            "rotationalPeriodTidallyLocked", &T::tidalLock,
             "updateTime", &T::updated_at,
             &T::timestamps,
             &T::stations,
@@ -261,7 +261,7 @@ struct glz::meta<db::BodyJS>
             "isLandable",                    glz::custom<&T::set_isLandable, &T::get_isLandable>,
             "gravity",                       glz::custom<&T::set_gravity, &T::get_gravity>,
             "earthMasses",                   glz::custom<&T::set_earthMasses, &T::get_earthMasses>,
-            "radius",                        glz::custom<&T::set_radius, &T::get_solarRadius>,
+            "radius",                        glz::custom<&T::set_radius, &T::get_radius>,
             "surfacePressure",               glz::custom<&T::set_surfacePressure, &T::get_surfacePressure>,
             "volcanismType",                 glz::custom<&T::set_volcanismType, &T::get_volcanismType>,
             "atmosphereType",                glz::custom<&T::set_atmosphereType, &T::get_atmosphereType>,
@@ -279,6 +279,7 @@ struct glz::meta<db::StarSystemJS>
     using T = db::StarSystemJS;
 
     static constexpr auto modify  = glz::object(
+            "id64", &T::address,
             "date", &T::updated_at,
             "rings", glz::skip(),
             "signals", glz::skip()
@@ -373,6 +374,32 @@ void checkBody(BodyJS& body) {
         checkStation(st, true);
     }
 }
+
+void fixupStarSystem(StarSystemJS& ss) {
+    for (auto& b : ss.bodies) {
+        checkBody(b);
+    }
+    for (auto& st : ss.stations) {
+        checkStation(st, false);
+    }
+}
+
+bool parseSpanshSystemDump(StarSystemJS& ss, const std::string& text) {
+    std::map<std::string,StarSystemJS> systems;
+    glz::error_ctx err = glz::read_json(systems, text);
+    if (err) {
+        LOG_ERROR("Deserialization Error: {}", glz::format_error(err));
+        return false;
+    }
+    if (!systems.contains("system")) {
+        LOG_ERROR("Expecting one system in json text");
+        return false;
+    }
+    ss = std::move(systems.at("system"));
+    fixupStarSystem(ss);
+    return true;
+}
+
 
 extern void test_cbor_start();
 extern void test_cbor_end();

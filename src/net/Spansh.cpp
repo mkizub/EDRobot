@@ -26,233 +26,75 @@ const std::string API = "https://spansh.co.uk/api/";
 
 namespace Spansh {
 
-static void parseBodyId(const gal::spStarSystem &ss, gal::spEntity &entity, const js::value &j) {
-    if (j.at("bodyId").is_int())
-        entity->bodyId = j["bodyId"].as_int();
-    if (j["parents"].is_array() && !j["parents"].as_array().empty()) {
-        auto &jp = j["parents"].as_array()[0];
-        if (jp.is_object())
-            entity->parentBodyId = jp.key_value().begin().value().as_int();
-        auto b = entity;
-        for (const auto &jp: j["parents"].as_array()) {
-            TypeNav p_type = TypeNav::Error;
-            int p_id = -1;
-            if (jp["Null"].is_int()) {
-                p_type = TypeNav::Barycenter;
-                p_id = jp["Null"].as_int();
-            } else if (jp["Star"].is_int()) {
-                p_type = TypeNav::Star;
-                p_id = jp["Star"].as_int();
-            } else if (jp["Planet"].is_int()) {
-                p_type = TypeNav::Planet;
-                p_id = jp["Planet"].as_int();
-            } else if (jp["Ring"].is_int()) {
-                p_type = TypeNav::Ring;
-                p_id = jp["Ring"].as_int();
-            } else if (jp["AsteroidCluster"].is_int()) {
-                p_type = TypeNav::AsteroidCluster;
-                p_id = jp["AsteroidCluster"].as_int();
-            }
-            if (p_type == TypeNav::Error || p_id < 0)
-                break;
-            if (b->parentBodyId != p_id) {
-                b->parentBodyId = p_id;
-                ss->saved = false;
-            }
-            auto p = ss->getBodyById(p_id);
-            if (!p) {
-                p = std::make_shared<gal::Entity>();
-                p->setType(p_type);
-                p->bodyId = p_id;
-                ss->bodies.push_back(p);
-                ss->saved = false;
-            }
-            b = p;
-        }
-    }
-}
+//static bool loadMarket(int64_t marketId, std::string stationName, std::string stationType, std::string starSystem,
+//                       const js::value &jm) {
+//    if (!marketId)
+//        return false;
+//
+//    Timestamp timestamp;
+//    if (!parseTimestamp(jm["updateTime"], timestamp))
+//        return false;
+//    spMarket old_market = gal::getMarket(marketId);
+//    if (old_market && old_market->timestamp >= timestamp)
+//        return false;
+//    if (old_market && !old_market->stationType.empty())
+//        stationType = old_market->stationType;
+//
+//    spMarket market = std::make_shared<Market>(Market{
+//            .timestamp = timestamp,
+//            .marketId = marketId,
+//            .stationName = stationName,
+//            .stationType = stationType,
+//            .starSystem = starSystem,
+//    });
+//    if (old_market)
+//        market->raven = old_market->raven;
+//
+//    auto &items = jm["commodities"].as_array_or();
+//    for (auto it: items) {
+//        Commodity *commodity = Cfg.getCommodityById(toLower(it["symbol"].as_string()));
+//        if (!commodity)
+//            continue;
+//        MarketLine ml{};
+//        ml.buyPrice = it["buyPrice"].as_int_or();
+//        ml.sellPrice = it["sellPrice"].as_int_or();
+//        ml.stock = it["supply"].as_int_or();
+//        ml.demand = it["demand"].as_int_or();
+//        if (old_market && old_market->items.contains(commodity)) {
+//            ml.isConsumer = market->items[commodity].isConsumer;
+//            ml.isProducer = market->items[commodity].isProducer;
+//        }
+//        market->items.emplace(commodity, ml);
+//    }
+//    gal::setMarketData(market);
+//
+//    return true;
+//}
 
-static bool loadMarket(int64_t marketId, std::string stationName, std::string stationType, std::string starSystem,
-                       const js::value &jm) {
-    if (!marketId)
-        return false;
-
-    Timestamp timestamp;
-    if (!parseTimestamp(jm["updateTime"], timestamp))
-        return false;
-    spMarket old_market = gal::getMarket(marketId);
-    if (old_market && old_market->timestamp >= timestamp)
-        return false;
-    if (old_market && !old_market->stationType.empty())
-        stationType = old_market->stationType;
-
-    spMarket market = std::make_shared<Market>(Market{
-            .timestamp = timestamp,
-            .marketId = marketId,
-            .stationName = stationName,
-            .stationType = stationType,
-            .starSystem = starSystem,
-    });
-    if (old_market)
-        market->raven = old_market->raven;
-
-    auto &items = jm["commodities"].as_array_or();
-    for (auto it: items) {
-        Commodity *commodity = Cfg.getCommodityById(toLower(it["symbol"].as_string()));
-        if (!commodity)
-            continue;
-        MarketLine ml{};
-        ml.buyPrice = it["buyPrice"].as_int_or();
-        ml.sellPrice = it["sellPrice"].as_int_or();
-        ml.stock = it["supply"].as_int_or();
-        ml.demand = it["demand"].as_int_or();
-        if (old_market && old_market->items.contains(commodity)) {
-            ml.isConsumer = market->items[commodity].isConsumer;
-            ml.isProducer = market->items[commodity].isProducer;
-        }
-        market->items.emplace(commodity, ml);
-    }
-    gal::setMarketData(market);
-
-    return true;
-}
-
-static void parseStation(const gal::spStarSystem &ss, const js::value &jb, int parentBodyId = -1) {
-    bool is_new = true;
-    auto marketId = jb["id"].as_int_or();
-    const auto name = jb["name"].as_string_or();
-    gal::spEntity site(new gal::Entity);
-    if (auto old = ss->getDock(marketId)) {
-        site = old;
-        is_new = false;
-    } else if (auto old = ss->getDock(name)) {
-        site = old;
-        is_new = false;
-    }
-    std::string type;
-    if (jb["type"].is_string()) {
-        type = jb["type"].as_string();
-        if (type == "Planetary Outpost" && name == "Stronghold Carrier")
-            type = "StrongholdCarrier";
-    } else if (jb["latitude"].is_number())
-        type = "PlanetaryInstallation";
-
-    if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value()) {
-        site->setType(typeNav.value());
-    } else {
-        for (auto nt: gal::ALL_NAV_TYPES) {
-            if (nt->match_name(name)) {
-                site->setType(nt->type);
-                break;
-            }
-        }
-        if (site->type == TypeNav::Other) {
-            TypeNav tp = TypeNav::Other;
-            for (auto nt: gal::ALL_NAV_TYPES) {
-                if (nt->match_type(type)) {
-                    site->setType(nt->type);
-                    break;
-                }
-            }
-        }
-        //if (typeNav == TypeNav::PlanetaryPort) {
-        //    if (jb["government"].is_string() && jb["government"].as_string() == "$government_Engineer;")
-        //        site->type = TypeNav::EngineerPort;
-        //}
-    }
-    site->parentBodyId = parentBodyId;
-    site->setName(name);
-    if (auto *nt = gal::NavType::findNavType(site->type); nt && !nt->name_pattern && !nt->name_loc.empty())
-        site->nloc = nt->get_nloc();
-
-    site->marketId = marketId;
-    if (is_new)
-        ss->stations.push_back(site);
-    if (site->marketId && !jb["market"].empty()) {
-        loadMarket(site->marketId, site->name, "", ss->systemName, jb["market"]);
-    }
-}
-
-static void parseBody(const gal::spStarSystem &ss, const js::value &jb) {
-    gal::spEntity body(new gal::Entity);
-    if (jb["type"].is_string()) {
-        const auto type = jb["type"].as_string();
-        if (type == "Star") body->setType(TypeNav::Star);
-        else if (type == "Planet") body->setType(TypeNav::Planet);
-        else if (type == "Asteroid Cluster") body->setType(TypeNav::AsteroidCluster);
-        else if (type == "Ring") body->setType(TypeNav::Ring);
-        else if (type == "Barycentre") body->setType(TypeNav::Barycenter);
-        else
-            body->setType(TypeNav::Body);
-    }
-    parseBodyId(ss, body, jb);
-
-    bool is_new = true;
-    if (auto b = ss->getBodyById(body->bodyId)) {
-        body = b;
-        is_new = false;
-    } else if (jb["name"].is_string()) {
-        const auto name = jb["name"].as_string();
-        if (auto b = ss->getBody(name); b && b->bodyId < 0) {
-            TypeNav tp = body->type;
-            body = b;
-            body->setType(tp);
-            is_new = false;
-        } else
-            body->setName(name);
-    }
-    if (jb["distanceToArrival"].is_number())
-        body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_real());
-    if (body->type == TypeNav::Star) {
-        if (jb["solarRadius"].is_number())
-            body->radius = jb["solarRadius"].as_real() * 6.957e5; // KM
-        if (jb["spectralClass"].is_string())
-            body->code = jb["spectralClass"].as_string();
-        body->special = jb["isMainStar"].as_bool_or();
-    } else if (body->type == TypeNav::Planet) {
-        body->radius = jb["radius"].as_real_or(); // KM
-        body->special = jb["isLandable"].as_bool_or();
-    }
-
-    if (is_new)
-        ss->bodies.push_back(body);
-
-    for (auto &js: jb["stations"].as_array_or()) {
-        parseStation(ss, js, body->bodyId);
-    }
-}
-
-gal::spStarSystem loadStarSystem(int64_t systemAddress) {
-    LOG(INFO) << "Spansh query system by id: " << systemAddress;
+gal::spStarSystem loadStarSystem(gal::spStarSystem& ss) {
+    LOG(INFO) << "Spansh query system by id: " << ss->systemAddress;
     TRY {
-        auto cr = cpr::Get(cpr::Url{API + "dump/" + std::to_string((uint64_t) systemAddress)});
-        auto cr_body = getJS(cr);
-        if (cr_body["system"]["id64"].as_int_or() != systemAddress)
-            return {};
-
-        const js::value jsystem = cr_body["system"];
-
-        const auto systemName = jsystem["name"].as_string();
-        cv::Point3d systemPos{jsystem["coords"]["x"].as_real_or(),
-                              jsystem["coords"]["y"].as_real_or(),
-                              jsystem["coords"]["z"].as_real_or()};
-        gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, &systemPos, false);
-        parseTimestampString(jsystem["date"].as_string_or(), ss->eddn_updated_at);
-        int body_count = jsystem["bodyCount"].as_int_or();
-        if (body_count > 0 && body_count != ss->ext.bodyCount)
-            ss->ext.bodyCount = body_count;
-
-        for (auto &jb: jsystem["bodies"].as_array_or()) {
-            parseBody(ss, jb);
+        auto cr = cpr::Get(cpr::Url{API + "dump/" + std::to_string((uint64_t) ss->systemAddress)});
+        if (!isOK(cr))
+            return ss;
+        db::StarSystemJS db_ss {};
+        if (!db::parseSpanshSystemDump(db_ss, cr.text))
+            return ss;
+        if (db_ss.address != ss->systemAddress || db_ss.name != ss->systemName) {
+            LOG_ERROR("Spansh dump address/name missmatch: {}:'{}' != {}:'{}'",
+                      db_ss.address, db_ss.name, ss->systemAddress, ss->systemName);
+            return ss;
         }
 
-        for (auto &jb: jsystem["stations"].as_array_or()) {
-            parseStation(ss, jb);
-        }
+        if (!ss->isBlobLoaded)
+            ss->load();
 
-        ss->saved = false;
-        ss->save();
-        ss->loaded = true;
+        gal::update_star_system(ss.get(), db_ss);
+
+        if (!ss->isBlobLoaded)
+            ss->needBlobSave = true;
+        if (ss->needCoreSave || ss->needBlobSave)
+            ss->save();
         return ss;
     } CATCH(const std::exception &e) {
         LOG(ERROR) << "Exception in Spansh::loadStarSystem(int): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
@@ -262,8 +104,10 @@ gal::spStarSystem loadStarSystem(int64_t systemAddress) {
 
 gal::spStarSystem loadStarSystem(std::string_view name) {
     auto db_ss = db::loadStarSystem(name);
-    if (db_ss.id)
-        return loadStarSystem(db_ss.id);
+    if (db_ss.id) {
+        gal::spStarSystem ss = gal::makeStarSystem(db_ss.name, db_ss.id, nullptr, true, false);
+        return loadStarSystem(ss);
+    }
 
     LOG(INFO) << "Spansh query system id by name: " << name;
     TRY {
@@ -286,9 +130,9 @@ gal::spStarSystem loadStarSystem(std::string_view name) {
             int64_t it_address = ss["id64"].as_int();
             const auto it_name = ss["name"].as_string();
             cv::Point3d it_pos {ss["x"].as_real(), ss["y"].as_real(), ss["z"].as_real()};
-            auto it_ss = gal::makeStarSystem(it_name, it_address, &it_pos, false);
+            auto it_ss = gal::makeStarSystem(it_name, it_address, &it_pos, true, false);
             if (it_name == name)
-                found = loadStarSystem(it_address);
+                found = loadStarSystem(it_ss);
         }
         return found;
     } CATCH(const std::exception &e) {
@@ -328,7 +172,7 @@ std::vector<gal::spStarSystem> listSystemsUsingRequest(js::value j_request, int 
             if (jr["updated_at"].is_string())
                 parseTimestampString(jr["updated_at"].as_string(), updated_at);
             cv::Point3d pos = {x, y, z};
-            gal::spStarSystem ss = gal::makeStarSystem(name, address, &pos, false);
+            gal::spStarSystem ss = gal::makeStarSystem(name, address, &pos, false, false);
             if (systemCallback(ss, jr))
                 result.push_back(ss);
         }
@@ -358,8 +202,8 @@ std::vector<gal::spStarSystem> listNearestSystems(const std::string &systemBegin
         Timestamp updated_at;
         if (jr["updated_at"].is_string())
             parseTimestampString(jr["updated_at"].as_string(), updated_at);
-        if (updated_at < ss->eddn_updated_at || !ss->loaded)
-            loadStarSystem(ss->systemAddress);
+        if (updated_at < ss->eddn_updated_at || !ss->isBlobLoaded)
+            loadStarSystem(ss);
         if (!ss)
             return false;
         auto total_bodies = jr["body_count"].as_int_or();
@@ -445,7 +289,7 @@ std::vector<gal::spStarSystem> listSystemsUsingRecall(const std::string uuid, li
             double z = jr["z"].as_real_or();
             cv::Point3d pos = {x, y, z};
 
-            gal::spStarSystem ss = gal::makeStarSystem(name, address, &pos, false);
+            gal::spStarSystem ss = gal::makeStarSystem(name, address, &pos, false, false);
             if (systemCallback(ss, jr))
                 result.push_back(ss);
         }
@@ -465,8 +309,6 @@ std::vector<gal::spStarSystem> listSpanshSearch(const std::string& uuid, listCal
             Timestamp updated_at;
             if (jr["updated_at"].is_string())
                 parseTimestampString(jr["updated_at"].as_string(), updated_at);
-            if (updated_at < ss->eddn_updated_at || !ss->loaded)
-                loadStarSystem(ss->systemAddress);
             if (!ss)
                 return false;
             LOG_INFO("Star system: {} / {} (at x={:.5f} y={:.5f} z={:.5f}) updated at {}",

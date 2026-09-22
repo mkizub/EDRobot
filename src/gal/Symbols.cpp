@@ -128,22 +128,47 @@ DEFINE_ENUM_INSTANCE(JsThargoidState) ("ThargoidState",
     {6, "Thargoid Stronghold"},
 });
 
-DEFINE_ENUM_INSTANCE(JsParentBodyType) ("ParentBodyType",
-{
-    {1, "Star"},
-    {2, "Planet"},
-    {3, "Null"}, // Barycentre
-    {4, "Ring"},
-});
-
+#define u(v) std::to_underlying(v)
 DEFINE_ENUM_INSTANCE(JsBodyType) ("BodyType",
 {
-    {1, "Star"},
-    {2, "Planet"},
-    {3, "Barycentre"},
-    {4, "Ring"},
-    {5, "Asteroid Cluster"},
+    {u(TypeNav::Star),                  "Star"},
+    {u(TypeNav::Planet),                "Planet"},
+    {u(TypeNav::Barycenter),            "Barycentre\fBarycenter\fNull"},
+    {u(TypeNav::Ring),                  "Ring"},
+    {u(TypeNav::AsteroidCluster),       "AsteroidCluster\fAsteroid Cluster"},
 });
+
+DEFINE_ENUM_INSTANCE(JsStationType) ("StationType",
+{
+    // generic
+    {u(TypeNav::SpaceThing),            "Space Object"},
+    {u(TypeNav::NavBeacon),             "NavBeacon\fNav Beacon"},
+    {u(TypeNav::TouristBeacon),         "TouristBeacon\fTourist Beacon"},
+    // space stations
+    {u(TypeNav::Orbis),                 "Orbis\fOrbis Starport\fStationONeilOrbis\fStationONeilCylinder"},
+    {u(TypeNav::Ocellus),               "Ocellus\fStationBernalSphere\fOcellus Starport"},
+    {u(TypeNav::Dodec),                 "Dodec\fStationDodec\fDodec Starport"},
+    {u(TypeNav::Coriolis),              "Coriolis\fStationCoriolis\fCoriolis Starport"},
+    {u(TypeNav::AsteroidBase),          "AsteroidBase\fAsteroid base"},
+    {u(TypeNav::SpaceOutpost),          "Outpost\fSpace Outpost\fOutpost Starport"},
+    {u(TypeNav::SpaceInstallation),     "Installation\fSpace Installation"},
+    {u(TypeNav::SpaceConstrDepot),      "SpaceConstructionDepot\fSpace Construction Depot"},
+    // megaships
+    {u(TypeNav::Megaship),              "Megaship\fMega ship"},
+    {u(TypeNav::StationMegaShip),       "StationMegaShip\fStation Mega ship"},
+    {u(TypeNav::FleetCarrier),          "FleetCarrier\fDrake-Class Carrier"},
+    {u(TypeNav::SquadronCarrier),       "SquadronCarrier\fSquadron Carrier"},
+    {u(TypeNav::StrongholdCarrier),     "SquadronCarrier\fSquadron Carrier"},
+    {u(TypeNav::ColonisationShip),      "SystemColonisationShip\fSystem Colonisation Ship"},
+    // planetary
+    {u(TypeNav::PlanetaryThing),        "Planetary Object"},
+    {u(TypeNav::PlanetaryPort),         "PlanetaryPort\fCraterOutpost\fPlanetary Outpost\fCrater Outpost\fPlanetary City\fPlanetary Port\fDockable Planet Station"},
+    {u(TypeNav::EngineerPort),          "EngineerPort\fEngineer Port"},
+    {u(TypeNav::Settlement),            "Settlement\fOnFootSettlement\fOdyssey Settlement\fSurface Settlement"},
+    {u(TypeNav::PlanetaryInstallation), "PlanetaryInstallation\fPlanetary Installation"},
+    {u(TypeNav::PlanetaryConstrDepot),  "PlanetaryConstructionDepot\fPlanetary Construction Depot"},
+});
+#undef u
 
 DEFINE_ENUM_INSTANCE(JsBodySubType) ("BodySubType",
 {
@@ -334,10 +359,10 @@ DEFINE_ENUM_INSTANCE(JsSolidType) ("SolidType",
 
 DEFINE_ENUM_INSTANCE(JsTerraformingState) ("TerraformingState",
 {
-        {1, "Not terraformable"},
-        {2, "Terraformable"},
-        {3, "Terraforming"},
-        {3, "Terraformed"},
+    {1, "Not terraformable"},
+    {2, "Terraformable"},
+    {3, "Terraforming"},
+    {3, "Terraformed"},
 });
 
 DEFINE_ENUM_INSTANCE(JsMaterials) ("Materials",
@@ -371,11 +396,11 @@ DEFINE_ENUM_INSTANCE(JsMaterials) ("Materials",
 
 DEFINE_ENUM_INSTANCE(JsReserveLevel) ("ReserveLevel",
 {
-    {1, "Depleted"},
-    {2, "Low"},
-    {3, "Common"},
-    {4, "Major"},
-    {5, "Pristine"},
+    {1, "Depleted\fDepletedResources"},
+    {2, "Low\fLowResources"},
+    {3, "Common\fCommonResources"},
+    {4, "Major\fMajorResources"},
+    {5, "Pristine\fPristineResources"},
 });
 
 DEFINE_ENUM_INSTANCE(JsTimestamps) ("Timestamps",
@@ -433,33 +458,6 @@ DEFINE_ENUM_INSTANCE(JsServices) ("Services",
     {40, "Fleet Carrier Administration"},
     {41, "On Dock Mission"},
     {42, "Fleet Carrier Vendor"},
-});
-
-DEFINE_ENUM_INSTANCE(JsStationType) ("StationType",
-{
-    {1, "Asteroid base"},
-    {2, "Coriolis Starport"},
-    {3, "Dockable Planet Station"},
-    {4, "Dodec Starport"},
-    {5, "Drake-Class Carrier"},
-    {6, "Mega ship"},
-    {7, "Ocellus Starport"},
-    {8, "Orbis Starport"},
-    {9, "Outpost"},
-    {10, "Planetary Construction Depot"},
-    {11, "Planetary Outpost"},
-    {12, "Planetary Port"},
-    {13, "Settlement"},
-    {14, "Space Construction Depot"},
-    {15, "Surface Settlement"},
-
-    {20, "Space Installation"},
-    {21, "Planetary Installation"},
-    {22, "System Colonisation Ship"},
-    {23, "Station Mega ship"},
-    {24, "Squadron Carrier"},
-    {25, "Stronghold Carrier"},
-    {26, "Engineer Port"},
 });
 
 DEFINE_ENUM_INSTANCE(JsStationState) ("StationState",

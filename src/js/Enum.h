@@ -48,6 +48,7 @@ struct EnumVal {
     const uint8_t id;
     const bool predefined;
     const js::symbol sym;
+    const js::vector<js::symbol> aliases;
     const class EnumDeclBase* ED;
 };
 
@@ -138,7 +139,7 @@ template <typename E>
 E EnumDecl<E>::get(unsigned id) const {
     if (auto it = mapById.find(id); it != mapById.end())
         return E(it->second);
-    throw std::bad_variant_access();
+    return {}; //throw std::bad_variant_access();
 }
 
 template <typename E>

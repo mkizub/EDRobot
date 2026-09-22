@@ -261,6 +261,7 @@ void UIControl::on_ctrl_change(wl::params& p) {
     auto hw = HIWORD(p.wParam);
     if (hw != EN_CHANGE && hw != BN_CLICKED && hw != CBN_SELENDOK && hw != CBN_EDITCHANGE && hw != EN_SETFOCUS)
         return;
+
     int id = LOWORD(p.wParam);
     if (id < ctrlIdBase)
         return;

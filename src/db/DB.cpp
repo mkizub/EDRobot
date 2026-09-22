@@ -292,7 +292,8 @@ x=excluded.x, y=excluded.y, z=excluded.z, updated=excluded.updated, eddn_updated
         stmt->bind(5, ss.z);
         bind(stmt, 6, ss.updated);
         bind(stmt, 7, ss.eddn_updated);
-        return stmt->executeStep();
+        stmt->executeStep();
+        return true;
     } catch (SQLite::Exception& e) {
         LOG_ERROR("DB loadStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
     }
@@ -316,7 +317,8 @@ ON CONFLICT DO UPDATE SET data=excluded.data;)SQL";
     try {
         stmt->bind(1, address);
         stmt->bind(2, sv.data(), sv.size());
-        return stmt->executeStep();
+        stmt->executeStep();
+        return true;
     } catch (SQLite::Exception& e) {
         LOG_ERROR("DB saveStarSystemBlob SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
     }

@@ -31,11 +31,13 @@ public:
     const wchar_t* title() const override { return L"EDRobot Star System editor"; };
     void initialize() override;
     void relayout(bool scroll_to_top=false) override;
+    bool need_timer_update() const override { return true; }
+    void on_update() override;
     void on_ctrl_edit(int id, WORD msg) override;
     bool validate() const override;
     void clear();
 
-    void init_systems_list(std::string select={});
+    void init_systems_list();
     void on_system_import();
     void on_system_save();
     void on_system_delete();

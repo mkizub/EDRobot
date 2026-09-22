@@ -24,6 +24,9 @@ bool loadStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_
 bool saveStarSystem(const StarSystem& starSystem);
 bool saveStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address);
 
+bool parseSpanshSystemDump(StarSystemJS& ss, const std::string& text);
+
+
 bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, const void* data, int size);
 bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, std::stringstream& buffer);
 
@@ -66,9 +69,10 @@ struct MarketLineJS {
 };
 
 struct StationJS {
-    int64_t id; // market id
+    int64_t marketId; // market id
     JsStationType type;
-    int bodyId {};  // space stations have bodyId
+    int bodyId {-1};  // space stations have bodyId
+    int parentId {-1};  // space stations parent bodyId
     std::string name;
     Timestamp updated_at;
     std::string realName; // Real name of the station, for colonisation stations.
@@ -96,7 +100,7 @@ struct CoordsJS {
 };
 
 struct BodyParentJS {
-    JsParentBodyType type;
+    JsBodyType type;
     int bodyId;
 };
 
@@ -116,23 +120,21 @@ struct ThargoidWarJS {
 };
 
 struct StarPartJS {
-    bool mainStar;
+    opt_bool mainStar;
     JsSpectralClass spectralClass;
     JsLuminosity luminosity;
     uint32_t age; // in millions years
-    opt_float solarRadius;
     opt_float solarMasses;
     opt_float absoluteMagnitude;
 };
 struct PlanetPartJS {
-    bool isLandable;
+    opt_bool isLandable;
     JsVolcanismType volcanismType;
     JsAtmosphereType atmosphereType;
     JsTerraformingState terraformingState;
     JsReserveLevel reserveLevel;
-    opt_float radius;
     opt_float earthMasses;
-    opt_float gravity;
+    opt_float surfaceGravity;
     opt_float surfacePressure;
     js::small_map<JsAtmosphereType,float> atmosphereComposition;
     js::small_map<JsSolidType,float> solidComposition;
@@ -142,10 +144,14 @@ struct PlanetPartJS {
 
 struct BodyJS {
     JsBodyType type;
-    int bodyId {};
+    int bodyId {-1};
     std::string name;
     JsBodySubType subType;
+    opt_bool tidalLock;
     Timestamp updated_at;
+    opt_float radius;
+    opt_float distanceToArrival;
+    opt_float rotationalPeriod;
     opt_float orbitalPeriod;
     opt_float semiMajorAxis;
     opt_float orbitalEccentricity;
@@ -153,11 +159,8 @@ struct BodyJS {
     opt_float argOfPeriapsis;
     opt_float meanAnomaly;
     opt_float ascendingNode;
-    opt_float distanceToArrival;
     opt_float surfaceTemperature;
-    opt_float rotationalPeriod;
     opt_float axialTilt;
-    bool tidallyLocked {};
 
     js::small_map<JsTimestamps,Timestamp> timestamps;
     js::vector<BodyParentJS> parents;
@@ -166,11 +169,11 @@ struct BodyJS {
     // "belts"
 
     // StarPart accessors
-    bool get_mainStar() const { return starPart && starPart->mainStar; }
-    void set_mainStar(bool v) { ensureStarPart()->mainStar = v; }
+    opt_bool get_mainStar() const { return starPart ? starPart->mainStar : opt_bool{}; }
+    void set_mainStar(opt_bool v) { ensureStarPart()->mainStar = v; }
 
-    uint64_t get_age() const { return starPart ? starPart->age : 0; }
-    void set_age(uint64_t v) { ensureStarPart()->age = v; }
+    uint32_t get_age() const { return starPart ? starPart->age : 0; }
+    void set_age(uint32_t v) { ensureStarPart()->age = v; }
 
     JsSpectralClass get_spectralClass() const { if (starPart) return starPart->spectralClass; return {}; }
     void set_spectralClass(JsSpectralClass v) { ensureStarPart()->spectralClass = v; }
@@ -184,21 +187,21 @@ struct BodyJS {
     opt_float get_solarMasses() const { return starPart ? starPart->solarMasses : opt_float{}; }
     void set_solarMasses(float v) { ensureStarPart()->solarMasses = v; }
 
-    opt_float get_solarRadius() const { return starPart ? starPart->solarRadius : opt_float{}; }
-    void set_solarRadius(float v) { ensureStarPart()->solarRadius = v; }
+    opt_float get_solarRadius() const { return radius.has_value() ? radius.value() / 696060000.f : opt_float{}; }
+    void set_solarRadius(float v) { radius = v * 696060.f; }
 
     // PlanetPart accessors
-    bool get_isLandable() const { return planetPart && planetPart->isLandable; }
-    void set_isLandable(bool v) { ensurePlanedPart()->isLandable = v; }
+    opt_bool get_isLandable() const { return planetPart ? planetPart->isLandable : opt_bool{}; }
+    void set_isLandable(opt_bool v) { ensurePlanedPart()->isLandable = v; }
 
-    opt_float get_gravity() const { return planetPart ? planetPart->gravity : opt_float{}; }
-    void set_gravity(float v) { ensurePlanedPart()->gravity = v; }
+    opt_float get_gravity() const { return planetPart ? planetPart->surfaceGravity : opt_float{}; }
+    void set_gravity(float v) { ensurePlanedPart()->surfaceGravity = v; }
 
     opt_float get_earthMasses() const { return planetPart ? planetPart->earthMasses : opt_float{}; }
     void set_earthMasses(float v) { ensurePlanedPart()->earthMasses = v; }
 
-    opt_float get_radius() const { return planetPart ? planetPart->radius : opt_float{}; }
-    void set_radius(float v) { ensurePlanedPart()->radius = v; }
+    opt_float get_radius() const { return radius.has_value() ? radius.value() * 1000.f : opt_float{}; }
+    void set_radius(float v) { radius = v / 1000.f; }
 
     opt_float get_surfacePressure() const { return planetPart ? planetPart->surfacePressure : opt_float{}; }
     void set_surfacePressure(float v) { ensurePlanedPart()->surfacePressure = v; }
@@ -288,7 +291,7 @@ private:
 };
 
 struct StarSystemJS {
-    int64_t id64 {};
+    int64_t address {};
     std::string name;
     CoordsJS coords {};
     JsAllegiance allegiance;

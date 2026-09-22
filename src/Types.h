@@ -33,7 +33,7 @@ enum class GuiFocus { None=0, Right=1, Left=2, Chat=3, Role=4, Services=5, Galax
 //    AsteroidCluster,
 //};
 
-enum class TypeNav {
+enum class TypeNav : uint8_t {
     Other                   = 0,
     Error                   = 1,
     NotExplored             = 2,
@@ -41,7 +41,7 @@ enum class TypeNav {
     WarZone                 = 4,
     ResSite                 = 5,
     StarSystem              = 6,
-    Body                    = 0x10,   // generic type, also, Barycenter
+    Body                    = 0x10,   // generic type
     Barycenter              = 0x11,
     Ring                    = 0x12,
     AsteroidCluster         = 0x13,
@@ -73,25 +73,25 @@ enum class TypeNav {
     PlanetaryConstrDepot    = 0x46,
 };
 
-inline bool isSignal(TypeNav type) {
+inline constexpr bool isSignal(TypeNav type) {
     return type < TypeNav::Body;
 }
-inline bool isBody(TypeNav type) {
-    return type >= TypeNav::Body && type < TypeNav::SpaceThing;
+inline constexpr bool isBody(TypeNav type) {
+    return type >= TypeNav::Body && type < TypeNav::SpaceThing; // or (std::to_underlying(type) & 0xF0) == 0x10;
 }
-inline bool isSite(TypeNav type) {
+inline constexpr bool isSite(TypeNav type) {
     return type >= TypeNav::SpaceThing;
 }
-inline bool isSpaceSite(TypeNav type) {
+inline constexpr bool isSpaceSite(TypeNav type) {
     return type >= TypeNav::SpaceThing && type < TypeNav::PlanetaryThing;
 }
-inline bool isSpaceStation(TypeNav type) {
+inline constexpr bool isSpaceStation(TypeNav type) {
     return type >= TypeNav::SpaceStation && type <= TypeNav::SpaceOutpost;
 }
-inline bool isPlanetarySite(TypeNav type) {
-    return type >= TypeNav::PlanetaryThing && type <= TypeNav::PlanetaryConstrDepot;
+inline constexpr bool isPlanetarySite(TypeNav type) {
+    return type >= TypeNav::PlanetaryThing; /*&& type <= TypeNav::PlanetaryConstrDepot;*/ // or (std::to_underlying(type) & 0xF0) == 0x40;
 }
-inline bool isConstrDepot(TypeNav type) {
+inline constexpr bool isConstrDepot(TypeNav type) {
     return type == TypeNav::SpaceConstrDepot ||
            type == TypeNav::PlanetaryConstrDepot ||
            type == TypeNav::ColonisationShip;
@@ -415,10 +415,58 @@ struct Bookmark {
 typedef std::shared_ptr<Bookmark> spBookmark;
 
 
+struct opt_bool {
+    int8_t val {-1};
+
+    opt_bool() {}
+    opt_bool(bool value) { val = value ? 1 : 0; }
+    opt_bool(const opt_bool& value) { val = value.val; }
+
+    constexpr opt_bool& operator=(const opt_bool& other) noexcept {
+        val = other.val;
+        return *this;
+    }
+    constexpr opt_bool& operator=(bool value) noexcept {
+        val = value ? 1 : 0;
+        return *this;
+    }
+
+    constexpr void reset() noexcept {
+        val = -1;
+    }
+
+    void emplace() noexcept {
+        val = -1;
+    }
+
+    bool emplace(bool value) noexcept {
+        val = value ? 1 : 0;
+        return val;
+    }
+
+    bool has_value() const {
+        return val >= 0;
+    }
+
+    bool& value() {
+        //if (val < 0) throw std::bad_optional_access();
+        return reinterpret_cast<bool&>(val);
+    }
+    bool value() const {
+        if (val < 0) throw std::bad_optional_access();
+        return val > 0;
+    }
+    bool value_or(bool default_value) const {
+        if (val < 0) return default_value;
+        return val;
+    }
+};
+
 struct opt_float {
     float val;
 
     opt_float() : val {std::numeric_limits<float>::quiet_NaN()} {}
+    opt_float(const opt_float& value) : val {value.val} {}
     opt_float(float value) : val {value} {}
 
     constexpr opt_float& operator=(const opt_float& other) noexcept {
@@ -479,6 +527,7 @@ struct LandingPads {
     int8_t medium {};
     int8_t small {};
     [[nodiscard]] bool empty() const { return large==0 && medium==0 && small==0; }
+    [[nodiscard]] bool has_value() const { return large==0 && medium==0 && small==0; }
 };
 
 #define JS_ENUM_DECL(NAME)                                                      \
@@ -493,7 +542,6 @@ JS_ENUM_DECL(FactionState)
 JS_ENUM_DECL(Power)
 JS_ENUM_DECL(PowerState)
 JS_ENUM_DECL(ThargoidState)
-JS_ENUM_DECL(ParentBodyType)
 JS_ENUM_DECL(BodyType)
 JS_ENUM_DECL(BodySubType)
 JS_ENUM_DECL(VolcanismType)
@@ -509,6 +557,11 @@ JS_ENUM_DECL(StationState)
 JS_ENUM_DECL(CarrierDockingAccess)
 JS_ENUM_DECL(SpectralClass)
 JS_ENUM_DECL(Luminosity)
+
+inline TypeNav toTypeNav(JsBodyType tp) { return static_cast<TypeNav>(tp.id); }
+inline TypeNav toTypeNav(JsStationType tp) { return static_cast<TypeNav>(tp.id); }
+inline JsBodyType toJsBodyType(TypeNav tp) { return JsBodyType::get(std::to_underlying(tp)); }
+inline JsStationType toJsStationType(TypeNav tp) { return JsStationType::get(std::to_underlying(tp)); }
 
 
 #endif //EDROBOT_TYPES_H

@@ -282,7 +282,9 @@ gal::spEntity NavList::guessNavItem(int idx) {
     }
     {
         gal::spEntity bestSite;
-        for (auto& s : ss->stations) {
+        for (auto& s : ss->entities) {
+            if (s->type < TypeNav::SpaceStation)
+                continue;
             bool duplicated = false;
             for (auto& ne : list)
                 if (ne.confirmed >= 0 && ne.item.get() == s.get())
@@ -306,7 +308,9 @@ gal::spEntity NavList::guessNavItem(int idx) {
     }
     {
         gal::spEntity bestBody;
-        for (auto& b : ss->bodies) {
+        for (auto& b : ss->entities) {
+            if (!isBody(b->type))
+                continue;
             bool duplicated = false;
             for (auto& ne : list)
                 if (ne.confirmed > 0 && ne.item.get() == b.get())
@@ -1196,7 +1200,7 @@ bool NavListScanSystemsTask::run() {
         prevAddress = address;
         if (address == gal::getCurrentStarSystem()->systemAddress)
             break;
-        gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr, true);
+        gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr, true, true);
         if (!ss)
             LOG_ERROR("Cannot create star system: name '{}' address {}", name, address);
         foundSystems.push_back(ss);

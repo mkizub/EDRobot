@@ -62,7 +62,7 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
     if (!Cfg.isRavenColonialEnabled())
         return {};
     // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
-    auto starSystem = gal::getStarSystem(systemName);
+    auto starSystem = gal::getStarSystem(systemName, true, true);
     if (!starSystem)
         return {};
     auto depot = starSystem->getDock(fullName);
@@ -127,20 +127,19 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
         depot->setName(fullName);
         depot->marketId = cr_body["marketId"].as_int_or();
         depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
-        starSystem->addStation(depot);
-        starSystem->saved = false;
+        starSystem->addEntity(depot);
+        starSystem->needBlobSave = true;
         starSystem->save();
     } else {
         if (!depot->marketId) {
             depot->marketId = cr_body["marketId"].as_int_or();
-            starSystem->saved = false;
+            starSystem->needBlobSave = true;
         }
         if (depot->parentBodyId < 0) {
             depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
-            starSystem->saved = false;
+            starSystem->needBlobSave = true;
         }
-        if (!starSystem->saved)
-            starSystem->save();
+        starSystem->save();
     }
 
     spMarket market = gal::getMarket(depot->marketId);

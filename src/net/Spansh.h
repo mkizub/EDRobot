@@ -7,7 +7,7 @@
 
 namespace Spansh {
     gal::spStarSystem loadStarSystem(std::string_view systemName);
-    gal::spStarSystem loadStarSystem(int64_t systemAddress);
+    gal::spStarSystem loadStarSystem(gal::spStarSystem& starSystem);
 
     using listCallback = std::function<bool(gal::spStarSystem, js::value&)>;
     std::vector<gal::spStarSystem> listSystemsUsingRequest(js::value j_request, int max_pages, listCallback systemCallback);

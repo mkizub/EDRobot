@@ -10,9 +10,8 @@
 
 namespace db {
 
-
 extern void test_json(StarSystemJS& ss_js);
-void test() {
+void full_galaxy_test() {
     StarSystemJS ss_js;
     test_json(ss_js);
 }

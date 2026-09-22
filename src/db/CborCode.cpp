@@ -2,10 +2,11 @@
 // Created by mkizub on 09.09.2026.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "DB.h"
-#include "../gal/Galaxy.h"
 
 #define MSGPACK_NO_BOOST 1
 #include <msgpack.hpp>
@@ -18,7 +19,7 @@ MSGPACK_API_VERSION_NAMESPACE(v3) {
 namespace adaptor {
 
 template <typename Stream>
-inline msgpack::packer<Stream>& pack_key(const char* nm, msgpack::packer<Stream>& m, uint32_t& key_count, uint32_t k) {
+inline msgpack::packer<Stream>& pack_key(const char*, msgpack::packer<Stream>& m, uint32_t& key_count, uint32_t k) {
     key_count += 1;
     m.pack_unsigned_int(k);
     //auto s = std::format("{}-key-{}", nm, k);
@@ -32,6 +33,8 @@ inline bool need_value(const T& val) {
         return val.time_since_epoch().count() != 0;
     else if constexpr (std::same_as<T, bool>)
         return val;
+    else if constexpr (std::same_as<T, opt_bool>)
+        return val.has_value();
     else if constexpr (std::same_as<T, opt_float>)
         return val.has_value();
     else if constexpr (std::is_floating_point_v<T>)
@@ -98,6 +101,31 @@ inline bool need_value(const E& v) {
 #define UN_PK(nm, k, v)         case k: v = val.as<decltype(v)>(); continue
 #define UN_PK_STAR(nm, k, v, f) case k: v.ensureStarPart()->f = val.as<decltype(db::StarPartJS::f)>(); continue
 #define UN_PK_PLNT(nm, k, v, f) case k: v.ensurePlanedPart()->f = val.as<decltype(db::PlanetPartJS::f)>(); continue
+
+template<>
+struct pack<opt_bool> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const opt_bool& v) const {
+        if (!v.has_value())
+            o.pack_nil();
+        else if (v.value())
+            o.pack_true();
+        else
+            o.pack_false();
+        return o;
+    }
+};
+
+template<>
+struct convert<opt_bool> {
+    msgpack::object const& operator()(msgpack::object const& o, opt_bool& v) const {
+        if (o.type == msgpack::type::NIL)
+            v = opt_bool{};
+        else
+            v = o.as<bool>();
+        return o;
+    }
+};
 
 template<>
 struct pack<opt_float> {
@@ -460,26 +488,27 @@ struct pack<db::StationJS> {
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, db::StationJS const& v) const {
         o.pack_array(4);
-        o.pack_fix_int64(v.id);
+        o.pack_fix_int64(v.marketId);
         o.pack(v.type);
         o.pack(v.name);
         PK_MAP_START(o)
             PK_IF("st", 1, v.updated_at);
-            PK_IF("st", 2, v.bodyId);
-            PK_IF("st", 3, v.controllingFaction);
-            PK_IF("st", 4, v.controllingFactionState);
-            PK_IF("st", 5, v.primaryEconomy);
-            PK_IF("st", 6, v.secondaryEconomy);
-            PK_IF("st", 7, v.economies);
-            PK_IF("st", 8, v.allegiance);
-            PK_IF("st", 9, v.government);
-            PK_IF("st", 10, v.state);
-            PK_IF("st", 11, v.distanceToArrival);
-            PK_IF("st", 12, v.latitude);
-            PK_IF("st", 13, v.longitude);
-            PK_IF("st", 14, v.landingPads);
-            PK_IF("st", 15, v.carrierDockingAccess);
-            PK_IF("st", 16, v.services);
+            if (v.bodyId > 0) { PK_IF("st", 2, v.bodyId); }
+            if (v.parentId >= 0) { PK_IF("st", 3, v.parentId); }
+            PK_IF("st", 4, v.controllingFaction);
+            PK_IF("st", 5, v.controllingFactionState);
+            PK_IF("st", 6, v.primaryEconomy);
+            PK_IF("st", 7, v.secondaryEconomy);
+            PK_IF("st", 8, v.economies);
+            PK_IF("st", 9, v.allegiance);
+            PK_IF("st", 10, v.government);
+            PK_IF("st", 11, v.state);
+            PK_IF("st", 12, v.distanceToArrival);
+            PK_IF("st", 13, v.latitude);
+            PK_IF("st", 14, v.longitude);
+            PK_IF("st", 15, v.landingPads);
+            PK_IF("st", 16, v.carrierDockingAccess);
+            PK_IF("st", 17, v.services);
         PK_MAP_END(o)
         return o;
     }
@@ -490,7 +519,7 @@ struct convert<db::StationJS> {
     msgpack::object const& operator()(msgpack::object const& o, db::StationJS& v) const {
         if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
         if (o.via.array.size != 4) { throw msgpack::type_error(); }
-        v.id = o.via.array.ptr[0].as<int64_t>();
+        v.marketId = o.via.array.ptr[0].as<int64_t>();
         v.type = o.via.array.ptr[1].as<decltype(v.type)>();
         v.name = o.via.array.ptr[2].as<decltype(v.name)>();
 
@@ -498,21 +527,22 @@ struct convert<db::StationJS> {
         UN_MAP_START(m)
             UN_PK("st", 1, v.updated_at);
             UN_PK("st", 2, v.bodyId);      // space stations have bodyId
-            UN_PK("st", 3, v.controllingFaction);
-            UN_PK("st", 4, v.controllingFactionState);
-            UN_PK("st", 5, v.primaryEconomy);
-            UN_PK("st", 6, v.secondaryEconomy);
-            UN_PK("st", 7, v.economies);
-            UN_PK("st", 8, v.allegiance);
-            UN_PK("st", 9, v.government);
-            UN_PK("st", 10, v.state);
-            UN_PK("st", 11, v.distanceToArrival);
-            UN_PK("st", 12, v.latitude);
-            UN_PK("st", 13, v.longitude);
-            UN_PK("st", 14, v.landingPads);
-            UN_PK("st", 15, v.carrierDockingAccess);
+            UN_PK("st", 3, v.parentId);    // planet/star bodyId
+            UN_PK("st", 4, v.controllingFaction);
+            UN_PK("st", 5, v.controllingFactionState);
+            UN_PK("st", 6, v.primaryEconomy);
+            UN_PK("st", 7, v.secondaryEconomy);
+            UN_PK("st", 8, v.economies);
+            UN_PK("st", 9, v.allegiance);
+            UN_PK("st", 10, v.government);
+            UN_PK("st", 11, v.state);
+            UN_PK("st", 12, v.distanceToArrival);
+            UN_PK("st", 13, v.latitude);
+            UN_PK("st", 14, v.longitude);
+            UN_PK("st", 15, v.landingPads);
+            UN_PK("st", 16, v.carrierDockingAccess);
             if (tlDumpFull) {
-                UN_PK("st", 16, v.services);
+                UN_PK("st", 17, v.services);
             }
         UN_MAP_END()
         return o;
@@ -537,73 +567,68 @@ struct pack<db::BodyJS> {
         o.pack(v.type);
         o.pack_int(v.bodyId);
 
+        TypeNav tn = toTypeNav(v.type);
         std::string v_name = v.name;
-        bool is_star = v.type == JsBodyType::get("Star");
-        bool is_planet = v.type == JsBodyType::get("Planet");
-        bool is_cluster = v.type == JsBodyType::get("Asteroid Cluster");
-        if ((is_star || is_planet || is_cluster) && !v.name.empty()) {
+        if (tn == TypeNav::Barycenter || tn == TypeNav::Ring)
+            v_name = {};
+        if (!v.name.empty()) {
             auto &sn = tlStarSystemName;
             if (!sn.empty()) {
-                if (is_star && v_name == sn)
-                    v_name = "";
+                if (tn == TypeNav::Star && v_name == sn)
+                    v_name = {};
                 else if (v_name.size() >= sn.size() + 2 && v_name.starts_with(sn) && v_name[sn.size()] == ' ')
                     v_name = v_name.substr(sn.size());
-                if (is_cluster) {
+                if (tn == TypeNav::AsteroidCluster) {
                     auto p = v_name.find("Belt Cluster");
                     if (p != std::string::npos)
                         v_name = v_name.replace(p, 12, "$");
                 }
             }
-            //if (v_name == v.name)
-            //    LOG_INFO("Special body name: {}", v_name);
-        } else {
-            v_name = {};
         }
         o.pack(v_name);
 
         PK_MAP_START(o)
             PK_IF("bo", 1, v.updated_at);
             PK_IF("bo", 2, v.subType);
-            PK_IF("bo", 3, v.orbitalPeriod);
-            PK_IF("bo", 4, v.semiMajorAxis);
-            PK_IF("bo", 5, v.orbitalEccentricity);
-            PK_IF("bo", 6, v.orbitalInclination);
-            PK_IF("bo", 7, v.argOfPeriapsis);
-            PK_IF("bo", 8, v.meanAnomaly);
-            PK_IF("bo", 9, v.ascendingNode);
-            PK_IF("bo", 10, v.distanceToArrival);
-            PK_IF("bo", 11, v.surfaceTemperature);
-            PK_IF("bo", 12, v.rotationalPeriod);
-            PK_IF("bo", 13, v.axialTilt);
-            PK_IF("bo", 14, v.tidallyLocked);
-            PK_IF("bo", 15, v.timestamps);
-            PK_IF("bo", 16, v.parents);
-            PK_IF("bo", 17, v.stations);
+            PK_IF("bo", 3, v.radius);
+            PK_IF("bo", 4, v.distanceToArrival);
+            PK_IF("bo", 5, v.rotationalPeriod);
+            PK_IF("bo", 6, v.orbitalPeriod);
+            PK_IF("bo", 7, v.semiMajorAxis);
+            PK_IF("bo", 8, v.orbitalEccentricity);
+            PK_IF("bo", 9, v.orbitalInclination);
+            PK_IF("bo", 10, v.argOfPeriapsis);
+            PK_IF("bo", 11, v.meanAnomaly);
+            PK_IF("bo", 12, v.ascendingNode);
+            PK_IF("bo", 13, v.surfaceTemperature);
+            PK_IF("bo", 14, v.axialTilt);
+            PK_IF("bo", 15, v.tidalLock);
+            PK_IF("bo", 16, v.timestamps);
+            PK_IF("bo", 17, v.parents);
+            PK_IF("bo", 18, v.stations);
 //            // "rings"
 //            // "belts"
-            if (auto* st=v.getStarPart(); st && is_star) {
+            if (auto* st=v.getStarPart(); st && tn == TypeNav::Star) {
                 PK_IF("bs", 30, st->mainStar);
                 PK_IF("bs", 31, st->age);
                 PK_IF("bs", 32, st->spectralClass);
                 PK_IF("bs", 33, st->luminosity);
                 PK_IF("bs", 34, st->absoluteMagnitude);
                 PK_IF("bs", 35, st->solarMasses);
-                PK_IF("bs", 36, st->solarRadius);
             }
-            else if (auto* pl=v.getPlanetPart(); pl && is_planet) {
+            else if (auto* pl=v.getPlanetPart(); pl && tn == TypeNav::Planet) {
                 PK_IF("bp", 40, pl->isLandable);
-                PK_IF("bp", 41, pl->gravity);
+                PK_IF("bp", 41, pl->surfaceGravity);
                 PK_IF("bp", 42, pl->earthMasses);
-                PK_IF("bp", 43, pl->radius);
-                PK_IF("bp", 44, pl->terraformingState);
-                PK_IF("bp", 45, pl->reserveLevel);
-                PK_IF("bp", 46, pl->surfacePressure);
-                PK_IF("bp", 47, pl->volcanismType);
-                PK_IF("bp", 48, pl->atmosphereType);
+                PK_IF("bp", 43, pl->terraformingState);
+                PK_IF("bp", 44, pl->reserveLevel);
+                PK_IF("bp", 45, pl->surfacePressure);
+                PK_IF("bp", 46, pl->volcanismType);
+                PK_IF("bp", 47, pl->atmosphereType);
                 if (tlDumpFull) {
-                    PK_IF("bp", 49, pl->atmosphereComposition);
-                    PK_IF("bp", 50, pl->solidComposition);
-                    PK_IF("bp", 51, pl->materials);
+                    PK_IF("bp", 48, pl->atmosphereComposition);
+                    PK_IF("bp", 49, pl->solidComposition);
+                    PK_IF("bp", 50, pl->materials);
                     // "signals"
                 }
             }
@@ -623,17 +648,15 @@ struct convert<db::BodyJS> {
         v.bodyId = o.via.array.ptr[1].as<decltype(v.bodyId)>();
         v.name = o.via.array.ptr[2].as<decltype(v.name)>();
         {
-            bool is_star = v.type == JsBodyType::get("Star");
-            //bool is_planet = v.type == JsBodyType::get("Planet");
-            bool is_cluster = v.type == JsBodyType::get("Asteroid Cluster");
+            TypeNav tn = toTypeNav(v.type);
             auto &sn = tlStarSystemName;
             if (!sn.empty()) {
-                if (is_star && v.name.empty()) {
+                if (tn == TypeNav::Star && v.name.empty()) {
                     v.name = sn;
                 }
                 else if (v.name.size() > 1 && v.name[0] == ' ')
                     v.name = sn + v.name;
-                if (is_cluster) {
+                if (tn == TypeNav::AsteroidCluster) {
                     auto p = v.name.find('$');
                     if (p != std::string::npos)
                         v.name = v.name.replace(p, 1, "Belt Cluster");
@@ -643,46 +666,45 @@ struct convert<db::BodyJS> {
 
         auto& m = o.via.array.ptr[3].via.map;
         UN_MAP_START(m)
-            UN_PK("st", 1, v.updated_at);
-            UN_PK("st", 2, v.subType);
-            UN_PK("st", 3, v.orbitalPeriod);
-            UN_PK("st", 4, v.semiMajorAxis);
-            UN_PK("st", 5, v.orbitalEccentricity);
-            UN_PK("st", 6, v.orbitalInclination);
-            UN_PK("st", 7, v.argOfPeriapsis);
-            UN_PK("st", 8, v.meanAnomaly);
-            UN_PK("st", 9, v.ascendingNode);
-            UN_PK("st", 10, v.distanceToArrival);
-            UN_PK("st", 11, v.surfaceTemperature);
-            UN_PK("st", 12, v.rotationalPeriod);
-            UN_PK("st", 13, v.axialTilt);
-            UN_PK("st", 14, v.tidallyLocked);
-            UN_PK("st", 15, v.timestamps);
-            UN_PK("st", 16, v.parents);
-            UN_PK("st", 17, v.stations);
+            UN_PK("bo", 1, v.updated_at);
+            UN_PK("bo", 2, v.subType);
+            UN_PK("bo", 3, v.radius);
+            UN_PK("bo", 4, v.distanceToArrival);
+            UN_PK("bo", 5, v.rotationalPeriod);
+            UN_PK("bo", 6, v.orbitalPeriod);
+            UN_PK("bo", 7, v.semiMajorAxis);
+            UN_PK("bo", 8, v.orbitalEccentricity);
+            UN_PK("bo", 9, v.orbitalInclination);
+            UN_PK("bo", 10, v.argOfPeriapsis);
+            UN_PK("bo", 11, v.meanAnomaly);
+            UN_PK("bo", 12, v.ascendingNode);
+            UN_PK("bo", 13, v.surfaceTemperature);
+            UN_PK("bo", 14, v.axialTilt);
+            UN_PK("bo", 15, v.tidalLock);
+            UN_PK("bo", 16, v.timestamps);
+            UN_PK("bo", 17, v.parents);
+            UN_PK("bo", 18, v.stations);
                 // "rings"
                 // "belts"
 
-            UN_PK_STAR("st", 30, v, mainStar);
-            UN_PK_STAR("st", 31, v, age);
-            UN_PK_STAR("st", 32, v, spectralClass);
-            UN_PK_STAR("st", 33, v, luminosity);
-            UN_PK_STAR("st", 34, v, absoluteMagnitude);
-            UN_PK_STAR("st", 35, v, solarMasses);
-            UN_PK_STAR("st", 36, v, solarRadius);
+            UN_PK_STAR("bs", 30, v, mainStar);
+            UN_PK_STAR("bs", 31, v, age);
+            UN_PK_STAR("bs", 32, v, spectralClass);
+            UN_PK_STAR("bs", 33, v, luminosity);
+            UN_PK_STAR("bs", 34, v, absoluteMagnitude);
+            UN_PK_STAR("bs", 35, v, solarMasses);
 
-            UN_PK_PLNT("st", 40, v, isLandable);
-            UN_PK_PLNT("st", 41, v, gravity);
-            UN_PK_PLNT("st", 42, v, earthMasses);
-            UN_PK_PLNT("st", 43, v, radius);
-            UN_PK_PLNT("st", 44, v, terraformingState);
-            UN_PK_PLNT("st", 45, v, reserveLevel);
-            UN_PK_PLNT("st", 46, v, surfacePressure);
-            UN_PK_PLNT("st", 47, v, volcanismType);
-            UN_PK_PLNT("st", 48, v, atmosphereType);
-            UN_PK_PLNT("st", 49, v, atmosphereComposition);
-            UN_PK_PLNT("st", 50, v, solidComposition);
-            UN_PK_PLNT("st", 51, v, materials);
+            UN_PK_PLNT("bp", 40, v, isLandable);
+            UN_PK_PLNT("bp", 41, v, surfaceGravity);
+            UN_PK_PLNT("bp", 42, v, earthMasses);
+            UN_PK_PLNT("bp", 43, v, terraformingState);
+            UN_PK_PLNT("bp", 44, v, reserveLevel);
+            UN_PK_PLNT("bp", 45, v, surfacePressure);
+            UN_PK_PLNT("bp", 46, v, volcanismType);
+            UN_PK_PLNT("bp", 47, v, atmosphereType);
+            UN_PK_PLNT("bp", 48, v, atmosphereComposition);
+            UN_PK_PLNT("bp", 49, v, solidComposition);
+            UN_PK_PLNT("bp", 50, v, materials);
                 // "signals"
         UN_MAP_END()
         return o;
@@ -699,7 +721,7 @@ struct pack<db::StarSystemJS> {
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, db::StarSystemJS const& v) const {
         o.pack_array(6);
-        o.pack_fix_int64(v.id64);
+        o.pack_fix_int64(v.address);
         o.pack(v.name);
         o.pack_double(v.coords.x);
         o.pack_double(v.coords.y);
@@ -738,7 +760,7 @@ struct convert<db::StarSystemJS> {
     msgpack::object const& operator()(msgpack::object const& o, db::StarSystemJS& v) const {
         if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
         if (o.via.array.size != 6) { throw msgpack::type_error(); }
-        v.id64 = o.via.array.ptr[0].as<int64_t>();
+        v.address = o.via.array.ptr[0].as<int64_t>();
         v.name = o.via.array.ptr[1].as<std::string>();
         v.coords.x = o.via.array.ptr[2].as<double>();
         v.coords.y = o.via.array.ptr[3].as<double>();
@@ -815,11 +837,11 @@ bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_
     if (!address || system_name.empty())
         return false;
     tlStarSystemName = system_name;
+    tlDumpFull = false;
     try {
-        msgpack::sbuffer buffer;
-        auto obj = msgpack::unpack(buffer.data(), buffer.size());
+        auto obj = msgpack::unpack((const char*)data, (size_t)size);
         obj->convert(ss);
-        return ss.id64 == address && ss.name == system_name;
+        return ss.address == address && ss.name == system_name;
     } catch (const std::exception &e) {
         LOG_ERROR("decode_system_blob error");
         return false;
@@ -827,18 +849,19 @@ bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_
 }
 
 bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, std::stringstream& buffer) {
-    if (!ss.id64 || ss.name.empty())
+    if (!address || system_name.empty())
         return false;
 
     tlStarSystemName = system_name;
+    tlDumpFull = false;
     try {
         msgpack::pack(buffer, ss);
-        ss.id64 = address;
+        ss.address = address;
         ss.name = system_name;
         return true;
     } catch (const std::exception &e) {
         LOG_ERROR("decode_system_blob error");
-        ss.id64 = 0;
+        ss.address = 0;
         ss.name.clear();
         return false;
     }

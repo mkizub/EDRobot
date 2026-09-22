@@ -394,6 +394,16 @@ std::string encodeShortcut(const std::string& name, unsigned flags) {
     return res;
 }
 
+std::string formatIntWithSeparators(int64_t value, std::string_view sep) {
+    string result = std::to_string(value);
+    for (int i = result.size() - 3; i > 0; i -= 3) {
+        if (result[i] < '0' || result[i] > '9')
+            break;
+        result.insert(i, sep);
+    }
+    return result;
+}
+
 std::string formatTimestampString(Timestamp timestamp, bool nanos) {
     if (!nanos) {
         auto ts = std::chrono::floor<std::chrono::seconds>(timestamp);
@@ -401,6 +411,21 @@ std::string formatTimestampString(Timestamp timestamp, bool nanos) {
     }
     return std::format("{:%Y-%m-%dT%H:%M:%S}Z", timestamp);
 }
+
+std::string formatTimestampHuman(Timestamp timestamp) {
+    //std::chrono::time_point<std::chrono::utc_clock,std::chrono::seconds> tp {timestamp.time_since_epoch().count()/Timestamp::duration::period::den};
+    auto tp = std::chrono::time_point_cast<std::chrono::seconds>(timestamp);
+    std::string str = std::format("{:%Y-%m-%d %H:%M:%S}Z", tp);
+    auto passed = std::chrono::duration_cast<std::chrono::days>(Timestamp::clock::now() - timestamp);
+
+    if (passed.count() == 0)
+        str += " (today)";
+    else
+        str += std::format(" ({} days ago)", passed.count());
+
+    return str;
+}
+
 
 bool parseTimestampString(std::string_view str, Timestamp& timestamp) {
     if (str.empty())

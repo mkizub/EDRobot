@@ -7,6 +7,10 @@
 #ifndef EDROBOT_GALAXY_H
 #define EDROBOT_GALAXY_H
 
+namespace db {
+struct StarSystemJS;
+};
+
 namespace gal {
 
 void init_symbols();
@@ -23,18 +27,26 @@ public:
     short bodyId {-1};
     short parentBodyId {-1}; // planet for planetary stations, or on orbit of body
     int64_t marketId {0};
-    double radius {0};
-    dist_t main_star_distance; // approximate distance to arrival from main star
-    dist_t parent_distance; // approximate distance to parent body center
     std::string name;
     std::string nloc; // localized name
     std::string code; // star class or planet type, fleet carrier code, etc
     bool special {false}; // main star, dockable for stations, landable for planets
 
+    float radius() {
+        if (!isBody(type))
+            return 0;
+        auto& bd = getBodyData();
+        if (!bd.radius.has_value())
+            return 0;
+        return bd.radius.value();
+    }
+
     struct BodyData {
         JsBodySubType subType;
-        bool tidallyLocked{};
-        js::symbol controllingFaction;
+        opt_bool  tidalLock;
+        opt_float radius;
+        opt_float distanceToArrival;
+        opt_float rotationalPeriod;
         opt_float orbitalPeriod;
         opt_float semiMajorAxis;
         opt_float orbitalEccentricity;
@@ -42,29 +54,25 @@ public:
         opt_float argOfPeriapsis;
         opt_float meanAnomaly;
         opt_float ascendingNode;
-        opt_float distanceToArrival;
         opt_float surfaceTemperature;
-        opt_float rotationalPeriod;
         opt_float axialTilt;
     };
     struct StarData : public BodyData {
-        bool mainStar;
+        opt_bool mainStar;
         JsSpectralClass spectralClass;
         JsLuminosity luminosity;
         uint32_t age; // in millions years
-        opt_float solarRadius;
         opt_float solarMasses;
         opt_float absoluteMagnitude;
     };
     struct PlanetData : public BodyData {
-        bool isLandable;
+        opt_bool isLandable;
         JsVolcanismType volcanismType;
         JsAtmosphereType atmosphereType;
         JsTerraformingState terraformingState;
         JsReserveLevel reserveLevel;
-        opt_float radius;
         opt_float earthMasses;
-        opt_float gravity;
+        opt_float surfaceGravity;
         opt_float surfacePressure;
     };
     struct StationData {
@@ -91,7 +99,7 @@ public:
     PlanetData& getPlanetData();
     StationData& getStationData();
 
-    std::variant<std::monostate, BodyData, StarData, PlanetData, StationData> ext;
+    std::variant<BodyData, StarData, PlanetData, StationData> ext;
 };
 
 typedef std::shared_ptr<Entity> spEntity;
@@ -122,16 +130,17 @@ public:
         uint64_t population {};
     } ext;
 
-    std::vector<spEntity> bodies;
-    std::vector<spEntity> stations;
-    std::vector<spEntity> signals;
-    bool loaded {false};
-    bool saved {false};
-    bool savedDbBase {false};
+    std::vector<spEntity> entities;
+
+    bool needCoreSave {false};
+    bool isBlobLoaded {false};
+    bool needBlobSave {false};
+    void load();
     void save();
 
     spEntity getMainStar();
     spEntity getEntity(const std::string& bname);
+    spEntity getDockOrSignal(std::string_view sname);
     spEntity getBodyById(int bodyId);
     spEntity getBody(std::string_view bname);
     spEntity getDock(std::string_view sname);
@@ -139,9 +148,7 @@ public:
     void addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEvent>>& events);
     spEntity addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& name, int bodyId);
     spEntity addStation(spGameEvent& ge);
-    spEntity addStation(spEntity station);
-    spEntity addBody(spEntity body);
-    spEntity addSignal(spEntity signal);
+    spEntity addEntity(spEntity entity);
     void addDestination();
     void removeEntity(const spEntity& entity);
 
@@ -153,14 +160,20 @@ private:
 
 typedef std::shared_ptr<StarSystem> spStarSystem;
 
-spStarSystem getStarSystem(std::string_view name, bool network_load=true);
-spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d* starPos, bool network_load=true);
+spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_load);
+spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d* starPos, bool blob_load, bool network_load);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
 
 spMarket getMarket(int64_t marketId);
 void saveMarket(Market* market);
 void setMarketData(spMarket market);
+
+bool update_star_system(StarSystem* ss, db::StarSystemJS& db_ss);
+bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss);
+
+bool updateFromGameEvent(StarSystem* ss, spGameEvent& ge);
+bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge);
 
 struct NavType {
     // some nav types share the same charOCR

@@ -742,7 +742,7 @@ TaskBuyConstr::TaskBuyConstr(const TaskTemplate& templ_)
 }
 
 bool TaskBuyConstr::run() {
-    auto starSystem = gal::getStarSystem(destSystemName);
+    auto starSystem = gal::getStarSystem(destSystemName, true, true);
     if (!starSystem)
         throw_failed("Star system '{}' not known", destSystemName);
     auto depot = starSystem->getDock(destConstrName);

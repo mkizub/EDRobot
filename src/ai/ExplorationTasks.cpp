@@ -1,7 +1,10 @@
 //
 // Created by mkizub on 26.08.2026.
 //
+
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "AIManager.h"
 #include "ExplorationTasks.h"
@@ -48,7 +51,7 @@ bool TaskDebugExploration::run() {
 TaskSystemsAround::TaskSystemsAround(const TaskTemplate &templ)
     : Task(templ)
 {
-    assert (templ.id == ED_TASK_EXPL_VISIT_SYSTEMS);
+    assert (templ.id == ED_TASK_EXPL_SYSTEMS_AROUND);
     for (auto& p : templ.params) {
         if (p.id == "system")
             systemName = p.as_string();
@@ -63,7 +66,7 @@ bool TaskSystemsAround::run() {
                 throw_failed("Current star system not known");
             systemName = starSystem->systemName;
         } else {
-            starSystem = gal::getStarSystem(systemName);
+            starSystem = gal::getStarSystem(systemName, true, true);
             if (!starSystem)
                 throw_failed("Star system '{}' is not known", systemName);
         }
@@ -97,7 +100,7 @@ bool TaskSystemsAround::run() {
                     systems.push_back(ss);
                 } else {
                     int known_body_count = 0;
-                    for (auto b: ss->bodies) {
+                    for (auto b: ss->entities) {
                         if (b->type == TypeNav::Star || b->type == TypeNav::Planet)
                             known_body_count += 1;
                     }
@@ -334,7 +337,7 @@ bool TaskVisitSystems::run() {
                 throw_failed("Current star system not known");
             systemName = starSystem->systemName;
         } else {
-            starSystem = gal::getStarSystem(systemName);
+            starSystem = gal::getStarSystem(systemName, true, true);
             if (!starSystem)
                 throw_failed("Star system '{}' is not known", systemName);
         }
@@ -353,8 +356,9 @@ bool TaskVisitSystems::run() {
                 Timestamp updated_at;
                 if (jr["updated_at"].is_string())
                     parseTimestampString(jr["updated_at"].as_string(), updated_at);
-                if (updated_at < ss->eddn_updated_at || !ss->loaded)
-                    Spansh::loadStarSystem(ss->systemAddress);
+                ss->load();
+                if (updated_at < ss->eddn_updated_at || !ss->isBlobLoaded)
+                    Spansh::loadStarSystem(ss);
                 if (!ss)
                     return false;
                 LOG_INFO("Star system: {} / {} (at x={:.5f} y={:.5f} z={:.5f}) updated at {}",
@@ -376,7 +380,7 @@ bool TaskVisitSystems::run() {
                     name = name.substr(1,name.length()-2);
                 nextSystemIdx = i+1;
                 nextSystemName = name;
-                gal::spStarSystem ss = gal::getStarSystem(name);
+                gal::spStarSystem ss = gal::getStarSystem(name, true, true);
                 if (ss) {
                     if (std::find(systems.begin(), systems.end(), ss) == systems.end())
                         systems.push_back(ss);
@@ -427,7 +431,7 @@ bool TaskVisitSystems::run() {
         // Шаг 2: Улучшаем его с помощью 2-opt локального поиска
         two_opt(points, visitOrderPath);
         double optimized_dist = get_total_distance(points, visitOrderPath);
-        notify_info("Optimized distance: {} ly", int64_t(initial_dist));
+        notify_info("Optimized distance: {} ly", int64_t(optimized_dist));
         notify_info("Visit route is reported to log file and console");
 
         for (auto i: visitOrderPath)

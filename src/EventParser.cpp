@@ -457,16 +457,20 @@ static void setCommander(std::string_view name, std::string_view fid) {
     }
 }
 
-static void setEddnStarSystem(spGameEvent& ge) {
+static gal::spStarSystem setEddnStarSystem(spGameEvent& ge) {
     auto& je = ge->data;
     st::eddnStarSystem.name = je["StarSystem"].as_string();
     st::eddnStarSystem.addr = je["SystemAddress"].as_int_or();
     auto& jp = je["StarPos"].as_array();
     st::eddnStarSystem.pos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
-    gal::spStarSystem ss = gal::makeStarSystem(st::eddnStarSystem.name, st::eddnStarSystem.addr, &st::eddnStarSystem.pos);
-    if (cv::norm(ss->starPos) == 0)
+    gal::spStarSystem ss = gal::makeStarSystem(st::eddnStarSystem.name, st::eddnStarSystem.addr, &st::eddnStarSystem.pos, true, false);
+    if (cv::norm(ss->starPos) == 0) {
         ss->starPos = st::eddnStarSystem.pos;
+        ss->needCoreSave = true;
+        ss->save();
+    }
     gal::setCurrentStarSystem(ss);
+    return ss;
 }
 
 void parseEvent_Commander(spGameEvent& ge) {
@@ -544,7 +548,7 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
 void parseEvent_Location(spGameEvent& ge) {
     auto& je = ge->data;
 
-    setEddnStarSystem(ge);
+    auto starSystem = setEddnStarSystem(ge);
 
     if (je["Docked"]) {
         st::dockedAt.marketId = je["MarketID"].as_int_or();
@@ -563,8 +567,10 @@ void parseEvent_Location(spGameEvent& ge) {
         st::dockedAt = {};
     }
 
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_Location(ge);
+        gal::updateFromGameEvent(starSystem.get(), ge);
+    }
 }
 
 void parseEvent_Loadout(spGameEvent& ge) {
@@ -663,7 +669,7 @@ void parseEvent_Docked(spGameEvent& ge) {
     cv::Point3d* systemPos = nullptr;
     if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
         systemPos = &st::eddnStarSystem.pos;
-    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos);
+    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos, true, true);
     gal::setCurrentStarSystem(ss);
     st::dockedAt.marketId = je["MarketID"].as_int_or();
     set(st::dockedAt.stationName, je["StationName"]);
@@ -693,15 +699,21 @@ void parseEvent_Docking(spGameEvent& ge) {
     st::space.marketId = je["MarketID"].as_int_or();
     st::space.stationName = je["StationName"].as_string_or();
     st::space.stationType = je["StationType"].as_string_or(st::dockedAt.stationType);
-//    if (event == "DockingDenied") {
-//        // NoSpace, TooLarge, Hostile, Offences, Distance, ActiveFighter, NoReason, etc.
-//        if (je.contains("Reason"))
-//            dockingStatus = "DockingDenied:" + je["Reason"].as_string();
-//        else
-//            dockingStatus = "DockingDenied:NoReason";
-//    } else {
-//        dockingStatus = event;
-//    }
+    auto ss = gal::getCurrentStarSystem();
+    auto dock = ss->getDock(st::space.marketId);
+    if (!dock)
+        dock = ss->getDock(st::space.stationName);
+    auto dt = toTypeNav(JsStationType::get(st::space.stationType));
+    if (dock && isSite(dt) && dock->type != dt) {
+        dock->setType(dt);
+        dock->marketId = st::space.marketId;
+        ss->needBlobSave = true;
+    }
+    if (dock && dock->marketId != st::space.marketId) {
+        dock->marketId = st::space.marketId;
+        ss->needBlobSave = true;
+    }
+    ss->save();
     if (!ge->expired) {
         Cfg.dockingEvents.push(ge);
     }
@@ -718,7 +730,7 @@ void parseEvent_StartJump(spGameEvent& ge) {
     if (je["JumpType"].as_string_or() == "Hyperspace") {
         auto name = je["StarSystem"].as_string();
         int64_t address = je["SystemAddress"].as_int();
-        gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr);
+        gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr, true, true);
         gal::setCurrentStarSystem(ss);
         st::autopilot.isDestDockTargeted = false;
         st::autopilot.isDestBodyTargeted = false;
@@ -736,7 +748,7 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::dockedAt = {};
     st::space = {};
 
-    setEddnStarSystem(ge);
+    auto starSystem = setEddnStarSystem(ge);
 
     st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
@@ -747,8 +759,10 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::autopilot.isDestBodyFocused = false;
     ai::resetCompassDetects();
 
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_FSDJump(ge);
+        gal::updateFromGameEvent(starSystem.get(), ge);
+    }
 }
 
 void parseEvent_CarrierJump(spGameEvent& ge) {
@@ -764,8 +778,8 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
         }
         if (carrier && (carrier->type == TypeNav::FleetCarrier || carrier->type == TypeNav::SquadronCarrier)) {
             carrier->parentBodyId = -1;
-            std::erase(ss->stations, carrier);
-            ss->saved = false;
+            ss->removeEntity(carrier);
+            ss->needBlobSave = true;
             ss->save();
         } else {
             carrier.reset();
@@ -774,27 +788,28 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     st::shipAtBody.approachBody = false;
     st::shipAtBody.nearBody = false;
 
-    setEddnStarSystem(ge);
+    auto starSystem = setEddnStarSystem(ge);
 
     st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
     if (carrier) {
         auto ss = gal::getCurrentStarSystem();
-        std::erase_if(ss->stations, [carrier](auto& st)->bool {
+        std::erase_if(ss->entities, [carrier](auto& st)->bool {
             if (st->marketId == carrier->marketId)
                 return true;
             return st->type == TypeNav::FleetCarrier && (st->nameEq(carrier->code) || st->nameEq(carrier->name));
         });
-        gal::spEntity old_carrier;
-        ss->stations.push_back(carrier);
+        ss->addEntity(carrier);
         carrier->parentBodyId = st::space.bodyId;
-        ss->saved = false;
-       ss->save();
+        ss->needBlobSave = true;
+        ss->save();
     }
 
-    if (!ge->expired)
+    if (!ge->expired) {
         EDDN::event_CarrierJump(ge);
+        gal::updateFromGameEvent(starSystem.get(), ge);
+    }
 }
 
 void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
@@ -849,6 +864,16 @@ void parseEvent_SupercruiseExit(spGameEvent& ge) {
     st::space.bodyId = je["BodyID"].as_int_or();
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
+    if (st::space.bodyType == "Station") {
+        auto ss = gal::getCurrentStarSystem();
+        auto dock = ss->getDock(st::space.bodyName);
+        if (dock && dock->bodyId < 0) {
+            dock->bodyId = st::space.bodyId;
+            dock->updated = ge->timestamp;
+            ss->needBlobSave = true;
+            ss->save();
+        }
+    }
     ai::resetCompassDetects();
 }
 
@@ -887,7 +912,7 @@ static void saveBodyCount(spGameEvent& ge, const char* prop) {
     auto ss = gal::getCurrentStarSystem();
     if (ss->ext.bodyCount != body_count) {
         ss->ext.bodyCount = body_count;
-        ss->saved = false;
+        ss->needBlobSave = true;
         ss->save();
     }
 }
@@ -896,6 +921,7 @@ void parseEvent_NavBeaconScan(spGameEvent& ge) {
     saveBodyCount(ge, "NumBodies");
     if (!ge->expired) {
         EDDN::event_NavBeaconScan(ge);
+        gal::updateFromGameEvent(gal::getCurrentStarSystem().get(), ge);
         Cfg.scanEvents.push(ge);
     }
 }
@@ -911,6 +937,7 @@ void parseEvent_FSSDiscoveryScan(spGameEvent& ge) {
     saveBodyCount(ge, "BodyCount");
     if (!ge->expired) {
         EDDN::event_FSSDiscoveryScan(ge);
+        gal::updateFromGameEvent(gal::getCurrentStarSystem().get(), ge);
         Cfg.scanEvents.push(ge);
     }
 }
@@ -938,112 +965,11 @@ void parseEvent_Scan(spGameEvent& ge) {
     cv::Point3d* systemPos = nullptr;
     if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
         systemPos = &st::eddnStarSystem.pos;
-    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos);
-    int bodyId = je["BodyID"].as_int_or(-1);
-    auto body = ss->getBodyById(bodyId);
-    if (!body) {
-        body = std::make_shared<gal::Entity>();
-        body->bodyId = bodyId;
-        ss->bodies.push_back(body);
-        ss->saved = false;
-    }
-    if (je["StarType"].is_string()) {
-        if (body->type != TypeNav::Star) {
-            body->setType(TypeNav::Star);
-            ss->saved = false;
-        }
-        std::string code = *je["StarType"].as_string();
-        if (je["Subclass"].is_int())
-            code += std::to_string(je["Subclass"].as_int());
-        if (body->code != code) {
-            body->code = code;
-            ss->saved = false;
-        }
-    } else {
-        if (je["PlanetClass"].is_string()) {
-            body->setType(TypeNav::Planet);
-            ss->saved = false;
-            bool landable = (bool)je["Landable"];
-            if (landable != body->special) {
-                body->special = landable;
-                ss->saved = false;
-            }
-        }
-        else if (gal::BELT.match_name(je["BodyName"].as_string_or())) {
-            if (body->type != TypeNav::AsteroidCluster) {
-                body->setType(TypeNav::AsteroidCluster);
-                ss->saved = false;
-            }
-        } else if (!isBody(body->type)) {
-            body->setType(TypeNav::Body);
-            ss->saved = false;
-        }
-        if (je["Parents"].is_array()) {
-            auto b = body;
-            for (auto jp : je["Parents"].as_array()) {
-                TypeNav p_type = TypeNav::Error;
-                int p_id = -1;
-                if (jp["Null"].is_int()) {
-                    p_type = TypeNav::Barycenter;
-                    p_id = jp["Null"].as_int();
-                }
-                else if (jp["Star"].is_int()) {
-                    p_type = TypeNav::Star;
-                    p_id = jp["Star"].as_int();
-                }
-                else if (jp["Planet"].is_int()) {
-                    p_type = TypeNav::Planet;
-                    p_id = jp["Planet"].as_int();
-                }
-                else if (jp["Ring"].is_int()) {
-                    p_type = TypeNav::Ring;
-                    p_id = jp["Ring"].as_int();
-                }
-                else if (jp["AsteroidCluster"].is_int()) {
-                    p_type = TypeNav::AsteroidCluster;
-                    p_id = jp["AsteroidCluster"].as_int();
-                }
-                if (p_type == TypeNav::Error || p_id < 0)
-                    break;
-                if (b->parentBodyId != p_id) {
-                    b->parentBodyId = p_id;
-                    ss->saved = false;
-                }
-                auto p = ss->getBodyById(p_id);
-                if (!p) {
-                    p = std::make_shared<gal::Entity>();
-                    p->setType(p_type);
-                    p->bodyId = p_id;
-                    ss->bodies.push_back(p);
-                    ss->saved = false;
-                }
-                b = p;
-            }
-        }
-    }
-    if (auto nm=je["BodyName"]; nm.is_string() && nm.as_string() != body->name) {
-        body->name = nm.as_string();
-        ss->saved = false;
-    }
-    if (auto bd=je["DistanceFromArrivalLS"]; bd.is_number()) {
-        double dist_ls = bd.as_real();
-        if (std::round(body->main_star_distance.get_ls()) != std::round(dist_ls)) {
-            body->main_star_distance = dist_t(dist_t::LS, dist_ls);
-            ss->saved = false;
-        }
-    }
-    if (auto br = je["Radius"]; br.is_number()) {
-        double r = std::round(br.as_real()) / 1000.0; // meters->kilometers
-        if (body->radius != r) {
-            body->radius = r;
-            ss->saved = false;
-        }
-    }
-    if (!ss->saved)
-        ss->save();
+    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos, true, true);
 
     if (!ge->expired) {
         EDDN::event_Scan(ge);
+        gal::updateFromScanEvent(ss.get(), ge);
         Cfg.scanEvents.push(ge);
     }
 }
@@ -1056,25 +982,11 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
     cv::Point3d* systemPos = nullptr;
     if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
         systemPos = &st::eddnStarSystem.pos;
-    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos);
-    int bodyId = je["BodyID"].as_int();
-    auto body = ss->getBodyById(bodyId);
-    if (!body) {
-        body = std::make_shared<gal::Entity>();
-        body->setType(TypeNav::Barycenter);
-        body->bodyId = bodyId;
-        ss->bodies.push_back(body);
-        ss->saved = false;
-    }
-    else if (body->type != TypeNav::Barycenter) {
-        body->setType(TypeNav::Barycenter);
-        ss->saved = false;
-    }
-    if (!ss->saved)
-        ss->save();
+    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos, true, true);
 
     if (!ge->expired) {
         EDDN::event_ScanBaryCentre(ge);
+        gal::updateFromScanEvent(ss.get(), ge);
         Cfg.scanEvents.push(ge);
     }
 }

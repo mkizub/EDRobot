@@ -2,7 +2,9 @@
 // Created by mkizub on 17.02.2026.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "AIManager.h"
 #include "ColonizationTasks.h"
@@ -23,7 +25,7 @@ std::string BaseColonizationTask::constructionPrefixes[] {
 
 void BaseColonizationTask::addDepotInfo(const js::value& dv) {
     const auto systemName = dv["system"].as_string_or();
-    auto starSystem = gal::getStarSystem(systemName);
+    auto starSystem = gal::getStarSystem(systemName, true, true);
     if (!starSystem)
         throw_failed("Star system '{}' not known", systemName);
     const auto fullName = *dv["dock"].as_string_or();
@@ -303,7 +305,7 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
     BaseColonizationTask::MarketInfo mi {MARKET_INVALID, *systemName, *dockName};
     mi.canBuy.resize(demands.allDepots.size(), 0);
     mi.canBuyListed.resize(demands.allDepots.size(), 0);
-    auto starSystem = gal::getStarSystem(systemName);
+    auto starSystem = gal::getStarSystem(systemName, true, true);
     if (!starSystem) {
         notify_warn("Star system '{}' not known", systemName);
         return mi;
@@ -453,7 +455,7 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
             if (bi.dp_buy <= 0)
                 bi.dp_buy = INT_MAX;
         }
-        std::stable_sort(list.begin(),list.end(),[demands,depotIdx](const auto& a, const auto& b){
+        std::stable_sort(list.begin(),list.end(),[demands](const auto& a, const auto& b){
             if (a.order != b.order)
                 return a.order < b.order;
             return a.dp_buy < b.dp_buy;

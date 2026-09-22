@@ -63,7 +63,9 @@ extern int distanceHsv(const cv::Vec3b& hsv1, const cv::Vec3b& hsv2);
 extern std::pair<std::string,unsigned> decodeShortcut(std::string key);
 extern std::string encodeShortcut(const std::string& name, unsigned flags);
 
+extern std::string formatIntWithSeparators(int64_t value, std::string_view sep = " ");
 extern std::string formatTimestampString(Timestamp timestamp, bool nanos=false);
+extern std::string formatTimestampHuman(Timestamp timestamp);
 extern bool parseTimestampString(std::string_view str, Timestamp& timestamp);
 extern bool parseTimestamp(const js::value& value, Timestamp& timestamp);
 extern dist_t parseDist(std::wstring dist, int conf);

@@ -13,7 +13,7 @@ std::thread::id main_thread_id;
 spdlog::sink_ptr console_sink;
 
 namespace db{
-void test();
+void full_galaxy_test();
 }
 
 BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
@@ -165,8 +165,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    int st_sz = sizeof(st);
 //    LOG_INFO("{} {}", lp_sz, st_sz);
 
-    js::symbol::DefineSymbols({"test"});
-    db::test();
+//    db::full_galaxy_test();
 
     Master& master = Master::getInstance();
     if (master.initialize())
