@@ -34,43 +34,49 @@ enum class GuiFocus { None=0, Right=1, Left=2, Chat=3, Role=4, Services=5, Galax
 //};
 
 enum class TypeNav : uint8_t {
-    Other                   = 0,
-    Error                   = 1,
-    NotExplored             = 2,
-    Signal                  = 3,
-    WarZone                 = 4,
-    ResSite                 = 5,
-    StarSystem              = 6,
+    Other                   = 0x0,
+    Error                   = 0x1,
+    NotExplored             = 0x2,
+    Signal                  = 0x3,
+    WarZone                 = 0x4,
+    ResSite                 = 0x5,
+    StarSystem              = 0x6,
+    // gap 0x7-0xF
     Body                    = 0x10,   // generic type
     Barycenter              = 0x11,
     Ring                    = 0x12,
     AsteroidCluster         = 0x13,
     Star                    = 0x14,
     Planet                  = 0x15,
+    // gap 0x16-0x1F
     SpaceThing              = 0x20,   // generic type
     NavBeacon               = 0x21,
     TouristBeacon           = 0x22,
-    SpaceStation            = 0x27,   // generic type
-    Orbis                   = 0x28,
-    Ocellus                 = 0x29,
-    Dodec                   = 0x2A,
-    Coriolis                = 0x2B,
-    AsteroidBase            = 0x2C,
-    SpaceOutpost            = 0x2D,
-    SpaceInstallation       = 0x2E,
-    SpaceConstrDepot        = 0x2F,
-    Megaship                = 0x30,   // generic type
-    StationMegaShip         = 0x31,
-    FleetCarrier            = 0x32,
-    SquadronCarrier         = 0x33,
-    StrongholdCarrier       = 0x34,
-    ColonisationShip        = 0x35,
-    PlanetaryThing          = 0x40,   // generic type
-    PlanetaryPort           = 0x42,
-    EngineerPort            = 0x43,
-    Settlement              = 0x44,   // odyssey settlement
-    PlanetaryInstallation   = 0x45,
-    PlanetaryConstrDepot    = 0x46,
+    Codex                   = 0x24,   // notable stellar phenomena
+    // gap 0x23-0x2F
+    SpaceStation            = 0x30,   // generic type
+    Orbis                   = 0x31,
+    Ocellus                 = 0x32,
+    Dodec                   = 0x33,
+    Coriolis                = 0x34,
+    AsteroidBase            = 0x35,
+    SpaceOutpost            = 0x36,
+    SpaceInstallation       = 0x37,
+    SpaceConstrDepot        = 0x38,
+    // gap 0x39-0x3F
+    Megaship                = 0x40,   // generic type
+    StationMegaShip         = 0x41,
+    FleetCarrier            = 0x42,
+    SquadronCarrier         = 0x43,
+    StrongholdCarrier       = 0x44,
+    ColonisationShip        = 0x45,
+    // gap 0x45-0x4F
+    PlanetaryThing          = 0x50,   // generic type
+    PlanetaryPort           = 0x51,
+    EngineerPort            = 0x52,   // "StationType":"CraterOutpost", "StationGovernment":"$government_Engineer;", "StationGovernment_Localised":"Мастерская"
+    Settlement              = 0x53,   // odyssey settlement
+    PlanetaryInstallation   = 0x54,
+    PlanetaryConstrDepot    = 0x55,
 };
 
 inline constexpr bool isSignal(TypeNav type) {
@@ -89,12 +95,18 @@ inline constexpr bool isSpaceStation(TypeNav type) {
     return type >= TypeNav::SpaceStation && type <= TypeNav::SpaceOutpost;
 }
 inline constexpr bool isPlanetarySite(TypeNav type) {
-    return type >= TypeNav::PlanetaryThing; /*&& type <= TypeNav::PlanetaryConstrDepot;*/ // or (std::to_underlying(type) & 0xF0) == 0x40;
+    return type >= TypeNav::PlanetaryThing; // or (std::to_underlying(type) & 0xF0) == 0x50;
 }
 inline constexpr bool isConstrDepot(TypeNav type) {
     return type == TypeNav::SpaceConstrDepot ||
            type == TypeNav::PlanetaryConstrDepot ||
            type == TypeNav::ColonisationShip;
+}
+inline constexpr bool isCarrier(TypeNav type) {
+    return type == TypeNav::FleetCarrier || type == TypeNav::SquadronCarrier;
+}
+inline constexpr bool isMegaship(TypeNav type) {
+    return type >= TypeNav::Megaship && type <= TypeNav::ColonisationShip;
 }
 
 namespace gal {
@@ -111,6 +123,113 @@ bool isDebugPause();
 void resetCompassDetects();
 
 }
+
+struct opt_bool {
+    int8_t val {-1};
+
+    opt_bool() {}
+    opt_bool(bool value) { val = value ? 1 : 0; }
+    opt_bool(const opt_bool& value) { val = value.val; }
+
+    constexpr opt_bool& operator=(const opt_bool& other) noexcept {
+        val = other.val;
+        return *this;
+    }
+    constexpr opt_bool& operator=(bool value) noexcept {
+        val = value ? 1 : 0;
+        return *this;
+    }
+
+    constexpr void reset() noexcept {
+        val = -1;
+    }
+
+    void emplace() noexcept {
+        val = -1;
+    }
+
+    bool emplace(bool value) noexcept {
+        val = value ? 1 : 0;
+        return val;
+    }
+
+    bool has_value() const {
+        return val >= 0;
+    }
+
+    bool& value() {
+        //if (val < 0) throw std::bad_optional_access();
+        return reinterpret_cast<bool&>(val);
+    }
+    bool value() const {
+        if (val < 0) throw std::bad_optional_access();
+        return val > 0;
+    }
+    bool value_or(bool default_value = {}) const {
+        if (val < 0) return default_value;
+        return val;
+    }
+};
+
+struct opt_float {
+    float val;
+
+    opt_float() : val {std::numeric_limits<float>::quiet_NaN()} {}
+    opt_float(const opt_float& value) : val {value.val} {}
+    opt_float(float value) : val {value} {}
+
+    constexpr opt_float& operator=(const opt_float& other) noexcept {
+        val = other.val;
+        return *this;
+    }
+    constexpr opt_float& operator=(float value) noexcept {
+        val = value;
+        return *this;
+    }
+
+    constexpr void reset() noexcept {
+        val = std::numeric_limits<float>::quiet_NaN();
+    }
+
+    float& emplace() noexcept {
+        val = std::numeric_limits<float>::quiet_NaN();
+        return val;
+    }
+
+    float& emplace(float value) noexcept {
+        val = value;
+        return val;
+    }
+
+    bool has_value() const {
+        return !std::isnan(val);
+    }
+
+    float& value() & {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return val;
+    }
+    const float& value() const & {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return val;
+    }
+    float&& value() && {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return std::move(val);
+    }
+    const float&& value() const && {
+//        if (std::isnan(val)) throw std::bad_optional_access();
+        return std::move(val);
+    }
+    float value_or(float&& default_value) && {
+        if (std::isnan(val)) return default_value;
+        return val;
+    }
+    float value_or(float&& default_value) const & {
+        if (std::isnan(val)) return default_value;
+        return val;
+    }
+};
 
 struct dist_t {
     enum Unit {
@@ -297,13 +416,10 @@ public:
 struct MarketLine {
     int buyPrice;
     int sellPrice;
-    int meanPrice;
     int stock;
     int demand;
-    uint8_t stockBracket;
-    uint8_t demandBracket;
-    bool isConsumer;
-    bool isProducer;
+    opt_bool isConsumer;
+    opt_bool isProducer;
 };
 
 struct Commodity {
@@ -415,113 +531,6 @@ struct Bookmark {
 typedef std::shared_ptr<Bookmark> spBookmark;
 
 
-struct opt_bool {
-    int8_t val {-1};
-
-    opt_bool() {}
-    opt_bool(bool value) { val = value ? 1 : 0; }
-    opt_bool(const opt_bool& value) { val = value.val; }
-
-    constexpr opt_bool& operator=(const opt_bool& other) noexcept {
-        val = other.val;
-        return *this;
-    }
-    constexpr opt_bool& operator=(bool value) noexcept {
-        val = value ? 1 : 0;
-        return *this;
-    }
-
-    constexpr void reset() noexcept {
-        val = -1;
-    }
-
-    void emplace() noexcept {
-        val = -1;
-    }
-
-    bool emplace(bool value) noexcept {
-        val = value ? 1 : 0;
-        return val;
-    }
-
-    bool has_value() const {
-        return val >= 0;
-    }
-
-    bool& value() {
-        //if (val < 0) throw std::bad_optional_access();
-        return reinterpret_cast<bool&>(val);
-    }
-    bool value() const {
-        if (val < 0) throw std::bad_optional_access();
-        return val > 0;
-    }
-    bool value_or(bool default_value) const {
-        if (val < 0) return default_value;
-        return val;
-    }
-};
-
-struct opt_float {
-    float val;
-
-    opt_float() : val {std::numeric_limits<float>::quiet_NaN()} {}
-    opt_float(const opt_float& value) : val {value.val} {}
-    opt_float(float value) : val {value} {}
-
-    constexpr opt_float& operator=(const opt_float& other) noexcept {
-        val = other.val;
-        return *this;
-    }
-    constexpr opt_float& operator=(float value) noexcept {
-        val = value;
-        return *this;
-    }
-
-    constexpr void reset() noexcept {
-        val = std::numeric_limits<float>::quiet_NaN();
-    }
-
-    float& emplace() noexcept {
-        val = std::numeric_limits<float>::quiet_NaN();
-        return val;
-    }
-
-    float& emplace(float value) noexcept {
-        val = value;
-        return val;
-    }
-
-    bool has_value() const {
-        return !std::isnan(val);
-    }
-
-    float& value() & {
-//        if (std::isnan(val)) throw std::bad_optional_access();
-        return val;
-    }
-    const float& value() const & {
-//        if (std::isnan(val)) throw std::bad_optional_access();
-        return val;
-    }
-    float&& value() && {
-//        if (std::isnan(val)) throw std::bad_optional_access();
-        return std::move(val);
-    }
-    const float&& value() const && {
-//        if (std::isnan(val)) throw std::bad_optional_access();
-        return std::move(val);
-    }
-    float value_or(float&& default_value) && {
-        if (std::isnan(val)) return default_value;
-        return val;
-    }
-    float value_or(float&& default_value) const & {
-        if (std::isnan(val)) return default_value;
-        return val;
-    }
-};
-
 struct LandingPads {
     int8_t large {};
     int8_t medium {};
@@ -530,38 +539,33 @@ struct LandingPads {
     [[nodiscard]] bool has_value() const { return large==0 && medium==0 && small==0; }
 };
 
-#define JS_ENUM_DECL(NAME)                                                      \
-    struct Js##NAME##Decl : public js::EnumDecl<struct Js##NAME> {};            \
-    struct Js##NAME : public js::Enum<Js##NAME##Decl> {};
+#define JS_ENUM_DECL(NAME) struct NAME : public js::Enum<NAME> {};
 
-JS_ENUM_DECL(Allegiance)
-JS_ENUM_DECL(Government)
-JS_ENUM_DECL(Economy)
-JS_ENUM_DECL(Security)
-JS_ENUM_DECL(FactionState)
-JS_ENUM_DECL(Power)
-JS_ENUM_DECL(PowerState)
-JS_ENUM_DECL(ThargoidState)
-JS_ENUM_DECL(BodyType)
-JS_ENUM_DECL(BodySubType)
-JS_ENUM_DECL(VolcanismType)
-JS_ENUM_DECL(AtmosphereType)
-JS_ENUM_DECL(SolidType)
-JS_ENUM_DECL(TerraformingState)
-JS_ENUM_DECL(Materials)
-JS_ENUM_DECL(ReserveLevel)
-JS_ENUM_DECL(Timestamps)
-JS_ENUM_DECL(Services)
-JS_ENUM_DECL(StationType)
-JS_ENUM_DECL(StationState)
-JS_ENUM_DECL(CarrierDockingAccess)
-JS_ENUM_DECL(SpectralClass)
-JS_ENUM_DECL(Luminosity)
+JS_ENUM_DECL(JsAllegiance)
+JS_ENUM_DECL(JsGovernment)
+JS_ENUM_DECL(JsEconomy)
+JS_ENUM_DECL(JsSecurity)
+JS_ENUM_DECL(JsFactionState)
+JS_ENUM_DECL(JsPower)
+JS_ENUM_DECL(JsPowerState)
+JS_ENUM_DECL(JsThargoidState)
+JS_ENUM_DECL(JsNavType)
+JS_ENUM_DECL(JsBodySubType)
+JS_ENUM_DECL(JsVolcanismType)
+JS_ENUM_DECL(JsAtmosphereType)
+JS_ENUM_DECL(JsSolidType)
+JS_ENUM_DECL(JsTerraformingState)
+JS_ENUM_DECL(JsMaterials)
+JS_ENUM_DECL(JsReserveLevel)
+JS_ENUM_DECL(JsTimestamps)
+JS_ENUM_DECL(JsServices)
+JS_ENUM_DECL(JsStationState)
+JS_ENUM_DECL(JsCarrierDockingAccess)
+JS_ENUM_DECL(JsSpectralClass)
+JS_ENUM_DECL(JsLuminosity)
 
-inline TypeNav toTypeNav(JsBodyType tp) { return static_cast<TypeNav>(tp.id); }
-inline TypeNav toTypeNav(JsStationType tp) { return static_cast<TypeNav>(tp.id); }
-inline JsBodyType toJsBodyType(TypeNav tp) { return JsBodyType::get(std::to_underlying(tp)); }
-inline JsStationType toJsStationType(TypeNav tp) { return JsStationType::get(std::to_underlying(tp)); }
+inline TypeNav toTypeNav(JsNavType tp) { return static_cast<TypeNav>(tp.id); }
+inline JsNavType toJsNavType(TypeNav tp) { return JsNavType::get(std::to_underlying(tp)); }
 
 
 #endif //EDROBOT_TYPES_H

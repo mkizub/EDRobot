@@ -45,29 +45,12 @@ bool create() {
         return false;
     DB = std::make_unique<SQLite::Database>(GalaxyDB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
 
-    DB->exec(R"SQL(CREATE TABLE Allegiance (id INTEGER PRIMARY KEY, name TEXT NOT NULL) )SQL");
-    DB->exec(R"SQL(INSERT INTO Allegiance (name) VALUES
-('Alliance'),('Empire'),('Federation'),('Frontline Solutions'),('Guardian'),('Independent'),('Pilots Federation'),('Thargoid')
-)SQL");
-
-    DB->exec(R"SQL(CREATE TABLE Government (id INTEGER PRIMARY KEY, name TEXT NOT NULL) )SQL");
-    DB->exec(R"SQL(INSERT INTO Government (name) VALUES
-("None"),("Anarchy"),("Communism"),("Confederacy"),("Cooperative"),("Corporate"),("Democracy"),("Dictatorship"),
-("Engineer"),("Feudal"),("Megaconstruction"),("Patronage"),("Prison"),("Prison Colony"),("Private Ownership"),("Theocracy")
-)SQL");
-
-    DB->exec(R"SQL(CREATE TABLE Factions (
-id INTEGER PRIMARY KEY,
-name TEXT NOT NULL,
-allegiance INTEGER,
-government INTEGER,
-FOREIGN KEY(allegiance) REFERENCES Allegiance(id),
-FOREIGN KEY(government) REFERENCES Government(id)
-) )SQL");
-
-    DB->exec(R"SQL(CREATE TABLE Markets (
+    DB->exec(R"SQL(CREATE TABLE MarketBlobs (
 marketId INTEGER PRIMARY KEY,
 updated REAL,
+name TEXT,
+type TEXT,
+system TEXT,
 data BLOB
 )  WITHOUT ROWID )SQL");
 
@@ -91,14 +74,13 @@ FOREIGN KEY(systemId) REFERENCES Systems(id)
 
 
     // megaships and carriers can be moved between systems
+    // fleet and squadron carriers have code for fast lookup
     DB->exec(R"SQL(CREATE TABLE Megaships (
 systemId INTEGER NOT NULL,
 marketId INTEGER UNIQUE,
-type TEXT,
-name TEXT NOT NULL,
-parentId INTEGER,
+code TEXT UNIQUE COLLATE NOCASE,
+name TEXT NOT NULL UNIQUE COLLATE NOCASE,
 updated REAL,
-eddn_updated REAL,
 data BLOB
 )
 )SQL");
@@ -191,7 +173,7 @@ StarSystem loadStarSystem(std::string_view name) {
         return {};
 
     try {
-        stmt->bind(1, name.data(), (int) name.length());
+        stmt->bind(1, name.data());
 
         if (!stmt->executeStep())
             return {};
@@ -206,7 +188,7 @@ StarSystem loadStarSystem(std::string_view name) {
                 .eddn_updated = ts_from_db(stmt->getColumn(5)),
         };
     } catch (SQLite::Exception& e) {
-        LOG_ERROR("DB loadStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+        LOG_ERROR("DB loadStarSystem(name) SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
         return {};
     }
 }
@@ -235,7 +217,7 @@ StarSystem loadStarSystem(int64_t address) {
                 .eddn_updated = ts_from_db(stmt->getColumn(5)),
         };
     } catch (SQLite::Exception& e) {
-        LOG_ERROR("DB loadStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+        LOG_ERROR("DB loadStarSystem(address) SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
         return {};
     }
 }
@@ -295,7 +277,7 @@ x=excluded.x, y=excluded.y, z=excluded.z, updated=excluded.updated, eddn_updated
         stmt->executeStep();
         return true;
     } catch (SQLite::Exception& e) {
-        LOG_ERROR("DB loadStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+        LOG_ERROR("DB saveStarSystem SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
     }
     return false;
 }
@@ -325,34 +307,182 @@ ON CONFLICT DO UPDATE SET data=excluded.data;)SQL";
     return false;
 }
 
+bool loadMegaShips(int64_t address, std::vector<MegashipJS> megaships) {
+    if (!address)
+        return false;
 
+    static std::string sql = "SELECT systemId,marketId,code,name,updated,data FROM Megaships WHERE systemId = ?;";
 
-//void loadJsBlobs(int64_t blobId) {
-//    std::unique_lock<std::mutex> lock(dbMutex);
-//    sqlite3_stmt* stmt = stmtSelectJsBlob;
-//    if (!DB || !stmt)
-//        return {};
-//
-//    int err = sqlite3_bind_int64(stmt, 1, blobId);
-//    if (err != SQLITE_OK) {
-//        LOG_ERROR("loadJsBlobs SQL error[{}] with SQL statement prepare", err);
-//        return {};
-//    }
-//
-//    err = sqlite3_step(stmt);
-//    if (err != SQLITE_ROW) {
-//        LOG_ERROR("loadJsBlobs SQL error[{}] with SQL statement step", err);
-//        return {};
-//    }
-//
-//    std::string name = (const char*)sqlite3_column_text(stmt, 0);
-//    double x = sqlite3_column_int64(stmt, 1);
-//    double y = sqlite3_column_int64(stmt, 2);
-//    double z = sqlite3_column_int64(stmt, 3);
-//    int64_t blob = sqlite3_column_int64(stmt, 4);
-//
-//    return std::make_shared<gal::StarSystem>(address, name, x,y,z, blob);
-//}
+    std::unique_lock<std::mutex> lock(dbMutex);
+    try {
+        SQLite::Statement* stmt = getStat(sql);
+        if (!stmt)
+            return false;
+
+        stmt->bind(1, address);
+
+        while (stmt->executeStep()) {
+            MegashipJS& megaship = megaships.emplace_back();
+            megaship.systemId = stmt->getColumn(0).getInt64();
+            megaship.marketId = stmt->getColumn(1).getInt64();
+            megaship.code = stmt->getColumn(2).getString();
+            megaship.name = stmt->getColumn(3).getString();
+            megaship.updated = ts_from_db(stmt->getColumn(4));
+            if (auto column = stmt->getColumn(5); column.isBlob())
+                decode_megaship_blob(megaship.blob, column.getBlob(), column.getBytes());
+        }
+        return true;
+    } catch (SQLite::Exception& e) {
+        LOG_ERROR("DB loadMegaShips SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+        return false;
+    }
+
+}
+
+bool loadMegaShip(MegashipJS& megaship) {
+    if (!megaship.systemId || (megaship.code.empty() && megaship.name.empty()))
+        return false;
+
+    static std::string code_sql = "SELECT systemId,marketId,code,name,updated,data FROM Megaships WHERE code = ?;";
+    static std::string name_sql = "SELECT systemId,marketId,code,name,updated,data FROM Megaships WHERE name = ?;";
+
+    std::unique_lock<std::mutex> lock(dbMutex);
+    try {
+        SQLite::Statement* stmt {};
+        if (!megaship.code.empty()) {
+            stmt = getStat(code_sql);
+            if (!stmt)
+                return false;
+            stmt->bind(1, megaship.code);
+        } else {
+            stmt = getStat(name_sql);
+            if (!stmt)
+                return false;
+            stmt->bind(1, megaship.name);
+        }
+
+        if (!stmt->executeStep())
+            return false;
+
+        megaship.systemId = stmt->getColumn(0).getInt64();
+        megaship.marketId = stmt->getColumn(1).getInt64();
+        megaship.code     = stmt->getColumn(2).getString();
+        megaship.name     = stmt->getColumn(3).getString();
+        megaship.updated  = ts_from_db(stmt->getColumn(4));
+        if (auto column = stmt->getColumn(5); column.isBlob())
+            decode_megaship_blob(megaship.blob, column.getBlob(), column.getBytes());
+        return true;
+    } catch (SQLite::Exception& e) {
+        LOG_ERROR("DB loadMegaShip({}) SQL error[{}({})]: {}", (!megaship.code.empty() ? "code" : "name"),
+                  e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+        return false;
+    }
+}
+
+bool saveMegaShip(MegashipJS& megaship) {
+    std::stringstream buffer;
+    if (!encode_megaship_blob(megaship.blob, buffer))
+        return false;
+
+    static std::string sql = R"SQL(INSERT INTO Megaships(systemId,marketId,code,name,updated,data) VALUES (?,?,?,?,?,?)
+ON CONFLICT DO UPDATE SET systemId=excluded.systemId,marketId=excluded.marketId,
+code=excluded.code,name=excluded.name,updated=excluded.updated,data=excluded.data;)SQL";
+
+    std::unique_lock<std::mutex> lock(dbMutex);
+    auto* stmt = getStat(sql);
+    if (!stmt)
+        return {};
+
+    auto sv = buffer.view();
+    try {
+        stmt->bind(1, megaship.systemId);
+        if (!megaship.marketId)
+            stmt->bind(2);
+        else
+            stmt->bind(2, megaship.marketId);
+        if (megaship.code.empty())
+            stmt->bind(3);
+        else
+            stmt->bind(3, megaship.code);
+        stmt->bind(4, megaship.name);
+        bind(stmt, 5, megaship.updated);
+        stmt->bind(6, sv.data(), sv.size());
+        stmt->executeStep();
+        return true;
+    } catch (SQLite::Exception& e) {
+        LOG_ERROR("DB saveMegaShip SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+    }
+    return false;
+}
+
+bool loadMarket(MarketJS& market) {
+    if (!market.marketId)
+        return false;
+
+    static std::string sql = "SELECT marketId,updated,name,type,system,data FROM MarketBlobs WHERE marketId = ?;";
+
+    std::unique_lock<std::mutex> lock(dbMutex);
+    auto* stmt = getStat(sql);
+    if (!stmt)
+        return false;
+
+    try {
+        stmt->bind(1, market.marketId);
+
+        if (!stmt->executeStep())
+            return false;
+
+        market.marketId =    stmt->getColumn(0).getInt64();
+        market.updated =     ts_from_db(stmt->getColumn(1));
+        market.stationName = stmt->getColumn(2).getString();
+        market.stationType = stmt->getColumn(3).getString();
+        market.starSystem =  stmt->getColumn(4).getString();
+        auto blobColumn = stmt->getColumn(5);
+        if (blobColumn.isNull()) {
+            market.commodities.clear();
+            return true;
+        }
+        if (!blobColumn.isBlob())
+            return false;
+        return decode_market_blob(market, blobColumn.getBlob(), blobColumn.getBytes());
+    } catch (SQLite::Exception& e) {
+        LOG_ERROR("DB loadMarket SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+        return false;
+    }
+}
+
+bool saveMarket(MarketJS& market) {
+    if (!market.marketId)
+        return false;
+
+    std::stringstream buffer;
+    if (!encode_market_blob(market, buffer))
+        return false;
+
+    static std::string sql = R"SQL(INSERT INTO MarketBlobs(marketId,updated,name,type,system,data) VALUES (?,?,?,?,?,?)
+ON CONFLICT DO UPDATE SET
+updated=excluded.updated,name=excluded.name,type=excluded.type,system=excluded.system,data=excluded.data;)SQL";
+
+    std::unique_lock<std::mutex> lock(dbMutex);
+    auto* stmt = getStat(sql);
+    if (!stmt)
+        return {};
+
+    auto sv = buffer.view();
+    try {
+        stmt->bind(1, market.marketId);
+        bind(stmt, 2, market.updated);
+        stmt->bind(3, market.stationName);
+        stmt->bind(4, market.stationType);
+        stmt->bind(5, market.starSystem);
+        stmt->bind(6, sv.data(), sv.size());
+        stmt->executeStep();
+        return true;
+    } catch (SQLite::Exception& e) {
+        LOG_ERROR("DB saveMarket SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
+    }
+    return false;
+}
 
 
 } // namespace db

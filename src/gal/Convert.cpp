@@ -4,6 +4,7 @@
 
 #include "Galaxy.h"
 #include "../db/DB.h"
+#include "../net/RavenColonial.h"
 
 namespace gal {
 
@@ -101,6 +102,50 @@ void merge(StarSystem* ss, js::vector<V>& lhs, js::vector<V>& rhs) {
 
 #define MERGE(to, from, fld) merge(ss, (to).fld, (from).fld)
 
+bool update_market(StarSystem* ss, db::StationJS& db_st) {
+    if (!db_st.marketId || !db_st.market)
+        return false;
+    spMarket old_market = gal::getMarket(db_st.marketId);
+    if (old_market && old_market->timestamp >= db_st.market->updated)
+        return false;
+
+    std::string stationType;
+    TypeNav tn = toTypeNav(db_st.type);
+    if (tn == TypeNav::SpaceConstrDepot || tn == TypeNav::PlanetaryConstrDepot || tn == TypeNav::ColonisationShip)
+        stationType = "ConstrDepot";
+    else
+        stationType = *db_st.type.sv();
+    spMarket market = std::make_shared<Market>(Market{
+            .timestamp = db_st.market->updated,
+            .marketId = db_st.marketId,
+            .stationName = db_st.name,
+            .stationType = stationType,
+            .starSystem = ss->systemName,
+    });
+
+    if (old_market)
+        market->raven = old_market->raven;
+
+    market->items.reserve(db_st.market->commodities.size());
+    for (auto& ln : db_st.market->commodities) {
+        Commodity* commodity = Cfg.getCommodityById(ln.commodityId);
+        if (!commodity)
+            continue;
+        MarketLine ml {
+            .buyPrice = (int)ln.buyPrice,
+            .sellPrice = (int)ln.sellPrice,
+            .stock = (int)ln.supply,
+            .demand = (int)ln.demand,
+            .isConsumer = ln.isConsumer,
+            .isProducer = ln.isProducer,
+        };
+        market->items[commodity] = ml;
+    }
+
+    gal::setMarketData(market);
+    return true;
+}
+
 bool update_station(StarSystem* ss, db::StationJS& db_st) {
     TypeNav tp = TypeNav::SpaceStation;
     if (db_st.latitude.has_value() || db_st.longitude.has_value())
@@ -113,7 +158,7 @@ bool update_station(StarSystem* ss, db::StationJS& db_st) {
     if (tp == TypeNav::PlanetaryThing && db_st.latitude.has_value())
         tp = TypeNav::PlanetaryInstallation;
 
-    if (!(isSpaceSite(tp) || isPlanetarySite(tp)))
+    if (tp < TypeNav::SpaceStation)
         return false;
 
     spEntity st;
@@ -130,6 +175,7 @@ bool update_station(StarSystem* ss, db::StationJS& db_st) {
         st->bodyId = db_st.bodyId;
         st->setType(tp);
         st->setName(db_st.name);
+        st->setMarketId(db_st.marketId);
         ss->addEntity(st);
         ss->needBlobSave = true;
     } else if (st->type != tp) {
@@ -144,6 +190,14 @@ bool update_station(StarSystem* ss, db::StationJS& db_st) {
     }
     if (st->bodyId <= 0 && db_st.bodyId > 0) {
         st->bodyId = db_st.bodyId;
+        ss->needBlobSave = true;
+    }
+    if (st->parentBodyId < 0 && db_st.parentId > 0) {
+        st->parentBodyId = db_st.parentId;
+        ss->needBlobSave = true;
+    }
+    if (st->marketId() == 0 && db_st.marketId > 0) {
+        st->setMarketId(db_st.parentId);
         ss->needBlobSave = true;
     }
 
@@ -165,6 +219,8 @@ bool update_station(StarSystem* ss, db::StationJS& db_st) {
         MERGE(ext, db_st, landingPads);
         MERGE(ext, db_st, services);
     }
+
+    update_market(ss, db_st);
 
     return true;
 }
@@ -292,6 +348,24 @@ bool update_star_system(StarSystem* ss, db::StarSystemJS& db_ss) {
     return true;
 }
 
+bool update_star_system(StarSystem* ss, db::MegashipJS& db_ms) {
+    if (!ss || db_ms.systemId != ss->systemAddress)
+        return false;
+    TypeNav type = toTypeNav(db_ms.blob.type);
+    if (!isMegaship(type))
+        return false;
+    if (db_ms.marketId && !db_ms.blob.marketId)
+        db_ms.blob.marketId = db_ms.marketId;
+    if (!db_ms.name.empty() && db_ms.blob.name.empty())
+        db_ms.blob.name = db_ms.name;
+    if (!db_ms.code.empty() && db_ms.blob.name.empty())
+        db_ms.blob.name = db_ms.code;
+    if (db_ms.updated.time_since_epoch().count() && !db_ms.blob.updated_at.time_since_epoch().count())
+        db_ms.blob.updated_at = db_ms.updated;
+    return update_station(ss, db_ms.blob);
+}
+
+
 bool updateFromGameEvent(StarSystem* ss, spGameEvent& ge) {
     if (!ss || ge->expired || ge->timestamp < ss->updated_at)
         return false;
@@ -386,20 +460,16 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
                 body->setType(TypeNav::Star);
                 ss->needBlobSave = true;
             }
-            std::string code = *je["StarType"].as_string();
-            if (je["Subclass"].is_int())
-                code += std::to_string(je["Subclass"].as_int());
-            if (body->code != code) {
-                body->code = code;
-                ss->needBlobSave = true;
-            }
+            std::string spectralClass = *je["StarType"].as_string_or();
+            if (!spectralClass.empty() && je["Subclass"].is_int())
+                spectralClass += std::to_string(je["Subclass"].as_int());
 
             struct Entity::StarData ge_ext {};
             auto& star_ext = body->getStarData();
             //opt_bool mainStar; // TODO: how to detect main star?
             if (je.has_key("DistanceFromArrivalLS") && je["DistanceFromArrivalLS"].as_real() == 0.0)
                 ge_ext.mainStar = true;
-            ge_ext.spectralClass =        JsSpectralClass::get(code);
+            ge_ext.spectralClass =        JsSpectralClass::get(spectralClass);
             ge_ext.luminosity =           JsLuminosity::get(je["Luminosity"].as_string_or());
             ge_ext.age =                  je["Age_MY"].as_int_or();
             ge_ext.solarMasses =          je["StellarMass"].as_real_or(std::numeric_limits<float>::quiet_NaN());
@@ -413,11 +483,6 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
         else if (je["PlanetClass"].is_string()) {
             if (body->type != TypeNav::Planet) {
                 body->setType(TypeNav::Planet);
-                ss->needBlobSave = true;
-            }
-            bool landable = (bool) je["Landable"];
-            if (landable != body->special) {
-                body->special = landable;
                 ss->needBlobSave = true;
             }
             if (je.has_key("Landable"))
@@ -458,7 +523,7 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
                 if (map.size() != 1)
                     break;
                 std::string_view key = map.begin()->first;
-                TypeNav p_type = toTypeNav(JsBodyType::get(key));
+                TypeNav p_type = toTypeNav(JsNavType::get(key));
                 int p_id = map.begin()->second.as_int_or(-1);
                 if (!isBody(p_type) || p_id < 0)
                     break;
@@ -516,8 +581,97 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
     return true;
 }
 
+bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge) {
+    auto& je = ge->data;
 
-bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss) {
+    if (!ss)
+        return false;
+
+    if (ge->event == "ColonisationConstructionDepot") {
+        int64_t marketId = je["MarketID"].as_int_or();
+        spMarket old_market = gal::getMarket(marketId);
+        if (old_market && old_market->timestamp >= ge->timestamp)
+            return false;
+        auto dock = ss->getDock(marketId);
+        spMarket market = std::make_shared<Market>(Market{
+                .timestamp = ge->timestamp,
+                .marketId = marketId,
+                .stationName = dock ? dock->name : "",
+                .stationType = "ConstrDepot",
+                .starSystem = ss->systemName,
+        });
+        if (old_market)
+            market->raven = old_market->raven;
+        bool complete = je["ConstructionComplete"].as_bool();
+        bool hasRaven = Cfg.isRavenColonialEnabled() && !market->ravenBuildId().empty();
+        bool reportToRaven = false;
+        if (hasRaven) {
+            if (!ge->expired && market->raven->timestamp.time_since_epoch().count() == 0)
+                reportToRaven = true;
+            else if (complete && market->raven->status != "complete")
+                reportToRaven = true;
+            else {
+                // check if there was a contribution past last raven project update
+                for (auto &ci: market->raven->commanders) {
+                    if (ci.second.timestamp > market->raven->timestamp)
+                        reportToRaven = true;
+                }
+            }
+        }
+        for (auto &jr: je["ResourcesRequired"].as_array_or()) {
+            if (!jr["Name"].is_string())
+                continue;
+            std::string name = *jr["Name"].as_string();
+            // "$aluminium_name;"
+            if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
+                continue;
+            name = name.substr(1, name.size() - 7);
+            Commodity *commodity = Cfg.getCommodityById(name);
+            if (!commodity)
+                continue;
+            int provided = jr["ProvidedAmount"].as_int_or();
+            int required = jr["RequiredAmount"].as_int_or();
+            if (hasRaven && old_market) {
+                if (!old_market->items.contains(commodity))
+                    reportToRaven = true;
+                else {
+                    auto &old_ml = old_market->items.at(commodity);
+                    if (old_ml.stock != provided || old_ml.demand != required)
+                        reportToRaven = true;
+                }
+            }
+            MarketLine ml{};
+            ml.sellPrice = jr["Payment"].as_int_or();
+            ml.stock = provided;
+            ml.demand = required;
+            ml.isConsumer = true;
+            ml.isProducer = false;
+            market->items.emplace(commodity, ml);
+        }
+
+        if (hasRaven && reportToRaven) {
+            if (market->ravenBuildId().empty() || market->raven->timestamp >= ge->timestamp)
+                reportToRaven = false;
+            else if (market->raven->status == "complete")
+                reportToRaven = false;
+            else
+                market->raven->timestamp = ge->timestamp;
+        }
+        gal::setMarketData(market);
+        if (hasRaven && reportToRaven) {
+            RavenColonial::reportConstructionDepot(ge, market);
+        } else if (complete && market->raven->status != "complete") {
+            market->raven->status = "complete";
+            gal::saveMarket(market.get());
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db::MegashipJS>& db_megaships) {
     db_ss.address = ss->systemAddress;
     db_ss.name = ss->systemName;
     db_ss.coords = {ss->starPos.x, ss->starPos.y, ss->starPos.z};
@@ -539,20 +693,10 @@ bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss) {
     for (auto &body: ss->entities) {
         if (!isBody(body->type) || body->bodyId < 0)
             continue;
-        JsBodyType bt = toJsBodyType(body->type);
+        JsNavType bt = toJsNavType(body->type);
         if (!bt.has_value())
             continue;
 
-        // Basically, we just have to make shure we don't store bodyId < 0 into DB
-        //if (body->bodyId == 0) {
-        //    if (body->type == TypeNav::Barycenter)
-        //        continue;
-        //    if (body->type != TypeNav::Star)
-        //        continue;
-        //    const auto &ext = body->getStarData();
-        //    if (!ext.mainStar)
-        //        continue;
-        //}
         auto &b = db_ss.bodies.emplace_back();
         b.type = bt;
         b.bodyId = body->bodyId;
@@ -563,6 +707,9 @@ bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss) {
             const auto &ext = body->getBodyData();
             b.subType = ext.subType;
             b.tidalLock = ext.tidalLock;
+            b.radius = ext.radius;
+            b.distanceToArrival = ext.distanceToArrival;
+            b.rotationalPeriod = ext.rotationalPeriod;
             b.orbitalPeriod = ext.orbitalPeriod;
             b.semiMajorAxis = ext.semiMajorAxis;
             b.orbitalEccentricity = ext.orbitalEccentricity;
@@ -570,15 +717,13 @@ bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss) {
             b.argOfPeriapsis = ext.argOfPeriapsis;
             b.meanAnomaly = ext.meanAnomaly;
             b.ascendingNode = ext.ascendingNode;
-            b.distanceToArrival = ext.distanceToArrival;
             b.surfaceTemperature = ext.surfaceTemperature;
-            b.rotationalPeriod = ext.rotationalPeriod;
             b.axialTilt = ext.axialTilt;
             if (body->parentBodyId >= 0) {
                 gal:spEntity pb = ss->getBodyById(body->parentBodyId);
                 while (pb && pb->bodyId >= 0) {
-                    JsBodyType pt = toJsBodyType(pb->type);
-                    if (!pt.has_value())
+                    JsNavType pt = toJsNavType(pb->type);
+                    if (!pt.has_value() || !isBody(pb->type))
                         break;
                     b.parents.push_back({pt, pb->bodyId});
                     pb = ss->getBodyById(pb->parentBodyId);
@@ -613,16 +758,46 @@ bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss) {
     }
     db_ss.stations.reserve(count_stations);
     for (auto &station: ss->entities) {
-        JsStationType st = toJsStationType(station->type);
+        if (station->type < TypeNav::SpaceStation)
+            continue;
+        JsNavType st = toJsNavType(station->type);
         if (!st.has_value())
             continue;
-        auto &s = db_ss.stations.emplace_back();
-        s.marketId = station->marketId;
+
+        db::StationJS* s_ptr {};
+        if (isMegaship(station->type)) {
+            db::MegashipJS& ms = db_megaships.emplace_back();
+            ms.systemId = ss->systemAddress;
+            ms.marketId = station->marketId();
+            ms.updated = station->updated;
+            if (isCarrier(station->type)) {
+                ms.code = station->name;
+                ms.name = station->nloc;
+            }
+            else if (station->type == TypeNav::StrongholdCarrier) {
+                ms.name = "Stronghold Carrier " + ss->systemName;
+            }
+            else if (station->type == TypeNav::ColonisationShip && station->name == "System Colonisation Ship") {
+                ms.name = "System Colonisation Ship " + ss->systemName;
+            }
+            else {
+                ms.name = station->name;
+            }
+            s_ptr = &ms.blob;
+        } else {
+            s_ptr = &db_ss.stations.emplace_back();
+        }
+
+        db::StationJS& s = *s_ptr;
+        s.marketId = station->marketId();
         s.type = st;
         if (station->bodyId > 0) s.bodyId = station->bodyId;
         if (station->parentBodyId >= 0) s.parentId = station->parentBodyId;
-        s.name = station->name;
         s.updated_at = station->updated;
+
+        s.name = station->name;
+        if (!station->nloc.empty() && isCarrier(station->type))
+            s.name = station->nloc;
 
         const auto &ext = station->getStationData();
         s.controllingFaction = ext.controllingFaction;

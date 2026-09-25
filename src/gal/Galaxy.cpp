@@ -116,123 +116,213 @@ void saveMarket(Market* market) {
     if (!market || !market->marketId)
         return;
 
-    js::value jm = js::object({
-        {"timestamp", formatTimestampString(market->timestamp)},
-        {"MarketID", market->marketId},
-        {"StationName", market->stationName},
-        {"StationType", market->stationType},
-        {"StarSystem", market->starSystem},
-        {"Items", js::array({})},
-        });
-    if (market->raven && (!market->raven->buildId.empty() || !market->raven->status.empty())) {
-        jm["RavenColonial"] = js::object({
-            {"buildId",market->raven->buildId},
-            {"status",market->raven->status},
-            {"timestamp",formatTimestampString(market->raven->timestamp, true)},
-        });
-        if (!market->raven->commanders.empty()) {
-            auto& jcommanders = jm["RavenColonial"]["commanders"].deref();
-            for (auto cmdr: market->raven->commanders) {
-                auto &name = cmdr.first;
-                auto &ci = cmdr.second;
-                auto& jcmdr = jcommanders[name].deref();
-                if (ci.timestamp.time_since_epoch().count())
-                    jcmdr["timestamp"] = formatTimestampString(ci.timestamp);
-                if (ci.deliveries)
-                    jcmdr["deliveries"] = ci.deliveries;
-                if (ci.contributed)
-                    jcmdr["contributed"] = ci.contributed;
-                js::value ja = js::array({});
-                for (Commodity* c : ci.assigned)
-                    ja.as_array().push_back(c->nameId);
-                jcmdr["assigned"] = ja;
-                jcmdr.set_no_indent();
-            }
+    db::MarketJS db_m {
+        .marketId = market->marketId,
+        .updated = market->timestamp,
+        .stationName = market->stationName,
+        .stationType = market->stationType,
+        .starSystem = market->starSystem
+    };
+    if (market->raven) {
+        db_m.ravenBuildId = market->raven->buildId;
+        db_m.ravenStatus = market->raven->status;
+        db_m.ravenUpdated = market->raven->timestamp;
+        for (auto& [cmdr,info] : market->raven->commanders) {
+            js::vector<int64_t> info_assigned;
+            for (auto* c : info.assigned)
+                info_assigned.push_back(c->intId);
+            db_m.ravenCommanders[cmdr] = db::RavenCmdrInfoJS {
+                .timestamp = info.timestamp,
+                .deliveries = info.deliveries,
+                .contributed = info.contributed,
+                .assigned = info_assigned,
+            };
         }
     }
-    auto& jarr = jm["Items"].as_array();
-    for (auto it : market->items) {
-        MarketLine& ml = it.second;
-        if (!ml.isConsumer && !ml.isProducer && !ml.stock && !ml.demand)
-            continue;
-        js::value& jv = jarr.emplace_back(js::object({{"Name", it.first->nameId}}));
-        if (ml.stock)
-            jv["Stock"] = ml.stock;
-        if (ml.demand)
-            jv["Demand"] = ml.demand;
-        if (ml.buyPrice)
-            jv["BuyPrice"] = ml.buyPrice;
-        if (ml.sellPrice)
-            jv["SellPrice"] = ml.sellPrice;
-        if (ml.isConsumer)
-            jv["Consumer"] = ml.isConsumer;
-        if (ml.isProducer)
-            jv["Producer"] = true;
-        jv.set_no_indent();
-    }
 
-    std::filesystem::path fp(std::format(L"cache/markets/{}.json", market->marketId));
-    std::ofstream ofs(fp);
-    ofs << js::rule::ecma404() << js::rule::space_indent<1>() << jm;
-    ofs.close();
+    db_m.commodities.reserve(market->items.size());
+    for (auto& [c,ml] : market->items) {
+        if (!c->intId)
+            continue;
+        db_m.commodities.emplace_back(db::MarketLineJS{
+            .commodityId = c->intId,
+            .demand = (unsigned)ml.demand,
+            .supply = (unsigned)ml.stock,
+            .buyPrice = (unsigned)ml.buyPrice,
+            .sellPrice = (unsigned)ml.sellPrice,
+            .isConsumer = ml.isConsumer,
+            .isProducer = ml.isProducer,
+        });
+    }
+    db::saveMarket(db_m);
+
+//    js::value jm = js::object({
+//        {"timestamp", formatTimestampString(market->timestamp)},
+//        {"MarketID", market->marketId},
+//        {"StationName", market->stationName},
+//        {"StationType", market->stationType},
+//        {"StarSystem", market->starSystem},
+//        {"Items", js::array({})},
+//        });
+//    if (market->raven && (!market->raven->buildId.empty() || !market->raven->status.empty())) {
+//        jm["RavenColonial"] = js::object({
+//            {"buildId",market->raven->buildId},
+//            {"status",market->raven->status},
+//            {"timestamp",formatTimestampString(market->raven->timestamp, true)},
+//        });
+//        if (!market->raven->commanders.empty()) {
+//            auto& jcommanders = jm["RavenColonial"]["commanders"].deref();
+//            for (auto cmdr: market->raven->commanders) {
+//                auto &name = cmdr.first;
+//                auto &ci = cmdr.second;
+//                auto& jcmdr = jcommanders[name].deref();
+//                if (ci.timestamp.time_since_epoch().count())
+//                    jcmdr["timestamp"] = formatTimestampString(ci.timestamp);
+//                if (ci.deliveries)
+//                    jcmdr["deliveries"] = ci.deliveries;
+//                if (ci.contributed)
+//                    jcmdr["contributed"] = ci.contributed;
+//                js::value ja = js::array({});
+//                for (Commodity* c : ci.assigned)
+//                    ja.as_array().push_back(c->nameId);
+//                jcmdr["assigned"] = ja;
+//                jcmdr.set_no_indent();
+//            }
+//        }
+//    }
+//    auto& jarr = jm["Items"].as_array();
+//    for (auto it : market->items) {
+//        MarketLine& ml = it.second;
+//        if (!ml.isConsumer && !ml.isProducer && !ml.stock && !ml.demand)
+//            continue;
+//        js::value& jv = jarr.emplace_back(js::object({{"Name", it.first->nameId}}));
+//        if (ml.stock)
+//            jv["Stock"] = ml.stock;
+//        if (ml.demand)
+//            jv["Demand"] = ml.demand;
+//        if (ml.buyPrice)
+//            jv["BuyPrice"] = ml.buyPrice;
+//        if (ml.sellPrice)
+//            jv["SellPrice"] = ml.sellPrice;
+//        if (ml.isConsumer)
+//            jv["Consumer"] = ml.isConsumer;
+//        if (ml.isProducer)
+//            jv["Producer"] = true;
+//        jv.set_no_indent();
+//    }
+//
+//    std::filesystem::path fp(std::format(L"cache/markets/{}.json", market->marketId));
+//    std::ofstream ofs(fp);
+//    ofs << js::rule::ecma404() << js::rule::space_indent<1>() << jm;
+//    ofs.close();
 }
 
 spMarket loadMarket(int64_t marketId) {
     if (!marketId)
         return {};
 
-    const js::value jm = parseJsonFile(std::format(L"cache/markets/{}.json", marketId));
-
-    Timestamp timestamp;
-    if (!parseTimestamp(jm["timestamp"], timestamp))
+    if (!marketId)
         return {};
-    if (marketId != jm["MarketID"].as_int_or())
+
+    db::MarketJS db_m {marketId};
+    if (!db::loadMarket(db_m))
         return {};
     spMarket market = std::make_shared<Market>(Market{
-        .timestamp = timestamp,
+        .timestamp = db_m.updated,
         .marketId = marketId,
-        .stationName = *jm["StationName"].as_string_or(),
-        .stationType = *jm["StationType"].as_string_or(),
-        .starSystem = *jm["StarSystem"].as_string_or(),
+        .stationName = db_m.stationName,
+        .stationType = db_m.stationType,
+        .starSystem = db_m.starSystem,
     });
-    if (jm["RavenColonial"].is_object()) {
+    if (!db_m.ravenBuildId.empty()) {
         market->raven = std::make_shared<RavenProj>();
-        market->raven->buildId = jm["RavenColonial"]["buildId"].as_string_or();
-        market->raven->status = jm["RavenColonial"]["status"].as_string_or();
-        parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven->timestamp);
-        if (auto commanders=jm["RavenColonial"]["commanders"]; commanders.is_object())
-        for (auto [name,jcmdr] : commanders.key_value()) {
-            RavenProj::CmdrInfo ci {};
-            if (!jcmdr["timestamp"].empty())
-                parseTimestamp(jcmdr["timestamp"], ci.timestamp);
-            ci.deliveries = jcmdr["deliveries"].as_int_or();
-            ci.contributed = jcmdr["contributed"].as_int_or();
-            if (jcmdr["assigned"].is_array()) {
-                for (auto& jc : jcmdr["assigned"].as_array()) {
-                    Commodity* c = Cfg.getCommodityById(jc.as_string_or());
-                    if (c)
-                        ci.assigned.push_back(c);
-                }
+        market->raven->buildId = db_m.ravenBuildId;
+        market->raven->status = db_m.ravenStatus;
+        market->raven->timestamp = db_m.ravenUpdated;
+        for (auto& [cmdr,info] : db_m.ravenCommanders) {
+            std::vector<Commodity*> info_assigned;
+            for (auto& c_id : info.assigned) {
+                Commodity* c = Cfg.getCommodityById(c_id);
+                if (c)
+                    info_assigned.push_back(c);
             }
-            market->raven->commanders.emplace(name, ci);
+            market->raven->commanders[cmdr] = RavenProj::CmdrInfo {
+                    .timestamp = info.timestamp,
+                    .deliveries = info.deliveries,
+                    .contributed = info.contributed,
+                    .assigned = info_assigned,
+            };
         }
     }
-    auto& items = jm["Items"].as_array();
-    for (auto it : items) {
-        Commodity* commodity = Cfg.getCommodityById(it["Name"].as_string());
+    market->items.reserve(db_m.commodities.size());
+    for (auto& ln : db_m.commodities) {
+        Commodity* commodity = Cfg.getCommodityById(ln.commodityId);
         if (!commodity)
             continue;
-        MarketLine ml {};
-        ml.buyPrice = it["BuyPrice"].as_int_or();
-        ml.sellPrice = it["SellPrice"].as_int_or();
-        ml.stock = it["Stock"].as_int_or();
-        ml.demand = it["Demand"].as_int_or();
-        ml.isConsumer = it["Consumer"].as_bool_or();
-        ml.isProducer = it["Producer"].as_bool_or();
-        market->items.emplace(commodity, ml);
+        MarketLine ml {
+            .buyPrice = (int)ln.buyPrice,
+            .sellPrice = (int)ln.sellPrice,
+            .stock = (int)ln.supply,
+            .demand = (int)ln.demand,
+            .isConsumer = ln.isConsumer,
+            .isProducer = ln.isProducer,
+        };
+        market->items[commodity] = ml;
     }
-
     return market;
+
+//    const js::value jm = parseJsonFile(std::format(L"cache/markets/{}.json", marketId));
+//
+//    Timestamp timestamp;
+//    if (!parseTimestamp(jm["timestamp"], timestamp))
+//        return {};
+//    if (marketId != jm["MarketID"].as_int_or())
+//        return {};
+//    spMarket market = std::make_shared<Market>(Market{
+//        .timestamp = timestamp,
+//        .marketId = marketId,
+//        .stationName = *jm["StationName"].as_string_or(),
+//        .stationType = *jm["StationType"].as_string_or(),
+//        .starSystem = *jm["StarSystem"].as_string_or(),
+//    });
+//    if (jm["RavenColonial"].is_object()) {
+//        market->raven = std::make_shared<RavenProj>();
+//        market->raven->buildId = jm["RavenColonial"]["buildId"].as_string_or();
+//        market->raven->status = jm["RavenColonial"]["status"].as_string_or();
+//        parseTimestamp(jm["RavenColonial"]["timestamp"], market->raven->timestamp);
+//        if (auto commanders=jm["RavenColonial"]["commanders"]; commanders.is_object())
+//        for (auto [name,jcmdr] : commanders.key_value()) {
+//            RavenProj::CmdrInfo ci {};
+//            if (!jcmdr["timestamp"].empty())
+//                parseTimestamp(jcmdr["timestamp"], ci.timestamp);
+//            ci.deliveries = jcmdr["deliveries"].as_int_or();
+//            ci.contributed = jcmdr["contributed"].as_int_or();
+//            if (jcmdr["assigned"].is_array()) {
+//                for (auto& jc : jcmdr["assigned"].as_array()) {
+//                    Commodity* c = Cfg.getCommodityById(jc.as_string_or());
+//                    if (c)
+//                        ci.assigned.push_back(c);
+//                }
+//            }
+//            market->raven->commanders.emplace(name, ci);
+//        }
+//    }
+//    auto& items = jm["Items"].as_array();
+//    for (auto it : items) {
+//        Commodity* commodity = Cfg.getCommodityById(it["Name"].as_string());
+//        if (!commodity)
+//            continue;
+//        MarketLine ml {};
+//        ml.buyPrice = it["BuyPrice"].as_int_or();
+//        ml.sellPrice = it["SellPrice"].as_int_or();
+//        ml.stock = it["Stock"].as_int_or();
+//        ml.demand = it["Demand"].as_int_or();
+//        ml.isConsumer = it["Consumer"].as_bool_or();
+//        ml.isProducer = it["Producer"].as_bool_or();
+//        market->items.emplace(commodity, ml);
+//    }
+//
+//    return market;
 }
 
 static void parseUpdated(spEntity& entity, const js::value& j) {
@@ -392,8 +482,14 @@ void StarSystem::load() {
     if (isBlobLoaded)
         return;
     db::StarSystemJS db_ss;
-    if (db::loadStarSystemBlob(db_ss, systemName, systemAddress))
+    if (db::loadStarSystemBlob(db_ss, systemName, systemAddress)) {
         update_star_system(this, db_ss);
+        std::vector<db::MegashipJS> megaships;
+        if (db::loadMegaShips(systemAddress, megaships)) {
+            for (auto& db_ms : megaships)
+                update_star_system(this, db_ms);
+        }
+    }
     isBlobLoaded = true;
 }
 
@@ -404,8 +500,12 @@ void StarSystem::save() {
     }
     if (needBlobSave) {
         db::StarSystemJS db_ss;
-        if (fill_star_system_db(this, db_ss))
+        std::vector<db::MegashipJS> db_megaships;
+        if (fill_star_system_db(this, db_ss, db_megaships)) {
             db::saveStarSystemBlob(db_ss, systemName, systemAddress);
+            for (auto& ms : db_megaships)
+                db::saveMegaShip(ms);
+        }
         needBlobSave = false;
         isBlobLoaded = true;
     }
@@ -537,7 +637,8 @@ spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_l
         ss->load();
     if (ss && !ss->isBlobLoaded && network_load)
         Spansh::loadStarSystem(ss);
-    ss->save();
+    if (ss)
+        ss->save();
     return ss;
 }
 
@@ -601,7 +702,7 @@ void setCurrentStarSystem(spStarSystem ss) {
 
 spEntity StarSystem::getMainStar() {
     for (auto& b : this->entities) {
-        if (b->type == TypeNav::Star && b->special)
+        if (b->type == TypeNav::Star && b->getStarData().mainStar.value_or())
             return b;
     }
     return {};
@@ -697,9 +798,9 @@ spEntity StarSystem::getDock(int64_t marketId) {
     if (marketId == 0)
         return {};
     for (auto& s : this->entities) {
-        if (!isSite(s->type))
+        if (s->type < TypeNav::SpaceStation)
             continue;
-        if (s->marketId == marketId)
+        if (s->marketId() == marketId)
             return s;
     }
     return {};
@@ -882,18 +983,17 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
     if (!dock) {
         dock = getDock(sname);
         if (dock) {
-            if (dock->marketId) {
-                assert (dock->marketId != marketId);
+            if (dock->marketId()) {
+                assert (dock->marketId() != marketId);
                 dock.reset();
             } else {
-                dock->marketId = marketId;
+                dock->setMarketId(marketId);
                 needBlobSave = true;
             }
         }
     }
     if (!dock) {
         dock.reset(new Entity);
-        dock->marketId = marketId;
         entities.push_back(dock);
     }
 
@@ -936,13 +1036,10 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
             needBlobSave = true;
         }
     }
-//    if (je["DistFromStarLS"].is_number()) {
-//        double dist = je["DistFromStarLS"].as_real_or();
-//        if (!dock->main_star_distance || std::round(dock->main_star_distance.get_ls()) != std::round(dist)) {
-//            dock->main_star_distance = dist_t(dist_t::LS, dist);
-//            needBlobSave = true;
-//        }
-//    }
+    if (!dock->marketId()) {
+        dock->setMarketId(marketId);
+        needBlobSave = true;
+    }
     save();
     return dock;
 }
@@ -962,8 +1059,8 @@ void StarSystem::checkType(spEntity& site, TypeNav type, Timestamp timestamp) {
 }
 void StarSystem::checkName(spEntity& site, std::string_view name, Timestamp timestamp) {
     if (site && site->updated < timestamp) {
-        if (site->type == TypeNav::FleetCarrier) {
-            if (site->name != name && site->setName(name)) {
+        if (isCarrier(site->type)) {
+            if (!site->nameEq(name) && site->setName(name)) {
                 site->updated = timestamp;
                 needBlobSave = true;
             }
@@ -977,8 +1074,15 @@ void StarSystem::checkName(spEntity& site, std::string_view name, Timestamp time
 }
 void StarSystem::checkNloc(spEntity& site, std::string_view nloc, Timestamp timestamp) {
     if (site && site->nloc != nloc) {
-        site->nloc = *nloc;
-        site->updated = timestamp;
+        if (isCarrier(site->type)) {
+            if (!nloc.empty() && !site->nameEq(nloc) && site->setName(nloc)) {
+                site->updated = timestamp;
+                needBlobSave = true;
+            }
+        } else {
+            const_cast<std::string&>(site->nloc) = *nloc;
+            site->updated = timestamp;
+        }
     }
 }
 void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEvent>>& events) {
@@ -1074,7 +1178,7 @@ void Entity::setType(TypeNav tp) {
     TypeNav& new_type = const_cast<TypeNav&>(this->type);
     new_type = tp;
 
-    if (isSpaceSite(new_type) || isPlanetarySite(new_type)) {
+    if (new_type >= TypeNav::SpaceStation) {
         if (!std::holds_alternative<Entity::StationData>(ext)) {
             Entity::StationData station_data {};
             ext = station_data;
@@ -1166,28 +1270,8 @@ bool Entity::nameEq(std::string_view nm) const {
     case TypeNav::SpaceConstrDepot:
     case TypeNav::PlanetaryConstrDepot:
     case TypeNav::Megaship:
-        return false;
-    case TypeNav::StationMegaShip:
-        for (auto& p : STRONGHOLD_CARRIER.name_loc) {
-            if (p.second == nm)
-                return true;
-        }
-        return false;
     case TypeNav::FleetCarrier:
-        if (code == nm)
-            return true;
-        if (name.size() == 7 && nm.size() > 7 && nm.ends_with(name))
-            return true;
-        if (nm.size() == 7 && name.size() > 7 && name.ends_with(nm))
-            return true;
-        return false;
     case TypeNav::SquadronCarrier:
-        if (code == nm)
-            return true;
-        if (name.size() == 4 && nm.size() > 7 && nm.ends_with(" | "+name))
-            return true;
-        if (nm.size() == 4 && name.size() > 7 && name.ends_with(std::string(" | ").append(nm)))
-            return true;
         return false;
     case TypeNav::NotExplored:
         navType = &UNEXPLORED;
@@ -1204,6 +1288,12 @@ bool Entity::nameEq(std::string_view nm) const {
     case TypeNav::StrongholdCarrier:
         navType = &STRONGHOLD_CARRIER;
         break;
+    case TypeNav::StationMegaShip:
+        for (auto& p : STRONGHOLD_CARRIER.name_loc) {
+            if (p.second == nm)
+                return true;
+        }
+        return false;
     case TypeNav::ColonisationShip: {
         if (name == nm || nloc == nm)
             return true;
@@ -1259,24 +1349,55 @@ bool Entity::setName(std::string_view nm) {
     case TypeNav::PlanetaryConstrDepot:
         if (name == nm)
             return false;
-        name = nm;
+        const_cast<std::string&>(name) = nm;
         return true;
     case TypeNav::FleetCarrier:
-        if (name == nm)
+        if (nm.size() < 7) {
+            LOG_ERROR("Set fleet carrier name as: {}", nm);
             return false;
-        if (nm.size() == 7)
-            code = nm;
-        else if (nm.size() > 7)
-            code = nm.substr(nm.size()-7);
-        name = nm;
-        return true;
+        } else if (nm.size() == 7) {
+            if (nm[3] != '-') { LOG_ERROR("Set wrong fleet carrier name as: {}", nm); return false; }
+            if (name.empty()) {
+                const_cast<std::string&>(name) = nm;
+                const_cast<std::string&>(nloc) = nm;
+                return true;
+            }
+            if (name == nm) return false;
+            LOG_ERROR("May not change fleet carrier name from '{}' to '{}'", name, nm);
+            return false;
+        } else if (nm.size() < 9 || nm[nm.size()-4] != '-' || nm[nm.size()-8] != ' ') {
+            LOG_ERROR("Set fleet carrier name as: {}", nm);
+            return false;
+        } else {
+            if (nloc == nm)
+                return false;
+            const_cast<std::string&>(name) = nm.substr(nm.size()-7);
+            const_cast<std::string&>(nloc) = nm;
+            return true;
+        }
     case TypeNav::SquadronCarrier:
-        if (name == nm)
+        if (nm.size() < 4) {
+            LOG_ERROR("Set squadron carrier name as: {}", nm);
             return false;
-        if (nm.size() > 7 && nm.substr(nm.size()-7, 3) == " | ")
-            code = nm.substr(nm.size()-4);
-        name = nm;
-        return true;
+        } else if (nm.size() == 4) {
+            if (name.empty()) {
+                const_cast<std::string&>(name) = nm;
+                const_cast<std::string&>(nloc) = nm;
+                return true;
+            }
+            if (name == nm) return false;
+            LOG_ERROR("May not change fleet carrier name from '{}' to '{}'", name, nm);
+            return false;
+        } else if (nm.size() < 8 || nm.substr(nm.size()-7,3) != " | ") {
+            LOG_ERROR("Set squadron carrier name as: {}", nm);
+            return false;
+        } else {
+            if (nloc == nm)
+                return false;
+            const_cast<std::string&>(name) = nm.substr(nm.size()-4);
+            const_cast<std::string&>(nloc) = nm;
+            return true;
+        }
     case TypeNav::NotExplored:
         navType = &UNEXPLORED;
         break;
@@ -1296,8 +1417,8 @@ bool Entity::setName(std::string_view nm) {
         if (NavType::expandName(nm, xx_name, ru_name)) {
             if (name == xx_name && nloc == ru_name)
                 return false;
-            name = xx_name;
-            nloc = ru_name;
+            const_cast<std::string&>(name) = xx_name;
+            const_cast<std::string&>(nloc) = ru_name;
             return true;
         }
         for (auto& nl : gal::COLONIZATION_SHIP.name_loc) {
@@ -1319,8 +1440,8 @@ bool Entity::setName(std::string_view nm) {
                 }
                 if (name == xx_name && nloc == ru_name)
                     return false;
-                name = xx_name;
-                nloc = ru_name;
+                const_cast<std::string&>(name) = xx_name;
+                const_cast<std::string&>(nloc) = ru_name;
                 return true;
             }
         }
@@ -1362,15 +1483,15 @@ bool Entity::setName(std::string_view nm) {
         }
     }
     if (this->name != xx_name) {
-        this->name = xx_name;
+        const_cast<std::string&>(name) = xx_name;
         if (ru_name.empty() || ru_name == xx_name)
-            this->nloc.clear();
+            const_cast<std::string&>(nloc).clear();
         else
-            this->nloc = ru_name;
+            const_cast<std::string&>(nloc) = ru_name;
         return true;
     }
     else if (this->nloc != ru_name) {
-        this->nloc = ru_name;
+        const_cast<std::string&>(nloc) = ru_name;
     }
     return false;
 }

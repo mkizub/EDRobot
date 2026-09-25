@@ -38,6 +38,7 @@ add_link_options(/DEBUG /PDBCOMPRESS)
 
 add_executable(EDRobot WIN32
         EDRobot.manifest
+        ed.natvis
         src/pch.cpp
         src/pch.h
         src/ed_opencv.h

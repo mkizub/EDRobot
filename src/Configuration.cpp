@@ -189,7 +189,6 @@ bool Configuration::load() {
 #else
         openclDisabled = true;
 #endif
-        std::filesystem::create_directories("cache/systems");
         std::filesystem::create_directories("cache/markets");
         std::filesystem::create_directories("cache/carriers");
 
@@ -203,6 +202,9 @@ bool Configuration::load() {
         mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
         mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
         mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
+        mAutopilotDepartureCheck = Cfg.jprefs["flight"]["autopilotDepartureCheck"].as_bool_or(mAutopilotDepartureCheck);
+        mScoFromPlanet = Cfg.jprefs["flight"]["scoFromPlanet"].as_bool_or(mScoFromPlanet);
+        mScoInSpace = Cfg.jprefs["flight"]["scoInSpace"].as_bool_or(mScoInSpace);
 
         if (auto consoleWindow = GetConsoleWindow()) {
             if (auto hMenu = GetSystemMenu(consoleWindow, FALSE))
@@ -297,6 +299,9 @@ void Configuration::savePrefs() {
     Cfg.jprefs["log"]["default"] = enum_name<spdlog::level::level_enum>(spdlog::default_logger()->level());
     Cfg.jprefs["log"]["network"] = enum_name<spdlog::level::level_enum>(spdlog::get("http")->level());
     Cfg.jprefs["log"]["console"] = enum_name<spdlog::level::level_enum>(console_sink->level());
+    Cfg.jprefs["flight"]["autopilotDepartureCheck"] = mAutopilotDepartureCheck;
+    Cfg.jprefs["flight"]["scoFromPlanet"] = mScoFromPlanet;
+    Cfg.jprefs["flight"]["scoInSpace"] = mScoInSpace;
 
     std::ofstream ofs(L"prefs.json5", std::ios::trunc | std::ios::binary);
     ofs << js::rule::json5() << js::rule::no_object_nulls() << js::rule::space_indent<1>() << jprefs;
@@ -959,6 +964,8 @@ Commodity& Configuration::getOrAddCommodity(Commodity&& c_add) {
     c.wide = toUtf16(c.name);
     FuzzyMatch fm;
     c.wocr = fm.toOCR(c.wide);
+    if (c_add.intId)
+        commodityIdMap[c_add.intId] = &c;
     commodityMap[nameId] = &c;
     mCommodityDatabaseUpdated = true;
     if (changeDirListener)
@@ -985,6 +992,14 @@ CommodityCategory* Configuration::getCommodityCategoryByName(const std::string& 
     return nullptr;
 }
 
+Commodity* Configuration::getCommodityById(int64_t id) {
+    if (id <= 0)
+        return nullptr;
+    auto it = commodityIdMap.find(id);
+    if (it != commodityIdMap.end())
+        return it->second;
+    return nullptr;
+}
 Commodity* Configuration::getCommodityById(std::string_view name) {
     return getCommodityById(*name);
 }
@@ -1070,7 +1085,7 @@ std::vector<Commodity*> Configuration::getMarketInSellOrder() {
             if (ml.demand <= 0)
                 continue;
         } else {
-            if ((!ml.isConsumer && ml.demand <= 0) || ml.isProducer) {
+            if ((!ml.isConsumer.value_or() && ml.demand <= 0) || ml.isProducer.value_or()) {
                 if (c.ship.count <= c.ship.stolen)
                     continue;
             }
@@ -1202,13 +1217,15 @@ bool Configuration::loadMarket(spGameEvent ge) {
         MarketLine ml {};
         ml.buyPrice = item.at("BuyPrice").as_int_or();
         ml.sellPrice = item.at("SellPrice").as_int_or();
-        ml.meanPrice = item.at("MeanPrice").as_int_or();
+        //ml.meanPrice = item.at("MeanPrice").as_int_or();
         ml.stock = item.at("Stock").as_int_or();
         ml.demand = item.at("Demand").as_int_or();
-        ml.stockBracket = (uint8_t)item["StockBracket"].as_int_or();
-        ml.demandBracket = (uint8_t)item.at("DemandBracket").as_int_or();
-        ml.isConsumer = item["Consumer"].as_bool_or();
-        ml.isProducer = item["Producer"].as_bool_or();
+        //ml.stockBracket = (uint8_t)item["StockBracket"].as_int_or();
+        //ml.demandBracket = (uint8_t)item.at("DemandBracket").as_int_or();
+        if (item["Consumer"].is_bool())
+            ml.isConsumer = item["Consumer"].as_bool();
+        if (item["Producer"].is_bool())
+            ml.isProducer = item["Producer"].as_bool();
         market->items.emplace(&commodity, ml);
     }
     if (mCommodityDatabaseUpdated)
@@ -1447,6 +1464,7 @@ void Configuration::changeDirThreadLoop() {
     // read last ship status after all events
     loadGameStatus();
 
+    bool needReloadStatus = false;
     for(;;) {
         DWORD rc = ::MsgWaitForMultipleObjectsEx(
                         _countof(handles),
@@ -1463,7 +1481,6 @@ void Configuration::changeDirThreadLoop() {
         bool needReloadSettings = false;
         bool needReloadOptions = false;
         bool needReloadBindings = false;
-        bool needReloadStatus = false;
         std::wstring journalFilenameW;
 
         DWORD action;
@@ -1491,9 +1508,8 @@ void Configuration::changeDirThreadLoop() {
             loadPlayerOptions(false);
         if (needReloadBindings)
             loadInputBindings();
-        if (needReloadStatus) {
-            loadGameStatus();
-        }
+        for (int retry=0; needReloadStatus && retry < 3; retry++)
+            needReloadStatus = !loadGameStatus();
 
         // real all events from journal
         readJournalChanges(journalStream, latest_log_timestamp, journalLine);
@@ -1512,7 +1528,7 @@ void Configuration::changeDirThreadLoop() {
             readJournalChanges(journalStream, latest_log_timestamp, journalLine);
         }
 
-        if (latest_log_timestamp > dumped_log_timestamp+4s) {
+        if (latest_log_timestamp > dumped_log_timestamp) {
             writeLogTimestamp(ofs_latest_log, latest_log_timestamp);
             dumped_log_timestamp = latest_log_timestamp;
         }

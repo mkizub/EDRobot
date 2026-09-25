@@ -49,10 +49,10 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
             throw_failed("Construction depot '{}' not known", fullName);
         depotImported = true;
     }
-    spMarket depotMarket = gal::getMarket(depot->marketId);
+    spMarket depotMarket = gal::getMarket(depot->marketId());
     if (!depotMarket || depotMarket->items.empty()) {
         RavenColonial::importConstructionProject(systemName, fullName, shortName);
-        depotMarket = gal::getMarket(depot->marketId);
+        depotMarket = gal::getMarket(depot->marketId());
         if (!depotMarket|| depotMarket->items.empty())
             throw_failed("Construction depot '{}' demand is not known", fullName);
         depotImported = true;
@@ -61,13 +61,13 @@ void BaseColonizationTask::addDepotInfo(const js::value& dv) {
         throw_failed("Site '{}' is not a construction depot", fullName);
     if (!depotImported) {
         RavenColonial::importConstructionProject(systemName, fullName, shortName);
-        depotMarket = gal::getMarket(depot->marketId);
+        depotMarket = gal::getMarket(depot->marketId());
         depotImported = true;
     }
     if (depotMarket && !depotMarket->raven)
         depotMarket->raven = std::make_shared<RavenProj>();
     auto& depotInfo = depots.emplace_back(*systemName, fullName, *shortName);
-    depotInfo.marketId = depot->marketId;
+    depotInfo.marketId = depot->marketId();
     if (depotMarket && depotMarket->raven) {
         depotInfo.ravenBuildId = depotMarket->raven->buildId;
         depotInfo.ravenProjectTimestamp = depotMarket->raven->timestamp;
@@ -341,7 +341,7 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
         notify_warn("Site '{}' is not a market", dockName);
         return {MARKET_INVALID};
     }
-    mi.dockMarket = gal::getMarket(mi.dock->marketId);
+    mi.dockMarket = gal::getMarket(mi.dock->marketId());
     if (!mi.dockMarket || mi.dockMarket->items.empty()) {
         mi.state = MARKET_UNKNOWN;
         return mi;
@@ -356,7 +356,7 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
             if (!mi.dockMarket->items.contains(c))
                 continue;
             auto &ml = mi.dockMarket->items[c];
-            if (ml.isConsumer)
+            if (ml.isConsumer.value_or())
                 continue;
             if (ml.stock <= 0)
                 continue;
@@ -399,7 +399,7 @@ int canBuyAtMarket(spMarket& market, Commodity* c) {
     if (it == market->items.end())
         return 0;
     auto &ml = it->second;
-    if (!ml.isProducer || ml.stock < 0)
+    if (!ml.isProducer.value_or() || ml.stock < 0)
         return 0;
     return ml.stock;
 }
@@ -421,7 +421,7 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
         }
     }
     gotoMarketScreen(true);
-    spMarket market = gal::getMarket(currDock->marketId);
+    spMarket market = gal::getMarket(currDock->marketId());
     struct BuyInfo {
         Commodity* commodity;
         int buy;
@@ -488,7 +488,7 @@ void BaseColonizationTask::tradeCommodities(const gal::spEntity& currDock, const
             break;
         Commodity *c = d.commodity;
         auto &ml = market->items[c];
-        if (!ml.isProducer || ml.stock < 0)
+        if (!ml.isProducer.value_or() || ml.stock < 0)
             continue;
         TaskTemplate impl = getTemplate(ED_TASK_MARKET_BUY);
         impl.set("commodity", c->nameId);
@@ -610,7 +610,7 @@ bool TaskMyCarrierReserve::run() {
         }
 
         currDock = travelTo(mi.systemName, mi.dockName);
-        if (currDock && currDock->marketId != st::cmdr.fleetCarrierId && !currDock->nameEq(myCarrierName)) {
+        if (currDock && currDock->marketId() != st::cmdr.fleetCarrierId && !currDock->nameEq(myCarrierName)) {
             tradeCommodities(currDock, demands);
         }
         demands = calcDemands();

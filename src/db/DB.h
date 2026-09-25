@@ -15,6 +15,9 @@ constexpr static double DNaN = std::numeric_limits<double>::quiet_NaN();
 constexpr static double FNaN = std::numeric_limits<float>::quiet_NaN();
 struct StarSystem;
 struct StarSystemJS;
+struct StationJS;
+struct MegashipJS;
+struct MarketJS;
 
 bool init();
 bool shutdown();
@@ -23,12 +26,21 @@ StarSystem loadStarSystem(int64_t address);
 bool loadStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address);
 bool saveStarSystem(const StarSystem& starSystem);
 bool saveStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address);
+bool loadMegaShips(int64_t address, std::vector<MegashipJS> megaships);
+bool loadMegaShip(MegashipJS& megaship);
+bool saveMegaShip(MegashipJS& megaship);
+bool loadMarket(MarketJS& market);
+bool saveMarket(MarketJS& market);
 
 bool parseSpanshSystemDump(StarSystemJS& ss, const std::string& text);
 
 
 bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, const void* data, int size);
 bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, std::stringstream& buffer);
+bool decode_megaship_blob(StationJS& ss, const void* data, int size);
+bool encode_megaship_blob(StationJS& ss, std::stringstream& buffer);
+bool decode_market_blob(MarketJS& market, const void* data, int size);
+bool encode_market_blob(MarketJS& market, std::stringstream& buffer);
 
 struct Faction {
     int64_t id;
@@ -60,17 +72,39 @@ struct StarSystem {
     Timestamp eddn_updated;
 };
 
+struct RavenCmdrInfoJS {
+    Timestamp timestamp {}; // contribution timestamp
+    int deliveries {}; // number of deliveries
+    int contributed {}; // total cargo contributed
+    js::vector<int64_t> assigned; // commodities assigned to this commander
+};
+
 struct MarketLineJS {
-    int64_t id {};
+    int64_t commodityId {};
     unsigned demand {};
     unsigned supply {};
     unsigned buyPrice {};
     unsigned sellPrice {};
+    opt_bool isConsumer;
+    opt_bool isProducer;
+};
+
+struct MarketJS {
+    int64_t marketId {};
+    Timestamp updated;
+    std::string stationName;
+    std::string stationType;
+    std::string starSystem;
+    std::string ravenBuildId;
+    std::string ravenStatus;
+    Timestamp ravenUpdated;
+    js::small_map<std::string,RavenCmdrInfoJS> ravenCommanders;
+    std::vector<MarketLineJS> commodities;
 };
 
 struct StationJS {
     int64_t marketId; // market id
-    JsStationType type;
+    JsNavType type;
     int bodyId {-1};  // space stations have bodyId
     int parentId {-1};  // space stations parent bodyId
     std::string name;
@@ -91,6 +125,17 @@ struct StationJS {
     opt_float longitude; // Planetary stations only.
     LandingPads landingPads;
     js::vector<JsServices> services;
+    // just for reading from spansh
+    std::shared_ptr<MarketJS> market;
+};
+
+struct MegashipJS {
+    int64_t systemId;
+    int64_t marketId;
+    std::string code;
+    std::string name;
+    Timestamp updated;
+    StationJS blob;
 };
 
 struct CoordsJS {
@@ -100,7 +145,7 @@ struct CoordsJS {
 };
 
 struct BodyParentJS {
-    JsBodyType type;
+    JsNavType type;
     int bodyId;
 };
 
@@ -143,7 +188,7 @@ struct PlanetPartJS {
 };
 
 struct BodyJS {
-    JsBodyType type;
+    JsNavType type;
     int bodyId {-1};
     std::string name;
     JsBodySubType subType;
@@ -187,8 +232,8 @@ struct BodyJS {
     opt_float get_solarMasses() const { return starPart ? starPart->solarMasses : opt_float{}; }
     void set_solarMasses(float v) { ensureStarPart()->solarMasses = v; }
 
-    opt_float get_solarRadius() const { return radius.has_value() ? radius.value() / 696060000.f : opt_float{}; }
-    void set_solarRadius(float v) { radius = v * 696060.f; }
+    opt_float get_solarRadius() const { return radius.has_value() ? radius.value() / 696134.f : opt_float{}; }
+    void set_solarRadius(float v) { radius = v * 696134.f; }
 
     // PlanetPart accessors
     opt_bool get_isLandable() const { return planetPart ? planetPart->isLandable : opt_bool{}; }
@@ -200,8 +245,8 @@ struct BodyJS {
     opt_float get_earthMasses() const { return planetPart ? planetPart->earthMasses : opt_float{}; }
     void set_earthMasses(float v) { ensurePlanedPart()->earthMasses = v; }
 
-    opt_float get_radius() const { return radius.has_value() ? radius.value() * 1000.f : opt_float{}; }
-    void set_radius(float v) { radius = v / 1000.f; }
+    opt_float get_radius() const { return radius.has_value() ? radius.value() : opt_float{}; }
+    void set_radius(float v) { radius = v; }
 
     opt_float get_surfacePressure() const { return planetPart ? planetPart->surfacePressure : opt_float{}; }
     void set_surfacePressure(float v) { ensurePlanedPart()->surfacePressure = v; }
@@ -319,21 +364,5 @@ struct StarSystemJS {
 
 } // namespace db
 
-
-#include <glaze/forward.hpp>
-
-template <js::IsEnum E>
-struct glz::meta<E>
-{
-    static constexpr bool custom_write = true;
-    static constexpr bool custom_read = true;
-};
-
-template <>
-struct glz::meta<Timestamp>
-{
-    static constexpr bool custom_write = true;
-    static constexpr bool custom_read = true;
-};
 
 #endif //EDROBOT_DB_H

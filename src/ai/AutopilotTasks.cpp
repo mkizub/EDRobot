@@ -541,11 +541,11 @@ void BaseAutopilotTask::initNavFilter(bool additive) {
         filters.pointOfInterest = true;
         break;
     case TypeNav::FleetCarrier:
-        if (st::autopilot.destDock->marketId != st::cmdr.fleetCarrierId)
+        if (st::autopilot.destDock->marketId() != st::cmdr.fleetCarrierId)
             filters.fleetCarrier = true;
         break;
     case TypeNav::SquadronCarrier:
-        if (st::autopilot.destDock->marketId != st::cmdr.squadronCarrierId)
+        if (st::autopilot.destDock->marketId() != st::cmdr.squadronCarrierId)
             filters.fleetCarrier = true;
         break;
     case TypeNav::PlanetaryThing:
@@ -977,7 +977,7 @@ bool DepartureStep::run() {
     bool fromPlaneraryPort = false;
     bool fromSimpleMegaship = false;
     if (fromDock && isConstrDepot(fromDock->type)) {
-        auto market = gal::getMarket(fromDock->marketId);
+        auto market = gal::getMarket(fromDock->marketId());
         if (market && market->raven && market->raven->status == "complete")
             fromCompletedConstruction = true;
     }
@@ -1074,8 +1074,8 @@ bool DepartureStep::run() {
         setSpeed(0, true, "Departure: got autopilot");
         notAutoPilotCounter = 0;
         int waitCounter = 4;
-        if (fromStarPort && st::shipInfo.shipType == "panthermkii") {
-            LOG_DEBUG("Departure: panthermkii from StarPort");
+        if (fromStarPort && Cfg.useAutopilotDepartureCheck()) {
+            LOG_DEBUG("Departure: check autopilot lost at StarPort");
             waitCounter = 7;
         }
         for (;;) {
@@ -1528,8 +1528,11 @@ bool HyperJumpStep::run() {
     auto fly_away_time = 10s;
     if (auto ss = gal::getCurrentStarSystem()) {
         auto star = ss->getMainStar();
-        if (star && !star->code.empty()) {
-            switch (star->code[0]) {
+        JsSpectralClass spectralClass;
+        if (star)
+            spectralClass = star->getStarData().spectralClass;
+        if (auto sc = spectralClass.sv(); !sc.empty()) {
+            switch (sc[0]) {
             case 'L': case 'T': case 'Y': // Brown Dwarfs
             case 'D': case 'H': case 'X': // White Dwarfs, Neutron, Black Hole
             //case 'C': case 'M': case 'S': // Carbon Stars
@@ -1537,7 +1540,7 @@ bool HyperJumpStep::run() {
                 fly_away_time = 15s;
                 break;
             case 'K': // White Dwarfs, Neutron, Black Hole
-                if (star->code == "K6") {
+                if (sc == "K6") {
                     rotate_speed = 0;
                     fly_away_time = 15s;
                 }
@@ -1725,7 +1728,7 @@ bool LeaveBodyStep::run() {
         LOG_DEBUG("LeaveBody: leaving body in cruise");
         timer = utc_timer(60s);
         status = LEAVING_BODY;
-        if (eddb::shipHasFsdSco()) {
+        if (Cfg.useScoFromPlanet() && eddb::shipHasFsdSco()) {
             useFsdOvercharge = true;
             kbd::send("UseBoostJuice", 100);
         }
@@ -1738,7 +1741,8 @@ bool LeaveBodyStep::run() {
         }
     }
     else if (auto body = gal::getCurrentStarSystem()->getBody(fromBody);
-            body && body->type == TypeNav::Planet && body->radius() > 8000 && eddb::shipHasFsdSco())
+            body && body->type == TypeNav::Planet && body->radius() > 8000
+            && Cfg.useScoFromPlanet() && eddb::shipHasFsdSco())
     {
         status = LEAVING_BODY;
         useFsdOvercharge = true;
@@ -2728,6 +2732,8 @@ bool BaseCruiseStep::gotDistance(dist_t dist) {
 }
 
 void BaseCruiseStep::checkStartSCO() {
+    if (!Cfg.useScoInSpace())
+        return;
     if (st::ship.flags2.supercruise_overcharge || !st::ship.flags.cruise || !eddb::shipHasFsdSco())
         return;
     if (Timestamp::clock::now() < scoCanStart)
@@ -3308,7 +3314,7 @@ bool DiveUnderPlanetStep::run() {
         }
     }
 
-    toPort = (int(st::autopilot.destDock->type) & int(TypeNav::PlanetaryThing)) != 0;
+    toPort = isPlanetarySite(st::autopilot.destDock->type);
     LOG_DEBUG("DiveUnderPlanet to planetary port={}", toPort);
 
     if (targetIsBody)
@@ -3762,18 +3768,22 @@ bool ExitCruiseToSpace::run() {
             continue;
         }
         ai::detectEDState(DetectLevel::Screen);
-        if (!st::compass.has_nav_target || std::abs(st::compass.targetYaw) > 10 || std::abs(st::compass.targetPitch-keepPitch) > 10)
+        if (!st::compass.has_nav_target || std::abs(st::compass.targetYaw) > 15 || std::abs(st::compass.targetPitch-keepPitch) > 15)
             st::autopilot.distanceToDock = {};
 
         if (!st::autopilot.distanceToDock) {
             dist_fails += 1;
-            if (dist_km < 5000 && dist_fails >= 5) {
-                setSpeed(0, false, "ExitCruiseToSpace, dist_km < 5000 && dist_fails >= 5");
-                task->orientTowardTarget(5);
+            bool failed_to_orient = false;
+            if (dist_km < 5000 && (dist_fails >= 5 || st::compass.hemisphere < 0)) {
+                CourseLockerPause lockPause;
+                setSpeed(100, true, "ExitCruiseToSpace, missed station, fly away");
+                sleep(5000);
+                setSpeed(0, true, "ExitCruiseToSpace, dist_km < 5000 && dist_fails >= 5");
+                failed_to_orient = !task->orientTowardTarget(10);
             }
             else if ((dist_fails % 5) == 4 && keepPitch == 0)
                 rollBlindCompass();
-            if (dist_fails > 50) {
+            if (failed_to_orient || dist_fails > 50) {
                 setSpeed(100, true, "ExitCruiseToSpace, missed station, fly away");
                 sleep(10000);
                 setSpeed(0, true, "ExitCruiseToSpace, missed station, exit task");

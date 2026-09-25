@@ -553,7 +553,7 @@ void initTemplates() {
     templates.emplace_back(ED_TASK_EXPL_VISIT_PLANETS, _lc("Visit planets"), FACTORY(TaskVisitPlanets), P{
             { Param::Enum, "scan_fg", _lc("Scan fire group"), META(R"({values: [
                          "A1", "A2", "B1", "B2", "C1", "C2", "D1", "D2"]})")},
-            { Param::Bool,  "unknown", _lc("Uknown") },
+            //{ Param::Bool,  "unknown", _lc("Unkown") },
             },
             META("{group:'Exploration'}")
     );

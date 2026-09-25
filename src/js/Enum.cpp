@@ -12,61 +12,60 @@ std::unordered_set<std::string, string_hash, std::equal_to<void>>& symbol::getSy
 EnumDeclBase::EnumDeclBase(std::string_view nm, IList values)
         : name(nm)
         , maxPredefinedId(uint8_t(values.size()))
+        , allValues {}
+        , allValueNames {}
 {
     if (values.size() > 255)
         throw std::overflow_error(name);
 
-    allValues.reserve(values.size()+1);
-    allValues.emplace_back(new EnumVal{0, false, {}, {}, this});
-    for (auto value : values) {
-        auto spl = split(value.second, '\f');
-        js::vector<js::symbol> aliases;
+    for (auto [id, names] : values) {
+        auto spl = split(names, '\f');
         js::symbol sym(spl[0]);
+        auto& v = allValues[id];
+        const_cast<uint8_t&>(v.id) = id;
+        const_cast<bool&>(v.predefined) = true;
+        const_cast<js::symbol&>(v.sym) = js::symbol(spl[0]);
+        const_cast<EnumDeclBase*&>(v.ED) = this;
         if (spl.size() > 1) {
+            auto& aliases = const_cast<js::vector<js::symbol>&>(v.aliases);
             aliases.reserve(spl.size()-1);
             for (int a=1; a < spl.size(); a++) {
                 aliases.push_back(js::symbol(spl[a]));
             }
         }
-        allValues.emplace_back(new EnumVal{value.first, true, sym, aliases, this});
+        allValueNames[id] = sym.sv().data();
     }
-    mapById.reserve(allValues.size());
-    mapByName.reserve(allValues.size());
+    mapById.reserve(values.size());
+    mapByName.reserve(values.size());
     for (auto &v: allValues) {
-        mapById.insert({v->id, v.get()});
-        mapByName.insert({v->sym.sv(), v.get()});
-        for (auto& a : v->aliases)
-            mapByName.insert({a.sv(), v.get()});
+        if (!v.id)
+            continue;
+        mapById.insert({v.id, &v});
+        mapByName.insert({v.sym.sv(), &v});
+        for (auto& a : v.aliases)
+            mapByName.insert({a.sv(), &v});
     }
-}
-
-EnumVal* EnumDeclBase::get_ptr(unsigned id) const {
-    if (auto it = mapById.find(id); it != mapById.end())
-        return it->second;
-    return nullptr;
-}
-
-EnumVal* EnumDeclBase::get_ptr(std::string_view sv) const {
-    if (auto it = mapByName.find(sv); it != mapByName.end())
-        return it->second;
-    return nullptr;
 }
 
 EnumVal* EnumDeclBase::addNewValue(const std::string& str) {
     LOG_ERROR("Error: Added new key \"{}\" into enum '{}'", str, name);
     unsigned new_id = 0;
     for (auto& v : allValues) {
-        if (v->id > new_id)
-            new_id = v->id;
+        if (v.id > new_id)
+            new_id = v.id;
     }
     new_id += 1;
     if (new_id > 255)
         throw std::overflow_error(name);
-    js::symbol sym(str);
-    auto& v = allValues.emplace_back(new EnumVal{uint8_t(new_id), false, sym, {}, this});
-    mapById.insert({v->id, v.get()});
-    mapByName.insert({v->sym.sv(), v.get()});
-    return v.get();
+    auto& v = allValues[new_id];
+    const_cast<uint8_t&>(v.id) = new_id;
+    const_cast<bool&>(v.predefined) = true;
+    const_cast<js::symbol&>(v.sym) = js::symbol(str);
+    const_cast<EnumDeclBase*&>(v.ED) = this;
+    allValueNames[new_id] = v.sym.sv().data();
+    mapById.insert({v.id, &v});
+    mapByName.insert({v.sym.sv(), &v});
+    return &v;
 }
 
 

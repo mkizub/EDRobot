@@ -6,9 +6,7 @@
 
 #include "Galaxy.h"
 
-#define DEFINE_ENUM_INSTANCE(NAME)                              \
-    template<>                                                  \
-    js::EnumDecl<NAME> js::EnumDecl<NAME>::instance
+#define DEFINE_ENUM_INSTANCE(NAME) template<> NAME::Decl NAME::Decl::instance
 
 DEFINE_ENUM_INSTANCE(JsAllegiance) ("Allegiance",
 {
@@ -129,21 +127,28 @@ DEFINE_ENUM_INSTANCE(JsThargoidState) ("ThargoidState",
 });
 
 #define u(v) std::to_underlying(v)
-DEFINE_ENUM_INSTANCE(JsBodyType) ("BodyType",
+DEFINE_ENUM_INSTANCE(JsNavType) ("NavType",
 {
+    // signals
+    {u(TypeNav::Error),                 "~Error~"},
+    {u(TypeNav::NotExplored),           "~NotExplored~"},
+    {u(TypeNav::Signal),                "~Signal~\fGeneric"},
+    {u(TypeNav::WarZone),               "~WarZone~\fCombat"},
+    {u(TypeNav::ResSite),               "~ResSite~\fResourceExtraction"},
+    {u(TypeNav::StarSystem),            "~StarSystem~"},
+    //bodies
+    {u(TypeNav::Body),                  "~Body~"},
     {u(TypeNav::Star),                  "Star"},
     {u(TypeNav::Planet),                "Planet"},
     {u(TypeNav::Barycenter),            "Barycentre\fBarycenter\fNull"},
-    {u(TypeNav::Ring),                  "Ring"},
-    {u(TypeNav::AsteroidCluster),       "AsteroidCluster\fAsteroid Cluster"},
-});
-
-DEFINE_ENUM_INSTANCE(JsStationType) ("StationType",
-{
-    // generic
-    {u(TypeNav::SpaceThing),            "Space Object"},
+    {u(TypeNav::Ring),                  "Ring\fPlanetaryRing\fStellarRing"},
+    {u(TypeNav::AsteroidCluster),       "AsteroidCluster\fAsteroid Cluster\fBelt Cluster"},
+    // generic space objects
+    {u(TypeNav::SpaceThing),            "~SpaceThing~"},
     {u(TypeNav::NavBeacon),             "NavBeacon\fNav Beacon"},
     {u(TypeNav::TouristBeacon),         "TouristBeacon\fTourist Beacon"},
+    {u(TypeNav::Codex),                 "Codex"},
+    {u(TypeNav::SpaceStation),          "~SpaceStation~"},
     // space stations
     {u(TypeNav::Orbis),                 "Orbis\fOrbis Starport\fStationONeilOrbis\fStationONeilCylinder"},
     {u(TypeNav::Ocellus),               "Ocellus\fStationBernalSphere\fOcellus Starport"},
@@ -156,12 +161,12 @@ DEFINE_ENUM_INSTANCE(JsStationType) ("StationType",
     // megaships
     {u(TypeNav::Megaship),              "Megaship\fMega ship"},
     {u(TypeNav::StationMegaShip),       "StationMegaShip\fStation Mega ship"},
-    {u(TypeNav::FleetCarrier),          "FleetCarrier\fDrake-Class Carrier"},
+    {u(TypeNav::FleetCarrier),          "FleetCarrier\fDrake-Class Carrier\fFleet Carrier"},
     {u(TypeNav::SquadronCarrier),       "SquadronCarrier\fSquadron Carrier"},
-    {u(TypeNav::StrongholdCarrier),     "SquadronCarrier\fSquadron Carrier"},
+    {u(TypeNav::StrongholdCarrier),     "StrongholdCarrier\fStronghold Carrier"},
     {u(TypeNav::ColonisationShip),      "SystemColonisationShip\fSystem Colonisation Ship"},
     // planetary
-    {u(TypeNav::PlanetaryThing),        "Planetary Object"},
+    {u(TypeNav::PlanetaryThing),        "~PlanetaryThing~"},
     {u(TypeNav::PlanetaryPort),         "PlanetaryPort\fCraterOutpost\fPlanetary Outpost\fCrater Outpost\fPlanetary City\fPlanetary Port\fDockable Planet Station"},
     {u(TypeNav::EngineerPort),          "EngineerPort\fEngineer Port"},
     {u(TypeNav::Settlement),            "Settlement\fOnFootSettlement\fOdyssey Settlement\fSurface Settlement"},

@@ -268,7 +268,7 @@ bool CargoManager::processMarketSell(spGameEvent ge) {
             auto it = market->items.find(commodity);
             if (it != market->items.end()) {
                 MarketLine &ml = it->second;
-                if (market->stationType != "FleetCarrier" && !ml.isConsumer)
+                if (market->stationType != "FleetCarrier" && !ml.isConsumer.value_or())
                     ml.stock += count;
                 ml.demand = std::max(0, ml.demand - count);
                 LOG_DEBUG("Market '{}': stock {} demand {}", commodity->nameId, ml.stock, ml.demand);

@@ -9,7 +9,11 @@
 
 namespace db {
 struct StarSystemJS;
-};
+struct StationJS;
+struct MegashipJS;
+struct MarketJS;
+struct StarSystem;
+}
 
 namespace gal {
 
@@ -21,24 +25,35 @@ class Entity {
 public:
     virtual ~Entity() = default;
     bool nameEq(std::string_view nm) const;
+    // TODO: merge setType(tp) and setName(nm) into setTypeAndName(tp,nm)
     bool setName(std::string_view nm);
     const TypeNav type {TypeNav::Other};
-    Timestamp updated {};
     short bodyId {-1};
     short parentBodyId {-1}; // planet for planetary stations, or on orbit of body
-    int64_t marketId {0};
-    std::string name;
-    std::string nloc; // localized name
-    std::string code; // star class or planet type, fleet carrier code, etc
-    bool special {false}; // main star, dockable for stations, landable for planets
+    Timestamp updated {};
+    const std::string name; // english name, code for carriers
+    const std::string nloc; // localized name, full name for carriers
 
     float radius() {
         if (!isBody(type))
             return 0;
         auto& bd = getBodyData();
-        if (!bd.radius.has_value())
+        return bd.radius.value_or(0);
+    }
+
+    int64_t marketId() {
+        if (!std::holds_alternative<Entity::StationData>(ext))
             return 0;
-        return bd.radius.value();
+        auto& sd = getStationData();
+        return sd.marketId;
+    }
+
+    bool setMarketId(int64_t marketId) {
+        if (!std::holds_alternative<Entity::StationData>(ext))
+            return false;
+        auto& sd = getStationData();
+        sd.marketId = marketId;
+        return true;
     }
 
     struct BodyData {
@@ -61,7 +76,7 @@ public:
         opt_bool mainStar;
         JsSpectralClass spectralClass;
         JsLuminosity luminosity;
-        uint32_t age; // in millions years
+        uint32_t age {}; // in millions years
         opt_float solarMasses;
         opt_float absoluteMagnitude;
     };
@@ -76,6 +91,7 @@ public:
         opt_float surfacePressure;
     };
     struct StationData {
+        int64_t marketId {0};
         js::symbol controllingFaction;
         JsAllegiance allegiance;
         JsGovernment government;
@@ -99,6 +115,10 @@ public:
     PlanetData& getPlanetData();
     StationData& getStationData();
 
+    // StationData if: type >= TypeNav::SpaceStation
+    // PlanetData if: type == TypeNav::Planet
+    // StarData if: type == TypeNav::Star
+    // BodyData: all others (including bodies, signals, beacons, etc)
     std::variant<BodyData, StarData, PlanetData, StationData> ext;
 };
 
@@ -170,17 +190,18 @@ void saveMarket(Market* market);
 void setMarketData(spMarket market);
 
 bool update_star_system(StarSystem* ss, db::StarSystemJS& db_ss);
-bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss);
+bool update_star_system(StarSystem* ss, db::MegashipJS& db_ms);
+bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db::MegashipJS>& db_megaships);
 
 bool updateFromGameEvent(StarSystem* ss, spGameEvent& ge);
 bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge);
+bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge);
 
 struct NavType {
     // some nav types share the same charOCR
     const wchar_t charOCR;
     const TypeNav type;
     const std::vector<std::string> navIcons; // some nav types have common icons
-    const std::vector<std::string> typeAliases;
     const bool name_pattern;
     const std::vector<std::pair<Lang,std::string>> name_loc;
 

@@ -291,42 +291,32 @@ void Configuration::readJournalChanges(std::ifstream& journalStream, Timestamp& 
 
 bool Configuration::loadGameStatus() {
     static std::ifstream ifs;
-    //LOG_DEBUG("Loading Status.json");
-    if (!ifs.is_open()) {
-        std::wstring filename = mEDLogsPath + L"\\Status.json";
-        ifs.open(filename);
-        if (!ifs.is_open())
-            return false;
-    }
 
     //std::optional<js::value> read_result;
     std::stringstream buffer;
     try {
         spGameEvent ge;
-        for (int cnt = 0;; cnt++) {
-            if (!ifs) {
-                ifs.clear();
-                ifs.seekg(0, std::ios::beg);
-            }
-            buffer << ifs.rdbuf();
+        if (!ifs.is_open()) {
+            std::wstring filename = mEDLogsPath + L"\\Status.json";
+            ifs.open(filename);
+            if (!ifs.is_open())
+                return false;
+        }
+        if (!ifs) {
             ifs.clear();
             ifs.seekg(0, std::ios::beg);
-            Timestamp latest_log_timestamp{};
-            ge = parseEvent(latest_log_timestamp, buffer.str());
-            if (!ge) {
-                if (cnt < 3) {
-                    Sleep(50);
-                    ifs.clear();
-                    ifs.seekg(0, std::ios::beg);
-                    continue;
-                }
-                LOG(ERROR) << "Error loading Status.json";
-                return false;
-            }
-            break;
         }
-        if (ge->event != "Status")
+        buffer << ifs.rdbuf();
+        ifs.clear();
+        ifs.seekg(0, std::ios::beg);
+        Timestamp latest_log_timestamp{};
+        ge = parseEvent(latest_log_timestamp, buffer.str());
+        if (!ge || ge->event != "Status") {
+            LOG_WARNING("Status.json: {}", buffer.str());
+            Sleep(20);
+            ifs.close();
             return false;
+        }
         //st::ShipStatus old_status = st::ship;
         auto &j = ge->data;
         st::ship.timestamp = ge->timestamp;
@@ -514,10 +504,10 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     Cfg.updateLanguage(lng);
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
-    set(shipInfo.shipType, je.at("Ship",""));
-    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", ""));
-    set(shipInfo.shipUserName, je.at("ShipName",""));
-    set(shipInfo.shipIdent, je.at("ShipIdent",""));
+    set(shipInfo.shipType, je["Ship"]);
+    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
+    set(shipInfo.shipUserName, je["ShipName"]);
+    set(shipInfo.shipIdent, je["ShipIdent"]);
     shipInfo.shipId = je["ShipID"].as_int_or();
     LOG(INFO) << "Ship: " << shipInfo.shipType;
 
@@ -703,14 +693,14 @@ void parseEvent_Docking(spGameEvent& ge) {
     auto dock = ss->getDock(st::space.marketId);
     if (!dock)
         dock = ss->getDock(st::space.stationName);
-    auto dt = toTypeNav(JsStationType::get(st::space.stationType));
+    auto dt = toTypeNav(JsNavType::get(st::space.stationType));
     if (dock && isSite(dt) && dock->type != dt) {
         dock->setType(dt);
-        dock->marketId = st::space.marketId;
+        dock->setMarketId(st::space.marketId);
         ss->needBlobSave = true;
     }
-    if (dock && dock->marketId != st::space.marketId) {
-        dock->marketId = st::space.marketId;
+    if (dock && dock->marketId() != st::space.marketId) {
+        dock->setMarketId(st::space.marketId);
         ss->needBlobSave = true;
     }
     ss->save();
@@ -776,7 +766,7 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
             if (!carrier)
                 carrier = ss->getDock(st::dockedAt.stationName);
         }
-        if (carrier && (carrier->type == TypeNav::FleetCarrier || carrier->type == TypeNav::SquadronCarrier)) {
+        if (carrier && isCarrier(carrier->type)) {
             carrier->parentBodyId = -1;
             ss->removeEntity(carrier);
             ss->needBlobSave = true;
@@ -796,9 +786,9 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     if (carrier) {
         auto ss = gal::getCurrentStarSystem();
         std::erase_if(ss->entities, [carrier](auto& st)->bool {
-            if (st->marketId == carrier->marketId)
+            if (st->marketId() == carrier->marketId())
                 return true;
-            return st->type == TypeNav::FleetCarrier && (st->nameEq(carrier->code) || st->nameEq(carrier->name));
+            return isCarrier(st->type) && (st->nameEq(carrier->name) || st->nameEq(carrier->nloc));
         });
         ss->addEntity(carrier);
         carrier->parentBodyId = st::space.bodyId;
@@ -1008,113 +998,34 @@ void parseEvent_LeaveBody(spGameEvent& ge) {
 }
 
 void parseEvent_ColonisationConstructionDepot(spGameEvent& ge) {
-    auto& je = ge->data;
-
-    auto starSystem = gal::getCurrentStarSystem();
-    if (!starSystem)
-        return;
-    int64_t marketId = je["MarketID"].as_int_or();
-    spMarket old_market = gal::getMarket(marketId);
-    if (old_market && old_market->timestamp >= ge->timestamp)
-        return;
-    auto dock = starSystem->getDock(marketId);
-    spMarket market = std::make_shared<Market>(Market{
-            .timestamp = ge->timestamp,
-            .marketId = marketId,
-            .stationName = dock ? dock->name : "",
-            .stationType = "ConstrDepot",
-            .starSystem = starSystem->systemName,
-    });
-    if (old_market)
-        market->raven = old_market->raven;
-    bool complete = je["ConstructionComplete"].as_bool();
-    bool hasRaven = Cfg.isRavenColonialEnabled() && !market->ravenBuildId().empty();
-    bool reportToRaven = false;
-    if (hasRaven) {
-        if (!ge->expired && market->raven->timestamp.time_since_epoch().count() == 0)
-            reportToRaven = true;
-        else if (complete && market->raven->status != "complete")
-            reportToRaven = true;
-        else {
-            // check if there was a contribution past last raven project update
-            for (auto& ci : market->raven->commanders) {
-                if (ci.second.timestamp > market->raven->timestamp)
-                    reportToRaven = true;
-            }
-        }
+    if (!ge->expired) {
+        gal::updateFromMarketEvent(gal::getCurrentStarSystem().get(), ge);
     }
-    for (auto &jr: je["ResourcesRequired"].as_array_or()) {
-        if (!jr["Name"].is_string())
-            continue;
-        std::string name = *jr["Name"].as_string();
-        // "$aluminium_name;"
-        if (name.empty() || name[0] != '$' || !name.ends_with("_name;"))
-            continue;
-        name = name.substr(1, name.size() - 7);
-        Commodity *commodity = Cfg.getCommodityById(name);
-        if (!commodity)
-            continue;
-        int provided = jr["ProvidedAmount"].as_int_or();
-        int required = jr["RequiredAmount"].as_int_or();
-        if (hasRaven && old_market) {
-            if (!old_market->items.contains(commodity))
-                reportToRaven = true;
-            else {
-                auto& old_ml = old_market->items.at(commodity);
-                if (old_ml.stock != provided || old_ml.demand != required)
-                    reportToRaven = true;
-            }
-        }
-        MarketLine ml{};
-        ml.sellPrice = jr["Payment"].as_int_or();
-        ml.stock = provided;
-        ml.demand = required;
-        ml.isConsumer = true;
-        ml.isProducer = false;
-        market->items.emplace(commodity, ml);
-    }
-
-    if (hasRaven && reportToRaven) {
-        if (market->ravenBuildId().empty() || market->raven->timestamp >= ge->timestamp)
-            reportToRaven = false;
-        else if (market->raven->status == "complete")
-            reportToRaven = false;
-        else
-            market->raven->timestamp = ge->timestamp;
-    }
-    gal::setMarketData(market);
-    if (hasRaven && reportToRaven) {
-        RavenColonial::reportConstructionDepot(ge, market);
-    }
-    else if (complete && market->raven->status != "complete") {
-        market->raven->status = "complete";
-        gal::saveMarket(market.get());
-    }
- }
+}
 
 void parseEvent_ColonisationContribution(spGameEvent& ge) {
-    RavenColonial::reportContribution(ge);
-    CM.processColonisationContribution(ge);
     if (!ge->expired) {
+        RavenColonial::reportContribution(ge);
+        CM.processColonisationContribution(ge);
         Cfg.marketEvents.push(ge);
     }
 }
 void parseEvent_MarketBuy(spGameEvent& ge) {
-    CM.processMarketBuy(ge);
     if (!ge->expired) {
+        CM.processMarketBuy(ge);
         Cfg.marketEvents.push(ge);
     }
 }
 void parseEvent_MarketSell(spGameEvent& ge) {
-    CM.processMarketSell(ge);
     if (!ge->expired) {
+        CM.processMarketSell(ge);
         Cfg.marketEvents.push(ge);
     }
 }
 
 void parseEvent_CargoTransfer(spGameEvent& ge) {
-    CM.processCargoTransfer(ge);
     if (!ge->expired) {
+        CM.processCargoTransfer(ge);
         Cfg.marketEvents.push(ge);
     }
 }

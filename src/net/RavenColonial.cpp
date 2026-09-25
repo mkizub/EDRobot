@@ -72,9 +72,9 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
     if (cr_body.empty())
         return {};
     std::string buildId;
-    if (depot && depot->marketId) {
+    if (depot && depot->marketId()) {
         for (auto &site: cr_body["sites"].as_array_or()) {
-            if (site["marketId"].as_int_or() == depot->marketId) {
+            if (site["marketId"].as_int_or() == depot->marketId()) {
                 buildId = site["buildId"].as_string_or();
                 break;
             }
@@ -125,14 +125,14 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
         else if (fullName.starts_with("Planetary Construction Site:"))
             depot->setType(TypeNav::PlanetaryConstrDepot);
         depot->setName(fullName);
-        depot->marketId = cr_body["marketId"].as_int_or();
+        depot->setMarketId(cr_body["marketId"].as_int_or());
         depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
         starSystem->addEntity(depot);
         starSystem->needBlobSave = true;
         starSystem->save();
     } else {
-        if (!depot->marketId) {
-            depot->marketId = cr_body["marketId"].as_int_or();
+        if (!depot->marketId()) {
+            depot->setMarketId(cr_body["marketId"].as_int_or());
             starSystem->needBlobSave = true;
         }
         if (depot->parentBodyId < 0) {
@@ -142,9 +142,9 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
         starSystem->save();
     }
 
-    spMarket market = gal::getMarket(depot->marketId);
+    spMarket market = gal::getMarket(depot->marketId());
     if (!market)
-        market = std::make_shared<Market>(timestamp, depot->marketId, *fullName, "ConstrDepot", *systemName);
+        market = std::make_shared<Market>(timestamp, depot->marketId(), *fullName, "ConstrDepot", *systemName);
     else
         market = std::make_shared<Market>(*market);
     if (!market->raven)
@@ -218,7 +218,7 @@ void RavenColonial::carrierPatchCargo(int64_t marketId, const std::map<Commodity
 }
 
 js::value shipCargoInit() {
-    const std::string& shipName = st::shipInfo.shipUserName.empty()
+    const std::string& shipName = trim(st::shipInfo.shipUserName).empty()
             ? st::shipInfo.shipType
             : st::shipInfo.shipUserName;
     return js::object({

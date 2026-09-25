@@ -18,29 +18,10 @@ struct EnumID {
     uint8_t id {};
 };
 
-struct EnumDeclBase;
-
-template<typename E>
-class EnumDecl;
-
-//template <class Type>
-//concept IsEnumDecl = std::is_base_of<EnumDecl, Type>::value;
-
-template<typename T>
-concept IsEnumDecl = requires(T)
-{
-    std::is_base_of<EnumDecl<T>, EnumDeclBase>::value;
-};
-
-//template<typename T>
-//concept IsEnum = requires(T)
-//{
-//    std::is_base_of<EnumDeclBase, T::ED>::value;
-//};
-
 template<typename T>
 concept IsEnum = std::is_base_of<EnumID, T>::value;
-
+//template<typename Self>
+//concept IsEnum = requires { std::is_same_v<Self,Enum<Self>::E>; };
 
 using IList = std::initializer_list<std::pair<uint8_t, const char *>> ;
 
@@ -56,74 +37,83 @@ struct EnumDeclBase {
     const std::string name;
     const uint8_t maxPredefinedId;
 protected:
-    std::vector<std::unique_ptr<EnumVal>> allValues;
+    EnumVal allValues[256];
     std::unordered_map<unsigned, EnumVal*> mapById;
     std::unordered_map<std::string_view, EnumVal*> mapByName;
+    const char* allValueNames[256]; // for debugger
 
     EnumDeclBase(std::string_view name, IList values);
 public:
-    EnumVal* get_ptr(unsigned id) const;
-    EnumVal* get_ptr(std::string_view sv) const;
+    EnumVal* get_ptr(unsigned id) const {
+        if (auto it = mapById.find(id); it != mapById.end())
+            return it->second;
+        return nullptr;
+    }
+    EnumVal* get_ptr(std::string_view sv) const {
+        if (auto it = mapByName.find(sv); it != mapByName.end())
+            return it->second;
+        return nullptr;
+    }
     EnumVal* addNewValue(const std::string& v);
 };
 
-template<typename V>
-struct EnumDecl : public EnumDeclBase {
-    using E = V;
-    static EnumDecl instance;
-
-    EnumDecl(std::string_view name, IList values) : EnumDeclBase(name, values) {}
-
-    E get(unsigned id) const;
-    E get(std::string_view sv) const;
-};
-
-template <IsEnumDecl EDecl>
+template <typename Self>
+    //requires std::is_same_v<Self,Enum<Self>::E>
 struct Enum : public EnumID {
-    using E = EDecl::E;
-    using ED = EDecl;
+    using E = Self;
+    struct Decl : public EnumDeclBase {
+        static Decl instance;
+    private:
+        Decl(std::string_view name, IList values) : EnumDeclBase(name, values) {}
+    };
 
     static E get(unsigned id) {
-        return EDecl::instance.get(id);
+        return E(Decl::instance.get_ptr(id));
     }
     static E get(std::string_view sv) {
-        return EDecl::instance.get(sv);
+        return E(Decl::instance.get_ptr(sv));
+    }
+    static EnumVal* get_ptr(unsigned id) {
+        return Decl::instance.get_ptr(id);
+    }
+    static EnumVal* get_ptr(std::string_view sv) {
+        return Decl::instance.get_ptr(sv);
     }
 
     Enum() = default;
     Enum(nullptr_t) {};
     Enum(EnumVal* p) {
-        assert(!p || p->ED == &EDecl::instance);
+        assert(!p || p->ED == &Decl::instance);
         id = p ? p->id : 0;
     };
-    Enum(std::string_view str) {
-        if (str.empty()) {
-            id = 0;
-            return;
-        }
-        auto* ptr = EDecl::get_ptr(str);
-        if (!ptr)
-            ptr = EDecl::instance.addNewValue(str);
-        id = ptr->id;
-    };
+//    Enum(std::string_view str) {
+//        if (str.empty()) {
+//            id = 0;
+//            return;
+//        }
+//        auto* ptr = Decl::get_ptr(str);
+//        if (!ptr)
+//            ptr = Decl::instance.addNewValue(str);
+//        id = ptr->id;
+//    };
     ~Enum() noexcept = default;
     operator std::string_view() const noexcept {
         if (!id) return {};
-        return EDecl::instance.get_ptr(id)->sym.sv();
+        return Decl::instance.get_ptr(id)->sym.sv();
     }
     [[nodiscard]] std::string_view sv() const noexcept {
         if (!id) return {};
-        return EDecl::instance.get_ptr(id)->sym.sv();
+        return Decl::instance.get_ptr(id)->sym.sv();
     }
     Enum& operator=(EnumVal* p) {
-        assert(!p || p->ED == &EDecl::instance);
+        assert(!p || p->ED == &Decl::instance);
         id = p ? p->id : 0;
         return *this;
     }
     constexpr uint8_t& emplace() noexcept { id = 0; return id; }
     explicit operator bool() const noexcept { return id; }
     [[nodiscard]] constexpr bool has_value() const noexcept { return id; }
-    [[nodiscard]] constexpr bool is_predefined() const noexcept { return id <= EDecl::instance.maxPredefinedId; }
+    [[nodiscard]] constexpr bool is_predefined() const noexcept { return id <= Decl::instance.maxPredefinedId; }
     const uint8_t& value() const noexcept { return id; }
     void reset() noexcept { id = 0; }
     constexpr bool operator==(const Enum& other) const {
@@ -133,21 +123,6 @@ struct Enum : public EnumID {
         return (id < other.id);
     }
 };
-
-
-template <typename E>
-E EnumDecl<E>::get(unsigned id) const {
-    if (auto it = mapById.find(id); it != mapById.end())
-        return E(it->second);
-    return {}; //throw std::bad_variant_access();
-}
-
-template <typename E>
-E EnumDecl<E>::get(std::string_view sv) const {
-    if (auto it = mapByName.find(std::string(sv)); it != mapByName.end())
-        return E(it->second);
-    return {};
-}
 
 
 } // namespace js

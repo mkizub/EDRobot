@@ -668,13 +668,21 @@ void EntityDialog::initialize() {
     }
     if (isBody(entity->type)) {
         if (!(entity->type == TypeNav::Star || entity->type == TypeNav::Planet)) {
-            info += std::format("{} (body id {})\r\n", toJsBodyType(entity->type).sv(), entity->bodyId);
+            info += std::format("{} (body id {})\r\n", toJsNavType(entity->type).sv(), entity->bodyId);
         }
         auto ext = entity->getBodyData();
         if (ext.subType)
             info += std::format("Body type: {}\r\n", ext.subType.sv());
         if (ext.tidalLock.has_value() && ext.tidalLock.value())
             info += std::format("Tidally Locked\r\n");
+        if (ext.radius.has_value() && ext.radius.value() > 0) {
+            if (entity->type == TypeNav::Star)
+                info += std::format("Radius: {}km ({:.3} of Sol)\r\n", ext.radius.value(), ext.radius.value() / 696134.);
+            else if (entity->type == TypeNav::Planet)
+                info += std::format("Radius: {}km({:.3} of Earth)\r\n", ext.radius.value(), ext.radius.value() / 6371.);
+            else
+                info += std::format("Radius: {}km\r\n", ext.radius.value());
+        }
         if (ext.distanceToArrival.has_value() && ext.distanceToArrival.value() > 0)
             info += std::format("Distance To Arrival: {}ly\r\n", ext.distanceToArrival.value());
         if (ext.rotationalPeriod.has_value())
@@ -699,7 +707,7 @@ void EntityDialog::initialize() {
             info += std::format("Axial Tilt: {}\r\n", ext.axialTilt.value());
     }
     if (isSpaceSite(entity->type) || isPlanetarySite(entity->type)) {
-        info += toJsStationType(entity->type).sv();
+        info += toJsNavType(entity->type).sv();
         if (entity->bodyId)
             info += std::format(" (body id {})\r\n", entity->bodyId);
         if (entity->parentBodyId < 0) {

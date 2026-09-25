@@ -96,7 +96,7 @@ public:
     explicit TaskMyCarrierReserve(const TaskTemplate& templ);
     bool run() final;
     virtual bool ignoreCarrier(gal::spEntity& dock) {
-        return dock && (dock->marketId == st::cmdr.fleetCarrierId || dock->nameEq(myCarrierName));
+        return dock && (dock->marketId() == st::cmdr.fleetCarrierId || dock->nameEq(myCarrierName));
     }
 
 private:

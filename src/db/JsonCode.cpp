@@ -11,6 +11,20 @@
 
 const int FMT = glz::JSON;
 
+template <js::IsEnum E>
+struct glz::meta<E>
+{
+    static constexpr bool custom_write = true;
+    static constexpr bool custom_read = true;
+};
+
+template <>
+struct glz::meta<Timestamp>
+{
+    static constexpr bool custom_write = true;
+    static constexpr bool custom_read = true;
+};
+
 namespace glz
 {
 
@@ -24,9 +38,9 @@ struct from<FMT, E>
         if (*it == '\"') {
             std::string str{};
             parse<FMT>::op<Opts>(str, ctx, it, end);
-            auto* ptr = E::ED::instance.get_ptr(str);
+            auto* ptr = E::get_ptr(str);
             if (!ptr)
-                ptr = E::ED::instance.addNewValue(str);
+                ptr = E::Decl::instance.addNewValue(str);
             value = E(ptr);
         }
         else if (*it == 'n' && strncmp(it,"null",4)==0) { // glz::match<"null",Opts>(ctx, it, end)
@@ -34,9 +48,9 @@ struct from<FMT, E>
             it += 4;
         }
         else  {
-            auto* ptr = E::ED::instance.get_ptr(it);
+            auto* ptr = E::get_ptr(it);
             if (!ptr)
-                ptr = E::ED::instance.addNewValue(it);
+                ptr = E::Decl::instance.addNewValue(it);
             value = E(ptr);
         }
     }
@@ -64,7 +78,7 @@ struct from<FMT, db::BodyParentJS>
         glz::ordered_small_map<int> m;
         parse<FMT>::op<Opts>(m, ctx, it, end);
         auto bgn = m.begin();
-        auto tp = JsBodyType::get(bgn->first);
+        auto tp = JsNavType::get(bgn->first);
         value = db::BodyParentJS{tp, bgn->second};
     }
 };
@@ -140,6 +154,35 @@ struct my_opts : public glz::opts {
 
 
 template <>
+struct glz::meta<db::MarketLineJS>
+{
+    using T = db::MarketLineJS;
+
+    static constexpr auto value  = glz::object(
+            &T::commodityId,
+            &T::demand,
+            &T::supply,
+            &T::buyPrice,
+            &T::sellPrice,
+            "name", glz::skip(),
+            "symbol", glz::skip(),
+            "category", glz::skip()
+    );
+};
+
+template <>
+struct glz::meta<db::MarketJS>
+{
+    using T = db::MarketJS;
+    static constexpr auto value  = glz::object(
+            &T::commodities,
+            "updateTime", &T::updated,
+            "prohibitedCommodities", glz::skip()
+    );
+};
+
+
+template <>
 struct glz::meta<db::StationJS>
 {
     using T = db::StationJS;
@@ -190,7 +233,7 @@ struct glz::meta<db::StationJS>
             &T::longitude,
             &T::landingPads,
             &T::carrierDockingAccess,
-            "market", glz::skip(),
+            &T::market,
             "shipyard", glz::skip(),
             "outfitting", glz::skip()
     );
@@ -302,33 +345,39 @@ void checkStation(StationJS& st, bool is_planetary) {
     auto& type = st.type;
     if (!type.has_value()) {
         if (is_planetary)
-            st.type = JsStationType::get("Planetary Installation");
+            st.type = toJsNavType(TypeNav::PlanetaryInstallation);
         else
-            st.type = JsStationType::get("Space Installation");
+            st.type = toJsNavType(TypeNav::SpaceInstallation);
         //LOG_ERROR("Error: Station '{}' has no type", st.name);
         return;
     }
     if (!st.realName.empty()) {
         if (st.name == "System Colonisation Ship") {
-            st.type = JsStationType::get("System Colonisation Ship");
-            st.name = st.realName;
+            st.type = toJsNavType(TypeNav::ColonisationShip);
+            st.name = "System Colonisation Ship " + st.realName;
             st.realName.clear();
         }
-        else if (st.type.sv() == "Space Construction Depot") {
-            st.name = st.realName;
+        else if (toTypeNav(st.type) == TypeNav::SpaceConstrDepot) {
+            //st.name = st.realName;
+            st.name = "Orbital Construction Site: " + st.realName;
+            st.realName.clear();
+        }
+        else if (toTypeNav(st.type) == TypeNav::PlanetaryConstrDepot) {
+            //st.name = st.realName;
+            st.name = "Planetary Construction Site: " + st.realName;
             st.realName.clear();
         }
         else
             LOG_ERROR("Error: Station '{}' has real name {}", st.name, st.realName);
     }
     if (!st.carrierName.empty()) {
-        if (st.type.operator std::string_view() == "Drake-Class Carrier") {
+        if (toTypeNav(st.type) == TypeNav::FleetCarrier) {
             if (st.name.size() == 7 && st.name[3] == '-') {
                 st.name = st.carrierName + " " + st.name;
                 st.carrierName.clear();
             }
             else if (st.name.size() == 4) {
-                st.type = JsStationType::get("Squadron Carrier");
+                st.type = toJsNavType(TypeNav::SquadronCarrier);
                 st.name = st.carrierName + " | " + st.name;
                 st.carrierName.clear();
             }

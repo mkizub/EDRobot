@@ -48,6 +48,7 @@ public:
     std::string getShortcutFor(Command cmd) const;
     CommodityCategory* getCommodityCategoryById(int id);
     CommodityCategory* getCommodityCategoryByName(const std::string& name);
+    Commodity* getCommodityById(int64_t id);
     Commodity* getCommodityById(std::string_view name);
     Commodity* getCommodityById(const std::string& name);
     Commodity* getCommodityByName(std::string_view name, bool fuzzy_ocr);
@@ -85,6 +86,13 @@ public:
     bool isEddnMarketsEnabled() const { return mEddnMarketsEnabled; }
     void setEddnSystemsEnabled(bool on) { mEddnSystemsEnabled = on; }
     void setEddnMarketsEnabled(bool on) { mEddnMarketsEnabled = on; }
+    bool useAutopilotDepartureCheck() const { return mAutopilotDepartureCheck; }
+    void setAutopilotDepartureCheck(bool on) { mAutopilotDepartureCheck = on; }
+    bool useScoFromPlanet() const { return mScoFromPlanet; }
+    void setScoFromPlanet(bool on) { mScoFromPlanet = on; }
+    bool useScoInSpace() const { return mScoInSpace; }
+    void setScoInSpace(bool on) { mScoInSpace = on; }
+
     bool getCurlInsecure() const { return mCurlInsecure; }
     const std::string& getCurlProxyURL() const { return mCurlProxyUrl; }
 
@@ -145,6 +153,9 @@ private:
     bool mRavenColonialReportShipCargo = false;
     bool mEddnSystemsEnabled = false;
     bool mEddnMarketsEnabled = false;
+    bool mAutopilotDepartureCheck = false;
+    bool mScoFromPlanet = true;
+    bool mScoInSpace = true;
     bool mCurlInsecure = true;
     std::map<std::string,std::string> mRavenColonialKeys;
     std::string mCurlProxyUrl;
@@ -178,6 +189,7 @@ private:
     std::deque<Commodity> allKnownCommodities;
     std::unordered_map<std::string,CommodityCategory*> commodityCategoryMap;
     std::unordered_map<std::string,Commodity*> commodityMap;
+    std::unordered_map<int64_t,Commodity*> commodityIdMap;
 
     const unsigned marketCommodityFilterShowAll {0xFFFFFFFFu};
     const unsigned marketCommodityFilterShowNone {0xFFFE0001u};

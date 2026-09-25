@@ -322,7 +322,7 @@ gal::spEntity NavList::guessNavItem(int idx) {
                 typeMatch = (nle.icon == gal::STAR.charOCR);
             }
             else if (b->type == TypeNav::Planet) {
-                if (b->special)
+                if (b->getPlanetData().isLandable.value_or())
                     typeMatch = (nle.icon == gal::LAND.charOCR);
                 else
                     typeMatch = (nle.icon == gal::BODY.charOCR);

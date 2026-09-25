@@ -18,6 +18,10 @@
 #include "../net/RavenColonial.h"
 #include "../../ui/resource.h"
 
+#include <commdlg.h>
+#include <cderr.h>
+#include <winlamb/sysdlg.h>
+
 const int TRAY_ICONUID = 100;
 const int WM_TRAY_NOTIFY = WM_APP + 100;
 
@@ -107,12 +111,20 @@ UIMainDialog::UIMainDialog()
                 .enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialEnabled() && st::cmdr.fleetCarrierId != 0)
             .append_item(IDM_NETW_RAVEN_SHIP_CARGO,W(_gt("Report ship cargo")))
                 .set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialReportShipCargo())
-                .enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled() && !st::cmdr.ravenKey.empty())
+                .enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled())
             .append_separator()
             .append_item(IDM_NETW_EDDN_SYSTEMS,W(_gt("Report EDDN star system")))
                 .set_item_check_by_id(IDM_NETW_EDDN_SYSTEMS, Cfg.isEddnSystemsEnabled())
             .append_item(IDM_NETW_EDDN_MARKETS,W(_gt("Report EDDN markets")))
                 .set_item_check_by_id(IDM_NETW_EDDN_MARKETS, Cfg.isEddnMarketsEnabled())
+            ;
+    menu.append_submenu(W(_gt("Flight")))
+            .append_item(IDM_FLIGHT_DEPARTURE_BUG,W(_gt("Check autopilot lost on departure")))
+                .set_item_check_by_id(IDM_FLIGHT_DEPARTURE_BUG, Cfg.useAutopilotDepartureCheck())
+            .append_item(IDM_FLIGHT_SCO_FROM_PLANET,W(_gt("Use FSD SCO on planet leaving")))
+                .set_item_check_by_id(IDM_FLIGHT_SCO_FROM_PLANET, Cfg.useScoFromPlanet())
+            .append_item(IDM_FLIGHT_SCO_IN_SPACE,W(_gt("Use FSD SCO in space")))
+                .set_item_check_by_id(IDM_FLIGHT_SCO_IN_SPACE, Cfg.useScoInSpace())
             ;
     menu.append_submenu(W(_gt("Debug")))
             .append_item(IDM_DEBUG_CONSOLE,W(_gt("Console window")))
@@ -325,7 +337,7 @@ UIMainDialog::UIMainDialog()
         Cfg.setRavenColonialEnabled(on);
         menu.set_item_check_by_id(IDM_NETW_RAVEN_ENABLED, on);
         menu.enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, on && st::cmdr.fleetCarrierId != 0);
-        menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on && !st::cmdr.ravenKey.empty());
+        menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on);
         this->savePrefs();
         if (Cfg.isRavenColonialEnabled()) {
             if (auto rc = RavenColonial::getInstance())
@@ -342,6 +354,15 @@ UIMainDialog::UIMainDialog()
     });
     this->base_msg_pubm::on_command(IDM_NETW_RAVEN_SHIP_CARGO, [this](wl::params p){
         bool on = !Cfg.isRavenColonialReportShipCargo();
+        if (on && st::cmdr.ravenKey.empty()) {
+            auto title = toUtf16(_gt("No API key"));
+            auto text = toUtf16(_gt(R"(To enable ship cargo report you have to provide
+ravencolonial.com API key in configuration.json5 (see default-configuration.json5 as example).
+API key can be found on login dialog of ravencolonial.com)"));
+            //wl::sysdlg::msgbox(this, title, text, MB_OK | MB_ICONERROR);
+            MessageBox(this->hwnd(), text.c_str(), title.c_str(), MB_OK | MB_ICONERROR);
+            return 0;
+        }
         Cfg.setRavenColonialReportShipCargo(on);
         menu.set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, on);
         this->savePrefs();
@@ -360,6 +381,27 @@ UIMainDialog::UIMainDialog()
         bool on = !Cfg.isEddnMarketsEnabled();
         Cfg.setEddnMarketsEnabled(on);
         menu.set_item_check_by_id(IDM_NETW_EDDN_MARKETS, on);
+        this->savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_FLIGHT_DEPARTURE_BUG, [this](wl::params p){
+        bool on = !Cfg.useAutopilotDepartureCheck();
+        Cfg.setAutopilotDepartureCheck(on);
+        menu.set_item_check_by_id(IDM_FLIGHT_DEPARTURE_BUG, on);
+        this->savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_FLIGHT_SCO_FROM_PLANET, [this](wl::params p){
+        bool on = !Cfg.useScoFromPlanet();
+        Cfg.setScoFromPlanet(on);
+        menu.set_item_check_by_id(IDM_FLIGHT_SCO_FROM_PLANET, on);
+        this->savePrefs();
+        return 0;
+    });
+    this->base_msg_pubm::on_command(IDM_FLIGHT_SCO_IN_SPACE, [this](wl::params p){
+        bool on = !Cfg.useScoInSpace();
+        Cfg.setScoInSpace(on);
+        menu.set_item_check_by_id(IDM_FLIGHT_SCO_IN_SPACE, on);
         this->savePrefs();
         return 0;
     });
@@ -531,11 +573,14 @@ void UIMainDialog::updateCommander() {
     menu.set_item_check_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialReportCarrierCargo());
     menu.set_item_check_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialReportShipCargo());
     menu.enable_item_by_id(IDM_NETW_RAVEN_CARRIER_CARGO, Cfg.isRavenColonialEnabled() && st::cmdr.fleetCarrierId != 0);
-    menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled() && !st::cmdr.ravenKey.empty());
+    menu.enable_item_by_id(IDM_NETW_RAVEN_SHIP_CARGO, Cfg.isRavenColonialEnabled());
     menu.set_item_check_by_id(IDM_NETW_EDDN_SYSTEMS, Cfg.isEddnSystemsEnabled());
     menu.set_item_check_by_id(IDM_NETW_EDDN_MARKETS, Cfg.isEddnMarketsEnabled());
     menu.set_item_check_by_id(IDM_DEBUG_DEFAULT_LOG, spdlog::default_logger()->level() <= spdlog::level::debug);
     menu.set_item_check_by_id(IDM_DEBUG_NETWORK_LOG, spdlog::default_logger()->level() <= spdlog::level::debug);
+    menu.set_item_check_by_id(IDM_FLIGHT_DEPARTURE_BUG, Cfg.useAutopilotDepartureCheck());
+    menu.set_item_check_by_id(IDM_FLIGHT_SCO_FROM_PLANET, Cfg.useScoFromPlanet());
+    menu.set_item_check_by_id(IDM_FLIGHT_SCO_IN_SPACE, Cfg.useScoInSpace());
 }
 
 void UIMainDialog::on_command_task_new() {

@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "Configuration.h"
+#include "gal/Galaxy.h"
 
 #include <spdlog/sinks/ansicolor_sink.h>
 #include "spdlog/sinks/ansicolor_sink-inl.h"
@@ -133,7 +134,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
     SetUnhandledExceptionFilter(UnhandledExceptionHandler);
     std::set_terminate(GlobalTerminateHandler);
 
-//    js::impl::gStrSet.insert("long static string");
+//    js::symbol::DefineSymbols({"long static string"});
 //
 //    js::value j_null;
 //    js::value j_bool = true;
@@ -141,6 +142,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    js::value j_num = 0.125;
 //    js::value j_str = "json string";
 //    js::value j_st_str = "long static string";
+//    js::value j_own_str = "long owned string";
 //    js::value j_arr0 = js::array({});
 //    js::value j_arr1 = js::array({1});
 //    js::value j_arr2 = js::array({1, "str"});
@@ -157,6 +159,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    int j_sz = sizeof(j_null);
 //    int j_key_sz = sizeof(js::impl::key);
 //
+//    JsNavType ntp = toJsNavType(TypeNav::Star);
+//    auto* decls = JsNavType::get_ptr(1);
+//
 //    LOG_INFO("{} {}", j_sz, j_key_sz);
 //
 //    LandingPads lp;
@@ -164,6 +169,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    int lp_sz = sizeof(lp);
 //    int st_sz = sizeof(st);
 //    LOG_INFO("{} {}", lp_sz, st_sz);
+//
+//    gal::Entity entity;
+//    gal::Entity::StationData stationData;
+//    gal::Entity::StarData starData;
+//    gal::Entity::PlanetData planetData;
+//    int entity_sz = sizeof(entity);
+//    int stationData_sz = sizeof(stationData);
+//    int starData_sz = sizeof(starData);
+//    int planetData_sz = sizeof(planetData);
+//    LOG_INFO("{} {} {} {}", entity_sz, stationData_sz, starData_sz, planetData_sz);
 
 //    db::full_galaxy_test();
 

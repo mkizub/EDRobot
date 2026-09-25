@@ -823,7 +823,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::AsteroidCluster:
         if (spanshSystemInfo["bodies"].is_array()) {
             for (auto &js: spanshSystemInfo.at("bodies").as_array()) {
-                if (!js["type"].is_string() || !contains(nav_type->typeAliases, *js["type"].as_string()))
+                if (!JsNavType::get(js["type"].as_string_or()).has_value())
                     continue;
                 const auto name = js["name"].as_string();
                 std::wstring name_ocr = fm.toOCR(toUtf16(name));
@@ -870,7 +870,7 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::PlanetaryConstrDepot:
         if (spanshSystemInfo["stations"].is_array()) {
             for (auto &js: spanshSystemInfo.at("stations").as_array()) {
-                if (!js["type"].is_string() || !contains(nav_type->typeAliases, *js["type"].as_string()))
+                if (!JsNavType::get(js["type"].as_string_or()).has_value())
                     continue;
                 std::string name = *js.at("name").as_string();
                 while (name.ends_with("+"))
@@ -1014,7 +1014,7 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(
     gal::NavType* nt = nle.item ? gal::NavType::findNavType(nle.item->type) : nullptr;
     if (nt) {
         if (nle.item->type == TypeNav::Planet) {
-            if (nle.item->special)
+            if (nle.item->getPlanetData().isLandable.value_or())
                 nameOCR = gal::LAND.charOCR + (L" " + nameOCR);
             else
                 nameOCR = gal::BODY.charOCR + (L" " + nameOCR);

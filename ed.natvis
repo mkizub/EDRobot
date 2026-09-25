@@ -109,4 +109,84 @@
     </Expand>
   </Type>
 
+  <Type Name="js::EnumVal">
+    <DisplayString>{sym}</DisplayString>
+    <Expand>
+      <Item Name="id">{id}</Item>
+      <Item Name="predefined">{predefined}</Item>
+      <Item Name="decl">{ED}</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="JsAllegiance">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsGovernment">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsEconomy">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsSecurity">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsNavType">
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsBodySubType">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsVolcanismType">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsAtmosphereType">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsSolidType">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsTerraformingState">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsMaterials">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsReserveLevel">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsSpectralClass">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsLuminosity">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+
+
 </AutoVisualizer>

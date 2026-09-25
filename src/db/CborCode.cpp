@@ -193,46 +193,17 @@ struct convert<E> {
             v = {};
         }
         else if (o.type == msgpack::type::STR) {
-            auto* ptr = E::ED::instance.get_ptr(o.as<std::string>());
+            auto* ptr = E::get_ptr(o.as<std::string>());
             if (!ptr)
-                ptr = E::ED::instance.addNewValue(o.as<std::string>());
+                ptr = E::Decl::instance.addNewValue(o.as<std::string>());
             v = E(ptr);
         }
         else if (o.type == msgpack::type::POSITIVE_INTEGER) {
-            v = E::ED::instance.get(o.as<unsigned>());
+            v = E::get(o.as<unsigned>());
         }
         else {
             throw msgpack::type_error();
         }
-        return o;
-    }
-};
-
-
-template<>
-struct pack<db::MarketLineJS> {
-    template <typename Stream>
-    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const db::MarketLineJS& v) const {
-        o.pack_array(5);
-        o.pack_unsigned_long_long(v.id);
-        o.pack_unsigned(v.demand);
-        o.pack_unsigned(v.supply);
-        o.pack_unsigned(v.buyPrice);
-        o.pack_unsigned(v.sellPrice);
-        return o;
-    }
-};
-
-template<>
-struct convert<db::MarketLineJS> {
-    msgpack::object const& operator()(msgpack::object const& o, db::MarketLineJS& v) const {
-        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
-        if (o.via.array.size != 5) { throw msgpack::type_error(); }
-        v.id = o.as<decltype(v.id)>();
-        v.demand = o.as<decltype(v.demand)>();
-        v.supply = o.as<decltype(v.supply)>();
-        v.buyPrice = o.as<decltype(v.buyPrice)>();
-        v.sellPrice = o.as<decltype(v.sellPrice)>();
         return o;
     }
 };
@@ -300,9 +271,9 @@ struct convert<js::vector<V>> {
     }
 };
 
-template<js::IsEnum E, typename V>
-struct pack<js::small_map<E,V>> {
-    using T = js::small_map<E,V>;
+template<typename K, typename V>
+struct pack<js::small_map<K,V>> {
+    using T = js::small_map<K,V>;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
         o.pack_map(v.size());
@@ -314,15 +285,15 @@ struct pack<js::small_map<E,V>> {
     }
 };
 
-template<js::IsEnum E, typename V>
-struct convert<js::small_map<E,V>> {
-    using T = js::small_map<E,V>;
+template<typename K, typename V>
+struct convert<js::small_map<K,V>> {
+    using T = js::small_map<K,V>;
     msgpack::object const& operator()(msgpack::object const& o, T& v) const {
         if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
         uint32_t sz = o.via.map.size;
         msgpack::object_kv* p = o.via.map.ptr;
         for (uint32_t i = 0; i < sz; ++i) {
-            auto key = p[i].key.as<E>();
+            auto key = p[i].key.as<K>();
             v[key] = p[i].val.as<V>();
         }
         return o;
@@ -481,6 +452,100 @@ struct convert<LandingPads> {
     }
 };
 
+template<>
+struct pack<db::MarketLineJS> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const db::MarketLineJS& v) const {
+        PK_MAP_START(o)
+            PK_IF("mk", 1, v.commodityId);
+            PK_IF("mk", 2, v.demand);
+            PK_IF("mk", 3, v.supply);
+            PK_IF("mk", 4, v.buyPrice);
+            PK_IF("mk", 5, v.sellPrice);
+            PK_IF("mk", 6, v.isConsumer);
+            PK_IF("mk", 7, v.isProducer);
+        PK_MAP_END(o)
+        return o;
+    }
+};
+
+template<>
+struct convert<db::MarketLineJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::MarketLineJS& v) const {
+        if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
+        auto& m = o.via.map;
+        UN_MAP_START(m)
+            UN_PK("mk", 1, v.commodityId);
+            UN_PK("mk", 2, v.demand);
+            UN_PK("mk", 3, v.supply);
+            UN_PK("mk", 4, v.buyPrice);
+            UN_PK("mk", 5, v.sellPrice);
+            UN_PK("mk", 6, v.isConsumer);
+            UN_PK("mk", 7, v.isProducer);
+        UN_MAP_END()
+        return o;
+    }
+};
+
+template<>
+struct pack<db::RavenCmdrInfoJS> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const db::RavenCmdrInfoJS& v) const {
+        PK_MAP_START(o)
+            PK_IF("rc", 1, v.timestamp);
+            PK_IF("rc", 2, v.deliveries);
+            PK_IF("rc", 3, v.contributed);
+            PK_IF("rc", 4, v.assigned);
+        PK_MAP_END(o)
+        return o;
+    }
+};
+
+template<>
+struct convert<db::RavenCmdrInfoJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::RavenCmdrInfoJS& v) const {
+        if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
+        auto& m = o.via.map;
+        UN_MAP_START(m)
+            UN_PK("rc", 1, v.timestamp);
+            UN_PK("rc", 2, v.deliveries);
+            UN_PK("rc", 3, v.contributed);
+            UN_PK("rc", 4, v.assigned);
+        UN_MAP_END()
+        return o;
+    }
+};
+
+template<>
+struct pack<db::MarketJS> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const db::MarketJS& v) const {
+        PK_MAP_START(o)
+            PK_IF("mk", 1, v.commodities);
+            PK_IF("mk", 2, v.ravenBuildId);
+            PK_IF("mk", 3, v.ravenStatus);
+            PK_IF("mk", 4, v.ravenUpdated);
+            PK_IF("mk", 5, v.ravenCommanders);
+        PK_MAP_END(o)
+        return o;
+    }
+};
+
+template<>
+struct convert<db::MarketJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::MarketJS& v) const {
+        if (o.type != msgpack::type::MAP) { throw msgpack::type_error(); }
+        auto& m = o.via.map;
+        UN_MAP_START(m)
+            UN_PK("mk", 1, v.commodities);
+            UN_PK("mk", 2, v.ravenBuildId);
+            UN_PK("mk", 3, v.ravenStatus);
+            UN_PK("mk", 4, v.ravenUpdated);
+            UN_PK("mk", 5, v.ravenCommanders);
+        UN_MAP_END()
+        return o;
+    }
+};
 
 template<>
 struct pack<db::StationJS> {
@@ -488,7 +553,7 @@ struct pack<db::StationJS> {
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, db::StationJS const& v) const {
         o.pack_array(4);
-        o.pack_fix_int64(v.marketId);
+        o.pack(v.marketId);
         o.pack(v.type);
         o.pack(v.name);
         PK_MAP_START(o)
@@ -541,9 +606,7 @@ struct convert<db::StationJS> {
             UN_PK("st", 14, v.longitude);
             UN_PK("st", 15, v.landingPads);
             UN_PK("st", 16, v.carrierDockingAccess);
-            if (tlDumpFull) {
-                UN_PK("st", 17, v.services);
-            }
+            UN_PK("st", 17, v.services);
         UN_MAP_END()
         return o;
     }
@@ -863,6 +926,49 @@ bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_
         LOG_ERROR("decode_system_blob error");
         ss.address = 0;
         ss.name.clear();
+        return false;
+    }
+}
+
+bool decode_megaship_blob(StationJS& ss, const void* data, int size) {
+    try {
+        auto obj = msgpack::unpack((const char*)data, (size_t)size);
+        obj->convert(ss);
+        return true;
+    } catch (const std::exception &e) {
+        LOG_ERROR("decode_megaship_blob error");
+        return false;
+    }
+}
+bool encode_megaship_blob(StationJS& ss, std::stringstream& buffer) {
+    try {
+        msgpack::pack(buffer, ss);
+        return true;
+    } catch (const std::exception &e) {
+        LOG_ERROR("encode_megaship_blob error");
+        ss.marketId = 0;
+        ss.type.reset();
+        ss.name.clear();
+        return false;
+    }
+}
+
+bool decode_market_blob(MarketJS& market, const void* data, int size) {
+    try {
+        auto obj = msgpack::unpack((const char*)data, (size_t)size);
+        obj->convert(market);
+        return true;
+    } catch (const std::exception &e) {
+        LOG_ERROR("decode_market_blob error");
+        return false;
+    }
+}
+bool encode_market_blob(MarketJS& market, std::stringstream& buffer) {
+    try {
+        msgpack::pack(buffer, market);
+        return true;
+    } catch (const std::exception &e) {
+        LOG_ERROR("encode_market_blob error");
         return false;
     }
 }

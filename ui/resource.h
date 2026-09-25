@@ -73,6 +73,9 @@
 #define IDM_DEBUG_DEFAULT_LOG           32822
 #define IDM_DEBUG_NETWORK_LOG           32823
 #define IDM_DEBUG_CONSOLE_LOG           32824
+#define IDM_FLIGHT_DEPARTURE_BUG        32830
+#define IDM_FLIGHT_SCO_FROM_PLANET      32831
+#define IDM_FLIGHT_SCO_IN_SPACE         32832
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
