@@ -144,7 +144,14 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
 
     spMarket market = gal::getMarket(depot->marketId());
     if (!market)
-        market = std::make_shared<Market>(timestamp, depot->marketId(), *fullName, "ConstrDepot", *systemName);
+        market = std::make_shared<Market>(Market{
+                .timestamp = timestamp,
+                .marketId = depot->marketId(),
+                .systemAddress = starSystem->systemAddress,
+                .stationName = *fullName,
+                .stationType = "ConstrDepot",
+                .starSystem = *systemName
+        });
     else
         market = std::make_shared<Market>(*market);
     if (!market->raven)

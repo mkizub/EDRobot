@@ -187,6 +187,26 @@
     <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
     <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
   </Type>
+  <Type Name="JsTimestamps">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsServices">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsStationState">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
+  <Type Name="JsCarrierDockingAccess">
+    <DisplayString Condition="id == 0">empty</DisplayString>
+    <DisplayString>{Decl::instance.allValueNames[id]}</DisplayString>
+    <Expand><ExpandedItem>Decl::instance.allValues[id]</ExpandedItem></Expand>
+  </Type>
 
 
 </AutoVisualizer>

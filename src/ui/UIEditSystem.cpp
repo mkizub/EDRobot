@@ -633,8 +633,10 @@ void EntityDialog::initialize() {
         auto ext = entity->getStarData();
         if (ext.mainStar.has_value() && ext.mainStar.value())
             info += std::format("Main Star\r\n");
-        if (ext.spectralClass.has_value())
-            info += std::format("Spectral Class: {}\r\n", ext.spectralClass.sv());
+        if (ext.subType)
+            info += std::format("Star type: {}\r\n", ext.subType.sv());
+        if (ext.subClass >= 0)
+            info += std::format("SubClass: {}\r\n", ext.subClass);
         if (ext.luminosity.has_value())
             info += std::format("Luminosity: {}\r\n", ext.luminosity.sv());
         if (ext.age)
@@ -648,6 +650,8 @@ void EntityDialog::initialize() {
     if (entity->type == TypeNav::Planet) {
         info += std::format("Planet (body id {})\r\n", entity->bodyId);
         auto ext = entity->getPlanetData();
+        if (ext.subType)
+            info += std::format("Planet type: {}\r\n", ext.subType.sv());
         if (ext.isLandable.has_value() && ext.isLandable.value())
             info += std::format("Landable\r\n");
         if (ext.volcanismType.has_value())
@@ -671,17 +675,17 @@ void EntityDialog::initialize() {
             info += std::format("{} (body id {})\r\n", toJsNavType(entity->type).sv(), entity->bodyId);
         }
         auto ext = entity->getBodyData();
-        if (ext.subType)
+        if (ext.subType && !(entity->type == TypeNav::Star || entity->type == TypeNav::Planet))
             info += std::format("Body type: {}\r\n", ext.subType.sv());
         if (ext.tidalLock.has_value() && ext.tidalLock.value())
             info += std::format("Tidally Locked\r\n");
         if (ext.radius.has_value() && ext.radius.value() > 0) {
             if (entity->type == TypeNav::Star)
-                info += std::format("Radius: {}km ({:.3} of Sol)\r\n", ext.radius.value(), ext.radius.value() / 696134.);
+                info += std::format("Radius: {}km ({:.3} of Sol)\r\n", (int)ext.radius.value(), ext.radius.value() / 696134.);
             else if (entity->type == TypeNav::Planet)
-                info += std::format("Radius: {}km({:.3} of Earth)\r\n", ext.radius.value(), ext.radius.value() / 6371.);
+                info += std::format("Radius: {}km ({:.3} of Earth)\r\n", (int)ext.radius.value(), ext.radius.value() / 6371.);
             else
-                info += std::format("Radius: {}km\r\n", ext.radius.value());
+                info += std::format("Radius: {}km\r\n", (int)ext.radius.value());
         }
         if (ext.distanceToArrival.has_value() && ext.distanceToArrival.value() > 0)
             info += std::format("Distance To Arrival: {}ly\r\n", ext.distanceToArrival.value());
@@ -742,12 +746,16 @@ void EntityDialog::initialize() {
             info += std::format("Government: {}\r\n", ext.government.sv());
         if (ext.state.has_value())
             info += std::format("Station State: {}\r\n", ext.state.sv());
-        if (ext.primaryEconomy.has_value())
-            info += std::format("Primary economy: {}\r\n", ext.primaryEconomy.sv());
-        if (ext.secondaryEconomy.has_value())
-            info += std::format("Secondary economy: {}\r\n", ext.secondaryEconomy.sv());
         if (ext.carrierDockingAccess.has_value())
             info += std::format("Carrier docking access: {}\r\n", ext.carrierDockingAccess.sv());
+        if (ext.primaryEconomy.has_value())
+            info += std::format("Station economy: {}\r\n", ext.primaryEconomy.sv());
+        if (!ext.economies.empty()) {
+            info += std::format("Economies:\r\n");
+            for (auto& [e,p] : ext.economies) {
+                info += std::format("\t{}: {}%\r\n", e.sv(), int(p*100));
+            }
+        }
     }
 
     txt_info.set_text(toUtf16(info));

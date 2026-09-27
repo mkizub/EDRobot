@@ -59,6 +59,12 @@ int getLibVersionNumber() noexcept
 }
 
 
+Database::Database(const char* apFilename, sqlite3* handle)
+    : mFilename(apFilename)
+{
+    mSQLitePtr.reset(handle);
+}
+
 // Open the provided database UTF-8 filename with SQLite::OPEN_xxx provided flags.
 Database::Database(const char* apFilename,
                    const int   aFlags         /* = SQLite::OPEN_READONLY*/,

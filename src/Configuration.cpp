@@ -87,138 +87,157 @@ bool Configuration::load() {
             {{"]",           kbd::LCTRL | kbd::LALT}, Command::ResetCapturer},
     };
 
-    {
-        wchar_t buffer[MAX_PATH];
+    wchar_t buffer[MAX_PATH];
 
-        std::wstring dirUserProfile, dirAppDataLocal;
-        if (GetEnvironmentVariableW(L"UserProfile", buffer, MAX_PATH)) {
-            dirUserProfile = buffer;
-            mEDLogsPath = dirUserProfile + LR"(\Saved Games\Frontier Developments\Elite Dangerous)";
+    std::wstring dirUserProfile, dirAppDataLocal;
+    if (GetEnvironmentVariableW(L"UserProfile", buffer, MAX_PATH)) {
+        dirUserProfile = buffer;
+        mEDLogsPath = dirUserProfile + LR"(\Saved Games\Frontier Developments\Elite Dangerous)";
+    }
+    if (GetEnvironmentVariableW(L"LocalAppData", buffer, MAX_PATH)) {
+        dirAppDataLocal = buffer;
+        mEDSettingsPath = dirAppDataLocal + LR"(\Frontier Developments\Elite Dangerous)";
+    } else if (!dirUserProfile.empty()) {
+        mEDSettingsPath = dirUserProfile + LR"(\AppData\Local\Frontier Developments\Elite Dangerous)";
+    }
+    js::value j_config = parseJsonFile(L"configuration.json5");
+    if (auto& tm = j_config.at("ui-scale-percents"); tm.is_int()) {
+        if (tm.as_int() >= 25 && tm.as_int() <= 400)
+            mUiScalePercents = tm.as_int();
+    }
+    if (auto& tm = j_config.at("default-key-hold-time"); tm.is_int()) {
+        defaultKeyHoldTime = tm.as_int();
+        LOG(INFO) << "default-key-hold-time: " << defaultKeyHoldTime;
+    }
+    if (auto& tm = j_config.at("default-key-after-time"); tm.is_int()) {
+        defaultKeyAfterTime = tm.as_int();
+        LOG(INFO) << "default-key-after-time: " << defaultKeyAfterTime;
+    }
+    if (auto& tm = j_config.at("search-region-extent"); tm.is_int()) {
+        searchRegionExtent = tm.as_int();
+        LOG(INFO) << "search-region-extent: " << searchRegionExtent;
+    }
+    if (j_config.at("shortcuts").is_object()) {
+        auto &obj = j_config.at("shortcuts");
+        parseShortcutConfig(Command::Start, "start", obj);
+        parseShortcutConfig(Command::PauseResume, "pause", obj);
+        parseShortcutConfig(Command::Stop, "stop", obj);
+        parseShortcutConfig(Command::DebugTemplates, "debug-templates", obj);
+        parseShortcutConfig(Command::DebugWindow, "debug-window", obj);
+        parseShortcutConfig(Command::DebugStream, "debug-stream", obj);
+        parseShortcutConfig(Command::ResetCapturer, "reset-capturer", obj);
+        parseShortcutConfig(Command::DevRectSelect, "dev-rect-select", obj);
+    }
+    if (auto& tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
+        mEDSettingsPath = toUtf16(tm.as_string());
+    if (auto& tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
+        mEDLogsPath = toUtf16(tm.as_string());
+    if (auto& tm = j_config.at("force-dxgi-device")) {
+        if (tm.is_string())
+            forceDXGIDevice = tm.as_string();
+        if (tm.is_int())
+            forceDXGIDeviceId = tm.as_int();
+    }
+    if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_bool()) {
+        capturerWin32Disabled = tm.as_bool();
+        LOG(INFO) << "capturer-Win32-disabled: " << capturerWin32Disabled;
+    }
+    if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_bool()) {
+        capturerWinRTDisabled = tm.as_bool();
+        LOG(INFO) << "capturer-WinRT-disabled: " << capturerWinRTDisabled;
+    }
+    if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_bool()) {
+        capturerDXGIDisabled = tm.as_bool();
+        LOG(INFO) << "capturer-DXGI-disabled: " << capturerDXGIDisabled;
+    }
+
+    if (auto& tm = j_config.at("network-disabled"); tm.is_bool())
+        mNetworkDisabled = tm.as_bool();
+    if (auto& tm = j_config.at("curl-insecure"); tm.is_bool())
+        mCurlInsecure = tm.as_bool();
+    if (auto& tm = j_config.at("curl-proxy"); tm.is_string()){
+        mCurlProxyUrl = tm.as_string();
+        LOG(INFO) << "CURL proxy: " << mCurlProxyUrl;
+    }
+
+    if (auto& tm = j_config.at("sqlite_synchronous"); tm.is_string()){
+        mSqliteSynchronous = tm.as_string();
+        LOG(INFO) << "SQLite synchronous: " << mSqliteSynchronous;
+    }
+    if (auto& tm = j_config.at("sqlite_journal_mode"); tm.is_string()){
+        mSqliteJournalMode = tm.as_string();
+        LOG(INFO) << "SQLite journal mode: " << mSqliteJournalMode;
+    }
+    if (auto& tm = j_config.at("sqlite_journal_size"); tm.is_int()){
+        mSqliteJournalSize = tm.as_int();
+        LOG(INFO) << "SQLite journal size: " << mSqliteJournalSize;
+    }
+
+    if (auto& tm = j_config.at("vjoy-device-id"); tm.is_int())
+        vJoyDeviceID = (uint8_t) tm.as_int();
+    if (auto& tm = j_config.at("ravencolonial-enabled"); tm.is_bool()) {
+        mRavenColonialEnabled = tm.as_bool();
+        LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
+    }
+    if (auto& tm = j_config.at("ravencolonial-keys"); tm.is_object()) {
+        for (auto [cmdr,rcc_key] : tm.key_value()) {
+            if (rcc_key.is_string() && !rcc_key.empty())
+                mRavenColonialKeys[*cmdr] = rcc_key.as_string();
         }
-        if (GetEnvironmentVariableW(L"LocalAppData", buffer, MAX_PATH)) {
-            dirAppDataLocal = buffer;
-            mEDSettingsPath = dirAppDataLocal + LR"(\Frontier Developments\Elite Dangerous)";
-        } else if (!dirUserProfile.empty()) {
-            mEDSettingsPath = dirUserProfile + LR"(\AppData\Local\Frontier Developments\Elite Dangerous)";
-        }
-        js::value j_config = parseJsonFile(L"configuration.json5");
-        if (auto& tm = j_config.at("ui-scale-percents"); tm.is_int()) {
-            if (tm.as_int() >= 25 && tm.as_int() <= 400)
-                mUiScalePercents = tm.as_int();
-        }
-        if (auto& tm = j_config.at("default-key-hold-time"); tm.is_int()) {
-            defaultKeyHoldTime = tm.as_int();
-            LOG(INFO) << "default-key-hold-time: " << defaultKeyHoldTime;
-        }
-        if (auto& tm = j_config.at("default-key-after-time"); tm.is_int()) {
-            defaultKeyAfterTime = tm.as_int();
-            LOG(INFO) << "default-key-after-time: " << defaultKeyAfterTime;
-        }
-        if (auto& tm = j_config.at("search-region-extent"); tm.is_int()) {
-            searchRegionExtent = tm.as_int();
-            LOG(INFO) << "search-region-extent: " << searchRegionExtent;
-        }
-        if (j_config.at("shortcuts").is_object()) {
-            auto &obj = j_config.at("shortcuts");
-            parseShortcutConfig(Command::Start, "start", obj);
-            parseShortcutConfig(Command::PauseResume, "pause", obj);
-            parseShortcutConfig(Command::Stop, "stop", obj);
-            parseShortcutConfig(Command::DebugTemplates, "debug-templates", obj);
-            parseShortcutConfig(Command::DebugWindow, "debug-window", obj);
-            parseShortcutConfig(Command::DebugStream, "debug-stream", obj);
-            parseShortcutConfig(Command::ResetCapturer, "reset-capturer", obj);
-            parseShortcutConfig(Command::DevRectSelect, "dev-rect-select", obj);
-        }
-        if (auto& tm = j_config.at("elite-dangerous-settings-path"); tm.is_string())
-            mEDSettingsPath = toUtf16(tm.as_string());
-        if (auto& tm = j_config.at("elite-dangerous-logs-path"); tm.is_string())
-            mEDLogsPath = toUtf16(tm.as_string());
-        if (auto& tm = j_config.at("force-dxgi-device")) {
-            if (tm.is_string())
-                forceDXGIDevice = tm.as_string();
-            if (tm.is_int())
-                forceDXGIDeviceId = tm.as_int();
-        }
-        if (auto& tm = j_config.at("capturer-Win32-disabled"); tm.is_bool()) {
-            capturerWin32Disabled = tm.as_bool();
-            LOG(INFO) << "capturer-Win32-disabled: " << capturerWin32Disabled;
-        }
-        if (auto& tm = j_config.at("capturer-WinRT-disabled"); tm.is_bool()) {
-            capturerWinRTDisabled = tm.as_bool();
-            LOG(INFO) << "capturer-WinRT-disabled: " << capturerWinRTDisabled;
-        }
-        if (auto& tm = j_config.at("capturer-DXGI-disabled"); tm.is_bool()) {
-            capturerDXGIDisabled = tm.as_bool();
-            LOG(INFO) << "capturer-DXGI-disabled: " << capturerDXGIDisabled;
-        }
-        if (auto& tm = j_config.at("curl-insecure"); tm.is_bool())
-            mCurlInsecure = tm.as_bool();
-        if (auto& tm = j_config.at("curl-proxy"); tm.is_string()){
-            mCurlProxyUrl = tm.as_string();
-            LOG(INFO) << "CURL proxy: " << mCurlProxyUrl;
-        }
-        if (auto& tm = j_config.at("vjoy-device-id"); tm.is_int())
-            vJoyDeviceID = (uint8_t) tm.as_int();
-        if (auto& tm = j_config.at("ravencolonial-enabled"); tm.is_bool()) {
-            mRavenColonialEnabled = tm.as_bool();
-            LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
-        }
-        if (auto& tm = j_config.at("ravencolonial-keys"); tm.is_object()) {
-            for (auto [cmdr,rcc_key] : tm.key_value()) {
-                if (rcc_key.is_string() && !rcc_key.empty())
-                    mRavenColonialKeys[*cmdr] = rcc_key.as_string();
-            }
-            LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
-        }
+        LOG(INFO) << "ravencolonial-enabled: " << mRavenColonialEnabled;
+    }
 
 #ifdef EDROBOT_USE_OPENCL
-        if (auto& tm = j_config.at("opencl-disabled"); tm.is_bool()) {
-            openclDisabled = tm.as_bool();
-            LOG(INFO) << "opencl-disabled: " << openclDisabled;
-        }
-        if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_bool()) {
-            openclD3dInterop = tm.as_bool();
-            LOG(INFO) << "opencl-d3d11-interop: " << openclD3dInterop;
-        }
-        g_DisableOpenCL = openclDisabled;
-        if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
-            _putenv_s("OPENCV_OPENCL_CACHE_DIR", tm.as_string().data());
-        } else {
-            _putenv_s("OPENCV_OPENCL_CACHE_DIR", "cache");
-        }
-#else
-        openclDisabled = true;
-#endif
-        std::filesystem::create_directories("cache/markets");
-        std::filesystem::create_directories("cache/carriers");
-
-        LOG(INFO) << "ED log files path: " << mEDLogsPath;
-        LOG(INFO) << "ED settings  path: " << mEDSettingsPath;
-
-        LOG(INFO) << "Loading preferences";
-        jprefs = parseJsonFile(L"prefs.json5");
-        mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
-        mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
-        mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
-        mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
-        mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
-        mAutopilotDepartureCheck = Cfg.jprefs["flight"]["autopilotDepartureCheck"].as_bool_or(mAutopilotDepartureCheck);
-        mScoFromPlanet = Cfg.jprefs["flight"]["scoFromPlanet"].as_bool_or(mScoFromPlanet);
-        mScoInSpace = Cfg.jprefs["flight"]["scoInSpace"].as_bool_or(mScoInSpace);
-
-        if (auto consoleWindow = GetConsoleWindow()) {
-            if (auto hMenu = GetSystemMenu(consoleWindow, FALSE))
-                EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-            if (jprefs["console"].as_bool_or(true))
-                ShowWindow(consoleWindow, SW_SHOW);
-            else
-                ShowWindow(consoleWindow, SW_HIDE);
-        }
-
-        LOG(INFO) << "Initializing D3D device";
-        if (!Capturer::InitD3DDevice())
-            errorMessage = _gt("Error initializing DirectX");
+    if (auto& tm = j_config.at("opencl-disabled"); tm.is_bool()) {
+        openclDisabled = tm.as_bool();
+        LOG(INFO) << "opencl-disabled: " << openclDisabled;
     }
+    if (auto& tm = j_config.at("opencl-d3d11-interop"); tm.is_bool()) {
+        openclD3dInterop = tm.as_bool();
+        LOG(INFO) << "opencl-d3d11-interop: " << openclD3dInterop;
+    }
+    g_DisableOpenCL = openclDisabled;
+    if (auto& tm = j_config.at("opencl-cache-dir"); tm.is_string()) {
+        _putenv_s("OPENCV_OPENCL_CACHE_DIR", tm.as_string().data());
+    } else {
+        _putenv_s("OPENCV_OPENCL_CACHE_DIR", "cache");
+    }
+#else
+    openclDisabled = true;
+#endif
+    std::filesystem::create_directories("cache/carriers");
+
+    LOG(INFO) << "ED log files path: " << mEDLogsPath;
+    LOG(INFO) << "ED settings  path: " << mEDSettingsPath;
+
+    LOG(INFO) << "Loading preferences";
+    jprefs = parseJsonFile(L"prefs.json5");
+    mRavenColonialEnabled = Cfg.jprefs["raven"]["enabled"].as_bool_or(mRavenColonialEnabled);
+    mRavenColonialReportCarrierCargo = Cfg.jprefs["raven"]["carrier"].as_bool_or(mRavenColonialEnabled);
+    mRavenColonialReportShipCargo = Cfg.jprefs["raven"]["ship"].as_bool_or(mRavenColonialEnabled);
+    mEddnSystemsEnabled = Cfg.jprefs["eddn"]["systems"].as_bool_or();
+    mEddnMarketsEnabled = Cfg.jprefs["eddn"]["markets"].as_bool_or();
+    mAutopilotDepartureCheck = Cfg.jprefs["flight"]["autopilotDepartureCheck"].as_bool_or(mAutopilotDepartureCheck);
+    mScoFromPlanet = Cfg.jprefs["flight"]["scoFromPlanet"].as_bool_or(mScoFromPlanet);
+    mScoInSpace = Cfg.jprefs["flight"]["scoInSpace"].as_bool_or(mScoInSpace);
+
+    return true;
+}
+
+bool Configuration::start() {
+
+    if (auto consoleWindow = GetConsoleWindow()) {
+        if (auto hMenu = GetSystemMenu(consoleWindow, FALSE))
+            EnableMenuItem(hMenu, SC_CLOSE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+        if (jprefs["console"].as_bool_or(true))
+            ShowWindow(consoleWindow, SW_SHOW);
+        else
+            ShowWindow(consoleWindow, SW_HIDE);
+    }
+
+    LOG(INFO) << "Initializing D3D device";
+    if (!Capturer::InitD3DDevice())
+        errorMessage = _gt("Error initializing DirectX");
 
     cpr::GlobalThreadPool::GetInstance()->SetMaxThreadNum(1);
 
@@ -1168,27 +1187,38 @@ std::vector<Commodity*> Configuration::getAllKnownCommodities() {
 }
 
 bool Configuration::loadMarket(spGameEvent ge) {
+    static Timestamp lastMarketTimestamp;
+    if (ge->timestamp < lastMarketTimestamp)
+        return false;
+
     auto& je = ge->data;
 
     int64_t marketId = je["MarketID"].as_int_or(0);
     spMarket oldMarket = gal::getMarket(marketId);
     if (oldMarket && oldMarket->timestamp >= ge->timestamp)
         return false;
+    if (ge->timestamp < lastMarketTimestamp)
+        return false;
 
     LOG(INFO) << "Loading Market.json";
     js::value j_market = parseJsonFile(mEDLogsPath + L"/Market.json");
     if (!j_market)
         return false;
-    Timestamp timestamp;
-    if (!parseTimestamp(j_market, timestamp))
+    if (!parseTimestamp(j_market, lastMarketTimestamp))
+        return false;
+
+    auto systemName = j_market.at("StarSystem").as_string();
+    auto starSystem = gal::getStarSystem(systemName, true, false);
+    if (!starSystem)
         return false;
 
     spMarket market = std::shared_ptr<Market>(new Market{
-            .timestamp = timestamp,
+            .timestamp = lastMarketTimestamp,
             .marketId = j_market.at("MarketID").as_int(),
+            .systemAddress = starSystem->systemAddress,
             .stationName = *j_market.at("StationName").as_string(),
             .stationType = *j_market.at("StationType").as_string(),
-            .starSystem = *j_market.at("StarSystem").as_string(),
+            .starSystem = *systemName,
     });
     if (oldMarket)
         market->raven = oldMarket->raven;
@@ -1234,18 +1264,20 @@ bool Configuration::loadMarket(spGameEvent ge) {
     gal::setMarketData(market);
 
     if (!ge->expired) {
-        spGameEvent ge_loaded(new GameEvent{std::move(j_market), timestamp, "Market", false});
+        spGameEvent ge_loaded(new GameEvent{std::move(j_market), lastMarketTimestamp, "Market", false});
         EDDN::event_Market(ge_loaded);
     }
     return true;
 }
 
 bool Configuration::loadNavRoute(spGameEvent& ge) {
+    static Timestamp lastTimestamp;
+    if (ge->timestamp < lastTimestamp)
+        return false;
     js::value j_route = parseJsonFile(mEDLogsPath + L"/NavRoute.json");
     if (!j_route)
         return false;
-    Timestamp timestamp;
-    if (!parseTimestamp(j_route, timestamp) || ge->timestamp < timestamp)
+    if (!parseTimestamp(j_route, lastTimestamp) || ge->timestamp < lastTimestamp)
         return false;
 
     std::vector<NavRoute::Entry> entries;
@@ -1261,7 +1293,7 @@ bool Configuration::loadNavRoute(spGameEvent& ge) {
         }
         entries.emplace_back(starSystem, systemAddress, pos, starClass);
     }
-    spNavRoute route = std::make_shared<NavRoute>(timestamp,entries);
+    spNavRoute route = std::make_shared<NavRoute>(lastTimestamp,entries);
     st::currentNavRoute.swap(route);
 
     if (!ge->expired) {
@@ -1296,6 +1328,8 @@ void Configuration::updateLanguage(Lang lng) {
 }
 
 bool Configuration::loadCommodityDatabase() {
+    if (!allKnownCommodities.empty())
+        return true;
     LOG(INFO) << "Loading commodity database";
     js::value j = parseJsonFile(L"commodity-database.json5");
     if (!j)

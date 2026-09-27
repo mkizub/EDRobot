@@ -43,6 +43,8 @@ CurlWrapper::CurlWrapper(const char* url)
     , errbuf {}
     , headers {}
 {
+    if (Cfg.isNetworkDisabled())
+        return;
     curl = curl_easy_init();
     if (!curl)
         return;

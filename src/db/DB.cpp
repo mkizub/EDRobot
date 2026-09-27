@@ -2,7 +2,9 @@
 // Created by mkizub on 01.09.2026.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "DB.h"
 #include <sqlite3.h>
@@ -45,13 +47,22 @@ bool create() {
         return false;
     DB = std::make_unique<SQLite::Database>(GalaxyDB, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
 
+
+    DB->exec("PRAGMA auto_vacuum = FULL;");
+    DB->exec("PRAGMA busy_timeout = 5000;");
+    DB->exec("PRAGMA synchronous = " + Cfg.sqliteSynchronous());
+    DB->exec("PRAGMA journal_mode = " + Cfg.sqliteJouralMode());
+    DB->exec("PRAGMA journal_size_limit = " + std::to_string(Cfg.sqliteJouralSize()));
+
     DB->exec(R"SQL(CREATE TABLE MarketBlobs (
 marketId INTEGER PRIMARY KEY,
+systemId INTEGER NOT NULL,
 updated REAL,
 name TEXT,
 type TEXT,
 system TEXT,
-data BLOB
+data BLOB,
+FOREIGN KEY(systemId) REFERENCES Systems(id) ON DELETE CASCADE
 )  WITHOUT ROWID )SQL");
 
     // 'id' is a system address, population and (controlling)faction for SQL requests
@@ -69,7 +80,7 @@ eddn_updated REAL
     DB->exec(R"SQL(CREATE TABLE SystemBlobs (
 systemId INTEGER PRIMARY KEY,
 data BLOB,
-FOREIGN KEY(systemId) REFERENCES Systems(id)
+FOREIGN KEY(systemId) REFERENCES Systems(id) ON DELETE CASCADE
 )  WITHOUT ROWID )SQL");
 
 
@@ -81,7 +92,8 @@ marketId INTEGER UNIQUE,
 code TEXT UNIQUE COLLATE NOCASE,
 name TEXT NOT NULL UNIQUE COLLATE NOCASE,
 updated REAL,
-data BLOB
+data BLOB,
+FOREIGN KEY(systemId) REFERENCES Systems(id) ON DELETE CASCADE
 )
 )SQL");
 
@@ -110,6 +122,28 @@ bool check_and_migrate() {
         LOG_ERROR("Database {} has version {}, migration to version {} is not implemented", GalaxyDB, version, USER_VERSION);
         return false;
     }
+
+    bool quick_check = false;
+    {
+        auto *stmt = getStat("PRAGMA quick_check;");
+        if (!stmt)
+            return false;
+        for (int r=0; stmt->executeStep(); r++) {
+            auto err = stmt->getColumn(0).getString();
+            LOG_INFO("Database integrity check: {}", err);
+            if (r==0 && err=="ok") {
+                quick_check = true;
+                break;
+            }
+        }
+    }
+    if (!quick_check)
+        return false;
+
+//    DB->exec("PRAGMA synchronous = " + Cfg.sqliteSynchronous());
+//    DB->exec("PRAGMA journal_mode = " + Cfg.sqliteJouralMode());
+//    DB->exec("PRAGMA journal_size_limit = 16777216;");
+
     return true;
 }
 
@@ -120,7 +154,24 @@ bool init() {
     LOG_INFO("Opening database Galaxy.db");
     try {
         if (std::filesystem::exists(GalaxyDB)) {
-            DB = std::make_unique<SQLite::Database>(GalaxyDB, SQLITE_OPEN_READWRITE);
+            sqlite3* handle;
+            int err = sqlite3_open_v2(GalaxyDB, &handle, SQLITE_OPEN_READWRITE, nullptr);
+            if (err == SQLITE_OK) {
+                auto sql_sync = "PRAGMA synchronous = " + Cfg.sqliteSynchronous();
+                auto sql_mode = "PRAGMA journal_mode = " + Cfg.sqliteJouralMode();
+                auto sql_size = "PRAGMA journal_size_limit = " + std::to_string(Cfg.sqliteJouralSize());
+
+                err = sqlite3_exec(handle, sql_sync.c_str(), nullptr, nullptr, nullptr);
+                if (err != SQLITE_OK)
+                    LOG_ERROR("DB error[{}] for: {}", err, sql_sync);
+                err = sqlite3_exec(handle, sql_mode.c_str(), nullptr, nullptr, nullptr);
+                if (err != SQLITE_OK)
+                    LOG_ERROR("DB error[{}] for: {}", err, sql_mode);
+                err = sqlite3_exec(handle, sql_size.c_str(), nullptr, nullptr, nullptr);
+                if (err != SQLITE_OK)
+                    LOG_ERROR("DB error[{}] for: {}", err, sql_size);
+            }
+            DB = std::make_unique<SQLite::Database>(GalaxyDB, handle);
             if (!check_and_migrate())
                 return false;
         } else {
@@ -131,6 +182,7 @@ bool init() {
         LOG_ERROR("DB init SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
         return false;
     }
+    LOG_INFO("Database Galaxy.db opened and optimized");
 
     return true;
 }
@@ -142,6 +194,38 @@ bool shutdown() {
     }
     return true;
 }
+
+//bool checkpoint(CheckPoint mode) {
+//    if (DB) {
+////        int eMode = SQLITE_CHECKPOINT_NOOP;
+////        switch (mode) {
+////        case CheckPoint::PASSIVE: eMode = SQLITE_CHECKPOINT_PASSIVE; break;
+////        case CheckPoint::FULL: eMode = SQLITE_CHECKPOINT_FULL; break;
+////        case CheckPoint::RESTART: eMode = SQLITE_CHECKPOINT_RESTART; break;
+////        case CheckPoint::TRUNCATE: eMode = SQLITE_CHECKPOINT_TRUNCATE; break;
+////        case CheckPoint::NOOP: eMode = SQLITE_CHECKPOINT_NOOP; break;
+////        }
+////        auto* handle = DB->getHandle();
+////        int pnLog {}, pnCkpt {};
+////        int err = sqlite3_wal_checkpoint_v2(handle, nullptr, eMode, &pnLog, &pnCkpt);
+////        if (err != SQLITE_OK) {
+////            LOG_ERROR("DB wal_checkpoint({}) SQL error[{}({})]: {}", magic_enum::enum_name(mode),
+////                      err, sqlite3_extended_errcode(handle), sqlite3_errmsg(handle));
+////        } else {
+////            LOG_INFO("DB wal_checkpoint({}): wal frames {}, checkpointed {}", magic_enum::enum_name(mode), pnLog,
+////                     pnCkpt);
+////            DB->exec("PRAGMA optimize=0x10002;");
+////        }
+//        std::string res;
+//        DB->exec("PRAGMA journal_mode=delete;");
+//        res = DB->execAndGet("PRAGMA journal_mode;").getString();
+//        DB->exec("PRAGMA journal_mode=wal;");
+//        res = DB->execAndGet("PRAGMA journal_mode;").getString();
+//        DB->exec("PRAGMA optimize=0x10002;");
+//    }
+//    return true;
+//}
+
 
 inline Timestamp ts_from_db(SQLite::Column c) {
     if (c.isFloat()) {
@@ -181,9 +265,11 @@ StarSystem loadStarSystem(std::string_view name) {
         return {
                 .id = stmt->getColumn(0).getInt64(),
                 .name = *name,
-                .x = stmt->getColumn(1).getDouble(),
-                .y = stmt->getColumn(2).getDouble(),
-                .z = stmt->getColumn(3).getDouble(),
+                .coords = {
+                    .x = stmt->getColumn(1).getDouble(),
+                    .y = stmt->getColumn(2).getDouble(),
+                    .z = stmt->getColumn(3).getDouble(),
+                    },
                 .updated = ts_from_db(stmt->getColumn(4)),
                 .eddn_updated = ts_from_db(stmt->getColumn(5)),
         };
@@ -210,9 +296,11 @@ StarSystem loadStarSystem(int64_t address) {
         return {
                 .id = address,
                 .name = stmt->getColumn(0).getString(),
-                .x = stmt->getColumn(1).getDouble(),
-                .y = stmt->getColumn(2).getDouble(),
-                .z = stmt->getColumn(3).getDouble(),
+                .coords = {
+                        .x = stmt->getColumn(1).getDouble(),
+                        .y = stmt->getColumn(2).getDouble(),
+                        .z = stmt->getColumn(3).getDouble(),
+                        },
                 .updated = ts_from_db(stmt->getColumn(4)),
                 .eddn_updated = ts_from_db(stmt->getColumn(5)),
         };
@@ -257,10 +345,8 @@ x=excluded.x, y=excluded.y, z=excluded.z, updated=excluded.updated, eddn_updated
 
     if (!ss.id || ss.name.empty())
         return false;
-    if (ss.x*ss.x + ss.y*ss.y + ss.z*ss.z < 1.e-3) {
-        if (ss.name != "Sol")
-            return false;
-    }
+    if (ss.coords.empty() && ss.name != "Sol")
+        return false;
     std::unique_lock<std::mutex> lock(dbMutex);
     auto* stmt = getStat(sql);
     if (!stmt)
@@ -269,9 +355,9 @@ x=excluded.x, y=excluded.y, z=excluded.z, updated=excluded.updated, eddn_updated
     try {
         stmt->bind(1, ss.id);
         stmt->bind(2, ss.name);
-        stmt->bind(3, ss.x);
-        stmt->bind(4, ss.y);
-        stmt->bind(5, ss.z);
+        stmt->bind(3, ss.coords.x);
+        stmt->bind(4, ss.coords.y);
+        stmt->bind(5, ss.coords.z);
         bind(stmt, 6, ss.updated);
         bind(stmt, 7, ss.eddn_updated);
         stmt->executeStep();
@@ -305,6 +391,7 @@ ON CONFLICT DO UPDATE SET data=excluded.data;)SQL";
         LOG_ERROR("DB saveStarSystemBlob SQL error[{}({})]: {}", e.getErrorCode(), e.getExtendedErrorCode(), e.getErrorStr());
     }
     return false;
+    return true;
 }
 
 bool loadMegaShips(int64_t address, std::vector<MegashipJS> megaships) {
@@ -419,7 +506,7 @@ bool loadMarket(MarketJS& market) {
     if (!market.marketId)
         return false;
 
-    static std::string sql = "SELECT marketId,updated,name,type,system,data FROM MarketBlobs WHERE marketId = ?;";
+    static std::string sql = "SELECT marketId,systemId,updated,name,type,system,data FROM MarketBlobs WHERE marketId = ?;";
 
     std::unique_lock<std::mutex> lock(dbMutex);
     auto* stmt = getStat(sql);
@@ -433,11 +520,12 @@ bool loadMarket(MarketJS& market) {
             return false;
 
         market.marketId =    stmt->getColumn(0).getInt64();
-        market.updated =     ts_from_db(stmt->getColumn(1));
-        market.stationName = stmt->getColumn(2).getString();
-        market.stationType = stmt->getColumn(3).getString();
-        market.starSystem =  stmt->getColumn(4).getString();
-        auto blobColumn = stmt->getColumn(5);
+        market.systemId =    stmt->getColumn(1).getInt64();
+        market.updated =     ts_from_db(stmt->getColumn(2));
+        market.stationName = stmt->getColumn(3).getString();
+        market.stationType = stmt->getColumn(4).getString();
+        market.starSystem =  stmt->getColumn(5).getString();
+        auto blobColumn = stmt->getColumn(6);
         if (blobColumn.isNull()) {
             market.commodities.clear();
             return true;
@@ -452,15 +540,15 @@ bool loadMarket(MarketJS& market) {
 }
 
 bool saveMarket(MarketJS& market) {
-    if (!market.marketId)
+    if (!market.marketId || !market.systemId)
         return false;
 
     std::stringstream buffer;
     if (!encode_market_blob(market, buffer))
         return false;
 
-    static std::string sql = R"SQL(INSERT INTO MarketBlobs(marketId,updated,name,type,system,data) VALUES (?,?,?,?,?,?)
-ON CONFLICT DO UPDATE SET
+    static std::string sql = R"SQL(INSERT INTO MarketBlobs(marketId,systemId,updated,name,type,system,data) VALUES (?,?,?,?,?,?,?)
+ON CONFLICT DO UPDATE SET systemId=excluded.systemId,
 updated=excluded.updated,name=excluded.name,type=excluded.type,system=excluded.system,data=excluded.data;)SQL";
 
     std::unique_lock<std::mutex> lock(dbMutex);
@@ -471,11 +559,12 @@ updated=excluded.updated,name=excluded.name,type=excluded.type,system=excluded.s
     auto sv = buffer.view();
     try {
         stmt->bind(1, market.marketId);
-        bind(stmt, 2, market.updated);
-        stmt->bind(3, market.stationName);
-        stmt->bind(4, market.stationType);
-        stmt->bind(5, market.starSystem);
-        stmt->bind(6, sv.data(), sv.size());
+        stmt->bind(2, market.systemId);
+        bind(stmt, 3, market.updated);
+        stmt->bind(4, market.stationName);
+        stmt->bind(5, market.stationType);
+        stmt->bind(6, market.starSystem);
+        stmt->bind(7, sv.data(), sv.size());
         stmt->executeStep();
         return true;
     } catch (SQLite::Exception& e) {

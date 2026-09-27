@@ -97,7 +97,6 @@ add_executable(EDRobot WIN32
 
         src/db/DB.h
         src/db/DB.cpp
-        src/db/Remap.cpp
         src/db/JsonCode.cpp
         src/db/CborCode.cpp
 
@@ -122,6 +121,7 @@ add_executable(EDRobot WIN32
         src/gal/GalaxyNav.cpp
         src/gal/Symbols.cpp
         src/gal/Convert.cpp
+        src/gal/GalaxyTest.cpp
 
         src/js/internal/impl.h
         src/js/internal/key.h

@@ -401,30 +401,37 @@ bool Configuration::loadGameStatus() {
     return true;
 }
 
-void parseEvent_Fileheader(spGameEvent& ge) {
+void setGameVersion(spGameEvent& ge) {
     auto& je = ge->data;
     auto& client = const_cast<st::GameClient&>(st::client);
     if (je["Odyssey"].is_bool())
         client.isOdyssey = je["Odyssey"].as_bool();
     if (je["Horizons"].is_bool())
         client.isHorizons = je["Horizons"].as_bool();
-    client.language = je["language"].as_string();
-    client.gameversion = je["gameversion"].as_string();
-    client.build = je["build"].as_string();
+    client.gameversion = je["gameversion"].as_string_or();
+    client.build = je["build"].as_string_or();
 
-    Lang lng = Lang::XX;
-    if (client.language == "Russian/RU" || client.language.ends_with("/RU"))
-        lng = Lang::RU;
-    else if (client.language == "English/EN" || client.language.ends_with("/EN"))
-        lng = Lang::EN;
-    else if (client.language == "English/UK" || client.language.ends_with("/UK"))
-        lng = Lang::EN;
-    else {
-        LOG(ERROR) << "Unsupported game language: " << client.language;
-        lng = Lang::XX;
+    if (je["language"].is_string()) {
+        client.language = *je["language"].as_string();
+        std::replace(client.language.begin(), client.language.end(), '\\', '/');
+        Lang lng = Lang::XX;
+        if (client.language == "Russian/RU" || client.language.ends_with("/RU"))
+            lng = Lang::RU;
+        else if (client.language == "English/EN" || client.language.ends_with("/EN"))
+            lng = Lang::EN;
+        else if (client.language == "English/UK" || client.language.ends_with("/UK"))
+            lng = Lang::EN;
+        else {
+            LOG(ERROR) << "Unsupported game language: " << client.language;
+            lng = Lang::XX;
+        }
+        LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(lng);
+        Cfg.updateLanguage(lng);
     }
-    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(lng);
-    Cfg.updateLanguage(lng);
+}
+
+void parseEvent_Fileheader(spGameEvent& ge) {
+    setGameVersion(ge);
 }
 
 static void setCommander(std::string_view name, std::string_view fid) {
@@ -452,13 +459,9 @@ static gal::spStarSystem setEddnStarSystem(spGameEvent& ge) {
     st::eddnStarSystem.name = je["StarSystem"].as_string();
     st::eddnStarSystem.addr = je["SystemAddress"].as_int_or();
     auto& jp = je["StarPos"].as_array();
-    st::eddnStarSystem.pos = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
-    gal::spStarSystem ss = gal::makeStarSystem(st::eddnStarSystem.name, st::eddnStarSystem.addr, &st::eddnStarSystem.pos, true, false);
-    if (cv::norm(ss->starPos) == 0) {
-        ss->starPos = st::eddnStarSystem.pos;
-        ss->needCoreSave = true;
-        ss->save();
-    }
+    st::eddnStarSystem.coords = {jp[0].as_real(), jp[1].as_real(), jp[2].as_real()};
+    gal::spStarSystem ss = gal::makeStarSystem(st::eddnStarSystem.name, st::eddnStarSystem.addr, st::eddnStarSystem.coords, true, false);
+    assert ((!ss->systemCoords.empty() || st::eddnStarSystem.name == "Sol") && !ss->needCoreSave);
     gal::setCurrentStarSystem(ss);
     return ss;
 }
@@ -481,27 +484,7 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     if (je["Commander"].is_string())
         setCommander(je["Commander"].as_string(), je["FID"].as_string());
 
-    auto& client = const_cast<st::GameClient&>(st::client);
-    if (je["Odyssey"].is_bool())
-        client.isOdyssey = je["Odyssey"].as_bool();
-    if (je["Horizons"].is_bool())
-        client.isHorizons = je["Horizons"].as_bool();
-    client.gameversion = je["gameversion"].as_string();
-    client.build = je["build"].as_string();
-    client.language = je["language"].as_string();
-    Lang lng = st::lng;
-    if (client.language == "Russian/RU" || client.language.ends_with("/RU"))
-        lng = Lang::RU;
-    else if (client.language == "English/EN" || client.language.ends_with("/EN"))
-        lng = Lang::EN;
-    else if (client.language == "English/UK" || client.language.ends_with("/UK"))
-        lng = Lang::EN;
-    else {
-        LOG(ERROR) << "Unsupported game language: " << client.language;
-        lng = Lang::XX;
-    }
-    LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(lng);
-    Cfg.updateLanguage(lng);
+    setGameVersion(ge);
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
     set(shipInfo.shipType, je["Ship"]);
@@ -540,7 +523,7 @@ void parseEvent_Location(spGameEvent& ge) {
 
     auto starSystem = setEddnStarSystem(ge);
 
-    if (je["Docked"]) {
+    if (je["Docked"].as_bool_or()) {
         st::dockedAt.marketId = je["MarketID"].as_int_or();
         set(st::dockedAt.stationName, je["StationName"]);
         set(st::dockedAt.stationType, je["StationType"]);
@@ -560,6 +543,8 @@ void parseEvent_Location(spGameEvent& ge) {
     if (!ge->expired) {
         EDDN::event_Location(ge);
         gal::updateFromGameEvent(starSystem.get(), ge);
+        if (je["Docked"].as_bool_or())
+            gal::updateFromDockEvent(starSystem.get(), ge);
     }
 }
 
@@ -656,10 +641,9 @@ void parseEvent_Docked(spGameEvent& ge) {
 
     auto systemName = je["StarSystem"].as_string();
     auto systemAddress = je["SystemAddress"].as_int_or();
-    cv::Point3d* systemPos = nullptr;
-    if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
-        systemPos = &st::eddnStarSystem.pos;
-    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos, true, true);
+    Coords coords = (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
+            ? st::eddnStarSystem.coords : Coords{};
+    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, coords, true, true);
     gal::setCurrentStarSystem(ss);
     st::dockedAt.marketId = je["MarketID"].as_int_or();
     set(st::dockedAt.stationName, je["StationName"]);
@@ -668,6 +652,7 @@ void parseEvent_Docked(spGameEvent& ge) {
     st::space = {};
 
     if (!ge->expired) {
+        gal::updateFromDockEvent(ss.get(), ge);
         EDDN::event_Docked(ge);
         Cfg.dockingEvents.push(ge);
     }
@@ -680,6 +665,7 @@ void parseEvent_Undocked(spGameEvent& ge) {
     st::space.stationType = je["StationType"].as_string_or(st::dockedAt.stationType);
     st::dockedAt = {};
     if (!ge->expired) {
+        gal::updateFromDockEvent(gal::getCurrentStarSystem().get(), ge);
         Cfg.dockingEvents.push(ge);
     }
 }
@@ -705,6 +691,7 @@ void parseEvent_Docking(spGameEvent& ge) {
     }
     ss->save();
     if (!ge->expired) {
+        gal::updateFromDockEvent(ss.get(), ge);
         Cfg.dockingEvents.push(ge);
     }
 }
@@ -720,7 +707,7 @@ void parseEvent_StartJump(spGameEvent& ge) {
     if (je["JumpType"].as_string_or() == "Hyperspace") {
         auto name = je["StarSystem"].as_string();
         int64_t address = je["SystemAddress"].as_int();
-        gal::spStarSystem ss = gal::makeStarSystem(name, address, nullptr, true, true);
+        gal::spStarSystem ss = gal::makeStarSystem(name, address, {}, true, true);
         gal::setCurrentStarSystem(ss);
         st::autopilot.isDestDockTargeted = false;
         st::autopilot.isDestBodyTargeted = false;
@@ -952,10 +939,15 @@ void parseEvent_Scan(spGameEvent& ge) {
 
     const auto systemName = je["StarSystem"].as_string_or();
     int64_t systemAddress = je["SystemAddress"].as_int_or();
-    cv::Point3d* systemPos = nullptr;
-    if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
-        systemPos = &st::eddnStarSystem.pos;
-    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos, true, true);
+    Coords coords = (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
+                    ? st::eddnStarSystem.coords : Coords{};
+    gal::spStarSystem ss;
+    if (!systemName.empty()) {
+        ss = gal::makeStarSystem(systemName, systemAddress, coords, true, true);
+    } else {
+        // old game
+        ss = gal::getCurrentStarSystem();
+    }
 
     if (!ge->expired) {
         EDDN::event_Scan(ge);
@@ -969,10 +961,15 @@ void parseEvent_ScanBaryCentre(spGameEvent& ge) {
 
     const auto systemName = je["StarSystem"].as_string_or();
     int64_t systemAddress = je["SystemAddress"].as_int_or();
-    cv::Point3d* systemPos = nullptr;
-    if (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
-        systemPos = &st::eddnStarSystem.pos;
-    gal::spStarSystem ss = gal::makeStarSystem(systemName, systemAddress, systemPos, true, true);
+    Coords coords = (systemName == st::eddnStarSystem.name && systemAddress == st::eddnStarSystem.addr)
+                    ? st::eddnStarSystem.coords : Coords{};
+    gal::spStarSystem ss;
+    if (!systemName.empty()) {
+        ss = gal::makeStarSystem(systemName, systemAddress, coords, true, true);
+    } else {
+        // old game
+        ss = gal::getCurrentStarSystem();
+    }
 
     if (!ge->expired) {
         EDDN::event_ScanBaryCentre(ge);

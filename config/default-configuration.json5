@@ -23,6 +23,10 @@
     "pause-resume": "Pause",
     "debug-templates": "Ctrl+Alt+PrintScreen", // defaults to "ctrl+alt+printscreen"
   },
+  "sqlite_synchronous": "NORMAL", // OFF | NORMAL | FULL | EXTRA;
+  "sqlite_journal_mode": "PERSIST", // DELETE | TRUNCATE | PERSIST | MEMORY | WAL
+  "sqlite_journal_size": 16777216, // in bytes
+  "network-disabled": false, // completely disable network
   "curl-insecure": true, // disable SSL verification errors, set to false to enable SSL verificatio
   //"curl-proxy": "socks5://127.0.0.1:40000" // to use specified proxy
   //"elite-dangerous-settings-path": ...,

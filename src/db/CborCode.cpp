@@ -192,14 +192,14 @@ struct convert<E> {
         if (o.type == msgpack::type::NIL) {
             v = {};
         }
+        else if (o.type == msgpack::type::POSITIVE_INTEGER) {
+            v = E::get(o.as<unsigned>());
+        }
         else if (o.type == msgpack::type::STR) {
             auto* ptr = E::get_ptr(o.as<std::string>());
             if (!ptr)
                 ptr = E::Decl::instance.addNewValue(o.as<std::string>());
             v = E(ptr);
-        }
-        else if (o.type == msgpack::type::POSITIVE_INTEGER) {
-            v = E::get(o.as<unsigned>());
         }
         else {
             throw msgpack::type_error();
@@ -555,7 +555,10 @@ struct pack<db::StationJS> {
         o.pack_array(4);
         o.pack(v.marketId);
         o.pack(v.type);
-        o.pack(v.name);
+        if (!isMegaship(toTypeNav(v.type)))
+            o.pack(v.name);
+        else
+            o.pack("");   // megaships are stored in a separate table and already have name
         PK_MAP_START(o)
             PK_IF("st", 1, v.updated_at);
             if (v.bodyId > 0) { PK_IF("st", 2, v.bodyId); }
@@ -563,7 +566,7 @@ struct pack<db::StationJS> {
             PK_IF("st", 4, v.controllingFaction);
             PK_IF("st", 5, v.controllingFactionState);
             PK_IF("st", 6, v.primaryEconomy);
-            PK_IF("st", 7, v.secondaryEconomy);
+            //PK_IF("st", 7, v.secondaryEconomy);
             PK_IF("st", 8, v.economies);
             PK_IF("st", 9, v.allegiance);
             PK_IF("st", 10, v.government);
@@ -596,7 +599,7 @@ struct convert<db::StationJS> {
             UN_PK("st", 4, v.controllingFaction);
             UN_PK("st", 5, v.controllingFactionState);
             UN_PK("st", 6, v.primaryEconomy);
-            UN_PK("st", 7, v.secondaryEconomy);
+            //UN_PK("st", 7, v.secondaryEconomy);
             UN_PK("st", 8, v.economies);
             UN_PK("st", 9, v.allegiance);
             UN_PK("st", 10, v.government);
@@ -674,7 +677,7 @@ struct pack<db::BodyJS> {
             if (auto* st=v.getStarPart(); st && tn == TypeNav::Star) {
                 PK_IF("bs", 30, st->mainStar);
                 PK_IF("bs", 31, st->age);
-                PK_IF("bs", 32, st->spectralClass);
+                if (st->subClass >= 0) { PK_IF("bs", 32, st->subClass); }
                 PK_IF("bs", 33, st->luminosity);
                 PK_IF("bs", 34, st->absoluteMagnitude);
                 PK_IF("bs", 35, st->solarMasses);
@@ -752,7 +755,7 @@ struct convert<db::BodyJS> {
 
             UN_PK_STAR("bs", 30, v, mainStar);
             UN_PK_STAR("bs", 31, v, age);
-            UN_PK_STAR("bs", 32, v, spectralClass);
+            UN_PK_STAR("bs", 32, v, subClass);
             UN_PK_STAR("bs", 33, v, luminosity);
             UN_PK_STAR("bs", 34, v, absoluteMagnitude);
             UN_PK_STAR("bs", 35, v, solarMasses);

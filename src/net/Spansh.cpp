@@ -43,6 +43,7 @@ namespace Spansh {
 //    spMarket market = std::make_shared<Market>(Market{
 //            .timestamp = timestamp,
 //            .marketId = marketId,
+//            .systemAddress = ...,
 //            .stationName = stationName,
 //            .stationType = stationType,
 //            .starSystem = starSystem,
@@ -72,6 +73,8 @@ namespace Spansh {
 //}
 
 gal::spStarSystem loadStarSystem(gal::spStarSystem& ss) {
+    if (Cfg.isNetworkDisabled())
+        return {};
     LOG(INFO) << "Spansh query system by id: " << ss->systemAddress;
     TRY {
         auto cr = cpr::Get(cpr::Url{API + "dump/" + std::to_string((uint64_t) ss->systemAddress)});
@@ -103,9 +106,11 @@ gal::spStarSystem loadStarSystem(gal::spStarSystem& ss) {
 }
 
 gal::spStarSystem loadStarSystem(std::string_view name) {
+    if (Cfg.isNetworkDisabled())
+        return {};
     auto db_ss = db::loadStarSystem(name);
     if (db_ss.id) {
-        gal::spStarSystem ss = gal::makeStarSystem(db_ss.name, db_ss.id, nullptr, true, false);
+        gal::spStarSystem ss = gal::makeStarSystem(db_ss.name, db_ss.id, db_ss.coords, true, false);
         return loadStarSystem(ss);
     }
 
@@ -129,8 +134,8 @@ gal::spStarSystem loadStarSystem(std::string_view name) {
         for (auto &ss: cr_body["min_max"].as_array_or()) {
             int64_t it_address = ss["id64"].as_int();
             const auto it_name = ss["name"].as_string();
-            cv::Point3d it_pos {ss["x"].as_real(), ss["y"].as_real(), ss["z"].as_real()};
-            auto it_ss = gal::makeStarSystem(it_name, it_address, &it_pos, true, false);
+            Coords it_coords {ss["x"].as_real(), ss["y"].as_real(), ss["z"].as_real()};
+            auto it_ss = gal::makeStarSystem(it_name, it_address, it_coords, true, false);
             if (it_name == name)
                 found = loadStarSystem(it_ss);
         }
@@ -143,6 +148,8 @@ gal::spStarSystem loadStarSystem(std::string_view name) {
 }
 
 std::vector<gal::spStarSystem> listSystemsUsingRequest(js::value j_request, int max_pages, listCallback systemCallback) {
+    if (Cfg.isNetworkDisabled())
+        return {};
     std::vector<gal::spStarSystem> result;
     for (int page = 0; page < max_pages; page++) {
         j_request["page"] = page;
@@ -164,15 +171,12 @@ std::vector<gal::spStarSystem> listSystemsUsingRequest(js::value j_request, int 
         for (auto jr: jresult) {
             const auto name = jr["name"].as_string();
             int64_t address = jr["id64"].as_int();
-            double x = jr["x"].as_real_or();
-            double y = jr["y"].as_real_or();
-            double z = jr["z"].as_real_or();
+            Coords coords = {jr["x"].as_real(), jr["y"].as_real(), jr["z"].as_real()};
             auto total_bodies = jr["body_count"].as_int_or();
             Timestamp updated_at;
             if (jr["updated_at"].is_string())
                 parseTimestampString(jr["updated_at"].as_string(), updated_at);
-            cv::Point3d pos = {x, y, z};
-            gal::spStarSystem ss = gal::makeStarSystem(name, address, &pos, false, false);
+            gal::spStarSystem ss = gal::makeStarSystem(name, address, coords, false, false);
             if (systemCallback(ss, jr))
                 result.push_back(ss);
         }
@@ -185,6 +189,8 @@ std::vector<gal::spStarSystem> listSystemsUsingRequest(js::value j_request, int 
 }
 
 std::vector<gal::spStarSystem> listNearestSystems(const std::string &systemBegin, const std::string &systemEnd, double distance) {
+    if (Cfg.isNetworkDisabled())
+        return {};
     if (systemBegin.empty())
         return {};
     js::value j_request = js::object({
@@ -208,7 +214,8 @@ std::vector<gal::spStarSystem> listNearestSystems(const std::string &systemBegin
             return false;
         auto total_bodies = jr["body_count"].as_int_or();
         LOG_INFO("Star system: {} / {} (at x={:.5f} y={:.5f} z={:.5f}) has {} bodies, updated at {}",
-                 ss->systemName, ss->systemAddress, ss->starPos.x, ss->starPos.y, ss->starPos.z, total_bodies, updated_at);
+                 ss->systemName, ss->systemAddress, ss->systemCoords.x, ss->systemCoords.y, ss->systemCoords.z,
+                 total_bodies, updated_at);
         return true;
     });
 
@@ -247,6 +254,8 @@ bool parseSpanshTime(const js::value& j, Timestamp& tm) {
 }
 
 std::vector<gal::spStarSystem> listSystemsUsingRecall(const std::string uuid, listCallback systemCallback) {
+    if (Cfg.isNetworkDisabled())
+        return {};
     std::vector<gal::spStarSystem> result;
     for (int page = 0;; page++) {
         LOG_INFO("Spansh recall: {} page {}", uuid, page);
@@ -284,12 +293,8 @@ std::vector<gal::spStarSystem> listSystemsUsingRecall(const std::string uuid, li
                 auto delta_days = std::chrono::duration_cast<std::chrono::days>(delta);
                 LOG_INFO("System '{}' was updated {} ago ({} max {})", name, delta_days, updated_at, tm_max);
             }
-            double x = jr["x"].as_real_or();
-            double y = jr["y"].as_real_or();
-            double z = jr["z"].as_real_or();
-            cv::Point3d pos = {x, y, z};
-
-            gal::spStarSystem ss = gal::makeStarSystem(name, address, &pos, false, false);
+            Coords coords = {jr["x"].as_real(), jr["y"].as_real_or(), jr["z"].as_real_or()};
+            gal::spStarSystem ss = gal::makeStarSystem(name, address, coords, false, false);
             if (systemCallback(ss, jr))
                 result.push_back(ss);
         }
@@ -303,6 +308,8 @@ std::vector<gal::spStarSystem> listSystemsUsingRecall(const std::string uuid, li
 }
 
 std::vector<gal::spStarSystem> listSpanshSearch(const std::string& uuid, listCallback systemCallback) {
+    if (Cfg.isNetworkDisabled())
+        return {};
     LOG_INFO("Spansh recall: {}", uuid);
     TRY {
         std::vector<gal::spStarSystem> result = listSystemsUsingRecall(uuid, [](gal::spStarSystem ss, js::value& jr)->bool {
@@ -312,7 +319,8 @@ std::vector<gal::spStarSystem> listSpanshSearch(const std::string& uuid, listCal
             if (!ss)
                 return false;
             LOG_INFO("Star system: {} / {} (at x={:.5f} y={:.5f} z={:.5f}) updated at {}",
-                     ss->systemName, ss->systemAddress, ss->starPos.x, ss->starPos.y, ss->starPos.z, updated_at);
+                     ss->systemName, ss->systemAddress, ss->systemCoords.x, ss->systemCoords.y, ss->systemCoords.z,
+                     updated_at);
             return true;
         });
         return result;

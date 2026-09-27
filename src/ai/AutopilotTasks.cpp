@@ -1528,22 +1528,16 @@ bool HyperJumpStep::run() {
     auto fly_away_time = 10s;
     if (auto ss = gal::getCurrentStarSystem()) {
         auto star = ss->getMainStar();
-        JsSpectralClass spectralClass;
+        JsBodySubType starType;
         if (star)
-            spectralClass = star->getStarData().spectralClass;
-        if (auto sc = spectralClass.sv(); !sc.empty()) {
+            starType = star->getStarData().subType;
+        if (auto sc = starType.sv(); !sc.empty()) {
             switch (sc[0]) {
             case 'L': case 'T': case 'Y': // Brown Dwarfs
             case 'D': case 'H': case 'X': // White Dwarfs, Neutron, Black Hole
             //case 'C': case 'M': case 'S': // Carbon Stars
                 rotate_speed = 0;
                 fly_away_time = 15s;
-                break;
-            case 'K': // White Dwarfs, Neutron, Black Hole
-                if (sc == "K6") {
-                    rotate_speed = 0;
-                    fly_away_time = 15s;
-                }
                 break;
             }
         }

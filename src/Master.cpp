@@ -407,7 +407,7 @@ std::string Master::initializeInternal() {
     gal::init_symbols();
 
     LOG(INFO) << "Loading configuration";
-    if (!Cfg.load())
+    if (!Cfg.load() || !Cfg.start())
         return Cfg.getErrorMessage();
 
     if (!db::init())

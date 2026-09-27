@@ -18,6 +18,8 @@ struct StarSystem;
 namespace gal {
 
 void init_symbols();
+void spansh_systems_dump_test(std::string_view filePath);
+void game_logs_test(std::string_view dirPath);
 
 class StarSystemCache;
 
@@ -74,7 +76,7 @@ public:
     };
     struct StarData : public BodyData {
         opt_bool mainStar;
-        JsSpectralClass spectralClass;
+        int8_t subClass {-1};
         JsLuminosity luminosity;
         uint32_t age {}; // in millions years
         opt_float solarMasses;
@@ -98,9 +100,8 @@ public:
         JsStationState state;
         JsFactionState controllingFactionState;
         JsEconomy primaryEconomy;
-        JsEconomy secondaryEconomy;
+        js::vector<std::pair<JsEconomy,float>> economies;
         JsCarrierDockingAccess carrierDockingAccess; // Carrier only.
-        js::small_map<JsEconomy,float> economies;
         opt_float distanceToArrival;
         opt_float latitude; // Planetary stations only.
         opt_float longitude; // Planetary stations only.
@@ -127,16 +128,18 @@ typedef std::shared_ptr<Entity> spEntity;
 struct StarSystem {
     friend class StarSystemCache;
 private:
-    StarSystem(int64_t address, std::string_view name, double x, double y, double z)
+//    static std::pmr::synchronized_pool_resource entitiesPool;
+    StarSystem(int64_t address, std::string_view name, Coords coords)
             : systemAddress(address)
             , systemName(name)
-            , starPos(x,y,z)
+            , systemCoords(coords)
+//            , entities(&entitiesPool)
     {}
 public:
     virtual ~StarSystem() = default;
     const int64_t systemAddress;
     const std::string systemName;
-    cv::Point3d starPos;
+    const Coords systemCoords;
     Timestamp updated_at {};
     Timestamp eddn_updated_at {};
 
@@ -150,6 +153,7 @@ public:
         uint64_t population {};
     } ext;
 
+    //std::pmr::list<spEntity> entities;
     std::vector<spEntity> entities;
 
     bool needCoreSave {false};
@@ -181,20 +185,22 @@ private:
 typedef std::shared_ptr<StarSystem> spStarSystem;
 
 spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_load);
-spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d* starPos, bool blob_load, bool network_load);
+spStarSystem makeStarSystem(std::string_view name, int64_t address, Coords coords, bool blob_load, bool network_load);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
+void cleanupStarSystemCache(std::chrono::seconds expired);
 
 spMarket getMarket(int64_t marketId);
 void saveMarket(Market* market);
 void setMarketData(spMarket market);
 
 bool update_star_system(StarSystem* ss, db::StarSystemJS& db_ss);
-bool update_star_system(StarSystem* ss, db::MegashipJS& db_ms);
+bool update_megaship(StarSystem* ss, db::MegashipJS& db_ms);
 bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db::MegashipJS>& db_megaships);
 
 bool updateFromGameEvent(StarSystem* ss, spGameEvent& ge);
 bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge);
+bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge);
 bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge);
 
 struct NavType {

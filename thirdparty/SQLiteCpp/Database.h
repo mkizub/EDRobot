@@ -166,6 +166,9 @@ class SQLITECPP_API Database
     friend class Statement; // Give Statement constructor access to the mSQLitePtr Connection Handle
 
 public:
+
+    Database(const char* apFilename, sqlite3* handle);
+
     /**
      * @brief Open the provided database UTF-8 filename.
      *

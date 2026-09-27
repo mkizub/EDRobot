@@ -128,7 +128,7 @@ NavType STRONGHOLD_CARRIER {
         TypeNav::StrongholdCarrier,
         {"nav_select_icon_station_megaship.png"},
         false,
-        {{Lang::EN,"Stronghold Carrier"},{Lang::RU,"Носитель-база"}},
+        {{Lang::XX,"Stronghold Carrier"},{Lang::RU,"Носитель-база"}},
 };
 NavType MEGASHIP {
         u'\u2672', // ♲
@@ -139,8 +139,8 @@ NavType COLONIZATION_SHIP {
         u'\u267B', // ♻
         TypeNav::ColonisationShip,
         {},
-        true, // "$EXT_PANEL_ColonisationShip; *"
-        {{Lang::EN,"System Colonisation Ship"},{Lang::RU,"Колонизационный корабль"}}
+        true, // "$EXT_PANEL_ColonisationShip; *" "$EXT_PANEL_ColonisationShip:#index=1;"
+        {{Lang::XX,"System Colonisation Ship"},{Lang::RU,"Колонизационный корабль"}}
 };
 NavType ENGINEER {
         u'\u23E3', // ⏣
@@ -310,7 +310,7 @@ bool NavType::match_name(std::string_view sname) const {
                 return true;
             break;
         case TypeNav::ColonisationShip:
-            if (sname.starts_with("$EXT_PANEL_ColonisationShip;"))
+            if (sname.starts_with("$EXT_PANEL_ColonisationShip"))
                 return true;
             for (auto &p: name_loc) {
                 if ((p.first == Lang::XX || p.first == st::lng) && sname.starts_with(p.second))

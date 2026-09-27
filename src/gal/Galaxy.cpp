@@ -5,9 +5,11 @@
 #include "../pch.h"
 
 #include <unordered_set>
+#include <boost/pool/pool_alloc.hpp>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
+#include <boost/unordered/unordered_flat_map.hpp>
 
 #include "Galaxy.h"
 #include "../db/DB.h"
@@ -15,7 +17,7 @@
 
 namespace gal {
 
-struct LRUKey {
+struct LRUStarSystemKey {
     int64_t  systemAddress;
     std::string_view systemName;
     std::shared_ptr<StarSystem> ptr;
@@ -26,19 +28,20 @@ struct by_systemAddress {};
 struct by_systemName {};
 
 using StarSystemMap = boost::multi_index_container<
-        LRUKey,
+        LRUStarSystemKey,
         boost::multi_index::indexed_by<
                 // Index 1: Unique fast hash lookup by ID
                 boost::multi_index::hashed_unique<
                         boost::multi_index::tag<by_systemAddress>,
-                        boost::multi_index::member<LRUKey, int64_t, &LRUKey::systemAddress>
+                        boost::multi_index::member<LRUStarSystemKey, int64_t, &LRUStarSystemKey::systemAddress>
                 >,
                 // Index 2: Unique sorted lookup by Username
                 boost::multi_index::hashed_unique<
                         boost::multi_index::tag<by_systemName>,
-                        boost::multi_index::member<LRUKey, std::string_view, &LRUKey::systemName>
+                        boost::multi_index::member<LRUStarSystemKey, std::string_view, &LRUStarSystemKey::systemName>
                 >
-        >
+        >,
+        boost::fast_pool_allocator<LRUStarSystemKey>
 >;
 
 struct StarSystemCache {
@@ -46,22 +49,35 @@ struct StarSystemCache {
     const spStarSystem dummyStarSystem;
     alignas(64) std::mutex mutex;
 
-    StarSystemCache() : dummyStarSystem(new StarSystem(0, "Void", 0,0,0))
+    StarSystemCache() : dummyStarSystem(new StarSystem(0, "Void", Coords{}))
     {
     }
 
-    void cleanup();
-    spStarSystem put(int64_t address, std::string_view name, double x, double y, double z);
+    void cleanup(std::chrono::seconds expired);
+    spStarSystem put(int64_t address, std::string_view name, Coords coords);
     spStarSystem get(int64_t address);
     spStarSystem get(std::string_view name);
 
-} theCache;
+} theSystemsCache;
 
-void StarSystemCache::cleanup() {
+void StarSystemCache::cleanup(std::chrono::seconds expired) {
     std::scoped_lock<std::mutex> lock(mutex);
-    auto keep = Timestamp::clock::now() - 1h;
+    auto keep = Timestamp::clock::now() - expired;
     for (auto it = systems.begin(); it != systems.end(); /* no increment */) {
-        if (it->lru < keep) {
+        auto& ss = it->ptr;
+        bool used = ss.use_count() > 1;
+        if (!used && it->lru < keep) {
+            // we can safely iterate, because there are no referencies to star system,
+            // and noone can load this star system, because we locked cache access
+            for (auto &e: ss->entities) {
+                if (e.use_count() > 1) {
+                    used = true;
+                    break;
+                }
+            }
+        }
+        if (!used && it->lru < keep) {
+            it->ptr->save();
             it = systems.erase(it);
         } else {
             ++it;
@@ -69,7 +85,7 @@ void StarSystemCache::cleanup() {
     }
 }
 
-spStarSystem StarSystemCache::put(int64_t address, std::string_view name, double x, double y, double z) {
+spStarSystem StarSystemCache::put(int64_t address, std::string_view name, Coords coords) {
     std::scoped_lock<std::mutex> lock(mutex);
     if (!address)
         return dummyStarSystem;
@@ -79,7 +95,7 @@ spStarSystem StarSystemCache::put(int64_t address, std::string_view name, double
         it->lru = Timestamp::clock::now();
         return it->ptr;
     }
-    spStarSystem s(new StarSystem(address, name, x, y, z));
+    spStarSystem s(new StarSystem(address, name, coords));
     auto p = systems.insert({s->systemAddress, s->systemName, s, Timestamp::clock::now()});
     return s;
 }
@@ -108,16 +124,70 @@ spStarSystem StarSystemCache::get(std::string_view name) {
     return it->ptr;
 }
 
+struct LRUMarket {
+    mutable Timestamp lru;
+    spMarket market;
+};
 
-std::unordered_map<int64_t,spMarket > gMarketById;
-spStarSystem gCurrentStarSystem = theCache.dummyStarSystem;
+struct MarketsCache {
+    boost::unordered_flat_map<
+            int64_t,
+            LRUMarket,
+            boost::hash<int64_t>,
+            std::equal_to<int64_t>,
+            boost::fast_pool_allocator<std::pair<int64_t const, LRUMarket>>
+            >
+            markets;
+    alignas(64) std::mutex mutex;
+
+    void cleanup(std::chrono::seconds expired);
+    spMarket put(spMarket market);
+    spMarket get(int64_t marketId);
+
+} theMarketsCache;
+
+void MarketsCache::cleanup(std::chrono::seconds expired) {
+    std::scoped_lock<std::mutex> lock(mutex);
+    auto keep = Timestamp::clock::now() - expired;
+    for (auto it = markets.begin(); it != markets.end(); /* no increment */) {
+        if (it->second.market.use_count() == 1 && it->second.lru < keep) {
+            it = markets.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+spMarket MarketsCache::put(spMarket market) {
+    std::scoped_lock<std::mutex> lock(mutex);
+    if (market && market->marketId) {
+        auto now = Timestamp::clock::now();
+        markets[market->marketId] = LRUMarket{now, market};
+    }
+    return market;
+}
+
+spMarket MarketsCache::get(int64_t marketId) {
+    if (!marketId)
+        return {};
+    std::scoped_lock<std::mutex> lock(mutex);
+    auto it = markets.find(marketId);
+    if (it == markets.end())
+        return {};
+    it->second.lru = Timestamp::clock::now();
+    return it->second.market;
+}
+
+
+spStarSystem gCurrentStarSystem = theSystemsCache.dummyStarSystem;
 
 void saveMarket(Market* market) {
-    if (!market || !market->marketId)
+    if (!market || !market->marketId || !market->systemAddress)
         return;
 
     db::MarketJS db_m {
         .marketId = market->marketId,
+        .systemId = market->systemAddress,
         .updated = market->timestamp,
         .stationName = market->stationName,
         .stationType = market->stationType,
@@ -230,6 +300,7 @@ spMarket loadMarket(int64_t marketId) {
     spMarket market = std::make_shared<Market>(Market{
         .timestamp = db_m.updated,
         .marketId = marketId,
+        .systemAddress = db_m.systemId,
         .stationName = db_m.stationName,
         .stationType = db_m.stationType,
         .starSystem = db_m.starSystem,
@@ -281,6 +352,7 @@ spMarket loadMarket(int64_t marketId) {
 //    spMarket market = std::make_shared<Market>(Market{
 //        .timestamp = timestamp,
 //        .marketId = marketId,
+//        .systemAddress = ...,
 //        .stationName = *jm["StationName"].as_string_or(),
 //        .stationType = *jm["StationType"].as_string_or(),
 //        .starSystem = *jm["StarSystem"].as_string_or(),
@@ -478,16 +550,23 @@ static void parseBodyId(const spStarSystem& ss, spEntity& entity, const js::valu
 //    return ss;
 //}
 
+//std::pmr::synchronized_pool_resource StarSystem::entitiesPool(std::pmr::pool_options{
+//    .max_blocks_per_chunk = 1024,
+//    .largest_required_pool_block = 128
+//});
+
 void StarSystem::load() {
     if (isBlobLoaded)
         return;
     db::StarSystemJS db_ss;
     if (db::loadStarSystemBlob(db_ss, systemName, systemAddress)) {
+        auto saved_needBlobSave = needBlobSave;
         update_star_system(this, db_ss);
+        needBlobSave = saved_needBlobSave;
         std::vector<db::MegashipJS> megaships;
         if (db::loadMegaShips(systemAddress, megaships)) {
             for (auto& db_ms : megaships)
-                update_star_system(this, db_ms);
+                update_megaship(this, db_ms);
         }
     }
     isBlobLoaded = true;
@@ -495,7 +574,7 @@ void StarSystem::load() {
 
 void StarSystem::save() {
     if (needCoreSave) {
-        db::saveStarSystem({systemAddress, systemName, starPos.x, starPos.y, starPos.z, updated_at, eddn_updated_at});
+        db::saveStarSystem({systemAddress, systemName, systemCoords, updated_at, eddn_updated_at});
         needCoreSave = false;
     }
     if (needBlobSave) {
@@ -617,11 +696,11 @@ void StarSystem::save() {
 }
 
 spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_load) {
-    spStarSystem ss = theCache.get(name);
+    spStarSystem ss = theSystemsCache.get(name);
     if (!ss) {
         db::StarSystem s = db::loadStarSystem(name);
         if (!s.name.empty()) {
-            ss = theCache.put(s.id, s.name, s.x, s.y, s.z);
+            ss = theSystemsCache.put(s.id, s.name, s.coords);
             ss->needCoreSave = false;
             ss->isBlobLoaded = false;
             ss->needBlobSave = false;
@@ -642,53 +721,47 @@ spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_l
     return ss;
 }
 
-spStarSystem makeStarSystem(std::string_view name, int64_t address, cv::Point3d* starPos, bool blob_load, bool network_load) {
+spStarSystem makeStarSystem(std::string_view name, int64_t address, Coords coords, bool blob_load, bool network_load) {
     assert (!name.empty() && address != 0);
     if (name.empty() || address == 0) {
         LOG_ERROR("Attempt to create star system: address={}, name='{}', coords=[{},{},{}]",
-                  address, name, starPos ? starPos->x : 0, starPos ? starPos->y : 0, starPos ? starPos->z : 0);
+                  address, name, coords.x, coords.y, coords.z);
         return {};
     }
-    spStarSystem ss = theCache.get(address);
+    spStarSystem ss = theSystemsCache.get(address);
     if (!ss) {
         db::StarSystem s = db::loadStarSystem(address);
         if (!s.name.empty()) {
-            ss = theCache.put(address, name, s.x, s.y, s.z);
-            ss->needCoreSave = true;
+            ss = theSystemsCache.put(address, name, s.coords);
+            ss->needCoreSave = false; // just loaded from DB
             ss->isBlobLoaded = false;
             ss->needBlobSave = false;
-
             ss->updated_at = s.updated;
             ss->eddn_updated_at = s.eddn_updated;
-            if (starPos && cv::norm(cv::Point3d(s.x,s.y,s.z)-*starPos) > 0.1) {
-                ss->starPos = *starPos;
-                ss->needCoreSave = true;
-            } else {
-                ss->needCoreSave = false; // just loaded from DB
-            }
         } else {
-            double x = starPos ? starPos->x : 0;
-            double y = starPos ? starPos->y : 0;
-            double z = starPos ? starPos->z : 0;
-            ss = theCache.put(address, name, x, y, z);
-            ss->needCoreSave = true;
+            ss = theSystemsCache.put(address, name, coords);
+            ss->needCoreSave = !coords.empty();
         }
+    }
+    if (!coords.empty() && ss->systemCoords != coords) {
+        const_cast<Coords&>(ss->systemCoords) = coords;
+        ss->needCoreSave = true;
     }
     if (ss->needCoreSave) {
         db::StarSystem s {
                 .id = ss->systemAddress,
                 .name = ss->systemName,
-                .x = ss->starPos.x,
-                .y = ss->starPos.y,
-                .z = ss->starPos.z,
+                .coords = ss->systemCoords,
                 .updated = ss->updated_at,
                 .eddn_updated = ss->eddn_updated_at,
         };
-        ss->needCoreSave = db::saveStarSystem(s);
+        db::saveStarSystem(s);
+        ss->needCoreSave = false;
     }
     if (blob_load || network_load)
         ss->load();
-    if (network_load && (!ss->isBlobLoaded || (ss->entities.empty() && !ss->eddn_updated_at.time_since_epoch().count())))
+    if (network_load && !Cfg.isNetworkDisabled() &&
+        (!ss->isBlobLoaded || (ss->entities.empty() && !ss->eddn_updated_at.time_since_epoch().count())))
         ss = Spansh::loadStarSystem(ss);
     return ss;
 }
@@ -698,6 +771,10 @@ spStarSystem& getCurrentStarSystem() {
 }
 void setCurrentStarSystem(spStarSystem ss) {
     gCurrentStarSystem.swap(ss);
+}
+
+void cleanupStarSystemCache(std::chrono::seconds expired) {
+    theSystemsCache.cleanup(expired);
 }
 
 spEntity StarSystem::getMainStar() {
@@ -1015,8 +1092,17 @@ spEntity StarSystem::addStation(spGameEvent& ge) {
                 tp = nt->type;
             }
         }
-        if (tp != TypeNav::Other)
+        if (tp != TypeNav::Other) {
             typeNav = tp;
+        }
+        else if (dock->type == TypeNav::Other) {
+            if (stype == "SurfaceStation") {
+                if (ge->event=="ApproachSettlement")
+                    typeNav = TypeNav::PlanetaryThing;
+                else
+                    typeNav = TypeNav::SpaceStation;
+            }
+        }
     }
     if (typeNav == TypeNav::PlanetaryPort) {
         if (je["StationGovernment"].is_string() && je["StationGovernment"].as_string() == "$government_Engineer;")
@@ -1096,7 +1182,7 @@ void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEv
         auto& data = event->data;
         if (this->systemAddress != data["SystemAddress"].as_int_or())
             return;
-        const auto stype = data["SignalType"].as_string();
+        const auto stype = data["SignalType"].as_string_or();
         std::string sname = *data["SignalName"].as_string();
         std::string_view snloc;
         if (data["SignalName_Localised"].is_string()) {
@@ -1150,23 +1236,23 @@ void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEv
 spMarket getMarket(int64_t marketId) {
     if (!marketId)
         return {};
-    auto market = gMarketById[marketId];
+    auto market = theMarketsCache.get(marketId);
     if (market && !market->items.empty())
         return market;
     market = loadMarket(marketId);
     if (market)
-        gMarketById[marketId] = market;
+        theMarketsCache.put(market);
     return market;
 }
 
 void setMarketData(spMarket market) {
-    if (!market || !market->marketId)
+    if (!market || !market->marketId || !market->systemAddress)
         return;
-    if (auto old = gMarketById[market->marketId]; old && old->timestamp > market->timestamp && old->raven == market->raven) {
+    if (auto old = theMarketsCache.get(market->marketId); old && old->timestamp > market->timestamp && old->raven == market->raven) {
         if (!old->raven || old->raven->timestamp == market->raven->timestamp)
             return;
     }
-    gMarketById[market->marketId] = market;
+    theMarketsCache.put(market);
     saveMarket(market.get());
 }
 

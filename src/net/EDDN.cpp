@@ -162,7 +162,7 @@ void event_Docked(spGameEvent &ge) {
     if (j["SystemAddress"].empty())
         j["SystemAddress"] = ss.addr;
     if (j["StarPos"].empty())
-        j["StarPos"] = js::array({ss.pos.x,ss.pos.y,ss.pos.z});
+        j["StarPos"] = js::array({ss.coords.x,ss.coords.y,ss.coords.z});
 
     auto json_data = packMessage("https://eddn.edcd.io/schemas/journal/1", j);
     LOG(INFO) << "EDDN post Docked";
@@ -193,7 +193,7 @@ void event_FSSSignalDiscovered(const std::vector<spGameEvent> &events) {
         {"event", "FSSSignalDiscovered"},
         {"SystemAddress", ss->systemAddress},
         {"StarSystem", ss->systemName},
-        {"StarPos", js::array({ss->starPos.x,ss->starPos.y,ss->starPos.z})},
+        {"StarPos", js::array({ss->systemCoords.x,ss->systemCoords.y,ss->systemCoords.z})},
         {"signals", js::array({})}
     });
     auto& arr = j["signals"].as_array();
@@ -231,7 +231,7 @@ void scanEvent(spGameEvent& ge, const char* sysNameFld, const char* schema) {
     if (j[sysNameFld].empty() || !j[sysNameFld].is_string())
         j[sysNameFld] = eddnSS.name;
     if (j["StarPos"].empty() || !j["StarPos"].is_array())
-        j["StarPos"] = js::array({eddnSS.pos.x, eddnSS.pos.y, eddnSS.pos.z});
+        j["StarPos"] = js::array({eddnSS.coords.x, eddnSS.coords.y, eddnSS.coords.z});
 
     auto json_data = packMessage(schema, j);
     LOG(INFO) << "EDDN post " << ge->event;

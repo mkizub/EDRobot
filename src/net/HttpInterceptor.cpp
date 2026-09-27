@@ -42,6 +42,25 @@ HttpInterceptor::HttpInterceptor(cpr::Session& session)
 }
 
 cpr::Response HttpInterceptor::intercept(cpr::Session &session) {
+    if (Cfg.isNetworkDisabled()) {
+        cpr::Response r;
+        r.status_code = 404;
+        //std::string text{};
+        //Header header{};
+        //Url url{};
+        //double elapsed{};
+        //Cookies cookies{};
+        r.error = cpr::Error(CURLE_FAILED_INIT, "network disabled");
+        //std::string raw_header{};
+        //std::string status_line{};
+        //std::string reason{};
+        //cpr_off_t uploaded_bytes{};
+        //cpr_off_t downloaded_bytes{};
+        //long redirect_count{};
+        //std::string primary_ip{};
+        //std::uint16_t primary_port{};
+        return r;
+    }
     auto logger = spdlog::get("http");
     // Log the request URL
     logger->debug("{}[{}] request   url: {}", mode, reqId, session.GetFullRequestUrl());

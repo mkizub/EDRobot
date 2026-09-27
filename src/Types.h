@@ -114,6 +114,8 @@ namespace gal {
     typedef std::shared_ptr<Entity> spEntity;
     class StarSystem;
     typedef std::shared_ptr<StarSystem> spStarSystem;
+    void spansh_systems_dump_test(std::string_view); // for testing
+    void game_logs_test(std::string_view); // for testing
 }
 
 namespace ai {
@@ -122,6 +124,31 @@ void toggleDebugPause();
 bool isDebugPause();
 void resetCompassDetects();
 
+}
+
+struct Coords {
+    double x {};
+    double y {};
+    double z {};
+
+    constexpr bool empty() const {
+        return (x*x + y*y + z*z) < 1.e-7;
+    }
+    constexpr bool operator==(const Coords& other) const {
+        double dx = x - other.x;
+        double dy = y - other.y;
+        double dz = z - other.z;
+        return (dx*dx + dy*dy + dz*dz) < 1.e-7;
+    }
+    constexpr bool operator!=(const Coords& other) const {
+        return !operator==(other);
+    }
+};
+
+inline double dist(const Coords& a, const Coords& b) {
+    return std::sqrt((a.x - b.x) * (a.x - b.x) +
+                     (a.y - b.y) * (a.y - b.y) +
+                     (a.z - b.z) * (a.z - b.z));
 }
 
 struct opt_bool {
@@ -464,6 +491,7 @@ typedef std::shared_ptr<RavenProj> spRavenProj;
 struct Market {
     const Timestamp timestamp;
     const int64_t marketId;
+    const int64_t systemAddress;
     const std::string stationName;
     const std::string stationType;
     const std::string starSystem;
@@ -561,7 +589,6 @@ JS_ENUM_DECL(JsTimestamps)
 JS_ENUM_DECL(JsServices)
 JS_ENUM_DECL(JsStationState)
 JS_ENUM_DECL(JsCarrierDockingAccess)
-JS_ENUM_DECL(JsSpectralClass)
 JS_ENUM_DECL(JsLuminosity)
 
 inline TypeNav toTypeNav(JsNavType tp) { return static_cast<TypeNav>(tp.id); }

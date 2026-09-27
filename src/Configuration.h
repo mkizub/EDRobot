@@ -24,6 +24,7 @@ public:
     static Configuration& getInstance();
 
     bool load();
+    bool start();
     void shutdown();
     void savePrefs();
     void saveBookmarks();
@@ -71,7 +72,7 @@ public:
     cv::Size getCaptureDisplaySize() const { return {scaledScreenWidth, scaledScreenHeight}; }
     cv::Rect getCroppedDisplayRect() const { return croppedScreenRect; }
     unsigned getVJoyDeviceID() const { return vJoyDeviceID; }
-    bool isRavenColonialEnabled() const { return mRavenColonialEnabled; }
+    bool isRavenColonialEnabled() const { return mRavenColonialEnabled && !mNetworkDisabled; }
     bool isRavenColonialReportCarrierCargo() const { return mRavenColonialReportCarrierCargo && st::cmdr.fleetCarrierId != 0; }
     bool isRavenColonialReportShipCargo() const { return mRavenColonialReportShipCargo && !st::cmdr.ravenKey.empty(); }
     void setRavenColonialEnabled(bool on) { mRavenColonialEnabled = on; }
@@ -82,8 +83,8 @@ public:
             return mRavenColonialKeys.at(cmdr);
         return {};
     }
-    bool isEddnSystemsEnabled() const { return mEddnSystemsEnabled; }
-    bool isEddnMarketsEnabled() const { return mEddnMarketsEnabled; }
+    bool isEddnSystemsEnabled() const { return mEddnSystemsEnabled && !mNetworkDisabled; }
+    bool isEddnMarketsEnabled() const { return mEddnMarketsEnabled && !mNetworkDisabled; }
     void setEddnSystemsEnabled(bool on) { mEddnSystemsEnabled = on; }
     void setEddnMarketsEnabled(bool on) { mEddnMarketsEnabled = on; }
     bool useAutopilotDepartureCheck() const { return mAutopilotDepartureCheck; }
@@ -93,8 +94,13 @@ public:
     bool useScoInSpace() const { return mScoInSpace; }
     void setScoInSpace(bool on) { mScoInSpace = on; }
 
+    bool isNetworkDisabled() const { return mNetworkDisabled; }
     bool getCurlInsecure() const { return mCurlInsecure; }
     const std::string& getCurlProxyURL() const { return mCurlProxyUrl; }
+
+    const std::string& sqliteSynchronous() { return mSqliteSynchronous; }
+    const std::string& sqliteJouralMode() { return mSqliteJournalMode; }
+    const int sqliteJouralSize() { return mSqliteJournalSize; }
 
     bool isHeadlookSmoothing() const { return configHeadlookSmoothing; }
 
@@ -107,8 +113,9 @@ public:
 private:
     friend class Master;
     friend class CargoManager;
-    friend void parseEvent_Fileheader(spGameEvent& ge); // for updateLanguage
-    friend void parseEvent_LoadGame(spGameEvent& ge); // for updateLanguage
+    friend void setGameVersion(spGameEvent& ge); // for updateLanguage
+    friend void gal::game_logs_test(std::string_view); // for testing
+    friend void gal::spansh_systems_dump_test(std::string_view); // for testing
 
     void parseShortcutConfig(Command command, const std::string& name, js::value cfg);
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);
@@ -156,9 +163,13 @@ private:
     bool mAutopilotDepartureCheck = false;
     bool mScoFromPlanet = true;
     bool mScoInSpace = true;
+    bool mNetworkDisabled = false;
     bool mCurlInsecure = true;
     std::map<std::string,std::string> mRavenColonialKeys;
     std::string mCurlProxyUrl;
+    std::string mSqliteSynchronous = "NORMAL";
+    std::string mSqliteJournalMode = "PERSIST";
+    int         mSqliteJournalSize = 16777216;
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;
     std::wstring mEDCurrentJournalFile;

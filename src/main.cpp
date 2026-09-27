@@ -13,10 +13,6 @@
 std::thread::id main_thread_id;
 spdlog::sink_ptr console_sink;
 
-namespace db{
-void full_galaxy_test();
-}
-
 BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
     static bool shutdownCalled = false;
     static bool exitCalled = false;
@@ -180,7 +176,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    int planetData_sz = sizeof(planetData);
 //    LOG_INFO("{} {} {} {}", entity_sz, stationData_sz, starData_sz, planetData_sz);
 
-//    db::full_galaxy_test();
+//    {
+//        SetConsoleOutputCP(CP_UTF8);
+//        if (HWND consoleWindow = GetConsoleWindow()) {
+//            ShowWindow(consoleWindow, SW_RESTORE);
+//            BringWindowToTop(consoleWindow);
+//        }
+//        gal::spansh_systems_dump_test("D:/Work/ED/EDMapFilter/galaxy.json.gz");
+//        gal::game_logs_test("C:/Users/mkizub/Saved Games/Frontier Developments/Elite Dangerous");
+//    }
 
     Master& master = Master::getInstance();
     if (master.initialize())

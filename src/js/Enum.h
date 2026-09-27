@@ -73,6 +73,18 @@ struct Enum : public EnumID {
     static E get(std::string_view sv) {
         return E(Decl::instance.get_ptr(sv));
     }
+    static E get_or(unsigned id, std::function<EnumVal*(EnumDeclBase&,int)> callback) {
+        EnumVal* ptr = Decl::instance.get_ptr(id);
+        if (!ptr && id)
+            ptr = callback(Decl::instance, id);
+        return E(ptr);
+    }
+    static E get_or(std::string_view sv, std::function<EnumVal*(EnumDeclBase&,std::string_view)> callback) {
+        EnumVal* ptr = Decl::instance.get_ptr(sv);
+        if (!ptr && !sv.empty())
+            ptr = callback(Decl::instance, sv);
+        return E(ptr);
+    }
     static EnumVal* get_ptr(unsigned id) {
         return Decl::instance.get_ptr(id);
     }
@@ -113,7 +125,9 @@ struct Enum : public EnumID {
     constexpr uint8_t& emplace() noexcept { id = 0; return id; }
     explicit operator bool() const noexcept { return id; }
     [[nodiscard]] constexpr bool has_value() const noexcept { return id; }
-    [[nodiscard]] constexpr bool is_predefined() const noexcept { return id <= Decl::instance.maxPredefinedId; }
+    [[nodiscard]] constexpr bool is_predefined() const noexcept {
+        return id && Decl::instance.get_ptr(id)->predefined;
+    }
     const uint8_t& value() const noexcept { return id; }
     void reset() noexcept { id = 0; }
     constexpr bool operator==(const Enum& other) const {

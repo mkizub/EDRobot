@@ -223,8 +223,8 @@ struct glz::meta<db::StationJS>
             &T::controllingFactionState,
             &T::distanceToArrival,
             &T::primaryEconomy,
-            &T::secondaryEconomy,
-            &T::economies,
+            "secondaryEconomy", glz::skip(),
+            "economies", &T::set_economies,
             &T::allegiance,
             &T::government,
             &T::services,
@@ -294,7 +294,7 @@ struct glz::meta<db::BodyJS>
             // star part
             "mainStar",          glz::custom<&T::set_mainStar, &T::get_mainStar>,
             "age",               glz::custom<&T::set_age, &T::get_age>,
-            "spectralClass",     glz::custom<&T::set_spectralClass, &T::get_spectralClass>,
+            "spectralClass",     glz::skip(), //glz::custom<&T::set_spectralClass, &T::get_spectralClass>,
             "luminosity",        glz::custom<&T::set_luminosity, &T::get_luminosity>,
             "absoluteMagnitude", glz::custom<&T::set_absoluteMagnitude, &T::get_absoluteMagnitude>,
             "solarMasses",       glz::custom<&T::set_solarMasses, &T::get_solarMasses>,
@@ -387,6 +387,14 @@ void checkStation(StationJS& st, bool is_planetary) {
         else
             LOG_ERROR("Error: Station '{}' with type {} has carrier name {}", st.name, std::string_view(st.type), st.carrierName);
     }
+    if (toTypeNav(st.type) == TypeNav::FleetCarrier) {
+        if (st.name.size() == 4) {
+            st.type = toJsNavType(TypeNav::SquadronCarrier);
+        } else {
+            st.controllingFaction.clear();
+        }
+        st.economies.clear();
+    }
 }
 
 void checkBody(BodyJS& body) {
@@ -433,9 +441,17 @@ void fixupStarSystem(StarSystemJS& ss) {
     }
 }
 
+#ifdef NDEBUG
+#define OPTS .error_on_unknown_keys = false
+#else
+#define OPTS
+#endif
+
 bool parseSpanshSystemDump(StarSystemJS& ss, const std::string& text) {
     std::map<std::string,StarSystemJS> systems;
-    glz::error_ctx err = glz::read_json(systems, text);
+    glz::context ctx{};
+    glz::error_ctx err = glz::read<glz::opts{OPTS}>(systems, text, ctx);
+
     if (err) {
         LOG_ERROR("Deserialization Error: {}", glz::format_error(err));
         return false;
@@ -449,123 +465,15 @@ bool parseSpanshSystemDump(StarSystemJS& ss, const std::string& text) {
     return true;
 }
 
-
-extern void test_cbor_start();
-extern void test_cbor_end();
-extern int test_cbor(StarSystemJS& ss_js);
-int64_t totalSizeCBOR = 0;
-
-void checkStarSystem(StarSystemJS& ss) {
-//    for (const auto& [key,val] : ss.timestamps) {
-//        if (!JsTimestamps::instance.get(key)) {
-//            LOG_ERROR("Error: Unknown system timestamp key \"{}\"", key);
-//            JsTimestamps::instance.addNewValue(key);
-//        }
-//    }
-    for (auto& b : ss.bodies) {
-        checkBody(b);
-    }
-    for (auto& st : ss.stations) {
-        checkStation(st, false);
-    }
-    int64_t& total = totalSizeCBOR;
-    total += test_cbor(ss);
-}
-
-void test_json_system(glz::context& ctx, std::string& strbuf) {
-    StarSystemJS ss_js;
-
-    glz::error_ctx err;
-    err = glz::read<my_opts{}>(ss_js,strbuf,ctx);
-    if (err)
-        LOG_ERROR("Serialization Error: {}", glz::format_error(err));
-    checkStarSystem(ss_js);
-
-    strbuf.clear();
-}
-
-void test_json(StarSystemJS& ss_js) {
-    glz::error_ctx err;
-    std::string strbuf;
-
-    test_cbor_start();
-
-    err = glz::read_file_json<glz::opts{.error_on_unknown_keys=false}>(ss_js,"10477373803.json",strbuf);
-    if (err)
-        LOG_ERROR("Serialization Error: {}", glz::format_error(err));
-    checkStarSystem(ss_js);
-
-    const char* filePath = "D:\\Work\\ED\\EDMapFilter\\galaxy.json.gz";
-    std::uintmax_t fizeSize = std::filesystem::file_size(filePath);
-    gzFile file = gzopen(filePath, "rb");
-    if (!file) {
-        LOG_ERROR("Failed to open gzip file.");
-        return;
-    }
-    strbuf.clear();
-
-    // Buffer to hold chunks of uncompressed data
-    char buffer[4096];
-    int64_t totalBytesRead = 0;
-    int bytesRead = 0;
-    int reported_pc = 0;
+bool parseSpanshSystemEntry(StarSystemJS& ss, const std::string& text) {
     glz::context ctx{};
-
-    // Read chunk by chunk until EOF
-    bool at_file_start = true;
-    bool at_system_start = true;
-    while ((bytesRead = gzread(file, buffer, sizeof(buffer))) > 0) {
-        totalBytesRead += bytesRead;
-        for (int i=0; i < bytesRead; i++) {
-            if (at_file_start) {
-                assert(buffer[i] == '[');
-                at_file_start = false;
-                continue;
-            }
-            if (buffer[i] == '\n') {
-                if (strbuf.empty() || strbuf == "[") {
-                    strbuf.clear();
-                    continue;
-                }
-                test_json_system(ctx,strbuf);
-                strbuf.clear();
-                at_system_start = true;
-                continue;
-            }
-            if (at_system_start) {
-                if (buffer[i] == ' ' || buffer[i] == '\t' || buffer[i] == '\n')
-                    continue;
-                at_system_start = false;
-                assert(buffer[i] == ',' || buffer[i] == '{' || buffer[i] == ']');
-                if (buffer[i] == ',')
-                    continue;
-                if (buffer[i] == ']') {
-                    LOG_ERROR("Parsed galaxy file completely");
-                    test_json_system(ctx,strbuf);
-                    strbuf.clear();
-                    break;
-                }
-            }
-            strbuf.push_back(buffer[i]);
-        }
-        int pc = totalBytesRead*100 / fizeSize;
-        if (pc != reported_pc) {
-            reported_pc = pc;
-            LOG_ERROR("Parsed galaxy file {}%", pc);
-            spdlog::default_logger_raw()->flush();
-        }
+    glz::error_ctx err = glz::read<glz::opts{OPTS}>(ss, text, ctx);
+    if (err) {
+        LOG_ERROR("Serialization Error: {}", glz::format_error(err));
+        return false;
     }
-    strbuf.clear();
-
-    // Check for errors before closing
-    if (bytesRead < 0) {
-        int errnum;
-        LOG_ERROR("Error reading file: {}", gzerror(file, &errnum));
-    }
-
-    gzclose(file);
-
-    test_cbor_end();
-
+    fixupStarSystem(ss);
+    return true;
 }
+
 }

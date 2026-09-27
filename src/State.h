@@ -24,7 +24,7 @@ extern bool isNeedRebootRepair;
 extern struct EddnStarSystem {
     std::string name;
     int64_t addr;
-    cv::Point3d pos;
+    Coords coords;
 } eddnStarSystem;
 
 extern struct Commander {

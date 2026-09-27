@@ -9,9 +9,17 @@ std::unordered_set<std::string, string_hash, std::equal_to<void>>& symbol::getSy
     return gSymbolSet;
 }
 
+constexpr uint8_t getMaxPredefinedId(const IList& values) {
+    unsigned max_id = 0;
+    for (const auto& v : values) {
+        if (v.first > max_id)
+            max_id = v.first;
+    }
+    return max_id;
+}
 EnumDeclBase::EnumDeclBase(std::string_view nm, IList values)
         : name(nm)
-        , maxPredefinedId(uint8_t(values.size()))
+        , maxPredefinedId(getMaxPredefinedId(values))
         , allValues {}
         , allValueNames {}
 {

@@ -86,7 +86,7 @@ bool TaskSystemsAround::run() {
             auto& ss = foundSystems[sidx];
             if (!ss)
                 continue;
-            if (ss->starPos == cv::Point3d{}) {
+            if (ss->systemCoords.empty()) {
                 if (ss->systemName != "Sol") {
                     LOG_INFO("Selected system[{:2d}] address {:14d} name \"{}\" is unknown", sidx, ss->systemAddress,
                              ss->systemName);
@@ -311,11 +311,11 @@ std::string TaskVisitPlanets::getStatus() {
 }
 
 
-static std::vector<int> nearest_neighbor(const std::vector<cv::Point3d>& points);
+static std::vector<int> nearest_neighbor(const std::vector<Coords>& points);
 // Вычисление полной длины маршрута (с возвратом в начало)
-static double get_total_distance(const std::vector<cv::Point3d>& points, const std::vector<int>& path);
+static double get_total_distance(const std::vector<Coords>& points, const std::vector<int>& path);
 // 2. Локальный поиск: Алгоритм 2-opt (убирает пересечения путей)
-void two_opt(const std::vector<cv::Point3d>& points, std::vector<int>& path);
+void two_opt(const std::vector<Coords>& points, std::vector<int>& path);
 
 TaskVisitSystems::TaskVisitSystems(const TaskTemplate &templ)
     : Task(templ)
@@ -362,7 +362,7 @@ bool TaskVisitSystems::run() {
                 if (!ss)
                     return false;
                 LOG_INFO("Star system: {} / {} (at x={:.5f} y={:.5f} z={:.5f}) updated at {}",
-                         ss->systemName, ss->systemAddress, ss->starPos.x, ss->starPos.y, ss->starPos.z, updated_at);
+                         ss->systemName, ss->systemAddress, ss->systemCoords.x, ss->systemCoords.y, ss->systemCoords.z, updated_at);
                 return true;
             });
             LOG_INFO("Got {} systems for spansh.co.uk search recall {} request", systems.size(), recallUUID);
@@ -419,10 +419,10 @@ bool TaskVisitSystems::run() {
         status = OPTIMIZING;
         notify_info("Have {} systems to visit", systems.size());
 
-        std::vector<cv::Point3d> points;
+        std::vector<Coords> points;
         points.reserve(systems.size());
         for (auto& ss : systems)
-            points.push_back(ss->starPos);
+            points.push_back(ss->systemCoords);
 
         // Шаг 1: Получаем быстрое начальное решение за O(N^2)
         std::vector<int> visitOrderPath = nearest_neighbor(points);
@@ -448,8 +448,8 @@ bool TaskVisitSystems::run() {
         }
         nextSystemName = next->systemName;
         nextSystemIdx = systems.size() - orderedSystems.size();
-        double dist = cv::norm(next->starPos - gal::getCurrentStarSystem()->starPos);
-        notify_info("Next system {} of {}: {} distance {:.1f}ly", nextSystemIdx, totalSystems, next->systemName, dist);
+        double d = dist(next->systemCoords, gal::getCurrentStarSystem()->systemCoords);
+        notify_info("Next system {} of {}: {} distance {:.1f}ly", nextSystemIdx, totalSystems, next->systemName, d);
 
         TaskTemplate impl = getTemplate(ED_TASK_VISIT_SYSTEM);
         impl.nm.clear();
@@ -490,15 +490,8 @@ std::string TaskVisitSystems::getStatus() {
 // AI-generated code
 //
 
-// Функция вычисления 3D расстояния
-inline double dist(const cv::Point3d& a, const cv::Point3d& b) {
-    return std::sqrt((a.x - b.x) * (a.x - b.x) +
-                     (a.y - b.y) * (a.y - b.y) +
-                     (a.z - b.z) * (a.z - b.z));
-}
-
 // Вычисление полной длины маршрута (с возвратом в начало)
-double get_total_distance(const std::vector<cv::Point3d>& points, const std::vector<int>& path) {
+double get_total_distance(const std::vector<Coords>& points, const std::vector<int>& path) {
     double total = 0.0;
     for (size_t i = 0; i < path.size(); ++i) {
         total += dist(points[path[i]], points[path[(i + 1) % path.size()]]);
@@ -507,7 +500,7 @@ double get_total_distance(const std::vector<cv::Point3d>& points, const std::vec
 }
 
 // 1. Жадный алгоритм: поиск Ближайшего Соседа
-std::vector<int> nearest_neighbor(const std::vector<cv::Point3d>& points) {
+std::vector<int> nearest_neighbor(const std::vector<Coords>& points) {
     int n = points.size();
     std::vector<int> path;
     path.reserve(n);
@@ -539,7 +532,7 @@ std::vector<int> nearest_neighbor(const std::vector<cv::Point3d>& points) {
 }
 
 // 2. Локальный поиск: Алгоритм 2-opt (убирает пересечения путей)
-void two_opt(const std::vector<cv::Point3d>& points, std::vector<int>& path) {
+void two_opt(const std::vector<Coords>& points, std::vector<int>& path) {
     int n = path.size();
     bool improvement = true;
 

@@ -118,6 +118,7 @@ bool update_market(StarSystem* ss, db::StationJS& db_st) {
     spMarket market = std::make_shared<Market>(Market{
             .timestamp = db_st.market->updated,
             .marketId = db_st.marketId,
+            .systemAddress = ss->systemAddress,
             .stationName = db_st.name,
             .stationType = stationType,
             .starSystem = ss->systemName,
@@ -204,13 +205,20 @@ bool update_station(StarSystem* ss, db::StationJS& db_st) {
     {
         auto &ext = st->getStationData();
 
+        if (st->type == TypeNav::FleetCarrier) {
+            ext.controllingFaction.clear();
+            ext.economies.clear();
+        }
+        if (st->type == TypeNav::SquadronCarrier) {
+            ext.economies.clear();
+        }
+
         MERGE(ext, db_st, controllingFaction);
         MERGE(ext, db_st, allegiance);
         MERGE(ext, db_st, government);
         MERGE(ext, db_st, state);
         MERGE(ext, db_st, controllingFactionState);
         MERGE(ext, db_st, primaryEconomy);
-        MERGE(ext, db_st, secondaryEconomy);
         MERGE(ext, db_st, carrierDockingAccess);
         MERGE(ext, db_st, economies);
         MERGE(ext, db_st, distanceToArrival);
@@ -277,7 +285,10 @@ bool update_body(StarSystem* ss, db::BodyJS& db_body) {
         auto &ext = body->getStarData();
         auto* sp = db_body.getStarPart();
         MERGE(ext, *sp, mainStar);
-        MERGE(ext, *sp, spectralClass);
+        if (sp->subClass >= 0 && ext.subClass != sp->subClass) {
+            ext.subClass = sp->subClass;
+            ss->needBlobSave = true;
+        }
         MERGE(ext, *sp, luminosity);
         MERGE(ext, *sp, age);
         MERGE(ext, *sp, solarMasses);
@@ -307,9 +318,9 @@ bool update_star_system(StarSystem* ss, db::StarSystemJS& db_ss) {
     if (!ss)
         return false;
 
-    cv::Point3d systemPos{db_ss.coords.x, db_ss.coords.y, db_ss.coords.z};
-    if (cv::norm(ss->starPos - systemPos) > 0.1) {
-        ss->starPos = systemPos;
+    Coords systemPos{db_ss.coords.x, db_ss.coords.y, db_ss.coords.z};
+    if (!systemPos.empty() && ss->systemCoords != systemPos) {
+        const_cast<Coords&>(ss->systemCoords) = systemPos;
         ss->needCoreSave = true;
     }
     if (db_ss.updated_at > ss->updated_at) {
@@ -348,13 +359,13 @@ bool update_star_system(StarSystem* ss, db::StarSystemJS& db_ss) {
     return true;
 }
 
-bool update_star_system(StarSystem* ss, db::MegashipJS& db_ms) {
+bool update_megaship(StarSystem* ss, db::MegashipJS& db_ms) {
     if (!ss || db_ms.systemId != ss->systemAddress)
         return false;
     TypeNav type = toTypeNav(db_ms.blob.type);
     if (!isMegaship(type))
         return false;
-    if (db_ms.marketId && !db_ms.blob.marketId)
+    if (db_ms.marketId > 0 && db_ms.blob.marketId <= 0)
         db_ms.blob.marketId = db_ms.marketId;
     if (!db_ms.name.empty() && db_ms.blob.name.empty())
         db_ms.blob.name = db_ms.name;
@@ -365,6 +376,11 @@ bool update_star_system(StarSystem* ss, db::MegashipJS& db_ms) {
     return update_station(ss, db_ms.blob);
 }
 
+
+js::EnumVal* badEnum(js::EnumDeclBase& decl, std::string_view sv) {
+    LOG_WARNING("Bad enum value \"{}\" for {}", sv, decl.name);
+    return decl.addNewValue(*sv);
+};
 
 bool updateFromGameEvent(StarSystem* ss, spGameEvent& ge) {
     if (!ss || ge->expired || ge->timestamp < ss->updated_at)
@@ -378,11 +394,11 @@ bool updateFromGameEvent(StarSystem* ss, spGameEvent& ge) {
         ss->updated_at = ge->timestamp;
         ss->needCoreSave = true;
 
-        ge_ext.allegiance = JsAllegiance::get(je["SystemAllegiance"].as_string_or());
-        ge_ext.government = JsGovernment::get(je["SystemGovernment"].as_string_or());
-        ge_ext.primaryEconomy = JsEconomy::get(je["SystemEconomy"].as_string_or());
-        ge_ext.secondaryEconomy = JsEconomy::get(je["SystemSecondEconomy"].as_string_or());
-        ge_ext.security = JsSecurity::get(je["SystemSecurity"].as_string_or());
+        ge_ext.allegiance = JsAllegiance::get_or(je["SystemAllegiance"].as_string_or(), badEnum);
+        ge_ext.government = JsGovernment::get_or(je["SystemGovernment"].as_string_or(), badEnum);
+        ge_ext.primaryEconomy = JsEconomy::get_or(je["SystemEconomy"].as_string_or(), badEnum);
+        ge_ext.secondaryEconomy = JsEconomy::get_or(je["SystemSecondEconomy"].as_string_or(), badEnum);
+        ge_ext.security = JsSecurity::get_or(je["SystemSecurity"].as_string_or(), badEnum);
         ge_ext.population = je["Population"].as_int_or(0);
 
         MERGE(ss_ext, ge_ext, allegiance);
@@ -431,6 +447,7 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
             ss->addEntity(body);
         }
         else if (body->type != TypeNav::Barycenter) {
+            LOG_WARNING("Body of type {} appears to be Barycenter");
             body->setType(TypeNav::Barycenter);
             ss->needBlobSave = true;
         }
@@ -460,21 +477,20 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
                 body->setType(TypeNav::Star);
                 ss->needBlobSave = true;
             }
-            std::string spectralClass = *je["StarType"].as_string_or();
-            if (!spectralClass.empty() && je["Subclass"].is_int())
-                spectralClass += std::to_string(je["Subclass"].as_int());
 
             struct Entity::StarData ge_ext {};
             auto& star_ext = body->getStarData();
-            //opt_bool mainStar; // TODO: how to detect main star?
             if (je.has_key("DistanceFromArrivalLS") && je["DistanceFromArrivalLS"].as_real() == 0.0)
                 ge_ext.mainStar = true;
-            ge_ext.spectralClass =        JsSpectralClass::get(spectralClass);
-            ge_ext.luminosity =           JsLuminosity::get(je["Luminosity"].as_string_or());
-            ge_ext.age =                  je["Age_MY"].as_int_or();
-            ge_ext.solarMasses =          je["StellarMass"].as_real_or(std::numeric_limits<float>::quiet_NaN());
-            ge_ext.absoluteMagnitude =    je["AbsoluteMagnitude"].as_real_or(std::numeric_limits<float>::quiet_NaN());
-            MERGE(star_ext, ge_ext, spectralClass);
+            ge_ext.subType =            JsBodySubType::get_or(je["StarType"].as_string_or(), badEnum);
+            ge_ext.subClass =           je["Subclass"].as_int_or(-1);
+            ge_ext.luminosity =         JsLuminosity::get_or(je["Luminosity"].as_string_or(), badEnum);
+            ge_ext.age =                je["Age_MY"].as_int_or();
+            ge_ext.solarMasses =        je["StellarMass"].as_real_or(std::numeric_limits<float>::quiet_NaN());
+            ge_ext.absoluteMagnitude =  je["AbsoluteMagnitude"].as_real_or(std::numeric_limits<float>::quiet_NaN());
+            //MERGE(star_ext, ge_ext, subClass);
+            if (ge_ext.subClass >= 0 && star_ext.subClass != ge_ext.subClass)
+                star_ext.subClass = ge_ext.subClass;
             MERGE(star_ext, ge_ext, luminosity);
             MERGE(star_ext, ge_ext, age);
             MERGE(star_ext, ge_ext, solarMasses);
@@ -490,10 +506,11 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
 
             struct Entity::PlanetData ge_ext {};
             auto& pl_ext = body->getPlanetData();
-            ge_ext.volcanismType =      JsVolcanismType::get(je["Volcanism"].as_string_or());
-            ge_ext.atmosphereType =     JsAtmosphereType::get(je["AtmosphereType"].as_string_or());
-            ge_ext.terraformingState =  JsTerraformingState::get(je["TerraformState"].as_string_or());
-            ge_ext.reserveLevel =       JsReserveLevel::get(je["ReserveLevel"].as_string_or());
+            ge_ext.subType =            JsBodySubType::get_or(je["PlanetClass"].as_string_or(), badEnum);
+            ge_ext.volcanismType =      JsVolcanismType::get_or(je["Volcanism"].as_string_or(), badEnum);
+            ge_ext.atmosphereType =     JsAtmosphereType::get_or(je["AtmosphereType"].as_string_or(), badEnum);
+            ge_ext.terraformingState =  JsTerraformingState::get_or(je["TerraformState"].as_string_or(), badEnum);
+            ge_ext.reserveLevel =       JsReserveLevel::get_or(je["ReserveLevel"].as_string_or(), badEnum);
             ge_ext.earthMasses =        je["MassEM"].as_real_or(std::numeric_limits<float>::quiet_NaN());
             ge_ext.surfaceGravity =     je["SurfaceGravity"].as_real_or(std::numeric_limits<float>::quiet_NaN());
             ge_ext.surfacePressure =    je["SurfacePressure"].as_real_or(std::numeric_limits<float>::quiet_NaN());
@@ -523,7 +540,7 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
                 if (map.size() != 1)
                     break;
                 std::string_view key = map.begin()->first;
-                TypeNav p_type = toTypeNav(JsNavType::get(key));
+                TypeNav p_type = toTypeNav(JsNavType::get_or(key, badEnum));
                 int p_id = map.begin()->second.as_int_or(-1);
                 if (!isBody(p_type) || p_id < 0)
                     break;
@@ -581,6 +598,159 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
     return true;
 }
 
+bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
+    auto& je = ge->data;
+
+    if (!ss)
+        return false;
+
+    if (ge->event=="ApproachSettlement" || ge->event=="Docked" || (ge->event=="Location") && ge->data["Docked"].as_bool_or()) {
+        std::string sname;
+        std::string stype;
+        int64_t marketId = je["MarketID"].as_int_or();
+        if (ge->event=="ApproachSettlement") {
+            sname = je["Name"].as_string_or();
+            if (sname.starts_with("Planetary Construction Site"))
+                stype = "PlanetaryConstructionDepot";
+        } else {
+            sname = je["StationName"].as_string_or();
+            stype = je["StationType"].as_string_or();
+        }
+
+        spEntity dock = ss->getDock(marketId);
+        if (!dock) {
+            dock = ss->getDock(sname);
+            if (dock) {
+                if (dock->marketId()) {
+                    assert (dock->marketId() != marketId);
+                    dock.reset();
+                } else {
+                    dock->setMarketId(marketId);
+                    ss->needBlobSave = true;
+                }
+            }
+        }
+        bool is_new = false;
+        if (!dock) {
+            dock.reset(new Entity);
+            is_new = true;
+        }
+
+        TypeNav typeNav = TypeNav::Other;
+        for (auto nt: ALL_NAV_TYPES) {
+            if (nt->match_name(sname)) {
+                typeNav = nt->type;
+                break;
+            }
+        }
+        if (typeNav == TypeNav::Other) {
+            TypeNav tp = TypeNav::Other;
+            for (auto nt: ALL_NAV_TYPES) {
+                if (nt->match_type(stype)) {
+                    if (nt->type == dock->type || dock->type == TypeNav::Other) {
+                        typeNav = nt->type;
+                        break;
+                    }
+                    tp = nt->type;
+                }
+            }
+            if (tp != TypeNav::Other) {
+                typeNav = tp;
+            }
+            else if (dock->type == TypeNav::Other) {
+                if (stype == "SurfaceStation") {
+                    if (ge->event=="ApproachSettlement")
+                        typeNav = TypeNav::PlanetaryThing;
+                    else
+                        typeNav = TypeNav::SpaceStation;
+                }
+            }
+        }
+        if (typeNav == TypeNav::PlanetaryPort) {
+            if (je["StationGovernment"].as_string_or() == "$government_Engineer;")
+                typeNav = TypeNav::EngineerPort;
+        }
+        if (typeNav != TypeNav::Other && dock->type != typeNav) {
+            dock->setType(typeNav);
+            ss->needBlobSave = true;
+        }
+        if (!sname.empty() && (dock->name.empty() || !dock->nameEq(sname))) {
+            dock->setName(sname);
+            ss->needBlobSave = true;
+        }
+        if (dock->parentBodyId < 0) {
+            if (st::space.bodyType == "Planet" || st::space.bodyType == "Star") {
+                dock->parentBodyId = st::space.bodyId;
+                ss->needBlobSave = true;
+            }
+        }
+        if (!dock->marketId()) {
+            dock->setMarketId(marketId);
+            ss->needBlobSave = true;
+        }
+
+        if (is_new) {
+            ss->addEntity(dock);
+            ss->needBlobSave = true;
+        }
+
+
+        struct Entity::StationData ge_ext {};
+        auto& st_ext = dock->getStationData();
+
+        ge_ext.marketId = je["MarketID"].as_int_or();
+        if (je["StationFaction"].is_object())
+            ge_ext.controllingFaction = je["StationFaction"]["Name"].as_string_or();
+        ge_ext.allegiance = JsAllegiance::get_or(je["StationAllegiance"].as_string_or(), badEnum);
+        ge_ext.government = JsGovernment::get_or(je["StationGovernment"].as_string_or(), badEnum);
+        ge_ext.state = JsStationState::get_or(je["StationState"].as_string_or(), badEnum);
+        ge_ext.controllingFactionState = JsFactionState::get_or(je["FactionState"].as_string_or(), badEnum);
+        ge_ext.primaryEconomy = JsEconomy::get_or(je["StationEconomy"].as_string_or(), badEnum);
+        if (auto& arr = je["StationEconomies"].as_array_or(); !arr.empty()) {
+            ge_ext.economies.reserve(arr.size());
+            for (auto &item: arr) {
+                JsEconomy economy = JsEconomy::get_or(item["Name"].as_string(), badEnum);
+                float prop = item["Proportion"].as_real();
+                ge_ext.economies.emplace_back(economy, prop);
+            }
+        }
+        //ge_ext.carrierDockingAccess = JsCarrierDockingAccess::get_or(je["StationState"].as_string_or(), badEnum);
+        ge_ext.distanceToArrival =    je["DistFromStarLS"].as_real_or(std::numeric_limits<float>::quiet_NaN());
+        ge_ext.latitude =             je["Latitude"].as_real_or(std::numeric_limits<float>::quiet_NaN());
+        ge_ext.longitude =            je["Longitude"].as_real_or(std::numeric_limits<float>::quiet_NaN());
+        if (je["LandingPads"].is_object()) {
+            ge_ext.landingPads.large = je["LandingPads"]["Large"].as_int_or();
+            ge_ext.landingPads.large = je["LandingPads"]["Medium"].as_int_or();
+            ge_ext.landingPads.large = je["LandingPads"]["Small"].as_int_or();
+        }
+        if (auto& arr = je["StationServices"].as_array_or(); !arr.empty()) {
+            ge_ext.services.reserve(arr.size());
+            for (auto &item: arr) {
+                JsServices service = JsServices::get_or(item.as_string(), badEnum);
+                ge_ext.services.push_back(service);
+            }
+        }
+
+        MERGE(st_ext, ge_ext, marketId);
+        MERGE(st_ext, ge_ext, controllingFaction);
+        MERGE(st_ext, ge_ext, allegiance);
+        MERGE(st_ext, ge_ext, government);
+        MERGE(st_ext, ge_ext, state);
+        MERGE(st_ext, ge_ext, controllingFactionState);
+        MERGE(st_ext, ge_ext, primaryEconomy);
+        MERGE(st_ext, ge_ext, economies);
+        MERGE(st_ext, ge_ext, distanceToArrival);
+        MERGE(st_ext, ge_ext, latitude);
+        MERGE(st_ext, ge_ext, longitude);
+        MERGE(st_ext, ge_ext, landingPads);
+        MERGE(st_ext, ge_ext, services);
+
+        return true;
+    }
+
+    return false;
+}
+
 bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge) {
     auto& je = ge->data;
 
@@ -596,6 +766,7 @@ bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge) {
         spMarket market = std::make_shared<Market>(Market{
                 .timestamp = ge->timestamp,
                 .marketId = marketId,
+                .systemAddress = ss->systemAddress,
                 .stationName = dock ? dock->name : "",
                 .stationType = "ConstrDepot",
                 .starSystem = ss->systemName,
@@ -660,9 +831,13 @@ bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge) {
         gal::setMarketData(market);
         if (hasRaven && reportToRaven) {
             RavenColonial::reportConstructionDepot(ge, market);
-        } else if (complete && market->raven->status != "complete") {
-            market->raven->status = "complete";
-            gal::saveMarket(market.get());
+        } else if (complete) {
+            if (!market->raven)
+                market->raven = std::make_shared<RavenProj>();
+            if (market->raven->status != "complete") {
+                market->raven->status = "complete";
+                gal::saveMarket(market.get());
+            }
         }
 
         return true;
@@ -674,7 +849,7 @@ bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge) {
 bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db::MegashipJS>& db_megaships) {
     db_ss.address = ss->systemAddress;
     db_ss.name = ss->systemName;
-    db_ss.coords = {ss->starPos.x, ss->starPos.y, ss->starPos.z};
+    db_ss.coords = {ss->systemCoords.x, ss->systemCoords.y, ss->systemCoords.z};
     db_ss.allegiance = ss->ext.allegiance;
     db_ss.government = ss->ext.government;
     db_ss.primaryEconomy = ss->ext.primaryEconomy;
@@ -733,7 +908,7 @@ bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db
         if (body->type == TypeNav::Star) {
             const auto &ext = body->getStarData();
             b.ensureStarPart()->mainStar = ext.mainStar;
-            b.ensureStarPart()->spectralClass = ext.spectralClass;
+            b.ensureStarPart()->subClass = ext.subClass;
             b.ensureStarPart()->luminosity = ext.luminosity;
             b.ensureStarPart()->age = ext.age;
             b.ensureStarPart()->solarMasses = ext.solarMasses;
@@ -806,7 +981,7 @@ bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db
         s.state = ext.state;
         s.controllingFactionState = ext.controllingFactionState;
         s.primaryEconomy = ext.primaryEconomy;
-        s.secondaryEconomy = ext.secondaryEconomy;
+        s.economies = ext.economies;
         s.carrierDockingAccess = ext.carrierDockingAccess;
         s.distanceToArrival = ext.distanceToArrival;
         s.latitude = ext.latitude;

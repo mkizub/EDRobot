@@ -19,6 +19,11 @@ struct StationJS;
 struct MegashipJS;
 struct MarketJS;
 
+//enum class CheckPoint {
+//    PASSIVE, FULL, RESTART, TRUNCATE, NOOP
+//};
+//bool checkpoint(CheckPoint mode);
+
 bool init();
 bool shutdown();
 StarSystem loadStarSystem(std::string_view name);
@@ -33,6 +38,7 @@ bool loadMarket(MarketJS& market);
 bool saveMarket(MarketJS& market);
 
 bool parseSpanshSystemDump(StarSystemJS& ss, const std::string& text);
+bool parseSpanshSystemEntry(StarSystemJS& ss, const std::string& text);
 
 
 bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, const void* data, int size);
@@ -67,7 +73,7 @@ struct FactionJS {
 struct StarSystem {
     int64_t id;
     std::string name;
-    double x, y, z;
+    Coords coords;
     Timestamp updated;
     Timestamp eddn_updated;
 };
@@ -91,6 +97,7 @@ struct MarketLineJS {
 
 struct MarketJS {
     int64_t marketId {};
+    int64_t systemId {};
     Timestamp updated;
     std::string stationName;
     std::string stationType;
@@ -117,9 +124,9 @@ struct StationJS {
     JsStationState state;
     JsFactionState controllingFactionState;
     JsEconomy primaryEconomy;
-    JsEconomy secondaryEconomy;
+    //JsEconomy secondaryEconomy;
     JsCarrierDockingAccess carrierDockingAccess; // Carrier only.
-    js::small_map<JsEconomy,float> economies;
+    js::vector<std::pair<JsEconomy,float>> economies;
     opt_float distanceToArrival;
     opt_float latitude; // Planetary stations only.
     opt_float longitude; // Planetary stations only.
@@ -127,6 +134,17 @@ struct StationJS {
     js::vector<JsServices> services;
     // just for reading from spansh
     std::shared_ptr<MarketJS> market;
+
+    void set_economies(js::small_map<JsEconomy,float> map) {
+        if (map.empty())
+            return;
+        economies.reserve(map.size());
+        for (auto& [e,p] : map)
+            economies.emplace_back(e, p);
+        std::sort(economies.begin(), economies.end(), [](auto& e1, auto& e2) -> bool {
+            return e1.second > e2.second;
+        });
+    }
 };
 
 struct MegashipJS {
@@ -136,12 +154,6 @@ struct MegashipJS {
     std::string name;
     Timestamp updated;
     StationJS blob;
-};
-
-struct CoordsJS {
-    double x {};
-    double y {};
-    double z {};
 };
 
 struct BodyParentJS {
@@ -166,7 +178,7 @@ struct ThargoidWarJS {
 
 struct StarPartJS {
     opt_bool mainStar;
-    JsSpectralClass spectralClass;
+    int8_t subClass;
     JsLuminosity luminosity;
     uint32_t age; // in millions years
     opt_float solarMasses;
@@ -220,8 +232,14 @@ struct BodyJS {
     uint32_t get_age() const { return starPart ? starPart->age : 0; }
     void set_age(uint32_t v) { ensureStarPart()->age = v; }
 
-    JsSpectralClass get_spectralClass() const { if (starPart) return starPart->spectralClass; return {}; }
-    void set_spectralClass(JsSpectralClass v) { ensureStarPart()->spectralClass = v; }
+//    JsSpectralClass get_spectralClass() const { if (starPart) return starPart->spectralClass; return {}; }
+//    void set_spectralClass(std::string_view v) {
+//        if (v.empty())
+//            return;
+//        char ch = v[v.size()-1];
+//        if (ch >= '0' && ch <= '9')
+//            ensureStarPart()->subClass = ch - '0';
+//    }
 
     JsLuminosity get_luminosity() const { if (starPart) return starPart->luminosity; return {}; }
     void set_luminosity(JsLuminosity v) { ensureStarPart()->luminosity = v; }
@@ -338,7 +356,7 @@ private:
 struct StarSystemJS {
     int64_t address {};
     std::string name;
-    CoordsJS coords {};
+    Coords coords {};
     JsAllegiance allegiance;
     JsGovernment government;
     JsEconomy primaryEconomy {};
