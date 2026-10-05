@@ -119,6 +119,8 @@ add_executable(EDRobot WIN32
         src/gal/Galaxy.h
         src/gal/Galaxy.cpp
         src/gal/GalaxyNav.cpp
+        src/gal/StarSystem.cpp
+        src/gal/StarSystem.h
         src/gal/Symbols.cpp
         src/gal/Convert.cpp
         src/gal/GalaxyTest.cpp
@@ -285,6 +287,7 @@ install(FILES
         config/commodity-database.json5
         config/default-configuration.json5
         config/screens.json5
+        config/game-var.json5
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 install(FILES README.md DESTINATION ".")

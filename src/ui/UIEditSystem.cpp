@@ -2,11 +2,12 @@
 // Created by mkizub on 06.04.2026.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "UIEditSystem.h"
 #include "UILayout.h"
-#include "UIManager.h"
 #include "UIMainDialog.h"
 #include "../gal/Galaxy.h"
 #include "../net/Spansh.h"
@@ -30,7 +31,7 @@ public:
     UIEditSystem* ui;
     gal::spEntity entity;
     std::string entity_name;
-    std::vector<short> pathBodyID;
+    std::vector<body_id_t> pathBodyID;
     int indent {};
     int icon_scale = 150; // percents
     bool deleted {};
@@ -39,8 +40,6 @@ public:
     wl::label lbl_name;
 };
 
-const int DLG_ENTRY_SAVE   = 100;
-const int DLG_ENTRY_DELETE = 101;
 class EntityDialog : public wl::dialog_modal {
 public:
     EntityDialog(EntityCtrl* ctrl);
@@ -63,7 +62,7 @@ public:
     wl::svg_button btn_del;
 };
 
-bool compareBodyIDbyPath(const std::vector<short>& p1, const std::vector<short>& p2) {
+bool compareBodyIDbyPath(const std::vector<body_id_t>& p1, const std::vector<body_id_t>& p2) {
     for (int i=0; i < 100; i++) {
         if (p1.size() <= i && p2.size() <= i)
             return false;
@@ -168,13 +167,16 @@ void UIEditSystem::on_system_import() {
         HCURSOR hOldCursor = SetCursor(hCursor);
         try {
             utc_timer timer = 2s;
-            Spansh::loadStarSystem(ss);
+            bool ok = Spansh::loadStarSystem(ss);
             while (!timer.expired())
                 Sleep(250);
             SetCursor(hOldCursor);
-            LOG_ERROR("Updated '{}' from spansh.co.uk", ss->systemName);
+            if (ok)
+                LOG_WARNING("Updated '{}' from spansh.co.uk", ss->systemName);
+            else
+                LOG_ERROR("Cannot update '{}' from spansh.co.uk", ss->systemName);
         } catch (...) {
-            LOG_ERROR("Cannot update from spansh.co.uk");
+            LOG_ERROR("Cannot update '{}' from spansh.co.uk", ss->systemName);
             SetCursor(hOldCursor);
         }
     }
@@ -189,6 +191,12 @@ void UIEditSystem::on_system_save() {
 }
 
 void UIEditSystem::on_system_delete() {
+    if (currStarSystem) {
+        currStarSystem->wipe();
+        currStarSystem->save();
+        clear();
+        relayout();
+    }
     return;
 }
 
@@ -196,8 +204,8 @@ std::unique_ptr<EntityCtrl> UIEditSystem::create_ctrl(gal::spEntity& entity) {
     return std::make_unique<EntityCtrl>(this, entity);
 }
 
-EntityCtrl* UIEditSystem::find_ctrl(int bodyId) {
-    if (bodyId < 0)
+EntityCtrl* UIEditSystem::find_ctrl(body_id_t bodyId) {
+    if (!bodyId.has_value())
         return nullptr;
     for (auto& ctrl : controls) {
         auto entity = ctrl->entity.get();
@@ -217,14 +225,14 @@ void UIEditSystem::sort_controls() {
     parents.reserve(16);
     for (auto& ctrl : controls) {
         auto entity = ctrl->entity.get();
-        if (entity->parentBodyId >= 0) {
+        if (entity->parentBodyId.has_value()) {
             while (!parents.empty() && parents.back()->bodyId != entity->parentBodyId)
                 parents.pop_back();
         } else {
             parents.clear();
         }
         ctrl->indent = (int)parents.size();
-        if (entity->bodyId >= 0)
+        if (entity->bodyId.has_value())
             parents.push_back(entity);
     }
 }
@@ -253,8 +261,10 @@ void UIEditSystem::on_ctrl_edit(int id, WORD msg) {
 void UIEditSystem::on_update() {
     if (currStarSystem) {
         btn_save.set_enabled(currStarSystem->needCoreSave || currStarSystem->needBlobSave);
+        btn_del.set_enabled(true);
     } else {
         btn_save.set_enabled(false);
+        btn_del.set_enabled(false);
     }
 }
 
@@ -327,7 +337,8 @@ void UIEditSystem::on_system_selected(gal::spStarSystem starSystem) {
         return;
 
     beginControls();
-    for (auto& b : currStarSystem->entities) {
+    auto entities = currStarSystem->getEntitiesSnapshot();
+    for (auto& b : entities) {
         controls.push_back(create_ctrl(b));
         controls.back()->create();
     }
@@ -344,8 +355,9 @@ EntityCtrl::EntityCtrl(UIEditSystem *ui, gal::spEntity &entity)
     : ui(ui)
     , entity(entity)
 {
-    entity_name = entity->name;
-    if (!entity->nloc.empty())
+    if (entity->type == TypeNav::USS /*&& !entity->name.empty() && !entity->nloc.empty()*/)
+        entity_name = entity->name + " / " + entity->nloc;
+    else if (!entity->nloc.empty())
         entity_name = entity->nloc;
     else
         entity_name = entity->name;
@@ -356,7 +368,7 @@ EntityCtrl::EntityCtrl(UIEditSystem *ui, gal::spEntity &entity)
         }
     }
     if (entity_name.empty())
-        entity_name = std::format("{} ({})", enum_name<TypeNav>(entity->type), entity->bodyId);
+        entity_name = std::format("{} ({})", enum_name<TypeNav>(entity->type), entity->bodyId.val);
 }
 
 EntityCtrl::~EntityCtrl() {
@@ -380,7 +392,7 @@ void EntityCtrl::layout(UILayout &lo) {
     icon_site.set_icon_size(lo.vrow * icon_scale / 100);
 
     int offs = 2 * indent * lo.hgap;
-    int h = 2*lo.vrow + lo.vgap;
+    int h = icon_scale*lo.vrow/100 + lo.vgap;
     int x = lo.left + offs;
     int y = lo.top;
     int w_icn = h;
@@ -434,16 +446,18 @@ const char* EntityCtrl::icon_name() {
     case TypeNav::Signal:
     case TypeNav::WarZone:
     case TypeNav::ResSite:
+    case TypeNav::USS:
     case TypeNav::StarSystem:       break;
     case TypeNav::Body:             break;
     case TypeNav::Barycenter:                           return "body-barycenter";
-    case TypeNav::Ring:             icon_scale = 200;   return "body-barycenter";
-    case TypeNav::AsteroidCluster:                      return "body-asteroid-cluster";
+    case TypeNav::Ring:             icon_scale = 100;   return "body-barycenter";
+    case TypeNav::AsteroidCluster:  icon_scale = 100;   return "body-asteroid-cluster";
     case TypeNav::Star:             icon_scale = 200;   return "body-star";
     case TypeNav::Planet:           icon_scale = 200;   return "body-planet";
-    case TypeNav::SpaceThing:
     case TypeNav::NavBeacon:
     case TypeNav::TouristBeacon:
+    case TypeNav::Codex:
+    case TypeNav::AnySite:
     case TypeNav::SpaceStation:     break;
     case TypeNav::Orbis:            icon_scale = 200;   return "site-orbis";
     case TypeNav::Ocellus:          icon_scale = 200;   return "site-ocellus";
@@ -455,10 +469,10 @@ const char* EntityCtrl::icon_name() {
     case TypeNav::SpaceConstrDepot:                     return "site-construction";
     case TypeNav::Megaship:                             return "site-megaship";
     case TypeNav::StationMegaShip:                      return "site-megaship";
-    case TypeNav::StrongholdCarrier:icon_scale = 200;   return "site-megaship";
     case TypeNav::FleetCarrier:                         return "site-carrier";
     case TypeNav::SquadronCarrier:  icon_scale = 200;   return "site-carrier";
     case TypeNav::ColonisationShip: icon_scale = 200;   return "site-colonization-ship";
+    case TypeNav::AnonMegaship:                         return "site-megaship";
     case TypeNav::PlanetaryThing:   break;
     case TypeNav::PlanetaryPort:    icon_scale = 200;   return "site-port";
     case TypeNav::EngineerPort:     icon_scale = 200;   return "site-engineer";
@@ -516,8 +530,8 @@ EntityDialog::EntityDialog(EntityCtrl *ctrl)
             {TypeNav::StationMegaShip, pgettext("TypeNav","Station Megaship")},
             {TypeNav::FleetCarrier, pgettext("TypeNav","Fleet Carrier")},
             {TypeNav::SquadronCarrier, pgettext("TypeNav","Squadron Carrier")},
-            {TypeNav::StrongholdCarrier, pgettext("TypeNav","Stronghold Carrier")},
             {TypeNav::ColonisationShip, pgettext("TypeNav","Colonisation Ship")},
+            {TypeNav::AnonMegaship, pgettext("TypeNav","Anonymouse Megaship")},
             {TypeNav::PlanetaryPort, pgettext("TypeNav","Planetary Port")},
             {TypeNav::EngineerPort, pgettext("TypeNav","Engineer Port")},
             {TypeNav::Settlement, pgettext("TypeNav","Settlement")},
@@ -579,7 +593,7 @@ void EntityDialog::initialize() {
     index = 0;
     for (auto c : parentEntries) {
         cbx_parent.add({toUtf16(c->entity_name).c_str()});
-        if (c->entity->bodyId >= 0 && c->entity->bodyId == ctrl->entity->parentBodyId)
+        if (c->entity->bodyId.has_value() && c->entity->bodyId == ctrl->entity->parentBodyId)
             select_index = index;
         index += 1;
     }
@@ -594,11 +608,9 @@ void EntityDialog::initialize() {
 
             auto& ss_ext = ss->ext;
             if (ss_ext.bodyCount > 0) {
-                int known_bodies = 0;
-                for (auto &b: ss->entities) {
-                    if (b->type == TypeNav::Star || b->type == TypeNav::Planet)
-                        known_bodies += 1;
-                }
+                int known_bodies = ss->countEntities([](auto&b){
+                    return b->type == TypeNav::Star || b->type == TypeNav::Planet;
+                });
                 if (known_bodies >= ss_ext.bodyCount)
                     info += std::format("Total bodies: {} (scan complete)\r\n", ss_ext.bodyCount);
                 else
@@ -620,7 +632,7 @@ void EntityDialog::initialize() {
             if (ss_ext.secondaryEconomy)
                 info += std::format("Secondary economy: {}\r\n", ss_ext.secondaryEconomy.sv());
         }
-        if (entity->updated.time_since_epoch().count()) {
+        if (*entity->updated) {
             info += std::format("Body updated: {}\r\n", formatTimestampHuman(entity->updated));
             info += "\r\n";
         }
@@ -629,130 +641,137 @@ void EntityDialog::initialize() {
         }
     }
     if (entity->type == TypeNav::Star) {
-        info += std::format("Star (body id {}):\r\n", entity->bodyId);
-        auto ext = entity->getStarData();
-        if (ext.mainStar.has_value() && ext.mainStar.value())
+        info += std::format("Star (body id {}):\r\n", entity->bodyId.val);
+        auto* ext = entity->getStarData();
+        if (ext->mainStar.has_value() && ext->mainStar.value())
             info += std::format("Main Star\r\n");
-        if (ext.subType)
-            info += std::format("Star type: {}\r\n", ext.subType.sv());
-        if (ext.subClass >= 0)
-            info += std::format("SubClass: {}\r\n", ext.subClass);
-        if (ext.luminosity.has_value())
-            info += std::format("Luminosity: {}\r\n", ext.luminosity.sv());
-        if (ext.age)
-            info += std::format("Age: {} mln years\r\n", ext.age);
-        if (ext.solarMasses.has_value())
-            info += std::format("Solar masses: {}\r\n", ext.solarMasses.value());
-        if (ext.absoluteMagnitude.has_value())
-            info += std::format("Absolute magnitude: {}\r\n", ext.absoluteMagnitude.value());
+        if (ext->subType)
+            info += std::format("Star type: {}\r\n", ext->subType.sv());
+        if (ext->subClass >= 0)
+            info += std::format("SubClass: {}\r\n", ext->subClass);
+        if (ext->luminosity.has_value())
+            info += std::format("Luminosity: {}\r\n", ext->luminosity.sv());
+        if (ext->age)
+            info += std::format("Age: {} mln years\r\n", ext->age);
+        if (ext->solarMasses.has_value())
+            info += std::format("Solar masses: {}\r\n", ext->solarMasses.value());
+        if (ext->absoluteMagnitude.has_value())
+            info += std::format("Absolute magnitude: {}\r\n", ext->absoluteMagnitude.value());
         info += "\r\n";
     }
     if (entity->type == TypeNav::Planet) {
-        info += std::format("Planet (body id {})\r\n", entity->bodyId);
-        auto ext = entity->getPlanetData();
-        if (ext.subType)
-            info += std::format("Planet type: {}\r\n", ext.subType.sv());
-        if (ext.isLandable.has_value() && ext.isLandable.value())
+        info += std::format("Planet (body id {})\r\n", entity->bodyId.val);
+        auto* ext = entity->getPlanetData();
+        if (ext->subType)
+            info += std::format("Planet type: {}\r\n", ext->subType.sv());
+        if (ext->isLandable.has_value() && ext->isLandable.value())
             info += std::format("Landable\r\n");
-        if (ext.volcanismType.has_value())
-            info += std::format("Volcanism: {}\r\n", ext.volcanismType.sv());
-        if (ext.atmosphereType.has_value())
-            info += std::format("Atmosphere: {}\r\n", ext.atmosphereType.sv());
-        if (ext.terraformingState.has_value())
-            info += std::format("Terraforming: {}\r\n", ext.terraformingState.value());
-        if (ext.reserveLevel.has_value())
-            info += std::format("Reserve level: {}\r\n", ext.reserveLevel.value());
-        if (ext.earthMasses.has_value())
-            info += std::format("Earth Masses: {}\r\n", ext.earthMasses.value());
-        if (ext.surfaceGravity.has_value())
-            info += std::format("Surface gravity: {}\r\n", ext.surfaceGravity.value());
-        if (ext.surfacePressure.has_value())
-            info += std::format("Surface pressure: {}\r\n", ext.surfacePressure.value());
+        if (ext->volcanismType.has_value())
+            info += std::format("Volcanism: {}\r\n", ext->volcanismType.sv());
+        if (ext->atmosphereType.has_value())
+            info += std::format("Atmosphere: {}\r\n", ext->atmosphereType.sv());
+        if (ext->terraformingState.has_value())
+            info += std::format("Terraforming: {}\r\n", ext->terraformingState.value());
+        if (ext->reserveLevel.has_value())
+            info += std::format("Reserve level: {}\r\n", ext->reserveLevel.value());
+        if (ext->earthMasses.has_value())
+            info += std::format("Earth Masses: {}\r\n", ext->earthMasses.value());
+        if (ext->surfaceGravity.has_value())
+            info += std::format("Surface gravity: {}\r\n", ext->surfaceGravity.value());
+        if (ext->surfacePressure.has_value())
+            info += std::format("Surface pressure: {}\r\n", ext->surfacePressure.value());
         info += "\r\n";
+    }
+    if (isSignal(entity->type)) {
+        info += std::format("Signal type: {}\r\n", toJsNavType(entity->type).sv());
+        if (!entity->name.empty())
+            info += std::format("Signal name: {}\r\n", entity->name);
+        if (!entity->nloc.empty())
+            info += std::format("Signal name: {}\r\n", entity->nloc);
     }
     if (isBody(entity->type)) {
         if (!(entity->type == TypeNav::Star || entity->type == TypeNav::Planet)) {
-            info += std::format("{} (body id {})\r\n", toJsNavType(entity->type).sv(), entity->bodyId);
+            info += std::format("{} (body id {})\r\n", toJsNavType(entity->type).sv(), entity->bodyId.val);
         }
-        auto ext = entity->getBodyData();
-        if (ext.subType && !(entity->type == TypeNav::Star || entity->type == TypeNav::Planet))
-            info += std::format("Body type: {}\r\n", ext.subType.sv());
-        if (ext.tidalLock.has_value() && ext.tidalLock.value())
+        auto* ext = entity->getBodyData();
+        //if (ext->subType && !(entity->type == TypeNav::Star || entity->type == TypeNav::Planet))
+        //    info += std::format("Body type: {}\r\n", ext.subType.sv());
+        if (ext->tidalLock.has_value() && ext->tidalLock.value())
             info += std::format("Tidally Locked\r\n");
-        if (ext.radius.has_value() && ext.radius.value() > 0) {
+        if (ext->radius.has_value() && ext->radius.value() > 0) {
             if (entity->type == TypeNav::Star)
-                info += std::format("Radius: {}km ({:.3} of Sol)\r\n", (int)ext.radius.value(), ext.radius.value() / 696134.);
+                info += std::format("Radius: {}km ({:.3} of Sol)\r\n", (int)ext->radius.value(), ext->radius.value() / 696134.);
             else if (entity->type == TypeNav::Planet)
-                info += std::format("Radius: {}km ({:.3} of Earth)\r\n", (int)ext.radius.value(), ext.radius.value() / 6371.);
+                info += std::format("Radius: {}km ({:.3} of Earth)\r\n", (int)ext->radius.value(), ext->radius.value() / 6371.);
             else
-                info += std::format("Radius: {}km\r\n", (int)ext.radius.value());
+                info += std::format("Radius: {}km\r\n", (int)ext->radius.value());
         }
-        if (ext.distanceToArrival.has_value() && ext.distanceToArrival.value() > 0)
-            info += std::format("Distance To Arrival: {}ly\r\n", ext.distanceToArrival.value());
-        if (ext.rotationalPeriod.has_value())
-            info += std::format("Rotational Period: {}\r\n", ext.rotationalPeriod.value());
-        if (ext.orbitalPeriod.has_value())
-            info += std::format("Orbital Period: {}\r\n", ext.orbitalPeriod.value());
-        if (ext.semiMajorAxis.has_value())
-            info += std::format("SemiMajor Axis: {}\r\n", ext.semiMajorAxis.value());
-        if (ext.orbitalEccentricity.has_value())
-            info += std::format("Orbital Eccentricity: {}\r\n", ext.orbitalEccentricity.value());
-        if (ext.orbitalInclination.has_value())
-            info += std::format("Orbital Inclination: {}\r\n", ext.orbitalInclination.value());
-        if (ext.argOfPeriapsis.has_value())
-            info += std::format("Arg Of Periapsis: {}\r\n", ext.argOfPeriapsis.value());
-        if (ext.meanAnomaly.has_value())
-            info += std::format("Mean Anomaly: {}\r\n", ext.meanAnomaly.value());
-        if (ext.ascendingNode.has_value())
-            info += std::format("Ascending Node: {}\r\n", ext.ascendingNode.value());
-        if (ext.surfaceTemperature.has_value())
-            info += std::format("Surface Temperature: {}\r\n", ext.surfaceTemperature.value());
-        if (ext.axialTilt.has_value())
-            info += std::format("Axial Tilt: {}\r\n", ext.axialTilt.value());
+        if (ext->distanceToArrival.has_value() && ext->distanceToArrival.value() > 0)
+            info += std::format("Distance To Arrival: {}ly\r\n", ext->distanceToArrival.value());
+        if (ext->rotationalPeriod.has_value())
+            info += std::format("Rotational Period: {}\r\n", ext->rotationalPeriod.value());
+        if (ext->orbitalPeriod.has_value())
+            info += std::format("Orbital Period: {}\r\n", ext->orbitalPeriod.value());
+        if (ext->semiMajorAxis.has_value())
+            info += std::format("SemiMajor Axis: {}\r\n", ext->semiMajorAxis.value());
+        if (ext->orbitalEccentricity.has_value())
+            info += std::format("Orbital Eccentricity: {}\r\n", ext->orbitalEccentricity.value());
+        if (ext->orbitalInclination.has_value())
+            info += std::format("Orbital Inclination: {}\r\n", ext->orbitalInclination.value());
+        if (ext->argOfPeriapsis.has_value())
+            info += std::format("Arg Of Periapsis: {}\r\n", ext->argOfPeriapsis.value());
+        if (ext->meanAnomaly.has_value())
+            info += std::format("Mean Anomaly: {}\r\n", ext->meanAnomaly.value());
+        if (ext->ascendingNode.has_value())
+            info += std::format("Ascending Node: {}\r\n", ext->ascendingNode.value());
+        if (ext->surfaceTemperature.has_value())
+            info += std::format("Surface Temperature: {}\r\n", ext->surfaceTemperature.value());
+        if (ext->axialTilt.has_value())
+            info += std::format("Axial Tilt: {}\r\n", ext->axialTilt.value());
     }
-    if (isSpaceSite(entity->type) || isPlanetarySite(entity->type)) {
+    if (isAnySite(entity->type)) {
         info += toJsNavType(entity->type).sv();
-        if (entity->bodyId)
-            info += std::format(" (body id {})\r\n", entity->bodyId);
-        if (entity->parentBodyId < 0) {
+        if (entity->bodyId.has_value())
+            info += std::format(" (body id {})\r\n", entity->bodyId.val);
+        if (!entity->parentBodyId.has_value()) {
             info += std::format("Parent body not known\r\n");
         } else {
             auto& ss = ctrl->ui->currStarSystem;
             auto body = ss->getBodyById(entity->parentBodyId);
             if (!body)
-                info += std::format("Bad patent body id: {}\r\n", entity->parentBodyId);
+                info += std::format("Bad patent body id: {}\r\n", entity->parentBodyId.val);
             else if (isPlanetarySite(entity->type))
-                info += std::format("On planet: {} (id {})\r\n", body->name, entity->parentBodyId);
+                info += std::format("On planet: {} (id {})\r\n", body->name, entity->parentBodyId.val);
             else
-                info += std::format("On orbit of: {} (id {})\r\n", body->name, entity->parentBodyId);
+                info += std::format("On orbit of: {} (id {})\r\n", body->name, entity->parentBodyId.val);
         }
         info += "\r\n";
 
-        auto ext = entity->getStationData();
-        if (ext.distanceToArrival.has_value() && ext.distanceToArrival.value() > 0)
-            info += std::format("Distance To Arrival: {}ly\r\n", ext.distanceToArrival.value());
-        if (!ext.landingPads.empty())
+        auto* ext = entity->getStationData();
+        if (ext->distanceToArrival.has_value() && ext->distanceToArrival.value() > 0)
+            info += std::format("Distance To Arrival: {}ly\r\n", ext->distanceToArrival.value());
+        if (!ext->landingPads.empty())
             info += std::format("Landing pads: large {}, medium {}, small {}\r\n",
-                                ext.landingPads.large, ext.landingPads.medium, ext.landingPads.small);
-        if (ext.latitude.has_value() && ext.latitude.value() > 0)
-            info += std::format("Latitude: {}º\r\n", ext.latitude.value());
-        if (ext.longitude.has_value() && ext.longitude.value() > 0)
-            info += std::format("Longitude: {}º\r\n", ext.longitude.value());
-        if (!ext.controllingFaction.empty())
-            info += std::format("Faction: {}\r\n", ext.controllingFaction.sv());
-        if (ext.allegiance.has_value())
-            info += std::format("Allegiance: {}\r\n", ext.allegiance.sv());
-        if (ext.government.has_value())
-            info += std::format("Government: {}\r\n", ext.government.sv());
-        if (ext.state.has_value())
-            info += std::format("Station State: {}\r\n", ext.state.sv());
-        if (ext.carrierDockingAccess.has_value())
-            info += std::format("Carrier docking access: {}\r\n", ext.carrierDockingAccess.sv());
-        if (ext.primaryEconomy.has_value())
-            info += std::format("Station economy: {}\r\n", ext.primaryEconomy.sv());
-        if (!ext.economies.empty()) {
+                                ext->landingPads.large, ext->landingPads.medium, ext->landingPads.small);
+        if (ext->latitude.has_value())
+            info += std::format("Latitude: {}º\r\n", ext->latitude.value());
+        if (ext->longitude.has_value())
+            info += std::format("Longitude: {}º\r\n", ext->longitude.value());
+        if (!ext->controllingFaction.empty())
+            info += std::format("Faction: {}\r\n", ext->controllingFaction.sv());
+        if (ext->allegiance.has_value())
+            info += std::format("Allegiance: {}\r\n", ext->allegiance.sv());
+        if (ext->government.has_value())
+            info += std::format("Government: {}\r\n", ext->government.sv());
+        if (ext->state.has_value())
+            info += std::format("Station State: {}\r\n", ext->state.sv());
+        if (ext->carrierDockingAccess.has_value())
+            info += std::format("Carrier docking access: {}\r\n", ext->carrierDockingAccess.sv());
+        if (ext->primaryEconomy.has_value())
+            info += std::format("Station economy: {}\r\n", ext->primaryEconomy.sv());
+        if (!ext->economies.empty()) {
             info += std::format("Economies:\r\n");
-            for (auto& [e,p] : ext.economies) {
+            for (auto& [e,p] : ext->economies) {
                 info += std::format("\t{}: {}%\r\n", e.sv(), int(p*100));
             }
         }
@@ -816,7 +835,7 @@ void EntityDialog::on_save() {
         if (t_idx >= 0 && t_idx < typeNavEntries.size())
             tp = typeNavEntries[t_idx].first;
         if (tp != ctrl->entity->type) {
-            ctrl->entity->setType(tp);
+            ctrl->ui->currStarSystem->checkTypeAndName(ctrl->entity, tp, ctrl->entity->name, ctrl->entity->nloc, {.ts=Timestamp::clock::now()});
             ctrl->ui->currStarSystem->needBlobSave = true;
             ctrl->icon_site.set_icon(ctrl->icon_name());
             UILayout lo(ctrl->ui->hwnd());
@@ -825,7 +844,7 @@ void EntityDialog::on_save() {
     }
 
     {
-        short parentBodyId = -1;
+        body_id_t parentBodyId;
         auto p_idx = cbx_parent.get_selected_index();
         if (p_idx >= 0 && p_idx < parentEntries.size())
             parentBodyId = parentEntries[p_idx]->entity->bodyId;

@@ -9,7 +9,6 @@
 #include "AIManager.h"
 #include "ExplorationTasks.h"
 #include "NavList.h"
-#include "AIUtils.h"
 #include "../widget/List.h"
 #include "../Keyboard.h"
 #include "../net/Spansh.h"
@@ -75,10 +74,8 @@ bool TaskSystemsAround::run() {
         std::vector<gal::spStarSystem> knownSystems = Spansh::listNearestSystems(gal::getCurrentStarSystem()->systemName, "", 20);
         TaskTemplate tt {ED_TASK_NAV_SCAN_SYSTEMS, _lc("Scan Star Systems"), [](const TaskTemplate &templ) { return new NavListScanSystemsTask(templ); }};
         auto scan_task = spTask(new NavListScanSystemsTask(tt));
-        if (!run_sub_step(scan_task)) {
+        if (!run_sub_step(scan_task))
             throw_failed("Failed to scan systems around '{}'", systemName);
-            return false;
-        }
         LOG_INFO("Scanned around systems address {:14d} name \"{}\"",
                  starSystem->systemAddress, starSystem->systemName);
         auto& foundSystems = std::static_pointer_cast<NavListScanSystemsTask>(scan_task)->foundSystems;
@@ -99,11 +96,9 @@ bool TaskSystemsAround::run() {
                              sidx, ss->systemAddress, ss->systemName, eddn_updated_at);
                     systems.push_back(ss);
                 } else {
-                    int known_body_count = 0;
-                    for (auto b: ss->entities) {
-                        if (b->type == TypeNav::Star || b->type == TypeNav::Planet)
-                            known_body_count += 1;
-                    }
+                    int known_body_count = ss->countEntities([](auto&b){
+                        return b->type == TypeNav::Star || b->type == TypeNav::Planet;
+                    });
                     if (known_body_count == ss->ext.bodyCount) {
                         LOG_INFO("Selected system[{:2d}] address {:14d} name \"{}\" fully scanned with {} bodies: updated at {}",
                                  sidx, ss->systemAddress, ss->systemName, known_body_count, eddn_updated_at);
@@ -283,11 +278,10 @@ bool TaskVisitPlanets::selectUnexploredBody(gal::spEntity& selected) {
     if (nl.selectFocused(nullptr)) {
         selected = nl.list[topUnexploredIdx].item;
         if (!selected && !st::destination.name.empty()) {
-            selected = gal::getCurrentStarSystem()->getBody(st::destination.name);
+            auto& ss = gal::getCurrentStarSystem();
+            selected = ss->getBody(st::destination.name);
             if (!selected) {
-                selected.reset(new gal::Entity());
-                selected->setType(TypeNav::Body);
-                selected->setName(st::destination.name);
+                selected = ss->addEntity(TypeNav::Body, st::destination.name, "", {});
                 selected->bodyId = st::destination.bodyId;
             }
         }
@@ -347,7 +341,7 @@ bool TaskVisitSystems::run() {
         status = LOADING;
         std::string spanshPrefix = "https://www.spansh.co.uk/systems/search/";
         if (systemList.starts_with(spanshPrefix)) {
-            std::string recallUUID = recallUUID.substr(spanshPrefix.size(), 36);
+            std::string recallUUID = systemList.substr(spanshPrefix.size(), 36);
             if (recallUUID.size() != 36) {
                 notify_error("Bad UUID for spansh.co.uk recall: {}", recallUUID);
                 return false;

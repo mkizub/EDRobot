@@ -2,7 +2,9 @@
 // Created by mkizub on 12.02.2026.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "RavenColonial.h"
 #include "HttpInterceptor.h"
@@ -63,7 +65,7 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
         return {};
     // https://ravencolonial100-awcbdvabgze4c5cq.canadacentral-01.azurewebsites.net/api/v2/system/44770052491
     auto starSystem = gal::getStarSystem(systemName, true, true);
-    if (!starSystem)
+    if (!starSystem || !starSystem->systemAddress)
         return {};
     auto depot = starSystem->getDock(fullName);
 
@@ -117,17 +119,15 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
     Timestamp timestamp;
     parseTimestamp(cr_body, timestamp);
     if (!depot) {
-        depot = std::make_shared<gal::Entity>();
-        if (cr_body["isPrimaryPort"].as_bool_or() || gal::COLONIZATION_SHIP.match_name(fullName))
-            depot->setType(TypeNav::ColonisationShip);
-        else if (fullName.starts_with("Orbital Construction Site:"))
-            depot->setType(TypeNav::SpaceConstrDepot);
-        else if (fullName.starts_with("Planetary Construction Site:"))
-            depot->setType(TypeNav::PlanetaryConstrDepot);
-        depot->setName(fullName);
-        depot->setMarketId(cr_body["marketId"].as_int_or());
+        int64_t marketId = cr_body["marketId"].as_int_or();
+        if (cr_body["isPrimaryPort"].as_bool_or() || gal::COLONIZATION_SHIP.match_name(fullName)) {
+            depot = starSystem->addEntity(TypeNav::ColonisationShip, fullName, "", {.market_id=marketId, .ts=Timestamp::clock::now()});
+        } else {
+            depot = starSystem->addEntity(TypeNav::AnySite, fullName, "", {.market_id=marketId, .ts=Timestamp::clock::now()});
+        }
+        if (marketId && !depot->marketId())
+            depot->setMarketId(marketId);
         depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
-        starSystem->addEntity(depot);
         starSystem->needBlobSave = true;
         starSystem->save();
     } else {
@@ -135,7 +135,7 @@ gal::spEntity RavenColonial::importConstructionProject(std::string_view systemNa
             depot->setMarketId(cr_body["marketId"].as_int_or());
             starSystem->needBlobSave = true;
         }
-        if (depot->parentBodyId < 0) {
+        if (!depot->parentBodyId.has_value()) {
             depot->parentBodyId = cr_body["bodyNum"].as_int_or(-1);
             starSystem->needBlobSave = true;
         }

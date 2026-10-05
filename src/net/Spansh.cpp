@@ -1,7 +1,9 @@
 //
 // Created by mkizub on 10.07.2026.
 //
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "Spansh.h"
 #include "HttpInterceptor.h"
@@ -72,21 +74,21 @@ namespace Spansh {
 //    return true;
 //}
 
-gal::spStarSystem loadStarSystem(gal::spStarSystem& ss) {
+bool loadStarSystem(gal::spStarSystem& ss) {
     if (Cfg.isNetworkDisabled())
-        return {};
+        return false;
     LOG(INFO) << "Spansh query system by id: " << ss->systemAddress;
     TRY {
         auto cr = cpr::Get(cpr::Url{API + "dump/" + std::to_string((uint64_t) ss->systemAddress)});
         if (!isOK(cr))
-            return ss;
+            return false;
         db::StarSystemJS db_ss {};
         if (!db::parseSpanshSystemDump(db_ss, cr.text))
-            return ss;
+            return false;
         if (db_ss.address != ss->systemAddress || db_ss.name != ss->systemName) {
             LOG_ERROR("Spansh dump address/name missmatch: {}:'{}' != {}:'{}'",
                       db_ss.address, db_ss.name, ss->systemAddress, ss->systemName);
-            return ss;
+            return false;
         }
 
         if (!ss->isBlobLoaded)
@@ -98,9 +100,43 @@ gal::spStarSystem loadStarSystem(gal::spStarSystem& ss) {
             ss->needBlobSave = true;
         if (ss->needCoreSave || ss->needBlobSave)
             ss->save();
+        return true;
+    } CATCH(const std::exception &e) {
+        LOG(ERROR) << "Exception in Spansh::loadStarSystem(ss): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
+    }
+    return false;
+}
+
+gal::spStarSystem loadStarSystem(int64_t systemAddress) {
+    if (Cfg.isNetworkDisabled())
+        return {};
+    LOG(INFO) << "Spansh query system by id: " << systemAddress;
+    TRY {
+        auto cr = cpr::Get(cpr::Url{API + "dump/" + std::to_string((uint64_t) systemAddress)});
+        if (!isOK(cr))
+            return {};
+        db::StarSystemJS db_ss {};
+        if (!db::parseSpanshSystemDump(db_ss, cr.text))
+            return {};
+        if (db_ss.address != systemAddress) {
+            LOG_ERROR("Spansh dump address missmatch: {}:'{}' != {}",
+                      db_ss.address, db_ss.name, systemAddress);
+            return {};
+        }
+
+        auto ss = gal::makeStarSystem(db_ss.name, db_ss.address, db_ss.coords, true, false);
+        if (!ss)
+            return {};
+
+        gal::update_star_system(ss.get(), db_ss);
+
+        if (!ss->isBlobLoaded)
+            ss->needBlobSave = true;
+        if (ss->needCoreSave || ss->needBlobSave)
+            ss->save();
         return ss;
     } CATCH(const std::exception &e) {
-        LOG(ERROR) << "Exception in Spansh::loadStarSystem(int): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in Spansh::loadStarSystem(address): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
     }
     return {};
 }
@@ -111,7 +147,8 @@ gal::spStarSystem loadStarSystem(std::string_view name) {
     auto db_ss = db::loadStarSystem(name);
     if (db_ss.id) {
         gal::spStarSystem ss = gal::makeStarSystem(db_ss.name, db_ss.id, db_ss.coords, true, false);
-        return loadStarSystem(ss);
+        loadStarSystem(ss);
+        return ss;
     }
 
     LOG(INFO) << "Spansh query system id by name: " << name;
@@ -136,12 +173,14 @@ gal::spStarSystem loadStarSystem(std::string_view name) {
             const auto it_name = ss["name"].as_string();
             Coords it_coords {ss["x"].as_real(), ss["y"].as_real(), ss["z"].as_real()};
             auto it_ss = gal::makeStarSystem(it_name, it_address, it_coords, true, false);
-            if (it_name == name)
-                found = loadStarSystem(it_ss);
+            if (it_name == name) {
+                found = it_ss;
+                loadStarSystem(it_ss);
+            }
         }
         return found;
     } CATCH(const std::exception &e) {
-        LOG(ERROR) << "Exception in Spansh::loadStarSystem(string): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
+        LOG(ERROR) << "Exception in Spansh::loadStarSystem(name): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;
     }
 
     return {};
@@ -172,7 +211,7 @@ std::vector<gal::spStarSystem> listSystemsUsingRequest(js::value j_request, int 
             const auto name = jr["name"].as_string();
             int64_t address = jr["id64"].as_int();
             Coords coords = {jr["x"].as_real(), jr["y"].as_real(), jr["z"].as_real()};
-            auto total_bodies = jr["body_count"].as_int_or();
+            //auto total_bodies = jr["body_count"].as_int_or();
             Timestamp updated_at;
             if (jr["updated_at"].is_string())
                 parseTimestampString(jr["updated_at"].as_string(), updated_at);
@@ -312,17 +351,7 @@ std::vector<gal::spStarSystem> listSpanshSearch(const std::string& uuid, listCal
         return {};
     LOG_INFO("Spansh recall: {}", uuid);
     TRY {
-        std::vector<gal::spStarSystem> result = listSystemsUsingRecall(uuid, [](gal::spStarSystem ss, js::value& jr)->bool {
-            Timestamp updated_at;
-            if (jr["updated_at"].is_string())
-                parseTimestampString(jr["updated_at"].as_string(), updated_at);
-            if (!ss)
-                return false;
-            LOG_INFO("Star system: {} / {} (at x={:.5f} y={:.5f} z={:.5f}) updated at {}",
-                     ss->systemName, ss->systemAddress, ss->systemCoords.x, ss->systemCoords.y, ss->systemCoords.z,
-                     updated_at);
-            return true;
-        });
+        std::vector<gal::spStarSystem> result = listSystemsUsingRecall(uuid, systemCallback);
         return result;
     } CATCH(const std::exception &e) {
         LOG(ERROR) << "Exception in Spansh::listSpanshSearch(uuid): " << e.what() << "\n" << GET_EXCEPTION_STACK_TRACE;

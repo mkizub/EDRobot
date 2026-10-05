@@ -2,7 +2,9 @@
 // Created by mkizub on 04.06.2025.
 //
 
-#include "pch.h"
+#ifndef PCH_H
+#include "../pch.h"
+#endif
 
 #include "Configuration.h"
 #include "CargoManager.h"
@@ -65,6 +67,8 @@ void Configuration::shutdown() {
 static void debugNavPanel();
 
 bool Configuration::load() {
+
+    gal::init_symbols();
 
     if (const js::value& ll = Cfg.jprefs["log"]["default"]; ll.is_string())
         spdlog::default_logger()->set_level(enum_cast<spdlog::level::level_enum>(ll.as_string()).value_or(spdlog::level::info));

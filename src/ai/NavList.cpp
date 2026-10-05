@@ -2,7 +2,9 @@
 // Created by mkizub on 18.10.2025.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "NavList.h"
 #include "Task.h"
@@ -268,21 +270,20 @@ gal::spEntity NavList::guessNavItem(int idx) {
     FuzzyMatch fm;
     double bestMatch = 0;
     if (nle.icon == gal::STAR_SYSTEM.charOCR) {
-        if (nearSystem == gal::getCurrentStarSystem()->systemName) {
+        if (nearSystem == ss->systemName) {
             for (auto& ws : ocrSystemNames) {
                 double match = fm.ratio(ws, nle.name);
                 if (match >= 60 && match > bestMatch) {
                     bestMatch = match;
-                    bestItem = std::make_shared<gal::Entity>();
-                    bestItem->setType(gal::STAR_SYSTEM.type);
-                    bestItem->setName(toUtf8(ws));
+                    bestItem = ss->addEntity(TypeNav::StarSystem, toUtf8(ws), "", {});
                 }
             }
         }
     }
+    auto ss_entities = ss->getEntitiesSnapshot();
     {
         gal::spEntity bestSite;
-        for (auto& s : ss->entities) {
+        for (auto& s : ss_entities) {
             if (s->type < TypeNav::SpaceStation)
                 continue;
             bool duplicated = false;
@@ -308,7 +309,7 @@ gal::spEntity NavList::guessNavItem(int idx) {
     }
     {
         gal::spEntity bestBody;
-        for (auto& b : ss->entities) {
+        for (auto& b : ss_entities) {
             if (!isBody(b->type))
                 continue;
             bool duplicated = false;
@@ -322,7 +323,7 @@ gal::spEntity NavList::guessNavItem(int idx) {
                 typeMatch = (nle.icon == gal::STAR.charOCR);
             }
             else if (b->type == TypeNav::Planet) {
-                if (b->getPlanetData().isLandable.value_or())
+                if (b->getPlanetData()->isLandable.value_or())
                     typeMatch = (nle.icon == gal::LAND.charOCR);
                 else
                     typeMatch = (nle.icon == gal::BODY.charOCR);
@@ -344,16 +345,20 @@ gal::spEntity NavList::guessNavItem(int idx) {
     for (auto* nt : gal::ALL_NAV_TYPES) {
         if (!nt->name_loc.empty()) {
             for (auto& nl : nt->name_loc) {
-                if (nl.first == Lang::XX || nl.first == st::lng) {
-                    double match = fm.ratio(fm.toOCR(toUtf16(nl.second)), nle.name);
-                    if (nle.icon != nt->charOCR)
-                        match -= 10;
-                    if (match >= 80 && match > bestMatch) {
-                        bestMatch = match;
-                        bestItem = std::make_shared<gal::Entity>();
-                        bestItem->setType(nt->type);
-                        bestItem->setName(nl.second);
-                    }
+                double match_loc = fm.ratio(fm.toOCR(toUtf16(nl.get_loc())), nle.name);
+                if (nle.icon != nt->charOCR)
+                    match_loc -= 10;
+                if (match_loc >= 80 && match_loc > bestMatch) {
+                    bestMatch = match_loc;
+                    bestItem = ss->addEntity(nt->type, nl.get_loc(), "", {});
+                }
+
+                double match_eng = fm.ratio(fm.toOCR(toUtf16(nl.get_eng())), nle.name);
+                if (nle.icon != nt->charOCR)
+                    match_eng -= 10;
+                if (match_eng >= 80 && match_eng > bestMatch) {
+                    bestMatch = match_eng;
+                    bestItem = ss->addEntity(nt->type, nl.get_eng(), "", {});
                 }
             }
         }
@@ -377,8 +382,8 @@ bool NavList::fixupNavList() {
     for (int idx=0; idx < list.size(); idx++) {
         if (!list[idx].parsed || list[idx].ocr_conf < 80 || !list[idx].item)
             continue;
-        if (isSite(list[idx].item->type) && list[idx].item->parentBodyId > 0) {
-            int bodyId = list[idx].item->parentBodyId;
+        if (!isBody(list[idx].item->type) && list[idx].item->parentBodyId.has_value()) {
+            body_id_t bodyId = list[idx].item->parentBodyId;
             int bodyIndent = list[idx].indent - 1;
             int bodyIdx = -1;
             for (int b=idx-1; b >= 0; b--) {
@@ -395,7 +400,7 @@ bool NavList::fixupNavList() {
                         list[bodyIdx].ocr_conf = std::max(list[idx].ocr_conf, list[bodyIdx].ocr_conf);
                         list[bodyIdx].confirmed += 1;
                         LOG_DEBUG("NavList '{}'({} id ) confirmed by '{}'({})",
-                                                  item->name, enum_name<TypeNav>(item->type), item->bodyId,
+                                                  item->name, enum_name<TypeNav>(item->type), item->bodyId.val,
                                                   list[idx].item->name, enum_name<TypeNav>(list[idx].item->type));
                     }
                     else if (item2) {
@@ -481,7 +486,7 @@ bool NavList::focusDestDock(int* conf) {
                 break;
             if (list[idx].indent > bodyIndent+1)
                 continue; // ??? should not happen
-            if (list[idx].item && isSite(list[idx].item->type) && list[idx].item->parentBodyId > 0) {
+            if (list[idx].item && !isBody(list[idx].item->type) && list[idx].item->parentBodyId.has_value()) {
                 gal::spEntity item = gal::getCurrentStarSystem()->getBodyById(list[idx].item->parentBodyId);
                 if (item.get() != list[destBodyNavIdx].item.get()) {
                     st::autopilot.badBodyHierarchy = true;
@@ -621,7 +626,7 @@ bool NavList::focusDestBody(int* conf) {
                 break;
             if (list[idx].indent > bodyIndent+1)
                 continue; // ??? should not happen
-            if (list[idx].item && isSite(list[idx].item->type) && list[idx].item->parentBodyId > 0) {
+            if (list[idx].item && !isBody(list[idx].item->type) && list[idx].item->parentBodyId.has_value()) {
                 gal::spEntity item = gal::getCurrentStarSystem()->getBodyById(list[idx].item->parentBodyId);
                 if (item.get() != list[destBodyNavIdx].item.get()) {
                     st::autopilot.badBodyHierarchy = true;
@@ -1074,14 +1079,14 @@ bool NavListScanTask::run() {
         if (rows.empty())
             throw_failed("Cannot recognize nav list");
 
-        gal::NavType* navType = nullptr;
+        const gal::NavType* navType = nullptr;
         kbd::send("UI_Select", 0, 1500);
         ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
         for (auto& cr : ai::rEnv.classified) {
             if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nvline:")) {
                 std::string lbl_anchor = cr.text.substr(7);
                 LOG_INFO("NavType icon: '{}'", lbl_anchor);
-                for (auto nt : gal::ALL_NAV_TYPES) {
+                for (auto* nt : gal::ALL_NAV_TYPES) {
                     if (contains(nt->navIcons, lbl_anchor)) {
                         navType = nt;
                         LOG_INFO("NavType from icon: poi={}", navType->type);
@@ -1094,9 +1099,6 @@ bool NavListScanTask::run() {
             }
         }
         kbd::send("UI_Select", 0, 500);
-        //if (navType && navType)
-        st::destination.name;
-        st::destination.bodyId;
 
         kbd::send("UI_Back", 50, 1000);
 
@@ -1105,7 +1107,7 @@ bool NavListScanTask::run() {
         for (int idx = 0; idx < nl.list.size(); idx++) {
             auto &nle = nl.list[idx];
 
-            if (!nle.item || !(isBody(nle.item->type) || isSite(nle.item->type))) {
+            if (!nle.item || !isSignal(nle.item->type)) {
                 if (!nle.focused) {
                     int count = idx - focusIdx;
                     if (count > 0) {

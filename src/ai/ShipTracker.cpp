@@ -2,7 +2,9 @@
 // Created by mkizub on 05.11.2025.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "Types.h"
 #include "AutopilotTasks.h"
@@ -64,7 +66,7 @@ void Axis::set(double val, int duration) {
         return;
     }
     auto utc_now = std::chrono::utc_clock::now();
-    if (!start.time_since_epoch().count())
+    if (!start)
         start = utc_now;
     value = std::clamp(val, -1.0, +1.0);
 #if 1
@@ -84,7 +86,7 @@ void Axis::setRaw(double val, int duration) {
     value = std::clamp(val, -1.0, +1.0);
     kbd::axis(bindings, value, false);
     auto utc_now = std::chrono::utc_clock::now();
-    if (!start.time_since_epoch().count())
+    if (!start)
         start = utc_now;
     stop = utc_now + std::chrono::milliseconds(duration);
 }
@@ -97,7 +99,7 @@ void Axis::reset() {
 }
 
 bool Axis::active() const {
-    return value != 0 && start.time_since_epoch().count() && stop.time_since_epoch().count();
+    return value != 0 && *start && *stop;
 }
 
 

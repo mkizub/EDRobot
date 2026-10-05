@@ -1,0 +1,1408 @@
+[
+{ star:"Cygni X-1", id:2, system:"V1357 Cygni" }, // unique star name
+{ star:"Source 2", id:2, system:"Sagittarius A*" }, // unique star name
+{ planet:"Josie Rosa", id:16, system:"HIP 63835" }, // unique planet name
+{ star:"MWC 656", id:2, system:"HD 215227" }, // unique star name
+{ star:"17 Canum Venaticorum", id:2, system:"15 Canum Venaticorum" }, // unique star name
+{ planet:"Yamaha's Grave", id:8, system:"Achenar" }, // unique planet name
+{ planet:"New World", id:9, system:"Achenar" }, // unique planet name
+{ planet:"Conversion", id:10, system:"Achenar" }, // unique planet name
+{ planet:"Capitol", id:11, system:"Achenar" }, // unique planet name
+{ star:"XTE J1118+480", id:2, system:"PSR J1709-4429" }, // unique star name
+{ star:"PSR J1905+0154B", id:2, system:"CPD-63 2495" }, // unique star name
+{ star:"ADS 784 B", id:2, system:"HR 266" }, // unique star name
+{ star:"VY Canis Major B", id:2, system:"VY Canis Majoris" }, // unique star name
+{ star:"SAX J1819.3-2525", id:2, system:"V4641 Sagittarii" }, // unique star name
+{ star:"ADS 6569 B", id:2, system:"HIP 39607" }, // unique star name
+{ planet:"Maxwell's World", id:1, system:"Canopus" }, // unique planet name
+{ planet:"Rance's Wreck", id:2, system:"Canopus" }, // unique planet name
+{ star:"SS433", id:2, system:"V1343 Aquilae" }, // unique star name
+{ star:"Epsilon Capricorni B", id:2, system:"Kastra" }, // unique star name
+{ star:"7 Epsilon Aurigae B", id:2, system:"Al Anz" }, // unique star name
+{ star:"HQ Canis Majoris B", id:2, system:"HD 57593" }, // unique star name
+{ star:"GRO J0422+32", id:2, system:"PSR J1453-6413" }, // unique star name
+{ star:"IL Lupis", id:2, system:"HL Lupis" }, // unique star name
+{ star:"Tau Capricorni B", id:2, system:"14 Tau Capricorni" }, // unique star name
+{ star:"Nu Capricorni B", id:2, system:"Alshat" }, // unique star name
+{ planet:"Evelyn's Haven 1905", id:14, system:"Nat9481" }, // unique planet name
+{ star:"Pi Capricorni B", id:2, system:"Okul" }, // unique star name
+{ star:"Mu-2 Crucis", id:2, system:"Mu-1 Crucis" }, // unique star name
+{ star:"59 Andromedae B", id:2, system:"59 Andromedae A" }, // unique star name
+{ star:"V406 Vulpeculae", id:2, system:"PSR J1905+0154B" }, // unique star name
+{ star:"135 G. Canis Major B", id:2, system:"135 G. Canis Majoris" }, // unique star name
+{ star:"H1705-25", id:2, system:"PSR J1904+0412" }, // unique star name
+{ star:"27 Canis Majoris B", id:2, system:"EW Canis Majoris" }, // unique star name
+{ planet:"Ethan Raza Khan", id:8, system:"74 Aquarii" }, // unique planet name
+{ planet:"Offield-Duan", id:13, system:"Epsilon Hydri" }, // unique planet name
+{ planet:"Shan", id:14, system:"Epsilon Hydri" }, // unique planet name
+{ planet:"PER - G8XBE", id:1, system:"Kepler-20" }, // unique planet name
+{ planet:"Rob's Place", id:2, system:"Kepler-20" }, // unique planet name
+{ planet:"Maxine's World", id:3, system:"Kepler-20" }, // unique planet name
+{ star:"BD+48 320B", id:2, system:"HD 5927" }, // unique star name
+{ planet:"HD 4313 b", id:1, system:"HIP 3574" }, // unique planet name
+{ planet:"More", id:5, system:"Munfayl" }, // unique planet name
+{ planet:"Bondarek", id:6, system:"Munfayl" }, // unique planet name
+{ planet:"Jepochal-G Planet", id:5, system:"Akhenaten" }, // unique planet name
+{ planet:"Mercury", id:1, system:"Sol" }, // unique planet name
+{ planet:"Venus", id:2, system:"Sol" }, // unique planet name
+{ planet:"Earth", id:3, system:"Sol" }, // unique planet name
+{ planet:"Moon", id:4, system:"Sol" }, // unique planet name
+{ planet:"Mars", id:5, system:"Sol" }, // unique planet name
+{ planet:"Jupiter", id:7, system:"Sol" }, // unique planet name
+{ planet:"Io", id:9, system:"Sol" }, // unique planet name
+{ planet:"Europa", id:10, system:"Sol" }, // unique planet name
+{ planet:"Ganymede", id:11, system:"Sol" }, // unique planet name
+{ planet:"Callisto", id:12, system:"Sol" }, // unique planet name
+{ planet:"Saturn", id:13, system:"Sol" }, // unique planet name
+{ planet:"Enceladus", id:15, system:"Sol" }, // unique planet name
+{ planet:"Tethys", id:16, system:"Sol" }, // unique planet name
+{ planet:"Dione", id:17, system:"Sol" }, // unique planet name
+{ planet:"Rhea", id:18, system:"Sol" }, // unique planet name
+{ planet:"Titan", id:19, system:"Sol" }, // unique planet name
+{ planet:"Iapetus", id:20, system:"Sol" }, // unique planet name
+{ planet:"Uranus", id:22, system:"Sol" }, // unique planet name
+{ planet:"Ariel", id:24, system:"Sol" }, // unique planet name
+{ planet:"Umbriel", id:25, system:"Sol" }, // unique planet name
+{ planet:"Titania", id:26, system:"Sol" }, // unique planet name
+{ planet:"Oberon", id:27, system:"Sol" }, // unique planet name
+{ planet:"Neptune", id:28, system:"Sol" }, // unique planet name
+{ planet:"Triton", id:30, system:"Sol" }, // unique planet name
+{ planet:"Pluto", id:32, system:"Sol" }, // unique planet name
+{ planet:"Charon", id:33, system:"Sol" }, // unique planet name
+{ planet:"90482 Orcus", id:34, system:"Sol" }, // unique planet name
+{ planet:"Vanth", id:35, system:"Sol" }, // unique planet name
+{ planet:"(307261) 2002 MS4", id:36, system:"Sol" }, // unique planet name
+{ planet:"Salacia", id:37, system:"Sol" }, // unique planet name
+{ planet:"Actaea", id:38, system:"Sol" }, // unique planet name
+{ planet:"Haumea", id:39, system:"Sol" }, // unique planet name
+{ planet:"Hi'iaka", id:40, system:"Sol" }, // unique planet name
+{ planet:"Quaoar", id:41, system:"Sol" }, // unique planet name
+{ planet:"Makemake", id:42, system:"Sol" }, // unique planet name
+{ planet:"(225088) 2007 OR10", id:43, system:"Sol" }, // unique planet name
+{ planet:"Eris", id:44, system:"Sol" }, // unique planet name
+{ planet:"Sedna", id:45, system:"Sol" }, // unique planet name
+{ planet:"Persephone", id:46, system:"Sol" }, // unique planet name
+{ planet:"Chroin", id:9, system:"Ys" }, // unique planet name
+{ planet:"Blob", id:10, system:"Ys" }, // unique planet name
+{ planet:"Dr. Mitanek's Eternity", id:6, system:"LHS 1071" }, // unique planet name
+{ planet:"Ugain", id:7, system:"LHS 1071" }, // unique planet name
+{ planet:"Chonzie", id:5, system:"CD-70 1960" }, // unique planet name
+{ planet:"Brodie's Legacy", id:6, system:"CD-70 1960" }, // unique planet name
+{ planet:"Camp Schmidt", id:3, system:"Beta Hydri" }, // unique planet name
+{ planet:"Camp Shepard", id:4, system:"Beta Hydri" }, // unique planet name
+{ planet:"Jordan's Legacy", id:5, system:"Beta Hydri" }, // unique planet name
+{ planet:"Homeland", id:6, system:"Beta Hydri" }, // unique planet name
+{ planet:"Endl", id:26, system:"Beta Hydri" }, // unique planet name
+{ planet:"Camp Hooper", id:1, system:"Quator" }, // unique planet name
+{ planet:"Massey's World", id:2, system:"Quator" }, // unique planet name
+{ planet:"Robertson's Renown", id:1, system:"Wakea" }, // unique planet name
+{ planet:"Meru", id:2, system:"Wakea" }, // unique planet name
+{ planet:"KT-Lin", id:16, system:"BD-01 2075" }, // unique planet name
+{ star:"CT Chamaeleontis", id:2, system:"V2149 Orionis" }, // unique star name
+{ star:"GRO J1655-40", id:2, system:"V1033 Scorpii" }, // unique star name
+{ star:"CPD-56 8225B", id:3, system:"Gamma Arae" }, // unique star name
+{ star:"CPD-56 8225C", id:4, system:"Gamma Arae" }, // unique star name
+{ star:"GRS 1009-45", id:2, system:"V821 Arae" }, // unique star name
+{ star:"Gracie's Light", id:2, system:"GCRV 7815" }, // unique star name
+{ star:"HD 38563B", id:2, system:"HD 38563North" }, // unique star name
+{ star:"8 Beta-2 Scorpii", id:2, system:"Graffias" }, // unique star name
+{ star:"CD-62 329", id:2, system:"V375 Carinae" }, // unique star name
+{ planet:"New Carthage", id:1, system:"Carthage" }, // unique planet name
+{ planet:"Cho", id:2, system:"Carthage" }, // unique planet name
+{ planet:"Belus", id:3, system:"Carthage" }, // unique planet name
+{ planet:"Archerbas", id:4, system:"Carthage" }, // unique planet name
+{ star:"12 Camelopardalis", id:2, system:"11 Camelopardalis" }, // unique star name
+{ star:"CD-45 11531B", id:2, system:"HR 6477" }, // unique star name
+{ star:"HZ Canis Majoris", id:2, system:"HD 50630" }, // unique star name
+{ planet:"Magna", id:1, system:"LTT 9846" }, // unique planet name
+{ planet:"Chia", id:26, system:"Breamen" }, // unique planet name
+{ planet:"Andromeda9", id:27, system:"Breamen" }, // unique planet name
+{ star:"HD 91 B", id:2, system:"CD-30 19834" }, // unique star name
+{ planet:"New Terra", id:12, system:"Terra Mater" }, // unique planet name
+{ planet:"Furths", id:11, system:"Zeta Tucanae" }, // unique planet name
+{ planet:"Darwyn", id:12, system:"Zeta Tucanae" }, // unique planet name
+{ planet:"Bodger's World", id:1, system:"Shinigami" }, // unique planet name
+{ planet:"Grutopia", id:2, system:"Shinigami" }, // unique planet name
+{ planet:"Miranda II", id:1, system:"Vargerson" }, // unique planet name
+{ planet:"Irrelon Prime", id:8, system:"CD-77 45" }, // unique planet name
+{ star:"BD+70 401B", id:2, system:"HR 2285" }, // unique star name
+{ planet:"Ziva", id:11, system:"4 Arietis" }, // unique planet name
+{ planet:"Peylow", id:20, system:"Aditi" }, // unique planet name
+{ planet:"Morrow Peek", id:21, system:"Aditi" }, // unique planet name
+{ planet:"Haynes's Hole", id:2, system:"Phekda" }, // unique planet name
+{ planet:"Nirvana", id:7, system:"Phekda" }, // unique planet name
+{ planet:"New California", id:8, system:"Phekda" }, // unique planet name
+{ planet:"Topaz", id:9, system:"Phekda" }, // unique planet name
+{ planet:"Ousey", id:11, system:"Phekda" }, // unique planet name
+{ planet:"Francis's Wreck", id:14, system:"Phekda" }, // unique planet name
+{ star:"GS 2000+25", id:2, system:"QZ Vulpeculae" }, // unique star name
+{ planet:"Farwalker Point", id:7, system:"Eowrairsts JA-P c19-0" }, // unique planet name
+{ star:"GS 2023+338", id:2, system:"V404 Cygni" }, // unique star name
+{ star:"GRS 1915+105", id:2, system:"V1487 Aquilae" }, // unique star name
+{ star:"CCDM J00507+6415B", id:2, system:"HR 233" }, // unique star name
+{ planet:"Dexter's Rest", id:7, system:"Cyoageou HN-S e4-17" }, // unique planet name
+{ star:"Gamma-1 Caeli", id:2, system:"Gamma-2 Caeli B" }, // unique star name
+{ planet:"Ashfield's Wreck", id:20, system:"Alkaid" }, // unique planet name
+{ planet:"Strauss Rock", id:22, system:"Alkaid" }, // unique planet name
+{ planet:"Green Mount", id:23, system:"Alkaid" }, // unique planet name
+{ planet:"New Caledonia", id:25, system:"Alkaid" }, // unique planet name
+{ planet:"Greenhill", id:26, system:"Alkaid" }, // unique planet name
+{ planet:"Honda", id:27, system:"Alkaid" }, // unique planet name
+{ planet:"Diamond's Rock", id:28, system:"Alkaid" }, // unique planet name
+{ planet:"Rick's Retreat", id:35, system:"HR 7291" }, // unique planet name
+{ planet:"Annette's Paradise", id:36, system:"HR 7291" }, // unique planet name
+{ planet:"Rhatigan", id:1, system:"82 Eridani" }, // unique planet name
+{ planet:"Ifreds Harbour", id:2, system:"82 Eridani" }, // unique planet name
+{ planet:"Teekay 100705", id:3, system:"82 Eridani" }, // unique planet name
+{ planet:"Clements Keep", id:11, system:"CD-69 5" }, // unique planet name
+{ planet:"Ardrain", id:12, system:"CD-69 5" }, // unique planet name
+{ planet:"Wen", id:7, system:"Euryale" }, // unique planet name
+{ planet:"EG Prime", id:8, system:"Euryale" }, // unique planet name
+{ star:"BD+13 1868B", id:2, system:"HR 3231" }, // unique star name
+{ star:"BD+52 262B", id:2, system:"HR 318" }, // unique star name
+{ star:"6 Beta-2 Cygni", id:2, system:"Albireo" }, // unique star name
+{ planet:"Badfort", id:1, system:"BD+22 4939" }, // unique planet name
+{ star:"Gamma Andromedae B", id:2, system:"Almach" }, // unique star name
+{ star:"Beta Capricorni Ab", id:3, system:"Dabih Major" }, // unique star name
+{ star:"Beta Capricorni B", id:5, system:"Dabih Major" }, // unique star name
+{ star:"Beta Capricorni C", id:6, system:"Dabih Major" }, // unique star name
+{ planet:"Alasdair's World", id:7, system:"LP 644-15" }, // unique planet name
+{ planet:"Mirnipli", id:1, system:"Tangaroa" }, // unique planet name
+{ planet:"Imishli", id:2, system:"Tangaroa" }, // unique planet name
+{ planet:"Babycures", id:6, system:"Myrbat" }, // unique planet name
+{ planet:"Munros", id:7, system:"Myrbat" }, // unique planet name
+{ planet:"Sophia", id:1, system:"Alexis Centauri" }, // unique planet name
+{ planet:"Pumori", id:2, system:"Alexis Centauri" }, // unique planet name
+{ planet:"Cishan", id:7, system:"Magec" }, // unique planet name
+{ planet:"Ankogel", id:8, system:"Magec" }, // unique planet name
+{ planet:"Guayota", id:11, system:"Magec" }, // unique planet name
+{ planet:"Guayota a", id:12, system:"Magec" }, // unique planet name
+{ planet:"Guayota b", id:13, system:"Magec" }, // unique planet name
+{ planet:"Teide", id:14, system:"Magec" }, // unique planet name
+{ planet:"Teide a", id:15, system:"Magec" }, // unique planet name
+{ planet:"Teide b", id:16, system:"Magec" }, // unique planet name
+{ planet:"Luo", id:17, system:"Magec" }, // unique planet name
+{ planet:"Teide d", id:18, system:"Magec" }, // unique planet name
+{ planet:"Achamán", id:19, system:"Magec" }, // unique planet name
+{ planet:"Achamán a", id:20, system:"Magec" }, // unique planet name
+{ planet:"Guanche", id:21, system:"Magec" }, // unique planet name
+{ planet:"Dalager", id:12, system:"Beta Catonis" }, // unique planet name
+{ star:"Gl 518.2 B", id:2, system:"Lono" }, // unique star name
+{ planet:"Mervon", id:6, system:"LHS 3439" }, // unique planet name
+{ planet:"Karpo", id:1, system:"Wolf 1323" }, // unique planet name
+{ planet:"Rattus", id:2, system:"Wolf 1323" }, // unique planet name
+{ planet:"Kathy McBrayer", id:9, system:"BD+26 2184" }, // unique planet name
+{ star:"HR 5186", id:2, system:"HR 4783" }, // unique star name
+{ planet:"Laika", id:1, system:"HIP 1254" }, // unique planet name
+{ planet:"Salisbury", id:9, system:"Zeus" }, // unique planet name
+{ planet:"Mulanje", id:10, system:"Zeus" }, // unique planet name
+{ planet:"El-Mariesh", id:1, system:"LTT 464" }, // unique planet name
+{ planet:"Blackstar", id:1, system:"Chup Kamui" }, // unique planet name
+{ planet:"Manily", id:2, system:"Chup Kamui" }, // unique planet name
+{ planet:"New Utah", id:6, system:"LTT 2396" }, // unique planet name
+{ planet:"Tir na Lugh", id:11, system:"Lugh" }, // unique planet name
+{ planet:"Varangia", id:1, system:"Miphifa" }, // unique planet name
+{ planet:"Daisy", id:10, system:"Jotunheim" }, // unique planet name
+{ planet:"Anna Ceri", id:11, system:"Meropis" }, // unique planet name
+{ planet:"Chlos", id:12, system:"Meropis" }, // unique planet name
+{ planet:"Borealis (HD 7199 b)", id:5, system:"Firdaus" }, // unique planet name
+{ planet:"Hellvellyn", id:6, system:"CD-79 950" }, // unique planet name
+{ planet:"Patterdale", id:7, system:"CD-79 950" }, // unique planet name
+{ planet:"Kai-kapu", id:5, system:"Laka" }, // unique planet name
+{ planet:"Puncak", id:6, system:"Laka" }, // unique planet name
+{ planet:"Wolf's Claim", id:3, system:"BD-08 1218" }, // unique planet name
+{ planet:"Tarlak", id:1, system:"LTT 2771" }, // unique planet name
+{ star:"M Centauri", id:2, system:"m Centauri" }, // unique star name
+{ star:"Gl 186.1 B", id:2, system:"HIP 45179" }, // unique star name
+{ planet:"Rich", id:4, system:"Synuefe MU-V c16-0" }, // unique planet name
+{ planet:"Aust", id:5, system:"Synuefe MU-V c16-0" }, // unique planet name
+{ star:"146 G. Canis Majoris", id:2, system:"145 Canis Majoris" }, // unique star name
+{ star:"N Mon 1975", id:2, system:"V616 Monocerotis" }, // unique star name
+{ star:"HD 92398", id:2, system:"T-2 Carinae" }, // unique star name
+{ star:"BD+32 2531B", id:2, system:"HR 5569" }, // unique star name
+{ planet:"Lawrence's Hole", id:1, system:"Fomalhaut" }, // unique planet name
+{ planet:"London's Legacy", id:2, system:"Fomalhaut" }, // unique planet name
+{ planet:"Biggs's Hole", id:3, system:"Fomalhaut" }, // unique planet name
+{ planet:"Conversion", id:4, system:"Fomalhaut" }, // unique planet name
+{ planet:"Strauss", id:6, system:"Fomalhaut" }, // unique planet name
+{ star:"XTE J1550-564", id:2, system:"V381 Normae" }, // unique star name
+{ star:"XTE J1650-500", id:2, system:"GHJ2008 3" }, // unique star name
+{ star:"16 Draconis", id:5, system:"17 Draconis" }, // unique star name
+{ star:"16 Draconis B", id:6, system:"17 Draconis" }, // unique star name
+{ planet:"Limbo", id:7, system:"17 Draconis" }, // unique planet name
+{ planet:"Eo", id:8, system:"17 Draconis" }, // unique planet name
+{ planet:"Shepherd", id:10, system:"17 Draconis" }, // unique planet name
+{ planet:"Paradiso", id:11, system:"17 Draconis" }, // unique planet name
+{ planet:"Icemir", id:12, system:"17 Draconis" }, // unique planet name
+{ star:"BD+79 265B", id:2, system:"HR 3082" }, // unique star name
+{ star:"GRS 1124-684", id:2, system:"GU Muscae" }, // unique star name
+{ star:"Kappa-2 Sculptoris", id:2, system:"Kappa-1 Sculptoris" }, // unique star name
+{ star:"Pi Aquilae B", id:2, system:"52 Pi Aquilae" }, // unique star name
+{ planet:"Harrison XIII", id:9, system:"Hecate" }, // unique planet name
+{ planet:"Tomie", id:10, system:"Hecate" }, // unique planet name
+{ planet:"Dalraida", id:9, system:"Crevit" }, // unique planet name
+{ planet:"Rheged", id:15, system:"Lausang" }, // unique planet name
+{ planet:"Chappal", id:16, system:"Lausang" }, // unique planet name
+{ planet:"Sonia's Haven", id:9, system:"Mat Zemlya" }, // unique planet name
+{ planet:"Capitol", id:8, system:"Andceeth" }, // unique planet name
+{ planet:"Mitre", id:9, system:"Andceeth" }, // unique planet name
+{ planet:"New Caledonia", id:5, system:"Arque" }, // unique planet name
+{ planet:"Gold", id:6, system:"Arque" }, // unique planet name
+{ star:"BD+51 179B", id:2, system:"HR 250" }, // unique star name
+{ planet:"Waypoint", id:3, system:"Sirius" }, // unique planet name
+{ planet:"Lucifer", id:4, system:"Sirius" }, // unique planet name
+{ star:"Wo 9220 B", id:2, system:"e Geminorum" }, // unique star name
+{ star:"Omega Aurigae B", id:2, system:"4 Aurigae" }, // unique star name
+{ star:"Gl 271 B", id:2, system:"Wasat" }, // unique star name
+{ star:"BD+65 338B", id:2, system:"HIP 15309" }, // unique star name
+{ star:"BD+14 3852B", id:2, system:"HR 7307" }, // unique star name
+{ planet:"Noon", id:6, system:"LTT 149" }, // unique planet name
+{ planet:"Stardust", id:7, system:"LTT 149" }, // unique planet name
+{ planet:"Likopo", id:7, system:"Fehu" }, // unique planet name
+{ planet:"Doolhof", id:8, system:"Fehu" }, // unique planet name
+{ planet:"Ectoplasm", id:8, system:"Saffron" }, // unique planet name
+{ planet:"Rooney World", id:9, system:"Svass" }, // unique planet name
+{ planet:"Moroto", id:10, system:"Svass" }, // unique planet name
+{ star:"HIP 16584", id:2, system:"HR 1068" }, // unique star name
+{ star:"BD+73 108B", id:2, system:"HR 579" }, // unique star name
+{ star:"100 Herculis B", id:2, system:"100 Herculis A" }, // unique star name
+{ star:"PSR J2144-3933", id:2, system:"Lalande 25224" }, // unique star name
+{ planet:"Taylor Dale", id:9, system:"Lambda Aquarii" }, // unique planet name
+{ star:"Gliese 321.3 B", id:2, system:"Athena" }, // unique star name
+{ star:"Gliese 331 B", id:3, system:"Talitha" }, // unique star name
+{ star:"Gliese 331 C", id:4, system:"Talitha" }, // unique star name
+{ star:"TYC 3679-2209-2", id:2, system:"V773 Cassiopeiae" }, // unique star name
+{ star:"Gliese 106.1 B", id:2, system:"Kaffaljidhma" }, // unique star name
+{ star:"BD+09 2882B", id:3, system:"CCDM J14234+0827A" }, // unique star name
+{ star:"BD+09 2882C", id:4, system:"CCDM J14234+0827A" }, // unique star name
+{ star:"Gl 351 B", id:2, system:"Psi Velorum" }, // unique star name
+{ star:"BD+27 2388B", id:2, system:"HR 5433" }, // unique star name
+{ star:"Theta Aquilae B", id:2, system:"Tseen Foo" }, // unique star name
+{ star:"Gl 354 B", id:2, system:"Theta Ursae Majoris" }, // unique star name
+{ planet:"Crocket", id:20, system:"LTT 135" }, // unique planet name
+{ planet:"Tulaichean", id:21, system:"LTT 135" }, // unique planet name
+{ star:"Gl 288 B", id:2, system:"171 Puppis" }, // unique star name
+{ planet:"Birmingham", id:4, system:"Gurney Slade" }, // unique planet name
+{ star:"63 Theta-2 Serpentis", id:2, system:"Theta Serpentis" }, // unique star name
+{ star:"BD+58 608A", id:2, system:"HR 1043" }, // unique star name
+{ star:"Epsilon Aquilae B", id:2, system:"Deneb el Okab" }, // unique star name
+{ star:"Wo 9836 B", id:2, system:"Omega-2 Aquarii" }, // unique star name
+{ star:"BD+19 2924B", id:2, system:"HR 5633" }, // unique star name
+{ star:"Gamma-1 Caeli", id:2, system:"Gamma-2 Caeli B" }, // unique star name
+{ star:"53 Camelopardalis B", id:2, system:"2 Camelopardalis" }, // unique star name
+{ star:"Kappa-2 Sagittarii", id:2, system:"Kappa-1 Sagittarii" }, // unique star name
+{ star:"Kappa-2 Volantis", id:2, system:"Kappa-1 Volantis" }, // unique star name
+{ star:"48 Epsilon Arietis B", id:2, system:"Epsilon Arietis" }, // unique star name
+{ star:"Gl 791.1 B", id:2, system:"Rho Capricorni" }, // unique star name
+{ planet:"Morris's Planet", id:8, system:"Cegreeth" }, // unique planet name
+{ planet:"Morris's Claim", id:9, system:"Cegreeth" }, // unique planet name
+{ planet:"Beorg", id:10, system:"CD-64 139" }, // unique planet name
+{ planet:"Gidim", id:9, system:"Tetrian" }, // unique planet name
+{ planet:"John Bradley Hope", id:10, system:"Tetrian" }, // unique planet name
+{ star:"CD-49 10998B", id:2, system:"15 G. Ara" }, // unique star name
+{ star:"Omicron Capricorni", id:2, system:"Omicron Capricorni B" }, // unique star name
+{ star:"Wo 9733 B", id:2, system:"Theta Indi" }, // unique star name
+{ star:"Gl 482 B", id:2, system:"Porrima" }, // unique star name
+{ star:"BD+23 2048B", id:2, system:"HR 3617" }, // unique star name
+{ star:"Alpha-1 Canum Venaticorum", id:2, system:"Cor Caroli" }, // unique star name
+{ planet:"Pirx", id:15, system:"HIP 17125" }, // unique planet name
+{ planet:"Jaufurally", id:9, system:"Stafkarl" }, // unique planet name
+{ planet:"Danny's World", id:5, system:"Run" }, // unique planet name
+{ planet:"Valhalla", id:3, system:"Tiliala" }, // unique planet name
+{ planet:"Saitoro", id:4, system:"Tiliala" }, // unique planet name
+{ planet:"Democracy", id:5, system:"Tiliala" }, // unique planet name
+{ star:"Wo 9474 B", id:2, system:"Asellus Secondus" }, // unique star name
+{ star:"Gl 560 B", id:2, system:"Alpha Circini" }, // unique star name
+{ star:"51 Mu-2 Bootis B", id:3, system:"Alkalurops" }, // unique star name
+{ star:"51 Mu-2 Bootis C", id:4, system:"Alkalurops" }, // unique star name
+{ planet:"EAL 1141", id:13, system:"Runo" }, // unique planet name
+{ planet:"Realm", id:1, system:"Sigma Hydri" }, // unique planet name
+{ planet:"Ma Mordella", id:5, system:"Heget" }, // unique planet name
+{ planet:"Horta", id:6, system:"Heget" }, // unique planet name
+{ planet:"Popov Reward", id:1, system:"Vega" }, // unique planet name
+{ planet:"Tracy's Havan", id:11, system:"Vega" }, // unique planet name
+{ planet:"Trikora", id:12, system:"Vega" }, // unique planet name
+{ planet:"Darkes Hollow", id:3, system:"Altair" }, // unique planet name
+{ planet:"Biggs Colony", id:4, system:"Altair" }, // unique planet name
+{ planet:"Lowing's Rock", id:5, system:"Altair" }, // unique planet name
+{ planet:"Eris", id:13, system:"Minerva" }, // unique planet name
+{ planet:"Peiste", id:14, system:"Minerva" }, // unique planet name
+{ planet:"Ash's Inferis", id:6, system:"Nortes" }, // unique planet name
+{ planet:"Fach", id:7, system:"Nortes" }, // unique planet name
+{ planet:"Xyile", id:6, system:"Cai" }, // unique planet name
+{ planet:"Trango", id:9, system:"Cai" }, // unique planet name
+{ planet:"Jesstopia", id:7, system:"Felkan" }, // unique planet name
+{ planet:"Swallowworld", id:6, system:"Laedla" }, // unique planet name
+{ planet:"Ford's Legacy", id:7, system:"Laedla" }, // unique planet name
+{ planet:"Mansfield Colony", id:8, system:"Laedla" }, // unique planet name
+{ planet:"Fortuna Fangrim", id:9, system:"LHS 1167" }, // unique planet name
+{ planet:"Brigantia", id:1, system:"Ross 345" }, // unique planet name
+{ planet:"Elizabeth Young's World", id:14, system:"Ursitoare" }, // unique planet name
+{ planet:"Beenkeragh", id:15, system:"Ursitoare" }, // unique planet name
+{ planet:"Al’Ameira Dua", id:10, system:"LHS 200" }, // unique planet name
+{ planet:"Walkerworld", id:6, system:"Exigus" }, // unique planet name
+{ planet:"Epirus", id:8, system:"Bohmshohm" }, // unique planet name
+{ planet:"Kaliash", id:9, system:"Bohmshohm" }, // unique planet name
+{ planet:"Irving World", id:1, system:"Asphodel" }, // unique planet name
+{ planet:"Irving's Moon", id:2, system:"Asphodel" }, // unique planet name
+{ planet:"Jokester's Planet", id:5, system:"LTT 911" }, // unique planet name
+{ planet:"Porsenna", id:9, system:"Te Uira" }, // unique planet name
+{ planet:"Labyrinthia", id:10, system:"Te Uira" }, // unique planet name
+{ planet:"Cardinal", id:1, system:"Aparctias" }, // unique planet name
+{ planet:"Septentrio", id:2, system:"Aparctias" }, // unique planet name
+{ planet:"Marie-José Willems", id:1, system:"Cet" }, // unique planet name
+{ planet:"Howard Martyn Wensley", id:2, system:"Cet" }, // unique planet name
+{ planet:"Kitsu's Rest", id:6, system:"Aku" }, // unique planet name
+{ planet:"Abona", id:3, system:"CT Tucanae" }, // unique planet name
+{ planet:"Delicious Cinnamon", id:13, system:"CD-73 12" }, // unique planet name
+{ planet:"Scafell", id:14, system:"CD-73 12" }, // unique planet name
+{ planet:"Baltha'Sine", id:1, system:"Baltah'Sine" }, // unique planet name
+{ planet:"Volantra", id:9, system:"Perkele" }, // unique planet name
+{ planet:"Kanjut", id:10, system:"Perkele" }, // unique planet name
+{ planet:"Kosmala Rewards", id:1, system:"Quince" }, // unique planet name
+{ planet:"New America", id:6, system:"Quince" }, // unique planet name
+{ planet:"Gabriel's Hideout", id:34, system:"Trapezium Sector AF-Z c1" }, // unique planet name
+{ planet:"Phaeacia", id:116, system:"BD-02 5286" }, // unique planet name
+{ planet:"Paul's Folly", id:3, system:"Tau-1 Eridani" }, // unique planet name
+{ planet:"Pomiu", id:4, system:"Tau-1 Eridani" }, // unique planet name
+{ planet:"Gayda", id:7, system:"Sedna" }, // unique planet name
+{ star:"CCDM J08222+7449A", id:2, system:"HIP 41011" }, // unique star name
+{ star:"NLTT 15983", id:2, system:"BD+44 1353" }, // unique star name
+{ planet:"Lopez's Mine", id:1, system:"Ackwada" }, // unique planet name
+{ planet:"Biggs's Hole", id:2, system:"Ackwada" }, // unique planet name
+{ planet:"Thompson's Planet", id:3, system:"Ackwada" }, // unique planet name
+{ star:"Zeta Capricorni B", id:2, system:"34 Zeta Capricorni" }, // unique star name
+{ planet:"Hudson Brooks", id:1, system:"Samkyha" }, // unique planet name
+{ planet:"Giles", id:10, system:"Aucownst TU-D b58-0" }, // unique planet name
+{ planet:"Kirsten", id:11, system:"Aucownst TU-D b58-0" }, // unique planet name
+{ planet:"Antissa", id:2, system:"Amy-Charlotte" }, // unique planet name
+{ planet:"Stapled Peacock Flesh", id:9, system:"Calhuacan" }, // unique planet name
+{ planet:"Erebus", id:10, system:"Calhuacan" }, // unique planet name
+{ star:"CCDM J14404+2159B", id:2, system:"HR 5472" }, // unique star name
+{ planet:"Owain", id:2, system:"Maausk" }, // unique planet name
+{ planet:"Kazbek", id:3, system:"Maausk" }, // unique planet name
+{ planet:"Gralmond", id:1, system:"Wolf 1515" }, // unique planet name
+{ planet:"Gord'Ena", id:5, system:"Wolf 54" }, // unique planet name
+{ planet:"Druman", id:6, system:"Wolf 54" }, // unique planet name
+{ planet:"THFC-Est1882", id:1, system:"Bast" }, // unique planet name
+{ planet:"Solo's Grave", id:5, system:"Anayol" }, // unique planet name
+{ planet:"Gold", id:6, system:"Anayol" }, // unique planet name
+{ planet:"Bush Reward", id:7, system:"Anayol" }, // unique planet name
+{ planet:"Luca L [V4-26]", id:5, system:"Tanmark" }, // unique planet name
+{ planet:"Icemark", id:24, system:"Tanmark" }, // unique planet name
+{ planet:"Dini", id:25, system:"LTT 198" }, // unique planet name
+{ planet:"Skiddaw", id:26, system:"LTT 198" }, // unique planet name
+{ planet:"Camp Mitterand", id:1, system:"Delta Pavonis" }, // unique planet name
+{ planet:"Suzuki Reward", id:2, system:"Delta Pavonis" }, // unique planet name
+{ planet:"Reagan's Legacy", id:3, system:"Delta Pavonis" }, // unique planet name
+{ planet:"Gold", id:5, system:"Delta Pavonis" }, // unique planet name
+{ planet:"Teton", id:1, system:"Lakota" }, // unique planet name
+{ planet:"Pada", id:2, system:"Lakota" }, // unique planet name
+{ planet:"Jodi's Rest", id:1, system:"BD+31 2290" }, // unique planet name
+{ planet:"Binnein", id:6, system:"Epsilon Phoenicis" }, // unique planet name
+{ planet:"Bormann's Blessing", id:9, system:"Epsilon Phoenicis" }, // unique planet name
+{ planet:"Erdogan-4", id:5, system:"Sanna" }, // unique planet name
+{ planet:"Caher", id:6, system:"Sanna" }, // unique planet name
+{ planet:"GJ 86 b", id:1, system:"Bento" }, // unique planet name
+{ planet:"Makunouchi", id:2, system:"Bento" }, // unique planet name
+{ planet:"Kyaraben", id:3, system:"Bento" }, // unique planet name
+{ planet:"Colon", id:16, system:"Hors" }, // unique planet name
+{ planet:"Cambridge's Hole", id:11, system:"Zeaex" }, // unique planet name
+{ planet:"Ashfield's World", id:12, system:"Zeaex" }, // unique planet name
+{ planet:"Democracy", id:13, system:"Zeaex" }, // unique planet name
+{ planet:"Irvin's Wreck", id:14, system:"Zeaex" }, // unique planet name
+{ planet:"Schmidt Rock", id:16, system:"Zeaex" }, // unique planet name
+{ planet:"Ulrich's Mine", id:17, system:"Zeaex" }, // unique planet name
+{ planet:"Tellus Tertius", id:13, system:"Morana" }, // unique planet name
+{ planet:"Nansen", id:14, system:"Morana" }, // unique planet name
+{ planet:"Rafferty's Paradise", id:6, system:"Azrael" }, // unique planet name
+{ planet:"Noshaq", id:7, system:"Azrael" }, // unique planet name
+{ planet:"Strauss Reward", id:9, system:"Bedaho" }, // unique planet name
+{ planet:"Matto", id:10, system:"Bedaho" }, // unique planet name
+{ planet:"Ithica", id:14, system:"Bevan's Hope" }, // unique planet name
+{ planet:"Planet Lave", id:1, system:"Lave" }, // unique planet name
+{ planet:"Gippsworld", id:1, system:"Gippsworld" }, // same as system
+{ star:"Gippsworld", id:0, system:"Gippsworld" }, // same as planet id:1
+{ planet:"Gippsworld", id:1, system:"Gippsworld" }, // same as star id:0
+{ planet:"Cronus", id:1, system:"Elysia" }, // unique planet name
+{ planet:"Kailas", id:2, system:"Elysia" }, // unique planet name
+{ planet:"Villist", id:9, system:"Brohman" }, // unique planet name
+{ planet:"Eden 13913", id:10, system:"Brohman" }, // unique planet name
+{ planet:"Travis Green", id:17, system:"Hypuae Aim ZP-R b48-0" }, // unique planet name
+{ star:"Wo 9593 B", id:2, system:"CPO 538" }, // unique star name
+{ planet:"Rock", id:3, system:"Eta Cassiopeiae" }, // unique planet name
+{ planet:"Feynman", id:4, system:"Eta Cassiopeiae" }, // unique planet name
+{ planet:"Trojan", id:5, system:"Eta Cassiopeiae" }, // unique planet name
+{ planet:"New Moon", id:6, system:"Eta Cassiopeiae" }, // unique planet name
+{ planet:"Between", id:7, system:"Eta Cassiopeiae" }, // unique planet name
+{ planet:"Navy Central", id:8, system:"Eta Cassiopeiae" }, // unique planet name
+{ star:"NN 3087 B", id:2, system:"NN 3086 A" }, // unique star name
+{ star:"Ross 365", id:2, system:"Ross 364" }, // unique star name
+{ planet:"New Bactra", id:1, system:"Andancan" }, // unique planet name
+{ planet:"New Africa", id:7, system:"Zelada" }, // unique planet name
+{ planet:"Singh Hollow", id:8, system:"Zelada" }, // unique planet name
+{ star:"Gliese 856 B", id:2, system:"Wolf 1225" }, // unique star name
+{ star:"Gliese 815 B", id:2, system:"V1396 Cygni" }, // unique star name
+{ planet:"Reaganworld", id:1, system:"Holiacan" }, // unique planet name
+{ planet:"Ouseyworld", id:2, system:"Holiacan" }, // unique planet name
+{ planet:"Lopez's Hole", id:3, system:"Holiacan" }, // unique planet name
+{ planet:"Haumod", id:1, system:"Treima" }, // unique planet name
+{ star:"NN 3179 B", id:2, system:"Ququve" }, // unique star name
+{ planet:"New America", id:3, system:"Ququve" }, // unique planet name
+{ planet:"Gold", id:4, system:"Ququve" }, // unique planet name
+{ planet:"Gyton's Landing", id:6, system:"Gyton's Hope" }, // unique planet name
+{ planet:"Pisani", id:7, system:"Gyton's Hope" }, // unique planet name
+{ planet:"Frauke", id:5, system:"LHS 2038" }, // unique planet name
+{ planet:"Faner", id:1, system:"Jotun" }, // unique planet name
+{ planet:"Major", id:1, system:"van Maanen's Star" }, // unique planet name
+{ star:"Gliese 781.1 B", id:2, system:"Euboa" }, // unique star name
+{ planet:"Der", id:1, system:"Ross 1015" }, // unique planet name
+{ star:"Gliese 548 B", id:2, system:"LHS 371" }, // unique star name
+{ planet:"Graham's Rock", id:1, system:"Indaol" }, // unique planet name
+{ planet:"Morgan's Hole", id:2, system:"Indaol" }, // unique planet name
+{ planet:"Simpson Hollow", id:5, system:"Soholia" }, // unique planet name
+{ planet:"Molotovworld", id:6, system:"Soholia" }, // unique planet name
+{ planet:"Bradley's Legacy", id:7, system:"Soholia" }, // unique planet name
+{ planet:"Ebbe", id:8, system:"Dakvar" }, // unique planet name
+{ planet:"Naglo", id:16, system:"Dakvar" }, // unique planet name
+{ star:"Gliese 228 B", id:2, system:"Ross 79" }, // unique star name
+{ planet:"Grant's Claim", id:1, system:"Ross 128" }, // unique planet name
+{ planet:"Luke Sears", id:1, system:"Wolf 562" }, // unique planet name
+{ planet:"Kenneos", id:2, system:"Wolf 562" }, // unique planet name
+{ planet:"Laila's Memory", id:3, system:"Wolf 562" }, // unique planet name
+{ planet:"Caelottixa", id:5, system:"Caelottixa" }, // same as system
+{ star:"Caelottixa", id:0, system:"Caelottixa" }, // same as planet id:5
+{ planet:"Caelottixa", id:5, system:"Caelottixa" }, // same as star id:0
+{ star:"Gliese 308 B", id:2, system:"LHS 247" }, // unique star name
+{ planet:"Paru", id:1, system:"Baker" }, // unique planet name
+{ planet:"Coates's Wreck", id:7, system:"Phiagre" }, // unique planet name
+{ planet:"Stevenson", id:8, system:"Phiagre" }, // unique planet name
+{ planet:"Kurinjal", id:9, system:"Phiagre" }, // unique planet name
+{ star:"Gliese 1141 B", id:2, system:"LP 431-71" }, // unique star name
+{ star:"Gliese 389 B", id:2, system:"Tawhaki" }, // unique star name
+{ star:"NN 3502 B", id:2, system:"LP 665-21" }, // unique star name
+{ star:"NN 3608 B", id:3, system:"PW Hydrae" }, // unique star name
+{ star:"NN 3609 C", id:4, system:"PW Hydrae" }, // unique star name
+{ planet:"Arawn", id:1, system:"Annwn" }, // unique planet name
+{ planet:"Pod", id:1, system:"LTT 1345" }, // unique planet name
+{ planet:"Raymo's Rendezvous", id:1, system:"Cardea" }, // unique planet name
+{ planet:"Xaubab", id:2, system:"Cardea" }, // unique planet name
+{ planet:"Ocrinox's Opulence", id:9, system:"Munshin" }, // unique planet name
+{ planet:"Damavand", id:10, system:"Munshin" }, // unique planet name
+{ planet:"Shangjun", id:1, system:"Aerial" }, // unique planet name
+{ planet:"Tyree", id:2, system:"Aerial" }, // unique planet name
+{ star:"Delta-2 Apodis", id:2, system:"Delta-1 Apodis" }, // unique star name
+{ planet:"Aiden Collar", id:1, system:"LHS 188" }, // unique planet name
+{ planet:"Teayum", id:2, system:"LHS 188" }, // unique planet name
+{ star:"BD+44 2408B", id:2, system:"HIP 73261" }, // unique star name
+{ planet:"Lusardi", id:10, system:"Artume" }, // unique planet name
+{ planet:"Artimi", id:12, system:"Artume" }, // unique planet name
+{ planet:"Stibium", id:9, system:"Thalarctos" }, // unique planet name
+{ planet:"Chuillin", id:1, system:"Futhark" }, // unique planet name
+{ planet:"Faereal Prime", id:2, system:"Futhark" }, // unique planet name
+{ planet:"Kyllikki", id:6, system:"Shibboleth" }, // unique planet name
+{ planet:"Franklin", id:1, system:"Agartha" }, // unique planet name
+{ planet:"Boreas", id:13, system:"Hyperborea" }, // unique planet name
+{ star:"Gl 336.2 B", id:2, system:"Haumea" }, // unique star name
+{ planet:"L.Meristo", id:19, system:"Baldr" }, // unique planet name
+{ planet:"Frogspawn", id:2, system:"Thule" }, // unique planet name
+{ planet:"Nidhogg", id:7, system:"Nastrond" }, // unique planet name
+{ planet:"Eurynomus", id:11, system:"Peregrina" }, // unique planet name
+{ planet:"Undine", id:12, system:"Peregrina" }, // unique planet name
+{ planet:"Camp Diamond", id:9, system:"Aymiay" }, // unique planet name
+{ planet:"Cooperworld", id:10, system:"Aymiay" }, // unique planet name
+{ planet:"Haynes's Wreck", id:11, system:"Aymiay" }, // unique planet name
+{ planet:"Baker", id:12, system:"Aymiay" }, // unique planet name
+{ planet:"Londinium", id:10, system:"Alexandrinus" }, // unique planet name
+{ planet:"Tudras", id:6, system:"Toor" }, // unique planet name
+{ planet:"Elizabeth Pantazis", id:1, system:"Michael Pantazis" }, // unique planet name
+{ planet:"KevlinSyk - 82", id:6, system:"BD+75 58" }, // unique planet name
+{ planet:"Jakobs Hallowed Paradox", id:1, system:"Paul-Friedrichs Star" }, // unique planet name
+{ planet:"Proudhon's Property", id:7, system:"Ekhi" }, // unique planet name
+{ planet:"Kongur", id:8, system:"Ekhi" }, // unique planet name
+{ planet:"Edmond's Rock", id:3, system:"Epsilon Indi" }, // unique planet name
+{ planet:"Lee", id:4, system:"Epsilon Indi" }, // unique planet name
+{ planet:"New Africa", id:5, system:"Epsilon Indi" }, // unique planet name
+{ planet:"Mitterand Hollow", id:6, system:"Epsilon Indi" }, // unique planet name
+{ planet:"Alisonworld", id:7, system:"Epsilon Indi" }, // unique planet name
+{ planet:"Suontaka", id:1, system:"CD-58 16" }, // unique planet name
+{ planet:"S-One", id:2, system:"CD-58 16" }, // unique planet name
+{ planet:"Gaia Mai", id:1, system:"Flesk" }, // unique planet name
+{ planet:"Manod", id:2, system:"Flesk" }, // unique planet name
+{ planet:"fragLANd", id:1, system:"Cocijo" }, // unique planet name
+{ planet:"Moel Hebog", id:2, system:"Cocijo" }, // unique planet name
+{ planet:"Grüne Hölle", id:1, system:"LTT 7669" }, // unique planet name
+{ planet:"Graysonia", id:6, system:"Futhorc" }, // unique planet name
+{ planet:"Boeth", id:7, system:"Futhorc" }, // unique planet name
+{ planet:"Karl-Heinz Lechtermann", id:10, system:"HIP 44291" }, // unique planet name
+{ planet:"Alchemia Virginis", id:24, system:"59 Virginis" }, // unique planet name
+{ planet:"Lapis Philosophorum", id:60, system:"59 Virginis" }, // unique planet name
+{ planet:"Guardinia", id:5, system:"Aramzahd" }, // unique planet name
+{ planet:"Smade's Planet", id:6, system:"Aramzahd" }, // unique planet name
+{ planet:"Trueman's Paradise", id:13, system:"Pi Mensae" }, // unique planet name
+{ planet:"Rubin's Discovery", id:8, system:"61 Virginis" }, // unique planet name
+{ planet:"Henry O'Hare's Haven", id:11, system:"Summerland" }, // unique planet name
+{ planet:"Discovery", id:12, system:"Exphiay" }, // unique planet name
+{ planet:"Rakhiot", id:13, system:"Exphiay" }, // unique planet name
+{ planet:"Campbellworld", id:10, system:"Exbeur" }, // unique planet name
+{ planet:"Sheehanworld", id:11, system:"Exbeur" }, // unique planet name
+{ planet:"Irkalla", id:11, system:"Anahit" }, // unique planet name
+{ planet:"Nergal", id:12, system:"Anahit" }, // unique planet name
+{ planet:"Gem (HD 8535 b)", id:1, system:"CD-41 359" }, // unique planet name
+{ planet:"Garthyre", id:2, system:"CD-41 359" }, // unique planet name
+{ planet:"Major", id:2, system:"Arcturus" }, // unique planet name
+{ planet:"Richard's Rock", id:3, system:"Arcturus" }, // unique planet name
+{ planet:"Discovery", id:4, system:"Arcturus" }, // unique planet name
+{ planet:"Arcas", id:7, system:"Arcturus" }, // unique planet name
+{ planet:"Masseyworld", id:8, system:"Arcturus" }, // unique planet name
+{ planet:"Richardson's Mine", id:11, system:"Arcturus" }, // unique planet name
+{ planet:"Jeffries", id:12, system:"Arcturus" }, // unique planet name
+{ planet:"Oliver's Mine", id:13, system:"Arcturus" }, // unique planet name
+{ planet:"Wicca's World", id:59, system:"Alioth" }, // unique planet name
+{ planet:"Turner's World", id:60, system:"Alioth" }, // unique planet name
+{ planet:"Argent's Claim", id:61, system:"Alioth" }, // unique planet name
+{ planet:"Bifrost", id:62, system:"Alioth" }, // unique planet name
+{ planet:"Mackenzie's Legacy", id:63, system:"Alioth" }, // unique planet name
+{ planet:"Ousey Rock", id:64, system:"Alioth" }, // unique planet name
+{ planet:"Miller Rock", id:65, system:"Alioth" }, // unique planet name
+{ planet:"Asellus 1", id:3, system:"Asellus Primus" }, // unique planet name
+{ planet:"Asellus 2", id:4, system:"Asellus Primus" }, // unique planet name
+{ planet:"Asellus 3", id:5, system:"Asellus Primus" }, // unique planet name
+{ planet:"Asellus 3a", id:10, system:"Asellus Primus" }, // unique planet name
+{ planet:"Asellus 3b", id:11, system:"Asellus Primus" }, // unique planet name
+{ planet:"Asellus 3c", id:12, system:"Asellus Primus" }, // unique planet name
+{ planet:"Asellus 4", id:13, system:"Asellus Primus" }, // unique planet name
+{ star:"Proxima Centauri", id:4, system:"Alpha Centauri" }, // unique star name
+{ planet:"2045 PC2", id:6, system:"Alpha Centauri" }, // unique planet name
+{ planet:"Lagrange", id:7, system:"Alpha Centauri" }, // unique planet name
+{ planet:"2042 L1", id:8, system:"Alpha Centauri" }, // unique planet name
+{ planet:"2071 AC3", id:9, system:"Alpha Centauri" }, // unique planet name
+{ planet:"Eden", id:10, system:"Alpha Centauri" }, // unique planet name
+{ planet:"New Babylon", id:8, system:"Carcinus" }, // unique planet name
+{ planet:"Savo", id:15, system:"Delkar" }, // unique planet name
+{ planet:"Anamundi", id:16, system:"Delkar" }, // unique planet name
+{ planet:"Galava", id:1, system:"Ross 788" }, // unique planet name
+{ planet:"Ambleside", id:2, system:"Ross 788" }, // unique planet name
+{ planet:"Jontyworld", id:6, system:"Difu" }, // unique planet name
+{ planet:"Etemmu", id:7, system:"Difu" }, // unique planet name
+{ planet:"Major's Wreck", id:6, system:"Pi-fang" }, // unique planet name
+{ planet:"Cooper Reward", id:7, system:"Pi-fang" }, // unique planet name
+{ planet:"Hamlet", id:1, system:"Utgaroar" }, // unique planet name
+{ star:"Ruby", id:3, system:"Prism" }, // unique star name
+{ star:"Diamond", id:5, system:"Prism" }, // unique star name
+{ star:"Sapphire", id:6, system:"Prism" }, // unique star name
+{ planet:"Mestra", id:7, system:"Prism" }, // unique planet name
+{ planet:"Daedalion", id:9, system:"Prism" }, // unique planet name
+{ planet:"Chione", id:10, system:"Prism" }, // unique planet name
+{ planet:"Neaera", id:11, system:"Prism" }, // unique planet name
+{ planet:"Eurcyleia", id:12, system:"Prism" }, // unique planet name
+{ planet:"Anticlea", id:13, system:"Prism" }, // unique planet name
+{ planet:"Amphithea", id:14, system:"Prism" }, // unique planet name
+{ planet:"Brigsteer", id:5, system:"CD-54 471" }, // unique planet name
+{ planet:"Aunios", id:5, system:"NLTT 9949" }, // unique planet name
+{ planet:"Moco", id:6, system:"NLTT 9949" }, // unique planet name
+{ star:"Gliese 200 B", id:2, system:"Tiamat" }, // unique star name
+{ star:"Gl 683.2 B", id:2, system:"Gliese 683.2" }, // unique star name
+{ planet:"Jessica's Folly", id:1, system:"CD-65 76" }, // unique planet name
+{ planet:"Sheol", id:2, system:"CD-65 76" }, // unique planet name
+{ planet:"Hutton Prime", id:14, system:"Ross 444" }, // unique planet name
+{ planet:"DP I", id:1, system:"Delta Phoenicis" }, // unique planet name
+{ planet:"Anka", id:2, system:"Delta Phoenicis" }, // unique planet name
+{ planet:"Kerkes", id:3, system:"Delta Phoenicis" }, // unique planet name
+{ planet:"Garuda", id:4, system:"Delta Phoenicis" }, // unique planet name
+{ star:"233 G. Carinae", id:2, system:"232 G. Carinae" }, // unique star name
+{ star:"Gl 501 B", id:2, system:"Diadem" }, // unique star name
+{ planet:"Farr's Landing", id:7, system:"Codorain" }, // unique planet name
+{ star:"Xi Aquilae B", id:2, system:"Deneb Okab" }, // unique star name
+{ star:"Maher", id:6, system:"i Bootis" }, // unique star name
+{ planet:"Chango", id:7, system:"i Bootis" }, // unique planet name
+{ planet:"Maher Prime", id:8, system:"i Bootis" }, // unique planet name
+{ planet:"Dustball", id:9, system:"i Bootis" }, // unique planet name
+{ planet:"Sindri", id:1, system:"Mjolnir" }, // unique planet name
+{ planet:"Brokkr", id:2, system:"Mjolnir" }, // unique planet name
+{ star:"Gliese 67 B", id:2, system:"Sliotar" }, // unique star name
+{ star:"Gliese 580 B", id:2, system:"Mamitu" }, // unique star name
+{ planet:"Whiterock", id:1, system:"Hodack" }, // unique planet name
+{ planet:"Sun Dancer", id:9, system:"LTT 15493" }, // unique planet name
+{ planet:"Jarek's Folly", id:12, system:"LTT 15493" }, // unique planet name
+{ planet:"Ravenclan's Settlement", id:1, system:"Dinda" }, // unique planet name
+{ planet:"Hood", id:2, system:"Dinda" }, // unique planet name
+{ star:"Gl 25 B", id:2, system:"13 Ceti" }, // unique star name
+{ star:"Gl 584 B", id:2, system:"Eta Coronae Borealis" }, // unique star name
+{ planet:"Mathews's Hole", id:1, system:"Facece" }, // unique planet name
+{ planet:"Coates's Mine", id:2, system:"Facece" }, // unique planet name
+{ planet:"Peters's Wreck", id:3, system:"Facece" }, // unique planet name
+{ planet:"New America", id:4, system:"Facece" }, // unique planet name
+{ planet:"Topaz", id:5, system:"Facece" }, // unique planet name
+{ star:"17 Kappa-2 Bootis", id:2, system:"17 Kappa-1 Bootis" }, // unique star name
+{ star:"Gliese 586 B", id:3, system:"Sango" }, // unique star name
+{ star:"Gliese 586 C", id:4, system:"Sango" }, // unique star name
+{ star:"BD+16 2705B", id:2, system:"HR 5550" }, // unique star name
+{ planet:"Emma's Hope", id:7, system:"California Sector HW-W c1-5" }, // unique planet name
+{ planet:"Jackson", id:1, system:"Anapos" }, // unique planet name
+{ planet:"Emilia", id:6, system:"Anapos" }, // unique planet name
+{ planet:"Melfort", id:10, system:"HERZ 10688" }, // unique planet name
+{ planet:"Navia", id:5, system:"Wolf 1301" }, // unique planet name
+{ planet:"New Turkey", id:1, system:"LHS 1387" }, // unique planet name
+{ planet:"Ararat", id:2, system:"LHS 1387" }, // unique planet name
+{ planet:"Panmore", id:6, system:"Algreit" }, // unique planet name
+{ planet:"Wilde's World", id:15, system:"Phanes" }, // unique planet name
+{ planet:"Muztagh", id:16, system:"Phanes" }, // unique planet name
+{ planet:"Subartu", id:6, system:"Bolg" }, // unique planet name
+{ planet:"Shubar", id:7, system:"Bolg" }, // unique planet name
+{ planet:"Eurydice", id:7, system:"Eulexia" }, // unique planet name
+{ planet:"Tiamoia", id:9, system:"Eulexia" }, // unique planet name
+{ planet:"Tira Flirble", id:5, system:"Eurybia" }, // unique planet name
+{ planet:"Makalu", id:6, system:"Eurybia" }, // unique planet name
+{ planet:"The Hoonage Dominion", id:5, system:"Yinjian" }, // unique planet name
+{ planet:"Markham", id:6, system:"Yinjian" }, // unique planet name
+{ planet:"Tracy", id:2, system:"Fawaol" }, // unique planet name
+{ planet:"Camp Rush", id:3, system:"Fawaol" }, // unique planet name
+{ planet:"Distat", id:4, system:"Fawaol" }, // unique planet name
+{ planet:"Griffiths Rock", id:5, system:"Fawaol" }, // unique planet name
+{ planet:"The Land", id:1, system:"Thanatos" }, // unique planet name
+{ planet:"Kamet", id:2, system:"Thanatos" }, // unique planet name
+{ planet:"Saena", id:10, system:"Solati" }, // unique planet name
+{ planet:"Halla", id:11, system:"Solati" }, // unique planet name
+{ planet:"Burbidge", id:13, system:"LTT 2952" }, // unique planet name
+{ planet:"Amutria", id:12, system:"Arouca" }, // unique planet name
+{ planet:"Frisia", id:8, system:"Dijkstra" }, // unique planet name
+{ planet:"Chembra", id:9, system:"Dijkstra" }, // unique planet name
+{ star:"Gl 596.1 B", id:2, system:"Wolf 573" }, // unique star name
+{ planet:"Lupon", id:3, system:"Wolf 573" }, // unique planet name
+{ star:"BD+20 2954B", id:2, system:"HR 5346" }, // unique star name
+{ star:"12 Gamma-2 Delphini", id:2, system:"12 Gamma-1 Delphini" }, // unique star name
+{ planet:"Tampu", id:1, system:"Viracocha" }, // unique planet name
+{ planet:"Aural", id:2, system:"Viracocha" }, // unique planet name
+{ star:"NN 3195 B", id:2, system:"KUI 11" }, // unique star name
+{ planet:"Apasam", id:1, system:"Chi Herculis" }, // unique planet name
+{ planet:"Kumay", id:2, system:"Chi Herculis" }, // unique planet name
+{ planet:"Jade", id:11, system:"Cemiess" }, // unique planet name
+{ planet:"Emerald", id:12, system:"Cemiess" }, // unique planet name
+{ star:"Gl 4.2 B", id:2, system:"LHS 1020" }, // unique star name
+{ star:"Gl 54.2 B", id:2, system:"37 Ceti" }, // unique star name
+{ star:"Gliese 60 B", id:3, system:"EGM 823" }, // unique star name
+{ star:"Gliese 60 C", id:4, system:"EGM 823" }, // unique star name
+{ planet:"Ad Pontes", id:3, system:"39 Tauri" }, // unique planet name
+{ planet:"Slough", id:17, system:"VESPER-M4" }, // unique planet name
+{ planet:"Lukka", id:8, system:"Tamor" }, // unique planet name
+{ planet:"Mitterand's World", id:10, system:"Liabeze" }, // unique planet name
+{ planet:"New California", id:11, system:"Liabeze" }, // unique planet name
+{ planet:"Panem", id:3, system:"Kappa Fornacis" }, // unique planet name
+{ planet:"Panes", id:4, system:"Kappa Fornacis" }, // unique planet name
+{ star:"Gl 615.1 B", id:2, system:"49 Serpentis" }, // unique star name
+{ star:"Gl 55.1 B", id:2, system:"LTT 700" }, // unique star name
+{ planet:"Foursyth", id:14, system:"Rhea" }, // unique planet name
+{ planet:"Rogatino", id:6, system:"Howard" }, // unique planet name
+{ planet:"Sanssouci", id:1, system:"Thethys" }, // unique planet name
+{ planet:"Dejen", id:2, system:"Thethys" }, // unique planet name
+{ star:"CCDM J05016+6105B", id:2, system:"HR 1593" }, // unique star name
+{ planet:"Urus", id:12, system:"B'Titus" }, // unique planet name
+{ star:"Gl 55.3 B", id:2, system:"Kappa Tucanae" }, // unique star name
+{ star:"127 G. Canis Major C", id:2, system:"127 G. Canis Majoris" }, // unique star name
+{ star:"Gliese 632.2 B", id:2, system:"StKM 1-1379" }, // unique star name
+{ star:"Gliese 819 B", id:2, system:"Huh" }, // unique star name
+{ planet:"Secular I", id:1, system:"PLX 695" }, // unique planet name
+{ planet:"Fraser", id:5, system:"LTT 606" }, // unique planet name
+{ planet:"Moel Lefn", id:30, system:"LTT 606" }, // unique planet name
+{ planet:"Remo Burkhard", id:1, system:"Akkadia" }, // unique planet name
+{ planet:"Cathkin", id:2, system:"Akkadia" }, // unique planet name
+{ planet:"Violet World", id:6, system:"Zephyrus" }, // unique planet name
+{ planet:"Hathor", id:2, system:"Dahan" }, // unique planet name
+{ planet:"Coltan", id:4, system:"Dahan" }, // unique planet name
+{ planet:"Zhang's Claim", id:5, system:"Dahan" }, // unique planet name
+{ planet:"Smithy's Claim", id:6, system:"Dahan" }, // unique planet name
+{ planet:"Jonty's Claim", id:7, system:"Dahan" }, // unique planet name
+{ planet:"Wanderer", id:8, system:"Dahan" }, // unique planet name
+{ planet:"Scheffey's Solace", id:1, system:"HIP 112441" }, // unique planet name
+{ planet:"Macdara Peter Gamboni", id:10, system:"Carnoeck" }, // unique planet name
+{ planet:"New Albion", id:7, system:"Feuma" }, // unique planet name
+{ planet:"Halki", id:1, system:"Vequess" }, // unique planet name
+{ planet:"New Serbia", id:1, system:"Rudjer Boskovic" }, // unique planet name
+{ star:"Gliese 319.1 B", id:2, system:"Artames" }, // unique star name
+{ star:"Gliese 1126 B", id:2, system:"Thor" }, // unique star name
+{ star:"Gliese 825.4 B", id:2, system:"Carmenta" }, // unique star name
+{ star:"Gliese 620.1 B", id:2, system:"Medb" }, // unique star name
+{ star:"Delta Bootis B", id:2, system:"Princeps" }, // unique star name
+{ planet:"Keevals Retreat", id:1, system:"Tengri" }, // unique planet name
+{ planet:"Gokturk", id:2, system:"Tengri" }, // unique planet name
+{ planet:"Gaalai", id:1, system:"h Draconis" }, // unique planet name
+{ planet:"Makalu", id:2, system:"h Draconis" }, // unique planet name
+{ star:"Gliese 9541 B", id:2, system:"Kalb" }, // unique star name
+{ planet:"Keytree", id:6, system:"Cibola" }, // unique planet name
+{ planet:"Quivira", id:7, system:"Cibola" }, // unique planet name
+{ star:"NN 3348 B", id:2, system:"LTT 11655" }, // unique star name
+{ planet:"Kaunen", id:5, system:"Kaun" }, // unique planet name
+{ star:"ADS 2612 B", id:2, system:"HIP 16712" }, // unique star name
+{ star:"Gl 624.1 B", id:2, system:"Eta Draconis" }, // unique star name
+{ star:"Gl 188 B", id:2, system:"m Tauri" }, // unique star name
+{ planet:"Kanaloa", id:2, system:"Psi Octantis" }, // unique planet name
+{ planet:"Kane", id:3, system:"Psi Octantis" }, // unique planet name
+{ star:"Gl 292 B", id:2, system:"212 Puppis" }, // unique star name
+{ star:"Gliese 853 B", id:2, system:"Senlu" }, // unique star name
+{ planet:"Lily May World", id:1, system:"Themiscrya" }, // unique planet name
+{ star:"Gl 127 B", id:2, system:"Alpha Fornacis" }, // unique star name
+{ star:"Gliese 294 B", id:3, system:"69 G. Carinae" }, // unique star name
+{ star:"Gliese 294 C", id:4, system:"69 G. Carinae" }, // unique star name
+{ planet:"Tethlon", id:1, system:"Tethlon" }, // same as system
+{ star:"Tethlon", id:0, system:"Tethlon" }, // same as planet id:1
+{ planet:"Tethlon", id:1, system:"Tethlon" }, // same as star id:0
+{ planet:"Rakus' Memorial", id:1, system:"HIP 106006" }, // unique planet name
+{ planet:"Roque", id:1, system:"Taevaisa" }, // unique planet name
+{ planet:"Louannchar", id:4, system:"Taevaisa" }, // unique planet name
+{ star:"Zeta-2 Reticuli", id:2, system:"Zeta-1 Reticuli" }, // unique star name
+{ star:"Gl 314 B", id:2, system:"Zibel" }, // unique star name
+{ star:"Wo 9390 B", id:2, system:"Durga" }, // unique star name
+{ star:"Gliese 678 B", id:2, system:"Nuakea" }, // unique star name
+{ planet:"Maweke", id:3, system:"Nuakea" }, // unique planet name
+{ planet:"Korbu", id:4, system:"Nuakea" }, // unique planet name
+{ star:"Gliese 593 B", id:2, system:"BD+40 2905A" }, // unique star name
+{ planet:"Goliard", id:8, system:"Cockaigne" }, // unique planet name
+{ planet:"Mytoses", id:9, system:"Cockaigne" }, // unique planet name
+{ star:"CCDM J14495+5122A", id:2, system:"HR 5537" }, // unique star name
+{ star:"Gliese 231.1 B", id:2, system:"HR 2251" }, // unique star name
+{ planet:"Nemesis", id:9, system:"Momus Reach" }, // unique planet name
+{ planet:"Pandora", id:10, system:"Momus Reach" }, // unique planet name
+{ planet:"Kowden", id:5, system:"Beldarkri" }, // unique planet name
+{ planet:"Koppen", id:6, system:"Beldarkri" }, // unique planet name
+{ star:"Gliese 914 B", id:2, system:"85 Pegasi" }, // unique star name
+{ star:"Ton", id:2, system:"Tun" }, // unique star name
+{ planet:"TunTon", id:3, system:"Tun" }, // unique planet name
+{ planet:"Grahame", id:15, system:"Apam Napat" }, // unique planet name
+{ star:"Gl 40 B", id:2, system:"Shangdi" }, // unique star name
+{ planet:"Hishutash", id:9, system:"Wolf 25" }, // unique planet name
+{ planet:"Pagon", id:10, system:"Wolf 25" }, // unique planet name
+{ planet:"Kopet Dag", id:5, system:"Nang Ta-khian" }, // unique planet name
+{ planet:"Nisa", id:6, system:"Nang Ta-khian" }, // unique planet name
+{ star:"Gliese 225.2 B", id:2, system:"LFT 444" }, // unique star name
+{ planet:"Dawlings Rest", id:1, system:"Mu Arae" }, // unique planet name
+{ planet:"O'Rourke Colony", id:12, system:"Exioce" }, // unique planet name
+{ planet:"Experiment", id:13, system:"Exioce" }, // unique planet name
+{ planet:"Democracy", id:14, system:"Exioce" }, // unique planet name
+{ planet:"Boston's Wreck", id:15, system:"Exioce" }, // unique planet name
+{ star:"Gl 368.1 B", id:2, system:"Kivah" }, // unique star name
+{ star:"Gliese 1130 B", id:2, system:"LTT 3630" }, // unique star name
+{ planet:"Cullen", id:3, system:"Morten-Marte" }, // unique planet name
+{ star:"Gliese 822.1 B", id:2, system:"Tau Cygni" }, // unique star name
+{ star:"Gl 656.1 BC", id:2, system:"Sabik" }, // unique star name
+{ star:"Wo 9155 B", id:2, system:"Hotas" }, // unique star name
+{ planet:"Kava", id:13, system:"Betel" }, // unique planet name
+{ star:"Gl 387 B", id:2, system:"39 Leonis" }, // unique star name
+{ star:"Gl 670 B", id:2, system:"Xi Ophiuchi" }, // unique star name
+{ planet:"New Rutland", id:5, system:"Suddene" }, // unique planet name
+{ planet:"Horn", id:6, system:"Suddene" }, // unique planet name
+{ star:"Gl 175 B", id:2, system:"HR 1504" }, // unique star name
+{ star:"Gliese 871 B", id:2, system:"LTT 9156" }, // unique star name
+{ star:"31 Psi Draconis B", id:2, system:"Dziban" }, // unique star name
+{ star:"Gl 174.1 B", id:2, system:"Alpha Caeli" }, // unique star name
+{ star:"Gl 454.2 B", id:2, system:"Min" }, // unique star name
+{ star:"Gliese 57.1 B", id:2, system:"LDS 46" }, // unique star name
+{ star:"Gl 872 B", id:2, system:"Xi Pegasi" }, // unique star name
+{ planet:"Thorgill", id:6, system:"Lambda Horologii" }, // unique planet name
+{ star:"Wolf 394", id:2, system:"Wolf 393" }, // unique star name
+{ star:"Gl 274 B", id:2, system:"Rho Geminorum" }, // unique star name
+{ star:"Gliese 695 B", id:2, system:"86 Mu Herculis" }, // unique star name
+{ planet:"Nexus737", id:1, system:"Aztlan" }, // unique planet name
+{ star:"Gl 469.2 B", id:2, system:"HR 4758" }, // unique star name
+{ star:"Gl 340.1 B", id:2, system:"128 Carinae" }, // unique star name
+{ star:"Gliese 9061 B", id:2, system:"53 chi Ceti" }, // unique star name
+{ star:"Gliese 105 B", id:2, system:"Pepper" }, // unique star name
+{ planet:"Pepper", id:3, system:"Pepper" }, // same as system
+{ star:"Pepper", id:1, system:"Pepper" }, // same as planet id:3
+{ planet:"Pepper", id:3, system:"Pepper" }, // same as star id:1
+{ star:"Gliese 392 B", id:2, system:"Artumes" }, // unique star name
+{ planet:"Kerinci", id:6, system:"Ninhursag" }, // unique planet name
+{ star:"Gliese 442 B", id:2, system:"Trepin" }, // unique star name
+{ star:"GJ 3806 B", id:2, system:"CD-35 9019" }, // unique star name
+{ planet:"Cambridge", id:3, system:"Pollux" }, // unique planet name
+{ star:"Gl 704 B", id:2, system:"b Herculis" }, // unique star name
+{ planet:"Ohajiki", id:7, system:"Reynes" }, // unique planet name
+{ planet:"Azille", id:1, system:"Wolfberg" }, // unique planet name
+{ star:"Gl 87.1 B", id:2, system:"66 Ceti" }, // unique star name
+{ star:"Gliese 81.1 B", id:2, system:"GCRV 52424" }, // unique star name
+{ star:"NN 3450 B", id:2, system:"HR 2883" }, // unique star name
+{ star:"Gl 452.5 B", id:2, system:"Bandua" }, // unique star name
+{ star:"Wo 9453 B", id:2, system:"Enki" }, // unique star name
+{ star:"Gliese 56.3 B", id:2, system:"LHS 1230" }, // unique star name
+{ planet:"Quy", id:1, system:"Quiness" }, // unique planet name
+{ planet:"Slieau Whallian", id:1, system:"Lalande 6320" }, // unique planet name
+{ planet:"Elkins", id:2, system:"Lalande 6320" }, // unique planet name
+{ star:"Gliese 59 B", id:2, system:"Teshub" }, // unique star name
+{ planet:"Kerrash", id:3, system:"Teshub" }, // unique planet name
+{ star:"Gl 53 B", id:2, system:"Zeessze" }, // unique star name
+{ planet:"Gonzalez's Grave", id:3, system:"Zeessze" }, // unique planet name
+{ planet:"New America", id:4, system:"Zeessze" }, // unique planet name
+{ planet:"Macmillian's Hole", id:5, system:"Zeessze" }, // unique planet name
+{ star:"Gliese 570 B", id:2, system:"KX Librae" }, // unique star name
+{ star:"Gl 646 B", id:2, system:"LTT 6774" }, // unique star name
+{ star:"NN 3409 B", id:2, system:"Crowfor" }, // unique star name
+{ planet:"Kipper's Retreat", id:11, system:"Avalon" }, // unique planet name
+{ planet:"Grach", id:12, system:"Avalon" }, // unique planet name
+{ planet:"Fate's Gift", id:1, system:"Decima" }, // unique planet name
+{ planet:"Nanda", id:2, system:"Decima" }, // unique planet name
+{ planet:"Thea Centauri", id:9, system:"Moirai" }, // unique planet name
+{ planet:"Kangri", id:10, system:"Moirai" }, // unique planet name
+{ star:"Gl 185 B", id:2, system:"LTT 2151" }, // unique star name
+{ planet:"Major ROM's Retirement Globe", id:19, system:"Traikoa VY-S d3-68" }, // unique planet name
+{ star:"NN 3361 B", id:2, system:"Triton" }, // unique star name
+{ star:"Gl 291 B", id:2, system:"9 Puppis" }, // unique star name
+{ star:"Gl 561.1 B", id:2, system:"M Hydrae" }, // unique star name
+{ star:"Gl 496 B", id:2, system:"BD-19 3629A" }, // unique star name
+{ star:"55 Rho-1 Cancri B", id:2, system:"Rho Cancri" }, // unique star name
+{ star:"Gliese 379.1 B", id:2, system:"49 G. Antlia" }, // unique star name
+{ star:"Gliese 332 B", id:2, system:"10 Ursae Majoris" }, // unique star name
+{ planet:"Maodun", id:5, system:"Isinor" }, // unique planet name
+{ planet:"Thea", id:1, system:"Frog" }, // unique planet name
+{ planet:"Merapi", id:2, system:"Frog" }, // unique planet name
+{ star:"Gl 335 B", id:2, system:"Sigma-2 Ursae Majoris" }, // unique star name
+{ star:"Gl 743.1 B", id:2, system:"Gamma Coronae Austrinae" }, // unique star name
+{ star:"Gliese 421.1 B", id:2, system:"HR 4363" }, // unique star name
+{ star:"Gl 431.1 B", id:2, system:"Olwain" }, // unique star name
+{ star:"HIP 10679", id:2, system:"HIP 10680" }, // unique star name
+{ star:"Gliese 24 B", id:2, system:"Dyaus Pita" }, // unique star name
+{ star:"NN 3401 B", id:2, system:"SHY 35" }, // unique star name
+{ star:"Gl 297.2 B", id:2, system:"18 Puppis" }, // unique star name
+{ star:"Gl 542.1 B", id:2, system:"LHS 2891" }, // unique star name
+{ planet:"Ulrich's Rock", id:3, system:"Liaedin" }, // unique planet name
+{ planet:"Moore's World", id:4, system:"Liaedin" }, // unique planet name
+{ planet:"Schneider Colony", id:5, system:"Liaedin" }, // unique planet name
+{ planet:"Camp Ashfield", id:6, system:"Liaedin" }, // unique planet name
+{ star:"Gliese 433.2 B", id:2, system:"Ratri" }, // unique star name
+{ star:"Gliese 818.1 B", id:2, system:"HR 8061" }, // unique star name
+{ star:"Gliese 599 B", id:2, system:"Kamuy" }, // unique star name
+{ planet:"Nahtanoj", id:9, system:"Lalande 4141" }, // unique planet name
+{ planet:"Jennings's Legacy", id:7, system:"Anlave" }, // unique planet name
+{ planet:"Anderton's Mine", id:9, system:"Anlave" }, // unique planet name
+{ planet:"Jordan's Rock", id:10, system:"Anlave" }, // unique planet name
+{ planet:"Anderton", id:11, system:"Anlave" }, // unique planet name
+{ planet:"Denver", id:12, system:"Anlave" }, // unique planet name
+{ star:"Gl 91.2 B", id:2, system:"BD-18 394" }, // unique star name
+{ planet:"Hanandroo", id:7, system:"Tarach Tor" }, // unique planet name
+{ planet:"Moel Sych", id:8, system:"Tarach Tor" }, // unique planet name
+{ planet:"Boeotia", id:7, system:"Aganippe" }, // unique planet name
+{ planet:"New Thebes", id:8, system:"Aganippe" }, // unique planet name
+{ planet:"Tracy's World", id:5, system:"Arexack" }, // unique planet name
+{ planet:"Peter's Eden", id:6, system:"Arexack" }, // unique planet name
+{ planet:"Maxwell Hollow", id:7, system:"Arexack" }, // unique planet name
+{ planet:"Trileukon", id:7, system:"LHS 1650" }, // unique planet name
+{ planet:"Laila", id:8, system:"LHS 1650" }, // unique planet name
+{ star:"Gl 428 B", id:2, system:"Mata" }, // unique star name
+{ star:"Gliese 1161 B", id:2, system:"LDS 413" }, // unique star name
+{ star:"Gliese 426 B", id:2, system:"BD+19 2443" }, // unique star name
+{ star:"Gl 765 B", id:2, system:"Theta Cygni" }, // unique star name
+{ star:"Gliese 293 B", id:2, system:"LAWD 26" }, // unique star name
+{ star:"n Capricorni B", id:2, system:"Arm" }, // unique star name
+{ star:"Tau-2 Gruis B", id:2, system:"Tau-2 Gruis A" }, // unique star name
+{ star:"Gl 771 B", id:2, system:"Alshain" }, // unique star name
+{ star:"Gl 105.4 B", id:2, system:"Epsilon Ceti" }, // unique star name
+{ star:"GJ 1023 B", id:2, system:"Batara Kala" }, // unique star name
+{ star:"Gl 83.4 B", id:2, system:"Urcia" }, // unique star name
+{ star:"Gl 582.1 B", id:2, system:"LTT 6131" }, // unique star name
+{ planet:"Garibaldi", id:40, system:"Dubbuennel" }, // unique planet name
+{ star:"Gl 797 B", id:2, system:"Gilgamesh" }, // unique star name
+{ planet:"Camp Rance", id:8, system:"Aymifa" }, // unique planet name
+{ planet:"Gold", id:9, system:"Aymifa" }, // unique planet name
+{ planet:"Valhalla", id:10, system:"Aymifa" }, // unique planet name
+{ planet:"Lee Hollow", id:11, system:"Aymifa" }, // unique planet name
+{ planet:"Popov Reward", id:12, system:"Aymifa" }, // unique planet name
+{ star:"Gliese 857.1 B", id:2, system:"LEP 106" }, // unique star name
+{ star:"Gliese 816.1 B", id:2, system:"V2436 Cygni" }, // unique star name
+{ star:"Gliese 611 B", id:2, system:"Ovid" }, // unique star name
+{ planet:"Kenash", id:12, system:"Ovid" }, // unique planet name
+{ planet:"Paseguru", id:13, system:"Ovid" }, // unique planet name
+{ star:"Gl 627 B", id:2, system:"LFT 1277" }, // unique star name
+{ star:"Gliese 100 B", id:3, system:"LHS 1409" }, // unique star name
+{ star:"Gliese 100 C", id:4, system:"LHS 1409" }, // unique star name
+{ planet:"Anew", id:20, system:"George Pantazis" }, // unique planet name
+{ planet:"Azeban", id:1, system:"Eranin" }, // unique planet name
+{ planet:"Hope", id:1, system:"Gateway" }, // unique planet name
+{ planet:"Saunder's Rock", id:2, system:"Gateway" }, // unique planet name
+{ planet:"de Gaulworld", id:4, system:"Gateway" }, // unique planet name
+{ planet:"Wernerworld", id:5, system:"Gateway" }, // unique planet name
+{ planet:"Machester's Claim", id:7, system:"Gateway" }, // unique planet name
+{ planet:"Graham's Claim", id:9, system:"Gateway" }, // unique planet name
+{ planet:"Gupta's Rock", id:10, system:"Gateway" }, // unique planet name
+{ star:"Gliese 536.1 B", id:2, system:"BPM 89444" }, // unique star name
+{ planet:"Topaz", id:1, system:"Ayethi" }, // unique planet name
+{ planet:"Raven's Landing", id:2, system:"Ayethi" }, // unique planet name
+{ star:"Gliese 282 B", id:2, system:"Eeaea" }, // unique star name
+{ star:"Gliese 250 B", id:2, system:"LHS 1875" }, // unique star name
+{ star:"NN 3448 B", id:2, system:"HDS 1065" }, // unique star name
+{ star:"Gliese 1143 B", id:2, system:"LTT 4150" }, // unique star name
+{ star:"Gliese 511 B", id:2, system:"LTT 5184" }, // unique star name
+
+
+{ star:"Wo 9697 B", id:2, system:"Lamia" }, // unique star name
+{ star:"NN 4091 B", id:2, system:"Grannus" }, // unique star name
+
+{ star:"NN 4305 B", id:2, system:"LP 581-36" }, // unique star name
+{ star:"LP 245-18", id:2, system:"LP 245-17" }, // unique star name
+{ star:"GJ 1010 B", id:2, system:"LHS 1065" }, // unique star name
+{ star:"Gliese 720 B", id:2, system:"LFT 1421" }, // unique star name
+
+{ star:"NN 4188 B", id:2, system:"VVO 19" }, // unique star name
+{ star:"Gl 4 B", id:2, system:"Corbin" }, // unique star name
+{ star:"Gliese 22 B", id:3, system:"LHS 115" }, // unique star name
+{ star:"Gliese 22 C", id:4, system:"LHS 115" }, // unique star name
+{ planet:"Munam-ri", id:5, system:"Ross 1057" }, // unique planet name
+{ planet:"Else", id:6, system:"Ross 1057" }, // unique planet name
+{ planet:"Brace", id:7, system:"Ross 1051" }, // unique planet name
+{ planet:"Arka", id:8, system:"Surya" }, // unique planet name
+{ star:"LP 932-13", id:2, system:"LP 932-12" }, // unique star name
+{ star:"Gliese 800 B", id:2, system:"Ross 751" }, // unique star name
+{ planet:"Coates Paradise", id:1, system:"LP 298-42" }, // unique planet name
+{ star:"Gl 799 B", id:2, system:"LTT 8181" }, // unique star name
+{ star:"Gliese 458 B", id:2, system:"BD+55 1519" }, // unique star name
+{ star:"Gliese 490 B", id:2, system:"BF Canis Venatici" }, // unique star name
+{ star:"Gliese 9490 B", id:2, system:"Dea Motrona" }, // unique star name
+
+{ star:"Gliese 84.1 B", id:2, system:"LFT 179" }, // unique star name
+{ star:"Gliese 1001 B", id:2, system:"LHS 102" }, // unique star name
+{ planet:"Grüne Hölle", id:1, system:"Ross 33" }, // unique planet name
+{ star:"L 668-21 B", id:2, system:"LHS 1827" }, // unique star name
+{ planet:"LHS 3531-I", id:14, system:"LHS 3531" }, // unique planet name
+{ planet:"Jeffries Rock", id:1, system:"Wolf 294" }, // unique planet name
+{ planet:"Cooper Rock", id:1, system:"LHS 397" }, // unique planet name
+{ planet:"Gold", id:2, system:"LHS 397" }, // unique planet name
+{ star:"NN 3829 B", id:3, system:"LHS 2875" }, // unique star name
+{ star:"NN 3832 C", id:4, system:"LHS 2875" }, // unique star name
+
+{ star:"Gliese 114.1 B", id:2, system:"CD-53 570" }, // unique star name
+{ star:"Gliese 301 B", id:2, system:"LFT 572" }, // unique star name
+
+{ planet:"Uruk", id:5, system:"51 Arietis" }, // unique planet name
+{ planet:"Adab", id:6, system:"51 Arietis" }, // unique planet name
+{ star:"Gl 344 B", id:2, system:"Herao" }, // unique star name
+{ star:"Gl 128 B", id:2, system:"94 Ceti" }, // unique star name
+{ star:"GJ 1060 B", id:2, system:"LAWD 15" }, // unique star name
+{ star:"Gl 348 B", id:2, system:"Tau-1 Hydrae" }, // unique star name
+{ planet:"X-2487", id:1, system:"HIP 15310" }, // unique planet name
+{ planet:"X-2488", id:2, system:"HIP 15310" }, // unique planet name
+
+{ planet:"Aquila", id:12, system:"Dalfur" }, // unique planet name
+{ planet:"Futen", id:1, system:"Fujin" }, // unique planet name
+{ planet:"Minta", id:9, system:"Miola" }, // unique planet name
+{ star:"NN 4021 B", id:2, system:"Supay" }, // unique star name
+{ star:"Gliese 617 B", id:2, system:"Lalande 29917" }, // unique star name
+{ planet:"Laphria", id:2, system:"Artemis" }, // unique planet name
+{ planet:"Agrotera", id:8, system:"Artemis" }, // unique planet name
+{ planet:"Agrotera a", id:9, system:"Artemis" }, // unique planet name
+{ planet:"Agrotera b", id:10, system:"Artemis" }, // unique planet name
+{ planet:"Agrotera c", id:11, system:"Artemis" }, // unique planet name
+{ planet:"Saunders's Claim", id:6, system:"Tau Ceti" }, // unique planet name
+{ planet:"Taylor Colony", id:7, system:"Tau Ceti" }, // unique planet name
+{ planet:"Bell's Wreck", id:8, system:"Tau Ceti" }, // unique planet name
+{ planet:"Kore", id:5, system:"Persephone" }, // unique planet name
+{ star:"Gliese 120.1 B", id:3, system:"BU 741" }, // unique star name
+{ star:"Gliese 120.1 C", id:4, system:"BU 741" }, // unique star name
+{ planet:"Darmen", id:5, system:"BU 741" }, // unique planet name
+{ planet:"Ares", id:1, system:"CD-43 11917" }, // unique planet name
+{ star:"Gliese 1164 B", id:2, system:"LTT 4898" }, // unique star name
+{ planet:"Rhodius", id:6, system:"Wolf 397" }, // unique planet name
+{ planet:"Trus Madi", id:7, system:"Wolf 397" }, // unique planet name
+
+{ star:"Gl 550.2 B", id:2, system:"Phi Virginis" }, // unique star name
+{ planet:"Home", id:11, system:"Reorte" }, // unique planet name
+{ planet:"Camp Nakamichi", id:12, system:"Reorte" }, // unique planet name
+{ star:"Gliese 423 B", id:2, system:"Gweir" }, // unique star name
+{ star:"Wo 9584 C", id:2, system:"21 Draco" }, // unique star name
+
+{ star:"Gl 53.1 B", id:2, system:"LHS 5027" }, // unique star name
+{ star:"Gliese 838.1 B", id:2, system:"LHS 3717" }, // unique star name
+{ star:"Secunda Giedi BC", id:2, system:"Gredi" }, // unique star name
+{ star:"Gliese 153 B", id:3, system:"Atanua" }, // unique star name
+{ star:"Gliese 153 C", id:4, system:"Atanua" }, // unique star name
+{ star:"Gliese 677 B", id:2, system:"BD+29 3029" }, // unique star name
+{ star:"Gliese 828 B", id:2, system:"LTT 8517" }, // unique star name
+{ star:"Gliese 667 B", id:3, system:"Cuspoor" }, // unique star name
+{ star:"Gliese 667 C", id:4, system:"Cuspoor" }, // unique star name
+{ star:"Gl 356 B", id:2, system:"11 Leonis Minoris" }, // unique star name
+{ planet:"Grum", id:8, system:"LTT 1581" }, // unique planet name
+{ star:"Gliese 847 B", id:2, system:"LPM 806" }, // unique star name
+{ star:"Gliese 676 B", id:2, system:"LTT 6947" }, // unique star name
+{ planet:"Ausis", id:2, system:"Hofada" }, // unique planet name
+{ planet:"Birmingham", id:15, system:"Diso" }, // unique planet name
+
+{ star:"Gliese 838.3 B", id:2, system:"Soma" }, // unique star name
+{ star:"Gl 806.1 B", id:2, system:"Epsilon Cygni" }, // unique star name
+{ star:"Gl 173.1 B", id:2, system:"LTT 11478" }, // unique star name
+{ star:"Gl 98 B", id:2, system:"Tohil" }, // unique star name
+{ star:"Gliese 889 B", id:2, system:"LTT 9360" }, // unique star name
+{ planet:"Goldstein's Rock", id:12, system:"Epsilon Eridani" }, // unique planet name
+{ planet:"New California", id:13, system:"Epsilon Eridani" }, // unique planet name
+{ planet:"Major's Mine", id:14, system:"Epsilon Eridani" }, // unique planet name
+{ star:"Gliese 666 B", id:2, system:"41 G. Arae" }, // unique star name
+{ star:"Gliese 3782 B", id:2, system:"Brahma" }, // unique star name
+{ planet:"Haraiva", id:13, system:"Wolf 412" }, // unique planet name
+{ star:"Gliese 118.1 B", id:2, system:"LFT 238" }, // unique star name
+{ star:"Wo 9664 B", id:2, system:"CD-59 7256" }, // unique star name
+{ star:"Gliese 154.1 B", id:2, system:"LTT 1772" }, // unique star name
+{ star:"Gliese 1294 B", id:2, system:"Esege Malan" }, // unique star name
+{ star:"Gl 269 B", id:2, system:"Agelasta" }, // unique star name
+{ star:"Gliese 425 B", id:2, system:"Eme" }, // unique star name
+{ star:"Gliese 491 B", id:2, system:"Cybele" }, // unique star name
+{ star:"ADS 6967 Aa", id:2, system:"Asellus Australis" }, // unique star name
+{ star:"Gl 444 B", id:2, system:"LTT 4376" }, // unique star name
+{ planet:"Waterloo", id:1, system:"Riedquat" }, // unique planet name
+{ star:"CoRoT-11", id:2, system:"V1441 Orionis" }, // unique star name
+{ star:"Gliese 99 B", id:2, system:"BD+31 434" }, // unique star name
+{ star:"Gl 904.1 B", id:2, system:"Lidpar" }, // unique star name
+{ star:"Gliese 84.2 B", id:2, system:"V374 Andromedae" }, // unique star name
+{ star:"Gliese 909 B", id:2, system:"Elphin" }, // unique star name
+{ star:"NN 4115 B", id:2, system:"MCC 811" }, // unique star name
+{ star:"Gliese 649.1 B", id:3, system:"V1090 Herculis" }, // unique star name
+{ star:"Gliese 649.1 C", id:4, system:"V1090 Herculis" }, // unique star name
+{ star:"NN 3301 B", id:2, system:"Achlys" }, // unique star name
+{ planet:"Wrewpiter", id:11, system:"LFT 37" }, // unique planet name
+{ star:"Gliese 171.2 B", id:2, system:"Geras" }, // unique star name
+{ star:"Omicron Eridani B", id:3, system:"Omicron-2 Eridani" }, // unique star name
+{ star:"Omicron Eridani C", id:4, system:"Omicron-2 Eridani" }, // unique star name
+{ planet:"Scott's Mine", id:5, system:"Omicron-2 Eridani" }, // unique planet name
+{ planet:"Steven's Rock", id:6, system:"Omicron-2 Eridani" }, // unique planet name
+{ star:"Gliese 1108 B", id:2, system:"FP Cancri" }, // unique star name
+{ star:"Gliese 414 B", id:2, system:"Pliny" }, // unique star name
+{ planet:"KT-LINE", id:5, system:"Farack" }, // unique planet name
+{ planet:"Hemshut", id:6, system:"Farack" }, // unique planet name
+{ star:"Gliese 432 B", id:2, system:"Guy" }, // unique star name
+{ star:"GJ 1177 B", id:2, system:"Erlaza" }, // unique star name
+{ star:"LTT 4550", id:2, system:"Shinrarta Dezhra" }, // unique star name
+{ planet:"Founders World", id:14, system:"Shinrarta Dezhra" }, // unique planet name
+{ planet:"Leesti", id:11, system:"Leesti" }, // same as system
+{ star:"Leesti", id:0, system:"Leesti" }, // same as planet id:11
+{ planet:"Leesti", id:11, system:"Leesti" }, // same as star id:0
+{ star:"Gliese 765.4 B", id:2, system:"BD+33 3582" }, // unique star name
+{ star:"Wo 9582 B", id:2, system:"Ao Qin" }, // unique star name
+{ star:"Gl 150.1 B", id:2, system:"Manah" }, // unique star name
+{ planet:"Petra", id:8, system:"Manah" }, // unique planet name
+{ star:"Gl 737 B", id:2, system:"LTT 7509" }, // unique star name
+{ star:"Gliese 499 B", id:2, system:"Mahakala" }, // unique star name
+{ star:"Gl 149 B", id:2, system:"Keltim" }, // unique star name
+{ planet:"Tilune", id:1, system:"LHS 3921" }, // unique planet name
+{ star:"Gl 319 B", id:3, system:"LFT 601" }, // unique star name
+{ star:"Gl 319 C", id:4, system:"LFT 601" }, // unique star name
+{ planet:"Simpson's Eden", id:1, system:"Orerve" }, // unique planet name
+{ star:"CoRoT-12", id:2, system:"KQ Orionis" }, // unique star name
+{ star:"Gl 113 C", id:2, system:"BC Arietis" }, // unique star name
+{ star:"Gl 773 B", id:2, system:"LFT 1504" }, // unique star name
+{ star:"Gliese 157 B", id:2, system:"Borr" }, // unique star name
+{ planet:"Duval's Grave", id:10, system:"Capella" }, // unique planet name
+{ planet:"Gold", id:11, system:"Capella" }, // unique planet name
+{ planet:"Nobleworld", id:12, system:"Capella" }, // unique planet name
+{ planet:"Molotov's Claim", id:13, system:"Capella" }, // unique planet name
+{ planet:"Lawrence's Grave", id:14, system:"Capella" }, // unique planet name
+{ star:"Gl 750 B", id:2, system:"CD-46 12902" }, // unique star name
+{ star:"Gl 340 B", id:2, system:"Freyr" }, // unique star name
+{ planet:"Chubei", id:8, system:"Aulis" }, // unique planet name
+{ planet:"Khan", id:9, system:"Aulis" }, // unique planet name
+{ star:"Gl 509 B", id:2, system:"BD+29 2405" }, // unique star name
+{ star:"Gl 81 B", id:2, system:"Chi Eridani" }, // unique star name
+{ planet:"Shirtuh", id:14, system:"Chi Eridani" }, // unique planet name
+{ planet:"Fansipan", id:15, system:"Chi Eridani" }, // unique planet name
+{ star:"Gl 836.9 B", id:2, system:"Lauma" }, // unique star name
+{ planet:"Industry", id:17, system:"Zaonce" }, // unique planet name
+{ star:"Gliese 863.1 B", id:2, system:"LHS 525" }, // unique star name
+{ star:"Gliese 118.2 B", id:3, system:"LDS 883" }, // unique star name
+{ star:"Gliese 118.2 C", id:4, system:"LDS 883" }, // unique star name
+{ planet:"Argovia", id:10, system:"LDS 883" }, // unique planet name
+{ star:"GJ 1064 B", id:2, system:"Wolf 225" }, // unique star name
+{ star:"Gliese 659 B", id:2, system:"Demeter" }, // unique star name
+{ star:"Gliese 596 B", id:2, system:"BD+26 2723" }, // unique star name
+{ star:"Gl 354.1 B", id:2, system:"DX Leonis" }, // unique star name
+{ star:"Gliese 505 B", id:2, system:"Coelrind" }, // unique star name
+{ star:"Gliese 199 B", id:2, system:"Hakili" }, // unique star name
+{ planet:"Rasmussen", id:1, system:"Rasmussen" }, // same as system
+{ star:"Rasmussen", id:0, system:"Rasmussen" }, // same as planet id:1
+{ planet:"Rasmussen", id:1, system:"Rasmussen" }, // same as star id:0
+{ planet:"Alphubel", id:2, system:"Rasmussen" }, // unique planet name
+{ planet:"Jameson's Pride", id:57, system:"Uszaa" }, // unique planet name
+{ planet:"LAWMAN", id:14, system:"Sapill" }, // unique planet name
+
+{ star:"NN 4238 B", id:2, system:"Notus" }, // unique star name
+{ star:"Wolf 853 B", id:2, system:"Forculus" }, // unique star name
+{ planet:"Domus", id:3, system:"Forculus" }, // unique planet name
+{ star:"Gl 338.1 B", id:2, system:"Agwe" }, // unique star name
+{ star:"NN 3092 B", id:2, system:"LTT 751" }, // unique star name
+{ star:"Gl 508 B", id:2, system:"Wyrd" }, // unique star name
+{ planet:"Way", id:11, system:"Wyrd" }, // unique planet name
+{ planet:"Lister", id:12, system:"Wyrd" }, // unique planet name
+{ planet:"Verse", id:13, system:"Wyrd" }, // unique planet name
+{ star:"NN 4230 B", id:2, system:"Fuelum" }, // unique star name
+{ star:"Gliese 1120 B", id:2, system:"BD+15 1957" }, // unique star name
+{ star:"NN 3865 B", id:2, system:"LTT 5855" }, // unique star name
+{ planet:"New Caledonia", id:9, system:"Tionisla" }, // unique planet name
+{ star:"Gliese 834 B", id:2, system:"Nammu" }, // unique star name
+{ star:"Gliese 784.2 B", id:2, system:"LHS 3533" }, // unique star name
+{ star:"Gliese 11 B", id:2, system:"LFT 19" }, // unique star name
+{ star:"NN 3661 B", id:2, system:"LHS 2405" }, // unique star name
+{ planet:"Tialli", id:5, system:"Toci" }, // unique planet name
+{ star:"GJ 1006 B", id:2, system:"EZ Piscium" }, // unique star name
+{ star:"Gliese 812 B", id:2, system:"Ross 193" }, // unique star name
+{ star:"NN 3343 B", id:2, system:"LHS 1758" }, // unique star name
+{ star:"NN 3374 B", id:2, system:"LHS 214" }, // unique star name
+{ planet:"Evangeline's Grace", id:5, system:"LHS 2610" }, // unique planet name
+{ planet:"Anahit", id:1, system:"LP 98-132" }, // unique planet name
+{ star:"NN 4243 B", id:2, system:"LHS 3739" }, // unique star name
+{ star:"Gliese 140 B", id:3, system:"LP 356-14" }, // unique star name
+{ star:"Gliese 140 C", id:4, system:"LP 356-14" }, // unique star name
+{ star:"NN 3372 B", id:2, system:"Gliese 3371" }, // unique star name
+{ planet:"Buyukkale", id:1, system:"G 239-25" }, // unique planet name
+{ planet:"Nannan", id:17, system:"LHS 417" }, // unique planet name
+{ star:"Gliese 669 B", id:2, system:"Ross 868" }, // unique star name
+{ planet:"Huari", id:1, system:"Ithaca" }, // unique planet name
+{ planet:"Cruachan", id:2, system:"Morgor" }, // unique planet name
+{ star:"NN 3197 B", id:2, system:"LP 711-43" }, // unique star name
+{ star:"Gliese 9680 B", id:2, system:"Plutarch" }, // unique star name
+{ star:"Gliese 732 B", id:2, system:"Diyu" }, // unique star name
+{ planet:"Democracy", id:1, system:"Ross 986" }, // unique planet name
+{ planet:"Diran", id:2, system:"Ross 986" }, // unique planet name
+{ planet:"Camp Patrick", id:3, system:"Ross 986" }, // unique planet name
+{ planet:"Charles's Mine", id:5, system:"LHS 449" }, // unique planet name
+{ planet:"Haynes's Mine", id:6, system:"LHS 449" }, // unique planet name
+{ planet:"Gold", id:7, system:"LHS 449" }, // unique planet name
+{ planet:"Simpson's Mine", id:8, system:"LHS 449" }, // unique planet name
+{ planet:"Kaptai", id:1, system:"Phiince" }, // unique planet name
+{ star:"Gliese 2112 B", id:2, system:"LP 915-27" }, // unique star name
+{ star:"NN 3686 B", id:2, system:"Pangu" }, // unique star name
+{ star:"NN 3474 B", id:2, system:"Aegaeon" }, // unique star name
+{ star:"NN 3511 B", id:2, system:"NLTT 19993" }, // unique star name
+{ star:"Gliese 1142 B", id:2, system:"LP 672-2" }, // unique star name
+
+{ star:"Gliese 783.2 B", id:2, system:"Wolf 873" }, // unique star name
+{ star:"Gliese 748.2 B", id:2, system:"LHS 3447" }, // unique star name
+{ star:"Gl 379 B", id:2, system:"KUI 47" }, // unique star name
+{ planet:"Pharos", id:1, system:"BD+24 543" }, // unique planet name
+{ planet:"Sippar", id:1, system:"Marduk" }, // unique planet name
+{ planet:"Amar", id:2, system:"Marduk" }, // unique planet name
+{ planet:"Perez", id:3, system:"70 Ophiuchi" }, // unique planet name
+{ planet:"Denver's Legacy", id:4, system:"70 Ophiuchi" }, // unique planet name
+{ planet:"Richardson", id:5, system:"70 Ophiuchi" }, // unique planet name
+{ star:"Gl 783 B", id:2, system:"Stopover" }, // unique star name
+{ star:"Gliese 528 B", id:2, system:"Avici" }, // unique star name
+{ star:"GJ 1054 B", id:2, system:"LTT 1479" }, // unique star name
+{ planet:"Grey", id:5, system:"Orrere" }, // unique planet name
+{ star:"BD+16 355C", id:2, system:"PMSC 02437+1702" }, // unique star name
+{ star:"BD+17 2768 C", id:3, system:"ADS 9338 AC" }, // unique star name
+{ star:"29 Bootis", id:5, system:"ADS 9338 AC" }, // unique star name
+{ star:"29 Bootis B", id:6, system:"ADS 9338 AC" }, // unique star name
+{ star:"WISE 0458+6434 B", id:2, system:"Rex" }, // unique star name
+{ star:"Gliese 754.1 B", id:2, system:"LAWD 74" }, // unique star name
+{ star:"26 Aurigae C", id:2, system:"ADS 4229 ABC" }, // unique star name
+{ star:"Alpha Arae", id:2, system:"CFBDSIR 1458+10" }, // unique star name
+{ star:"WISE 1217+1626 B", id:2, system:"DX 1217" }, // unique star name
+{ star:"Gliese 127.1 B", id:2, system:"LB 3303" }, // unique star name
+{ star:"Gliese 2036 B", id:2, system:"Gwaelod" }, // unique star name
+{ star:"23 Phi-2 Cancri B", id:2, system:"23 Phi-2 Cancri A" }, // unique star name
+{ star:"TYC 8350-202-1", id:2, system:"HJ 4955" }, // unique star name
+{ star:"Gl 566 B", id:2, system:"37 Xi Bootis" }, // unique star name
+{ star:"Gliese 140.1 B", id:2, system:"Punraz" }, // unique star name
+{ star:"Gl 795 B", id:2, system:"Lalande 39866" }, // unique star name
+{ planet:"Nirvana", id:2, system:"Aulin" }, // unique planet name
+{ star:"Gl 635 B", id:2, system:"Zeta Herculis" }, // unique star name
+{ star:"DENIS-P J1228.2-1547 B", id:2, system:"Caicius" }, // unique star name
+{ planet:"Remlok's Claim", id:19, system:"Bragurom Du" }, // unique planet name
+{ planet:"Doubt", id:6, system:"Tomas" }, // unique planet name
+{ star:"Gliese 400 B", id:2, system:"Mullag" }, // unique star name
+
+
+{ star:"Gliese 31.2 B", id:2, system:"LDS 3195" }, // unique star name
+{ star:"Gliese 323 B", id:2, system:"Sumarr" }, // unique star name
+
+
+{ star:"Wo 9677 B", id:2, system:"MCC 813" }, // unique star name
+{ star:"Gliese 686.1 B", id:2, system:"LTT 15229" }, // unique star name
+{ star:"GJ 1047 B", id:3, system:"LHS 1393" }, // unique star name
+{ star:"GJ 1047 C", id:4, system:"LHS 1393" }, // unique star name
+{ star:"GJ 1026 B", id:2, system:"LFT 98" }, // unique star name
+{ star:"LHS 461", id:2, system:"Caer Bran" }, // unique star name
+{ star:"Gliese 767 B", id:2, system:"LFT 1492" }, // unique star name
+{ star:"Gliese 734 B", id:2, system:"Wolf 1509" }, // unique star name
+{ planet:"Suyus", id:4, system:"LHS 2819" }, // unique planet name
+{ planet:"Van Lang", id:5, system:"Pethes" }, // unique planet name
+{ planet:"Dustbowl", id:1, system:"LHS 1573" }, // unique planet name
+{ star:"LHS 500", id:2, system:"LHS 501" }, // unique star name
+{ star:"Gliese 165 B", id:2, system:"BoB" }, // unique star name
+{ planet:"Gold", id:3, system:"Groombridge 34" }, // unique planet name
+{ planet:"Jaya", id:4, system:"Groombridge 34" }, // unique planet name
+{ planet:"New America", id:17, system:"Groombridge 34" }, // unique planet name
+{ planet:"Lyons", id:18, system:"Groombridge 34" }, // unique planet name
+{ star:"Gl 661 B", id:2, system:"G 203-51" }, // unique star name
+{ planet:"Tambo", id:10, system:"LHS 2887" }, // unique planet name
+{ star:"Gliese 507 B", id:2, system:"LFT 992" }, // unique star name
+{ planet:"Uwei", id:3, system:"LFT 992" }, // unique planet name
+{ star:"LFT 199", id:2, system:"LFT 200" }, // unique star name
+{ planet:"Aster", id:5, system:"Ross 154" }, // unique planet name
+{ planet:"Merlin", id:6, system:"Ross 154" }, // unique planet name
+{ planet:"Dust Ball", id:7, system:"Ross 154" }, // unique planet name
+{ planet:"Kawasakiworld", id:9, system:"Luyten 205-128" }, // unique planet name
+{ planet:"Schmidt's Mine", id:10, system:"Luyten 205-128" }, // unique planet name
+{ star:"BL Lyncis", id:2, system:"VV Lyncis" }, // unique star name
+{ planet:"LHS 412-I", id:1, system:"LHS 412" }, // unique planet name
+{ planet:"LHS 412-II", id:2, system:"LHS 412" }, // unique planet name
+{ planet:"LHS 412-III", id:3, system:"LHS 412" }, // unique planet name
+{ planet:"LHS 412-IV", id:4, system:"LHS 412" }, // unique planet name
+{ planet:"LHS 412-V", id:5, system:"LHS 412" }, // unique planet name
+{ planet:"LHS 412-VI", id:6, system:"LHS 412" }, // unique planet name
+{ planet:"LHS 412-VII", id:7, system:"LHS 412" }, // unique planet name
+{ star:"Gliese 1122 B", id:2, system:"NLTT 21440" }, // unique star name
+{ star:"Gliese 516 B", id:2, system:"LP 438-8" }, // unique star name
+{ star:"NN 3019 B", id:2, system:"Mamaragan" }, // unique star name
+{ star:"Gliese 257 B", id:2, system:"LHS 222" }, // unique star name
+{ star:"Gl 352 B", id:2, system:"Ross 440" }, // unique star name
+{ star:"NN 3466 B", id:2, system:"LHS 1955" }, // unique star name
+{ star:"Gliese 401 B", id:2, system:"LHS 289" }, // unique star name
+
+
+{ star:"Shango", id:3, system:"Set" }, // unique star name
+{ star:"Oya", id:4, system:"Set" }, // unique star name
+{ star:"Gl 32 B", id:2, system:"Kamba" }, // unique star name
+{ star:"V1524 Orionis B", id:2, system:"AN Orionis" }, // unique star name
+
+{ star:"NN 4357 B", id:2, system:"NLTT 57506" }, // unique star name
+{ star:"LP 340-548", id:2, system:"LP 340-547" }, // unique star name
+{ star:"NN 4161 B", id:2, system:"LP 576-40" }, // unique star name
+{ star:"NN 3118 B", id:2, system:"Mbombo" }, // unique star name
+{ star:"Gliese 660 B", id:2, system:"LFT 1324" }, // unique star name
+{ star:"NN 3283 B", id:2, system:"HG 7-206" }, // unique star name
+{ star:"Gliese 841 B", id:2, system:"Zhulong" }, // unique star name
+{ planet:"Seymour Hollow (GJ 832 c)", id:1, system:"La Rochelle" }, // unique planet name
+{ planet:"Rance's Wreck", id:5, system:"Luyten 347-14" }, // unique planet name
+{ star:"NN 3431 B", id:2, system:"UBV 6193" }, // unique star name
+{ star:"Gliese 512 B", id:2, system:"Ross 486" }, // unique star name
+{ planet:"Motherlode", id:1, system:"Reddot" }, // unique planet name
+{ star:"NN 3229 B", id:2, system:"LP 772-72" }, // unique star name
+{ star:"NN 3332 BC", id:2, system:"BD-21 1074" }, // unique star name
+{ star:"Gliese 774 B", id:2, system:"V375 Pavonis" }, // unique star name
+{ star:"Gliese 1155 B", id:2, system:"LHS 2541" }, // unique star name
+{ star:"Gliese 347 B", id:2, system:"Ross 439" }, // unique star name
+{ star:"Gliese 1136 B", id:2, system:"Atum" }, // unique star name
+{ star:"Gliese 333.2 B", id:2, system:"LTT 12360" }, // unique star name
+{ planet:"Lilith", id:42, system:"Toluku" }, // unique planet name
+
+
+
+
+{ planet:"Miola", id:14, system:"Praea Euq WD-T c3-36" }, // unique planet name
+{ star:"NN 4094 B", id:2, system:"StKM 1-1676" }, // unique star name
+{ star:"NN 3170 B", id:2, system:"LP 298-7" }, // unique star name
+{ star:"NN 4338 B", id:2, system:"G 190-28" }, // unique star name
+{ star:"Gliese 130.1 B", id:2, system:"LFT 265" }, // unique star name
+{ star:"LDS 1503B", id:2, system:"LDS 1503A" }, // unique star name
+{ star:"NN 3803 B", id:2, system:"LHS 2789" }, // unique star name
+{ planet:"Grove", id:9, system:"Hazel" }, // unique planet name
+{ star:"Gliese 852 B", id:2, system:"RBS 1843" }, // unique star name
+{ planet:"Wireworld", id:2, system:"Ross 780" }, // unique planet name
+{ star:"BD+68 946", id:2, system:"LHS 450" }, // unique star name
+{ planet:"Darke's Claim", id:15, system:"LHS 450" }, // unique planet name
+{ planet:"Camp Schmidt", id:16, system:"LHS 450" }, // unique planet name
+{ planet:"Ayer", id:1, system:"Acihaut" }, // unique planet name
+{ planet:"Jubach", id:2, system:"Acihaut" }, // unique planet name
+{ planet:"New California", id:1, system:"Miquich" }, // unique planet name
+{ planet:"Pulag", id:2, system:"Miquich" }, // unique planet name
+{ star:"NN 3601 B", id:2, system:"LHS 2263" }, // unique star name
+{ planet:"Conti", id:1, system:"LHS 2884" }, // unique planet name
+{ star:"NN 3611 B", id:2, system:"LP 167-64" }, // unique star name
+{ star:"LP 771-96", id:2, system:"LP 771-95" }, // unique star name
+{ planet:"Jennings's Rock", id:5, system:"Lacaille 9352" }, // unique planet name
+{ planet:"Camp Lawrence", id:6, system:"Lacaille 9352" }, // unique planet name
+{ star:"GJ 1083 B", id:2, system:"V780 Tauri" }, // unique star name
+{ star:"Gliese 618 B", id:2, system:"LHS 415" }, // unique star name
+{ planet:"Robert Kelley", id:6, system:"Ross 905" }, // unique planet name
+{ star:"Gliese 1154 B", id:2, system:"Bugas" }, // unique star name
+{ star:"NN 3405 B", id:2, system:"Ranginui" }, // unique star name
+{ planet:"Bell's World", id:1, system:"Luyten 674-15" }, // unique planet name
+{ planet:"Jordan's Hole", id:2, system:"Luyten 674-15" }, // unique planet name
+{ star:"NN 3549 B", id:2, system:"LTT 12449" }, // unique star name
+{ star:"Gliese 461 B", id:2, system:"BD+01 2684" }, // unique star name
+
+{ planet:"Jon Harris", id:8, system:"Faisel C" }, // unique planet name
+{ star:"Gliese 452 B", id:2, system:"LP 673-42" }, // unique star name
+
+
+
+{ star:"NN 4215 B", id:2, system:"G 126-31" }, // unique star name
+{ star:"NN 4190 B", id:2, system:"Ross 773" }, // unique star name
+{ star:"NN 4258 B", id:2, system:"LTT 16470" }, // unique star name
+{ star:"LHS 403", id:2, system:"Opala" }, // unique star name
+{ planet:"Baker", id:18, system:"Opala" }, // unique planet name
+{ planet:"Trooper", id:19, system:"Opala" }, // unique planet name
+{ star:"NN 3926 B", id:2, system:"LFT 1231" }, // unique star name
+{ star:"LP 704-14", id:2, system:"LP 704-15" }, // unique star name
+{ star:"Gliese 2154 B", id:2, system:"LTT 9423" }, // unique star name
+{ star:"LHS 1213", id:2, system:"LHS 1212" }, // unique star name
+{ star:"Ross 731", id:2, system:"Ross 730" }, // unique star name
+{ planet:"Gargarii", id:1, system:"LP 64-194" }, // unique planet name
+{ planet:"Kendal", id:5, system:"Rakapila" }, // unique planet name
+{ star:"LP 441-34", id:2, system:"LP 441-33" }, // unique star name
+{ star:"Gliese 563.2 B", id:2, system:"LHS 380" }, // unique star name
+{ star:"LP 377-79", id:2, system:"LP 377-78" }, // unique star name
+{ star:"LP 542-32", id:2, system:"LP 542-33" }, // unique star name
+
+{ star:"LHS 2070", id:2, system:"LHS 2069" }, // unique star name
+{ star:"Gliese 905.2 B", id:2, system:"LP 347-5" }, // unique star name
+{ star:"GJ 1015 B", id:2, system:"NLTT 2224" }, // unique star name
+{ star:"LP 341-14", id:2, system:"Ross 776" }, // unique star name
+{ star:"Gliese 630.1 B", id:4, system:"CM Draconis" }, // unique star name
+{ star:"Gliese 897 B", id:2, system:"LTT 9587" }, // unique star name
+{ star:"NN 3407 B", id:2, system:"LP 121-41" }, // unique star name
+{ planet:"Cisse", id:1, system:"Keries" }, // unique planet name
+{ star:"Gliese 569 B", id:2, system:"CE Bootis" }, // unique star name
+{ planet:"New Los Angeles", id:7, system:"Meliae" }, // unique planet name
+{ star:"Wo 9448 B", id:2, system:"Chaxiraxi" }, // unique star name
+{ star:"Gliese 893.3 B", id:2, system:"Pachamama" }, // unique star name
+{ planet:"Lagdo", id:6, system:"Arinack" }, // unique planet name
+{ star:"NN 3578 B", id:2, system:"G 116-72" }, // unique star name
+{ planet:"Balmhorn", id:1, system:"Wolf 248" }, // unique planet name
+{ planet:"Lumitar", id:2, system:"Daha Deti" }, // unique planet name
+{ star:"NN 3469 B", id:2, system:"LDS 3768" }, // unique star name
+{ star:"LP 675-77", id:2, system:"LP 675-76" }, // unique star name
+
+{ star:"NN 3936 B", id:2, system:"LP 329-20" }, // unique star name
+{ star:"NN 4309 B", id:2, system:"LTT 9310" }, // unique star name
+{ star:"NN 3240 B", id:2, system:"LP 413-18" }, // unique star name
+{ star:"LHS 1241", id:2, system:"LHS 1240" }, // unique star name
+{ planet:"Keita", id:5, system:"Tilian" }, // unique planet name
+{ planet:"Bello", id:6, system:"Tilian" }, // unique planet name
+{ star:"NN 4000 B", id:2, system:"LTT 6883" }, // unique star name
+{ star:"LHS 400", id:2, system:"LHS 399" }, // unique star name
+{ planet:"Cooke", id:8, system:"Barnard's Star" }, // unique planet name
+{ planet:"Birmingham World", id:9, system:"Barnard's Star" }, // unique planet name
+{ star:"LTT 7073", id:2, system:"LTT 7072" }, // unique star name
+{ star:"LHS 234", id:2, system:"LHS 235" }, // unique star name
+{ star:"NN 3728 B", id:2, system:"LTT 4730" }, // unique star name
+{ planet:"Vivally", id:1, system:"LHS 448" }, // unique planet name
+{ planet:"Ashanti", id:1, system:"LHS 3262" }, // unique planet name
+{ planet:"Akan", id:2, system:"LHS 3262" }, // unique planet name
+{ star:"LHS 330", id:2, system:"LHS 331" }, // unique star name
+{ star:"NN 3617 B", id:2, system:"LP 316-604" }, // unique star name
+{ star:"Gliese 421 B", id:3, system:"Ferez" }, // unique star name
+{ star:"Gliese 421 C", id:4, system:"Ferez" }, // unique star name
+{ star:"LP 734-10", id:2, system:"LP 734-11" }, // unique star name
+{ star:"NN 4278 B", id:2, system:"LHS 3808" }, // unique star name
+{ star:"NLTT 48208", id:2, system:"LHS 478" }, // unique star name
+{ star:"BD+19 5116 B", id:2, system:"EQ Pegasi" }, // unique star name
+{ star:"Gliese 275.2 B", id:2, system:"LHS 229" }, // unique star name
+{ star:"Gliese 537 B", id:2, system:"BD+47 2112" }, // unique star name
+{ planet:"Derwent", id:7, system:"BD+47 2112" }, // unique planet name
+{ star:"Gliese 1179 B", id:2, system:"LHS 362" }, // unique star name
+{ star:"GJ 1103 B", id:2, system:"LHS 1951" }, // unique star name
+{ star:"LHS 3688", id:2, system:"LHS 3686" }, // unique star name
+{ planet:"Chayhuac", id:1, system:"LFT 880" }, // unique planet name
+{ star:"NN 3742 B", id:2, system:"Kuk" }, // unique star name
+{ planet:"Campbell's Claim", id:1, system:"Wolf 359" }, // unique planet name
+{ planet:"Camp Donalds", id:2, system:"Wolf 359" }, // unique planet name
+{ star:"Ross 458", id:2, system:"DT Virginis" }, // unique star name
+{ star:"GJ 1041 B", id:2, system:"BD+02 305" }, // unique star name
+{ star:"LHS 257", id:2, system:"LHS 256" }, // unique star name
+{ planet:"Vulcan", id:1, system:"LHS 3006" }, // unique planet name
+{ star:"CV Cancri", id:2, system:"CU Cancri" }, // unique star name
+{ star:"Gliese 1230 B", id:2, system:"LHS 3405" }, // unique star name
+{ star:"SCR 1845-6357 B", id:2, system:"Talta" }, // unique star name
+{ star:"LHS 2077", id:2, system:"EI Cancri" }, // unique star name
+{ star:"Gliese 747 B", id:2, system:"LP 336-6" }, // unique star name
+{ star:"NN 3809 B", id:2, system:"G 65-9" }, // unique star name
+{ star:"Gliese 1183 B", id:2, system:"Mug Ruith" }, // unique star name
+{ star:"CoRoT-1", id:2, system:"V360 Orionis" }, // unique star name
+{ planet:"Hutton Moon", id:5, system:"Eol Procul Centauri" }, // unique planet name
+{ star:"CoRoT-10", id:2, system:"V2380 Orionis" }, // unique star name
+{ planet:"Jasmine's Playground", id:8, system:"Athaip QP-E d12-9178" }, // unique planet name
+]

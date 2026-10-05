@@ -2,7 +2,9 @@
 // Created by mkizub on 22.08.2025.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include <unordered_set>
 #include <boost/pool/pool_alloc.hpp>
@@ -69,12 +71,11 @@ void StarSystemCache::cleanup(std::chrono::seconds expired) {
         if (!used && it->lru < keep) {
             // we can safely iterate, because there are no referencies to star system,
             // and noone can load this star system, because we locked cache access
-            for (auto &e: ss->entities) {
-                if (e.use_count() > 1) {
-                    used = true;
-                    break;
-                }
-            }
+            int used_counter = ss->countEntities([](auto& e) {
+                return e.use_count() > 1;
+            });
+            if (used_counter)
+                used = true;
         }
         if (!used && it->lru < keep) {
             it->ptr->save();
@@ -397,303 +398,37 @@ spMarket loadMarket(int64_t marketId) {
 //    return market;
 }
 
-static void parseUpdated(spEntity& entity, const js::value& j) {
-    auto upd = j["updateTime"];
-    if (upd.is_int()) {
-        std::chrono::seconds sec_duration(upd.as_int());
-        std::chrono::sys_time<std::chrono::seconds> sys_time(sec_duration);
-        entity->updated = std::chrono::utc_clock::from_sys(sys_time);
-    }
-    else if (upd.is_string()) {
-        parseTimestampString(upd.as_string(), entity->updated);
-    }
-}
-static void parseBodyId(const spStarSystem& ss, spEntity& entity, const js::value& j) {
-    if (j.at("bodyId").is_int())
-        entity->bodyId = j.at("bodyId").as_int();
-    if (j["parentBodyId"].is_int())
-        entity->parentBodyId = j["parentBodyId"].as_int();
-    else if (j["parents"].is_array() && !j["parents"].as_array().empty()) {
-        auto& jp = j["parents"].as_array()[0];
-        if (jp.is_object())
-            entity->parentBodyId = jp.key_value().begin().value().as_int();
-    }
-    else if (j["body"].is_object() && j["body"]["name"].is_string()) {
-        const auto body = j["body"]["name"].as_string();
-        for (auto& b : ss->entities) {
-            if (isBody(b->type) && b->name == body && b->bodyId >= 0) {
-                entity->parentBodyId = b->bodyId;
-                break;
-            }
-        }
-    }
-}
-//static spStarSystem fromEDDN(spStarSystem ss, const js::value& jsystem, bool saved) {
-//    auto systemAddress = jsystem["address"].exists()
-//            ? jsystem["address"].as_int()
-//            : jsystem["id64"].as_int();
-//    const auto systemName = jsystem["name"].as_string();
-//    double posX = jsystem["coords"]["x"].as_real_or();
-//    double posY = jsystem["coords"]["y"].as_real_or();
-//    double posZ = jsystem["coords"]["z"].as_real_or();
-//    if (!ss) {
-//        ss = theCache.put(systemAddress, systemName, posX, posY, posZ);
-//        if (!ss)
-//            return {};
+//static void parseUpdated(spEntity& entity, const js::value& j) {
+//    auto upd = j["updateTime"];
+//    if (upd.is_int()) {
+//        std::chrono::seconds sec_duration(upd.as_int());
+//        std::chrono::sys_time<std::chrono::seconds> sys_time(sec_duration);
+//        entity->updated = std::chrono::utc_clock::from_sys(sys_time);
 //    }
-//    if (!ss->savedDbBase) {
-//        db::StarSystem db_ss = db::loadStarSystem(systemAddress);
-//        if (!db_ss.id) {
-//            db_ss = {
-//                    .id = ss->systemAddress,
-//                    .name = ss->systemName,
-//                    .x = ss->starPos.x,
-//                    .y = ss->starPos.y,
-//                    .z = ss->starPos.z,
-//                    .updated = ss->updated_at,
-//                    .eddn_updated = ss->eddn_updated_at,
-//            };
-//            db::saveStarSystem(db_ss);
-//        }
+//    else if (upd.is_string()) {
+//        parseTimestampString(upd.as_string(), entity->updated);
 //    }
-//
-//    if (jsystem["eddn_updated_at"].is_string())
-//        parseTimestampString(jsystem["eddn_updated_at"].as_string_or(), ss->eddn_updated_at);
-//    if (jsystem["bodyCount"].is_int())
-//        ss->ext.bodyCount = jsystem["bodyCount"].as_int_or();
-//
-//    for (auto& jb : jsystem["bodies"].as_array_or()) {
-//        spEntity body(new Entity);
-//        if (jb["type"].is_string()) {
-//            const auto type = jb["type"].as_string();
-//            if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value())
-//                body->setType(typeNav.value());
-//        }
-//        parseUpdated(body, jb);
-//        parseBodyId(ss, body, jb);
-//
-//        if (ss->getBodyById(body->bodyId))
-//            continue;
-//        if (jb["name"].is_string()) {
-//            const auto name = jb["name"].as_string();
-//            if (ss->getBody(name))
-//                continue;
-//            body->setName(name);
-//        }
-//        if (jb["distanceToArrival"].is_number())
-//            body->main_star_distance = dist_t(dist_t::LS, jb["distanceToArrival"].as_real());
-//        if (body->type == TypeNav::Star) {
-//            if (jb["radius"].is_number())
-//                body->radius = jb["radius"].as_real(); // KM
-//            else if (jb["solarRadius"].is_number())
-//                body->radius = jb["solarRadius"].as_real() * 6.957e5; // KM
-//            if (jb["spectralClass"].is_string())
-//                body->code = jb["spectralClass"].as_string();
-//            body->special = jb["isMainStar"].as_bool_or();
-//        }
-//        else if (body->type == TypeNav::Planet) {
-//            body->radius = jb["radius"].as_real_or(); // KM
-//            body->special = jb["isLandable"].as_bool_or();
-//        }
-//        ss->entities.push_back(body);
-//    }
-//
-//    //std::string lng = toLower(*enum_name<Lang>(Cfg.lng));
-//    for (auto& jb : jsystem["stations"].as_array_or()) {
-//        const auto name = jb["name"].as_string_or();
-//        if (ss->getDock(name))
-//            continue;
-//        spEntity site(new Entity);
-//        std::string type;
-//        if (jb["type"].is_string())
-//             type = jb["type"].as_string();
-//        if (auto typeNav = enum_cast<TypeNav>(type); typeNav.has_value()) {
-//            site->setType(typeNav.value());
-//        } else {
-//            for (auto nt: ALL_NAV_TYPES) {
-//                if (nt->match_name(name)) {
-//                    site->setType(nt->type);
-//                    break;
-//                }
-//            }
-//            if (site->type == TypeNav::Other) {
-//                TypeNav tp = TypeNav::Other;
-//                for (auto nt: ALL_NAV_TYPES) {
-//                    if (nt->match_type(type)) {
-//                        site->setType(nt->type);
-//                        break;
-//                    }
-//                }
-//            }
-//            //if (typeNav == TypeNav::PlanetaryPort) {
-//            //    if (jb["government"].is_string() && jb["government"].as_string() == "$government_Engineer;")
-//            //        site->type = TypeNav::EngineerPort;
-//            //}
-//        }
-//        parseUpdated(site, jb);
-//        parseBodyId(ss, site, jb);
-//        if (ss->getBodyById(site->bodyId))
-//            continue;
-//        site->setName(name);
-//        if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_pattern && !nt->name_loc.empty())
-//            site->nloc = nt->get_nloc();
-//
-//        if (jb["marketId"].is_int())
-//            site->marketId = jb["marketId"].as_int();
-//        else if (jb["id64"].is_int())
-//            site->marketId = jb["id64"].as_int();
-//        ss->entities.push_back(site);
-//    }
-//
-//    ss->saved = saved;
-//    ss->loaded = true;
-//    return ss;
 //}
-
-//std::pmr::synchronized_pool_resource StarSystem::entitiesPool(std::pmr::pool_options{
-//    .max_blocks_per_chunk = 1024,
-//    .largest_required_pool_block = 128
-//});
-
-void StarSystem::load() {
-    if (isBlobLoaded)
-        return;
-    db::StarSystemJS db_ss;
-    if (db::loadStarSystemBlob(db_ss, systemName, systemAddress)) {
-        auto saved_needBlobSave = needBlobSave;
-        update_star_system(this, db_ss);
-        needBlobSave = saved_needBlobSave;
-        std::vector<db::MegashipJS> megaships;
-        if (db::loadMegaShips(systemAddress, megaships)) {
-            for (auto& db_ms : megaships)
-                update_megaship(this, db_ms);
-        }
-    }
-    isBlobLoaded = true;
-}
-
-void StarSystem::save() {
-    if (needCoreSave) {
-        db::saveStarSystem({systemAddress, systemName, systemCoords, updated_at, eddn_updated_at});
-        needCoreSave = false;
-    }
-    if (needBlobSave) {
-        db::StarSystemJS db_ss;
-        std::vector<db::MegashipJS> db_megaships;
-        if (fill_star_system_db(this, db_ss, db_megaships)) {
-            db::saveStarSystemBlob(db_ss, systemName, systemAddress);
-            for (auto& ms : db_megaships)
-                db::saveMegaShip(ms);
-        }
-        needBlobSave = false;
-        isBlobLoaded = true;
-    }
-
-//    js::value jinfo = js::object({});
-//    jinfo.set_no_indent().set_no_object_nulls();
-//    if (ext.bodyCount) jinfo["bodyCount"] = ext.bodyCount;
-//    if (ext.population) jinfo["population"] = ext.population;
-//    if (ext.allegiance) jinfo["allegiance"] = ext.allegiance;
-//    if (ext.government) jinfo["government"] = ext.government;
-//    if (ext.primaryEconomy) jinfo["primaryEconomy"] = ext.primaryEconomy;
-//    if (ext.secondaryEconomy) jinfo["secondaryEconomy"] = ext.secondaryEconomy;
-//    if (ext.security) jinfo["security"] = ext.security;
-//
-//    std::vector<spEntity> sorted_bodies;
-//    sorted_bodies.reserve(entities.size());
-//    for (auto& b : entities) {
-//        if (isBody(b->type))
-//            sorted_bodies.push_back(b);
+//static void parseBodyId(const spStarSystem& ss, spEntity& entity, const js::value& j) {
+//    if (j.at("bodyId").is_int())
+//        entity->bodyId = j.at("bodyId").as_int();
+//    if (j["parentBodyId"].is_int())
+//        entity->parentBodyId = j["parentBodyId"].as_int();
+//    else if (j["parents"].is_array() && !j["parents"].as_array().empty()) {
+//        auto& jp = j["parents"].as_array()[0];
+//        if (jp.is_object())
+//            entity->parentBodyId = jp.key_value().begin().value().as_int();
 //    }
-//    std::sort(sorted_bodies.begin(), sorted_bodies.end(), [](const spEntity& a, const spEntity& b) {
-//        return a->bodyId < b->bodyId;
-//    });
-//    js::value jbodies = js::array({});
-//    js::value jstations = js::array({});
-//    for (auto& body : sorted_bodies) {
-//        js::value jb {
-//                {"type", *enum_name<TypeNav>(body->type)},
-//        };
-//        if (body->type != TypeNav::Barycenter && !body->name.empty())
-//            jb["name"] = body->name;
-//        if (body->bodyId >= 0)
-//            jb["bodyId"] = body->bodyId;
-//        if (body->parentBodyId >= 0)
-//            jb["parentBodyId"] = body->parentBodyId;
-//        if (body->main_star_distance.valid())
-//            jb["distanceToArrival"] = std::round(body->main_star_distance.get_ls()*10.0)/10.0;
-//        if (body->radius)
-//            jb["radius"] = std::round(body->radius*1000.0)/1000.0;
-//        if (body->type == TypeNav::Star) {
-//            if (body->special)
-//                jb["isMainStar"] = true;
-//            if (!body->code.empty())
-//                jb["spectralClass"] = body->code;
+//    else if (j["body"].is_object() && j["body"]["name"].is_string()) {
+//        const auto body = j["body"]["name"].as_string();
+//        for (auto& b : ss->entities) {
+//            if (isBody(b->type) && b->name == body && b->bodyId >= 0) {
+//                entity->parentBodyId = b->bodyId;
+//                break;
+//            }
 //        }
-//        else if (body->type == TypeNav::Planet) {
-//            if (body->special)
-//                jb["isLandable"] = true;
-//            if (!body->code.empty())
-//                jb["spectralClass"] = body->code;
-//        }
-//
-//        {
-//            auto ts = std::chrono::floor<std::chrono::seconds>(body->updated);
-//            auto seconds = ts.time_since_epoch().count();
-//            if (seconds)
-//                jb["updateTime"] = seconds;
-//        }
-//        jb.set_no_indent();
-//        jbodies.as_array().push_back(jb);
 //    }
-//    for (auto& st : entities) {
-//        if (!(isSpaceSite(st->type) || isPlanetarySite(st->type)))
-//            continue;
-//        js::value jst {
-//                {"type", *enum_name<TypeNav>(st->type)},
-//                {"name", st->name},
-//        };
-//        if (st->bodyId >= 0)
-//            jst["bodyId"] = st->bodyId;
-//        if (st->parentBodyId >= 0)
-//            jst["parentBodyId"] = st->parentBodyId;
-//        if (st->main_star_distance.valid())
-//            jst["distanceToArrival"] = std::round(st->main_star_distance.get_ls()*10.0)/10.0;
-//        if (st->marketId)
-//            jst["marketId"] = st->marketId;
-//        {
-//            auto ts = std::chrono::floor<std::chrono::seconds>(st->updated);
-//            auto seconds = ts.time_since_epoch().count();
-//            if (seconds)
-//                jst["updateTime"] = seconds;
-//        }
-//        jst.set_no_indent();
-//        jstations.as_array().push_back(jst);
-//    }
-//
-//    js::value jout {
-//            {"name",     systemName},
-//            {"address",  systemAddress},
-//            {"coords",   js::object({
-//                {"x", starPos.x},
-//                {"y", starPos.y},
-//                {"z", starPos.z},
-//                })},
-//            {"info",     jinfo},
-//            {"bodies",   jbodies},
-//            {"stations", jstations},
-//    };
-//    if (eddn_updated_at.time_since_epoch().count() != 0)
-//        jout["eddn_updated_at"] = formatTimestampString(eddn_updated_at, false);
-//    jout["coords"].deref().set_no_indent();
-//
-//    std::filesystem::path fp(std::format(L"cache/systems/{}.json", toUtf16(systemName)));
-//    std::ofstream ofs(fp);
-//    ofs << std::setprecision(15) << std::defaultfloat << js::rule::ecma404() << js::rule::space_indent<1>() << jout;
-//    ofs.close();
-//
-//    saved = true;
-}
+//}
 
 spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_load) {
     spStarSystem ss = theSystemsCache.get(name);
@@ -720,6 +455,33 @@ spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_l
         ss->save();
     return ss;
 }
+
+spStarSystem getStarSystem(int64_t address, bool blob_load, bool network_load) {
+    spStarSystem ss = theSystemsCache.get(address);
+    if (!ss) {
+        db::StarSystem s = db::loadStarSystem(address);
+        if (!s.name.empty()) {
+            ss = theSystemsCache.put(s.id, s.name, s.coords);
+            ss->needCoreSave = false;
+            ss->isBlobLoaded = false;
+            ss->needBlobSave = false;
+
+            ss->updated_at = s.updated;
+            ss->eddn_updated_at = s.eddn_updated;
+        }
+    }
+    if (!ss && network_load) {
+        ss = Spansh::loadStarSystem(address);
+    }
+    if (ss && blob_load && !ss->isBlobLoaded)
+        ss->load();
+    if (ss && !ss->isBlobLoaded && network_load)
+        Spansh::loadStarSystem(ss);
+    if (ss)
+        ss->save();
+    return ss;
+}
+
 
 spStarSystem makeStarSystem(std::string_view name, int64_t address, Coords coords, bool blob_load, bool network_load) {
     assert (!name.empty() && address != 0);
@@ -761,8 +523,8 @@ spStarSystem makeStarSystem(std::string_view name, int64_t address, Coords coord
     if (blob_load || network_load)
         ss->load();
     if (network_load && !Cfg.isNetworkDisabled() &&
-        (!ss->isBlobLoaded || (ss->entities.empty() && !ss->eddn_updated_at.time_since_epoch().count())))
-        ss = Spansh::loadStarSystem(ss);
+        (!ss->isBlobLoaded || (!ss->has_entities() && !ss->eddn_updated_at)))
+        Spansh::loadStarSystem(ss);
     return ss;
 }
 
@@ -770,467 +532,16 @@ spStarSystem& getCurrentStarSystem() {
     return gCurrentStarSystem;
 }
 void setCurrentStarSystem(spStarSystem ss) {
+    assert(ss);
     gCurrentStarSystem.swap(ss);
 }
+void resetCurrentStarSystem() {
+    gCurrentStarSystem = theSystemsCache.dummyStarSystem;
+}
+
 
 void cleanupStarSystemCache(std::chrono::seconds expired) {
     theSystemsCache.cleanup(expired);
-}
-
-spEntity StarSystem::getMainStar() {
-    for (auto& b : this->entities) {
-        if (b->type == TypeNav::Star && b->getStarData().mainStar.value_or())
-            return b;
-    }
-    return {};
-}
-
-spEntity StarSystem::getEntity(const std::string& nm) {
-    if (nm.empty())
-        return {};
-    for (auto& e : this->entities) {
-        if (e->nameEq(nm))
-            return e;
-    }
-    std::string xx_name;
-    std::string ru_name;
-    if (NavType::expandName(nm, xx_name, ru_name)) {
-        for (auto& s : this->entities) {
-            if (s->nameEq(xx_name) || s->nameEq(ru_name))
-                return s;
-        }
-    }
-    return {};
-}
-
-spEntity StarSystem::getDockOrSignal(std::string_view nm) {
-    if (nm.empty())
-        return {};
-    for (auto& e : this->entities) {
-        if (!isBody(e->type) && e->nameEq(nm))
-            return e;
-    }
-    std::string xx_name;
-    std::string ru_name;
-    if (NavType::expandName(nm, xx_name, ru_name)) {
-        for (auto& s : this->entities) {
-            if (!isBody(s->type) && (s->nameEq(xx_name) || s->nameEq(ru_name)))
-                return s;
-        }
-    }
-    return {};
-}
-
-void StarSystem::removeEntity(const spEntity& entity) {
-    if (!entity)
-        return;
-    std::erase_if(this->entities, [entity](const auto& e) {
-        return e.get() == entity.get();
-    });
-}
-
-
-spEntity StarSystem::getBodyById(int bodyId) {
-    if (bodyId < 0)
-        return {};
-    for (auto& b : this->entities) {
-        if (b->bodyId == bodyId)
-            return b;
-    }
-    return {};
-}
-
-spEntity StarSystem::getBody(std::string_view bname) {
-    if (bname.empty())
-        return {};
-    for (auto& b : this->entities) {
-        if (isBody(b->type) && b->nameEq(bname))
-            return b;
-    }
-    return {};
-}
-spEntity StarSystem::getDock(std::string_view sname) {
-    if (sname.empty())
-        return {};
-    for (auto& s : this->entities) {
-        if (!isSite(s->type))
-            continue;
-        if (s->nameEq(sname))
-            return s;
-    }
-    std::string xx_name;
-    std::string ru_name;
-    if (NavType::expandName(sname, xx_name, ru_name)) {
-        for (auto& s : this->entities) {
-            if (!isSite(s->type))
-                continue;
-            if (s->nameEq(xx_name) || s->nameEq(ru_name))
-                return s;
-        }
-    }
-    return {};
-}
-
-spEntity StarSystem::getDock(int64_t marketId) {
-    if (marketId == 0)
-        return {};
-    for (auto& s : this->entities) {
-        if (s->type < TypeNav::SpaceStation)
-            continue;
-        if (s->marketId() == marketId)
-            return s;
-    }
-    return {};
-}
-
-
-void StarSystem::addDestination() {
-    if (this->systemAddress != st::destination.systemAddress)
-        return;
-    auto& dname = st::destination.name;
-    for (auto& b : this->entities) {
-        if (b->nameEq(dname) && isBody(b->type))
-            return;
-    }
-    std::string xx_name;
-    std::string ru_name;
-    bool exp = NavType::expandName(dname, xx_name, ru_name);
-    for (auto& s : this->entities) {
-        if (s->nameEq(dname) || (exp && s->nameEq(xx_name)) || (exp && s->nameEq(ru_name))) {
-            switch (s->type) {
-            case TypeNav::FleetCarrier:
-            case TypeNav::SquadronCarrier:
-                if (s->name != dname) {
-                    s->setName(dname);
-                    this->needBlobSave = true;
-                }
-                // fall through
-            case TypeNav::NavBeacon:
-            case TypeNav::TouristBeacon:
-            case TypeNav::SpaceInstallation:
-            case TypeNav::StrongholdCarrier:
-            case TypeNav::ColonisationShip:
-            case TypeNav::Megaship:
-            case TypeNav::PlanetaryThing:
-            case TypeNav::PlanetaryPort:
-            case TypeNav::PlanetaryInstallation:
-            case TypeNav::EngineerPort:
-            case TypeNav::Settlement:
-            case TypeNav::SpaceConstrDepot:
-            case TypeNav::PlanetaryConstrDepot:
-                if (s->parentBodyId != st::destination.bodyId) {
-                    s->parentBodyId = st::destination.bodyId;
-                    this->needBlobSave = true;
-                }
-                save();
-            }
-            return;
-        }
-    }
-    if (dname.size() > this->systemName.size() && dname.starts_with(this->systemName)) {
-        if (dname.size() == this->systemName.size()+2) {
-            if (dname[dname.size()-2] != ' ')
-                return;
-            // a star
-            char c = dname[dname.size()-1];
-            if (c >= 'A' && c <= 'Z') {
-                spEntity star = std::make_shared<Entity>();
-                star->setName(dname);
-                star->bodyId = st::destination.bodyId;
-                entities.push_back(star);
-                this->needBlobSave = true;
-            }
-        } else {
-            // a body
-            spEntity body = std::make_shared<Entity>();
-            body->setName(dname);
-            body->bodyId = st::destination.bodyId;
-            entities.push_back(body);
-            this->needBlobSave = true;
-        }
-        return;
-    }
-    else if (dname.starts_with("Orbital Construction Site:")) {
-        spEntity site = std::make_shared<Entity>();
-        site->setType(TypeNav::SpaceConstrDepot);
-        site->setName(dname);
-        site->parentBodyId = st::destination.bodyId;
-        entities.push_back(site);
-        this->needBlobSave = true;
-    }
-    else if (dname.starts_with("Planetary Construction Site:")) {
-        spEntity site = std::make_shared<Entity>();
-        site->setType(TypeNav::PlanetaryConstrDepot);
-        site->setName(dname);
-        site->parentBodyId = st::destination.bodyId;
-        entities.push_back(site);
-        this->needBlobSave = true;
-    }
-    else if (dname.starts_with("$EXT_PANEL_ColonisationShip;")) {
-        spEntity site = std::make_shared<Entity>();
-        site->setType(TypeNav::ColonisationShip);
-        site->setName(dname);
-        site->parentBodyId = st::destination.bodyId;
-        entities.push_back(site);
-        this->needBlobSave = true;
-    }
-    save();
-}
-
-spEntity StarSystem::addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& sname, int bodyId) {
-    spEntity entity = getEntity(sname);
-    bool added = false;
-    if (!entity) {
-        entity.reset(new Entity);
-        added = true;
-    }
-
-    TypeNav typeNav = TypeNav::Other;
-    for (auto nt: ALL_NAV_TYPES) {
-        if (nt->match_name(sname)) {
-            typeNav = nt->type;
-            break;
-        }
-    }
-    if (typeNav == TypeNav::Other) {
-        TypeNav tp = TypeNav::Other;
-        for (auto nt: ALL_NAV_TYPES) {
-            if (nt->match_icon(charOCR, nav_icon)) {
-                if (entity->type == TypeNav::Other || nt->type == entity->type) {
-                    typeNav = nt->type;
-                    break;
-                }
-                if (tp == TypeNav::Other)
-                    tp = nt->type;
-            }
-        }
-        if (typeNav != entity->type && tp != TypeNav::Other)
-            typeNav = tp;
-    }
-
-    if (typeNav != TypeNav::Other && entity->type != typeNav) {
-        entity->setType(typeNav);
-        needBlobSave = true;
-    }
-    if (entity->name.empty() || !entity->nameEq(sname)) {
-        entity->setName(sname);
-        needBlobSave = true;
-    }
-
-    if (bodyId >= 0) {
-        if (isBody(entity->type) || isSpaceStation(entity->type)) {
-            if (entity->bodyId < 0) {
-                entity->bodyId = bodyId;
-                needBlobSave = true;
-            }
-        } else {
-            if (entity->parentBodyId < 0) {
-                entity->parentBodyId = bodyId;
-                needBlobSave = true;
-            }
-        }
-    }
-
-    if (added) {
-        entities.push_back(entity);
-        needBlobSave = true;
-    }
-    save();
-    return entity;
-}
-
-spEntity StarSystem::addStation(spGameEvent& ge) {
-    if (!(ge->event=="ApproachSettlement" || ge->event=="Docked" || (ge->event=="Location") && ge->data["Docked"]))
-        return {};
-    auto& je = ge->data;
-
-    std::string sname;
-    std::string stype;
-    int64_t marketId = je["MarketID"].as_int_or();
-    if (ge->event=="ApproachSettlement") {
-        sname = je["Name"].as_string_or();
-        if (sname.starts_with("Planetary Construction Site"))
-            stype = "PlanetaryConstructionDepot";
-    } else {
-        sname = je["StationName"].as_string_or();
-        stype = je["StationType"].as_string_or();
-    }
-
-    spEntity dock = getDock(marketId);
-    if (!dock) {
-        dock = getDock(sname);
-        if (dock) {
-            if (dock->marketId()) {
-                assert (dock->marketId() != marketId);
-                dock.reset();
-            } else {
-                dock->setMarketId(marketId);
-                needBlobSave = true;
-            }
-        }
-    }
-    if (!dock) {
-        dock.reset(new Entity);
-        entities.push_back(dock);
-    }
-
-    TypeNav typeNav = TypeNav::Other;
-    for (auto nt: ALL_NAV_TYPES) {
-        if (nt->match_name(sname)) {
-            typeNav = nt->type;
-            break;
-        }
-    }
-    if (typeNav == TypeNav::Other) {
-        TypeNav tp = TypeNav::Other;
-        for (auto nt: ALL_NAV_TYPES) {
-            if (nt->match_type(stype)) {
-                if (nt->type == dock->type || dock->type == TypeNav::Other) {
-                    typeNav = nt->type;
-                    break;
-                }
-                tp = nt->type;
-            }
-        }
-        if (tp != TypeNav::Other) {
-            typeNav = tp;
-        }
-        else if (dock->type == TypeNav::Other) {
-            if (stype == "SurfaceStation") {
-                if (ge->event=="ApproachSettlement")
-                    typeNav = TypeNav::PlanetaryThing;
-                else
-                    typeNav = TypeNav::SpaceStation;
-            }
-        }
-    }
-    if (typeNav == TypeNav::PlanetaryPort) {
-        if (je["StationGovernment"].is_string() && je["StationGovernment"].as_string() == "$government_Engineer;")
-            typeNav = TypeNav::EngineerPort;
-    }
-    if (typeNav != TypeNav::Other && dock->type != typeNav) {
-        dock->setType(typeNav);
-        needBlobSave = true;
-    }
-    if (!sname.empty() && (dock->name.empty() || !dock->nameEq(sname))) {
-        dock->setName(sname);
-        needBlobSave = true;
-    }
-    if (dock->parentBodyId < 0) {
-        if (st::space.bodyType == "Planet" || st::space.bodyType == "Star") {
-            dock->parentBodyId = st::space.bodyId;
-            needBlobSave = true;
-        }
-    }
-    if (!dock->marketId()) {
-        dock->setMarketId(marketId);
-        needBlobSave = true;
-    }
-    save();
-    return dock;
-}
-
-spEntity StarSystem::addEntity(spEntity entity) {
-    if (entity)
-        entities.push_back(entity);
-    return entity;
-}
-
-void StarSystem::checkType(spEntity& site, TypeNav type, Timestamp timestamp) {
-    if (site && /*type != TypeNav::Other &&*/ site->type != type && site->updated < timestamp) {
-        site->setType(type);
-        site->updated = timestamp;
-        needBlobSave = true;
-    }
-}
-void StarSystem::checkName(spEntity& site, std::string_view name, Timestamp timestamp) {
-    if (site && site->updated < timestamp) {
-        if (isCarrier(site->type)) {
-            if (!site->nameEq(name) && site->setName(name)) {
-                site->updated = timestamp;
-                needBlobSave = true;
-            }
-        }
-        else if (!site->nameEq(name) && site->setName(name)) {
-            site->updated = timestamp;
-            needBlobSave = true;
-        }
-    }
-
-}
-void StarSystem::checkNloc(spEntity& site, std::string_view nloc, Timestamp timestamp) {
-    if (site && site->nloc != nloc) {
-        if (isCarrier(site->type)) {
-            if (!nloc.empty() && !site->nameEq(nloc) && site->setName(nloc)) {
-                site->updated = timestamp;
-                needBlobSave = true;
-            }
-        } else {
-            const_cast<std::string&>(site->nloc) = *nloc;
-            site->updated = timestamp;
-        }
-    }
-}
-void StarSystem::addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEvent>>& events) {
-    if (events.empty())
-        return;
-    Timestamp timestamp = events.front()->timestamp;
-    // add all sites from events
-    for (auto event : events) {
-        if (event->event != "FSSSignalDiscovered")
-            return;
-        auto& data = event->data;
-        if (this->systemAddress != data["SystemAddress"].as_int_or())
-            return;
-        const auto stype = data["SignalType"].as_string_or();
-        std::string sname = *data["SignalName"].as_string();
-        std::string_view snloc;
-        if (data["SignalName_Localised"].is_string()) {
-            snloc = data["SignalName_Localised"].as_string();
-            sname = snloc;
-        }
-        bool isStation = bool(data["IsStation"]);
-
-        spEntity site = getDockOrSignal(sname);
-        if (!site) {
-            site.reset(new Entity());
-            if (stype == "NavBeacon")
-                site->setType(TypeNav::NavBeacon);
-            else if (stype == "FleetCarrier")
-                site->setType(TypeNav::FleetCarrier);
-            else if (stype == "SquadronCarrier")
-                site->setType(TypeNav::SquadronCarrier);
-            site->setName(sname);
-            entities.push_back(site);
-            needBlobSave = true;
-        }
-        else if (site->updated > timestamp)
-            continue;
-
-        TypeNav typeNav = TypeNav::Other;
-        for (auto nt: ALL_NAV_TYPES) {
-            if (nt->match_name(sname)) {
-                typeNav = nt->type;
-                break;
-            }
-        }
-        if (typeNav == TypeNav::Other) {
-            for (auto nt: ALL_NAV_TYPES) {
-                if (nt->match_type(stype)) {
-                    typeNav = nt->type;
-                    break;
-                }
-            }
-        }
-        if (snloc.empty()) {
-            if (auto* nt = NavType::findNavType(site->type); nt && !nt->name_loc.empty())
-                snloc = nt->get_nloc();
-        }
-        checkType(site, typeNav, timestamp);
-        checkName(site, sname, timestamp);
-        checkNloc(site, snloc, timestamp);
-    }
-    save();
 }
 
 spMarket getMarket(int64_t marketId) {
@@ -1254,332 +565,6 @@ void setMarketData(spMarket market) {
     }
     theMarketsCache.put(market);
     saveMarket(market.get());
-}
-
-void Entity::setType(TypeNav tp) {
-    if (tp == type)
-        return;
-
-    TypeNav old_type = this->type;
-    TypeNav& new_type = const_cast<TypeNav&>(this->type);
-    new_type = tp;
-
-    if (new_type >= TypeNav::SpaceStation) {
-        if (!std::holds_alternative<Entity::StationData>(ext)) {
-            Entity::StationData station_data {};
-            ext = station_data;
-        }
-        return;
-    }
-
-    Entity::BodyData body_ext {};
-    if (old_type == TypeNav::Star)
-        body_ext = std::get<Entity::StarData>(ext);
-    else if (old_type == TypeNav::Planet)
-        body_ext = std::get<Entity::StarData>(ext);
-    else if (std::holds_alternative<Entity::BodyData>(ext))
-        body_ext = std::get<Entity::BodyData>(ext);
-
-    if (new_type == TypeNav::Star) {
-        Entity::StarData s_ext;
-        static_cast<Entity::BodyData &>(s_ext) = body_ext;
-        ext = s_ext;
-    }
-    else if (new_type == TypeNav::Planet) {
-        Entity::PlanetData p_ext;
-        static_cast<Entity::BodyData &>(p_ext) = body_ext;
-        ext = p_ext;
-    }
-    else {
-        ext = body_ext;
-    }
-}
-
-Entity::BodyData& Entity::getBodyData() {
-    if (isBody(type)) {
-        if (std::holds_alternative<Entity::BodyData>(ext))
-            return std::get<Entity::BodyData>(ext);
-        if (std::holds_alternative<Entity::StarData>(ext))
-            return std::get<Entity::StarData>(ext);
-        if (std::holds_alternative<Entity::PlanetData>(ext))
-            return std::get<Entity::PlanetData>(ext);
-    }
-    throw std::bad_variant_access();
-}
-
-Entity::StarData& Entity::getStarData() {
-    return std::get<Entity::StarData>(ext);
-}
-
-Entity::PlanetData& Entity::getPlanetData() {
-    return std::get<Entity::PlanetData>(ext);
-}
-Entity::StationData& Entity::getStationData() {
-    return std::get<Entity::StationData>(ext);
-}
-
-bool Entity::nameEq(std::string_view nm) const {
-    if (nm.empty())
-        return false;
-    if (name == nm)
-        return true;
-    if (!nloc.empty() && nloc == nm)
-        return true;
-
-    NavType* navType = nullptr;
-    switch (type) {
-    case TypeNav::Other:
-    case TypeNav::Error:
-    case TypeNav::Signal:
-    case TypeNav::StarSystem:
-    case TypeNav::Body:
-    case TypeNav::Barycenter:
-    case TypeNav::Ring:
-    case TypeNav::AsteroidCluster:
-    case TypeNav::Star:
-    case TypeNav::Planet:
-    case TypeNav::SpaceThing:
-    case TypeNav::TouristBeacon:
-    case TypeNav::SpaceStation:
-    case TypeNav::Orbis:
-    case TypeNav::Ocellus:
-    case TypeNav::Dodec:
-    case TypeNav::Coriolis:
-    case TypeNav::AsteroidBase:
-    case TypeNav::SpaceOutpost:
-    case TypeNav::SpaceInstallation:
-    case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryPort:
-    case TypeNav::EngineerPort:
-    case TypeNav::Settlement:
-    case TypeNav::PlanetaryInstallation:
-    case TypeNav::SpaceConstrDepot:
-    case TypeNav::PlanetaryConstrDepot:
-    case TypeNav::Megaship:
-    case TypeNav::FleetCarrier:
-    case TypeNav::SquadronCarrier:
-        return false;
-    case TypeNav::NotExplored:
-        navType = &UNEXPLORED;
-        break;
-    case TypeNav::WarZone:
-        navType = &WAR_ZONE;
-        break;
-    case TypeNav::ResSite:
-        navType = &RES_SITE;
-        break;
-    case TypeNav::NavBeacon:
-        navType = &BEACON;
-        break;
-    case TypeNav::StrongholdCarrier:
-        navType = &STRONGHOLD_CARRIER;
-        break;
-    case TypeNav::StationMegaShip:
-        for (auto& p : STRONGHOLD_CARRIER.name_loc) {
-            if (p.second == nm)
-                return true;
-        }
-        return false;
-    case TypeNav::ColonisationShip: {
-        if (name == nm || nloc == nm)
-            return true;
-        std::string xx_name;
-        std::string ru_name;
-        if (NavType::expandName(nm, xx_name, ru_name)) {
-            if (name == xx_name || nloc == ru_name)
-                return true;
-        }
-        return false;
-    }
-    }
-    for (auto& p : navType->name_loc) {
-        if (p.second == nm)
-            return true;
-    }
-    return false;
-}
-
-bool Entity::setName(std::string_view nm) {
-    std::string xx_name;
-    std::string ru_name;
-    NavType* navType = nullptr;
-    switch (type) {
-    case TypeNav::Other:
-    case TypeNav::Error:
-    case TypeNav::Signal:
-    case TypeNav::StarSystem:
-    case TypeNav::Body:
-    case TypeNav::Barycenter:
-    case TypeNav::Ring:
-    case TypeNav::AsteroidCluster:
-    case TypeNav::Star:
-    case TypeNav::Planet:
-    case TypeNav::SpaceThing:
-    case TypeNav::TouristBeacon:
-    case TypeNav::SpaceStation:
-    case TypeNav::Orbis:
-    case TypeNav::Ocellus:
-    case TypeNav::Dodec:
-    case TypeNav::Coriolis:
-    case TypeNav::AsteroidBase:
-    case TypeNav::SpaceOutpost:
-    case TypeNav::SpaceInstallation:
-    case TypeNav::SpaceConstrDepot:
-    case TypeNav::Megaship:
-    case TypeNav::StationMegaShip:
-    case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryPort:
-    case TypeNav::EngineerPort:
-    case TypeNav::Settlement:
-    case TypeNav::PlanetaryInstallation:
-    case TypeNav::PlanetaryConstrDepot:
-        if (name == nm)
-            return false;
-        const_cast<std::string&>(name) = nm;
-        return true;
-    case TypeNav::FleetCarrier:
-        if (nm.size() < 7) {
-            LOG_ERROR("Set fleet carrier name as: {}", nm);
-            return false;
-        } else if (nm.size() == 7) {
-            if (nm[3] != '-') { LOG_ERROR("Set wrong fleet carrier name as: {}", nm); return false; }
-            if (name.empty()) {
-                const_cast<std::string&>(name) = nm;
-                const_cast<std::string&>(nloc) = nm;
-                return true;
-            }
-            if (name == nm) return false;
-            LOG_ERROR("May not change fleet carrier name from '{}' to '{}'", name, nm);
-            return false;
-        } else if (nm.size() < 9 || nm[nm.size()-4] != '-' || nm[nm.size()-8] != ' ') {
-            LOG_ERROR("Set fleet carrier name as: {}", nm);
-            return false;
-        } else {
-            if (nloc == nm)
-                return false;
-            const_cast<std::string&>(name) = nm.substr(nm.size()-7);
-            const_cast<std::string&>(nloc) = nm;
-            return true;
-        }
-    case TypeNav::SquadronCarrier:
-        if (nm.size() < 4) {
-            LOG_ERROR("Set squadron carrier name as: {}", nm);
-            return false;
-        } else if (nm.size() == 4) {
-            if (name.empty()) {
-                const_cast<std::string&>(name) = nm;
-                const_cast<std::string&>(nloc) = nm;
-                return true;
-            }
-            if (name == nm) return false;
-            LOG_ERROR("May not change fleet carrier name from '{}' to '{}'", name, nm);
-            return false;
-        } else if (nm.size() < 8 || nm.substr(nm.size()-7,3) != " | ") {
-            LOG_ERROR("Set squadron carrier name as: {}", nm);
-            return false;
-        } else {
-            if (nloc == nm)
-                return false;
-            const_cast<std::string&>(name) = nm.substr(nm.size()-4);
-            const_cast<std::string&>(nloc) = nm;
-            return true;
-        }
-    case TypeNav::NotExplored:
-        navType = &UNEXPLORED;
-        break;
-    case TypeNav::WarZone:
-        navType = &WAR_ZONE;
-        break;
-    case TypeNav::ResSite:
-        navType = &RES_SITE;
-        break;
-    case TypeNav::NavBeacon:
-        navType = &BEACON;
-        break;
-    case TypeNav::StrongholdCarrier:
-        navType = &STRONGHOLD_CARRIER;
-        break;
-    case TypeNav::ColonisationShip:
-        if (NavType::expandName(nm, xx_name, ru_name)) {
-            if (name == xx_name && nloc == ru_name)
-                return false;
-            const_cast<std::string&>(name) = xx_name;
-            const_cast<std::string&>(nloc) = ru_name;
-            return true;
-        }
-        for (auto& nl : gal::COLONIZATION_SHIP.name_loc) {
-            if (nl.first == Lang::XX)
-                xx_name = nl.second;
-            if (nl.first == Lang::EN)
-                xx_name = nl.second;
-            if (nl.first == st::lng)
-                ru_name = nl.second;
-        }
-        if (ru_name.empty())
-            ru_name = xx_name;
-        for (auto& nl : gal::COLONIZATION_SHIP.name_loc) {
-            if (nm.starts_with(nl.second)) {
-                std::string own_name = trim(nm.substr(nl.second.size()));
-                if (!own_name.empty()) {
-                    xx_name += " " + own_name;
-                    ru_name += " " + own_name;
-                }
-                if (name == xx_name && nloc == ru_name)
-                    return false;
-                const_cast<std::string&>(name) = xx_name;
-                const_cast<std::string&>(nloc) = ru_name;
-                return true;
-            }
-        }
-        return true;
-    }
-
-    auto it = navType->name_loc.begin();
-    for (; it != navType->name_loc.end(); it++) {
-        if (it->first == Lang::XX || it->first == Lang::EN)
-            xx_name = it->second;
-        if (it->second == nm)
-            break;
-    }
-    if (it == navType->name_loc.end()) {
-        xx_name.clear();
-    } else {
-        for (; it != navType->name_loc.end(); it++) {
-            if (it->first == Lang::XX || it->first == st::lng) {
-                ru_name = it->second;
-                break;
-            }
-        }
-    }
-    if (xx_name.empty()) {
-        xx_name.clear();
-        ru_name.clear();
-        it = navType->name_loc.begin();
-        for (; it != navType->name_loc.end(); it++) {
-            if (xx_name.empty() && (it->first == Lang::XX || it->first == Lang::EN)) {
-                xx_name = it->second;
-                break;
-            }
-        }
-        for (; it != navType->name_loc.end(); it++) {
-            if (it->first == Lang::XX || it->first == st::lng) {
-                ru_name = it->second;
-                break;
-            }
-        }
-    }
-    if (this->name != xx_name) {
-        const_cast<std::string&>(name) = xx_name;
-        if (ru_name.empty() || ru_name == xx_name)
-            const_cast<std::string&>(nloc).clear();
-        else
-            const_cast<std::string&>(nloc) = ru_name;
-        return true;
-    }
-    else if (this->nloc != ru_name) {
-        const_cast<std::string&>(nloc) = ru_name;
-    }
-    return false;
 }
 
 

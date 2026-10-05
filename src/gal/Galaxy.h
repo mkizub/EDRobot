@@ -15,179 +15,23 @@ struct MarketJS;
 struct StarSystem;
 }
 
+#include "StarSystem.h"
+
+
 namespace gal {
 
-void init_symbols();
-void spansh_systems_dump_test(std::string_view filePath);
-void game_logs_test(std::string_view dirPath);
+bool init_symbols();
+bool spansh_systems_dump_test(std::string_view filePath, bool saveDbBlob);
+bool game_logs_test(std::string_view dirPath, std::string_view firstFile);
 
 class StarSystemCache;
 
-class Entity {
-public:
-    virtual ~Entity() = default;
-    bool nameEq(std::string_view nm) const;
-    // TODO: merge setType(tp) and setName(nm) into setTypeAndName(tp,nm)
-    bool setName(std::string_view nm);
-    const TypeNav type {TypeNav::Other};
-    short bodyId {-1};
-    short parentBodyId {-1}; // planet for planetary stations, or on orbit of body
-    Timestamp updated {};
-    const std::string name; // english name, code for carriers
-    const std::string nloc; // localized name, full name for carriers
-
-    float radius() {
-        if (!isBody(type))
-            return 0;
-        auto& bd = getBodyData();
-        return bd.radius.value_or(0);
-    }
-
-    int64_t marketId() {
-        if (!std::holds_alternative<Entity::StationData>(ext))
-            return 0;
-        auto& sd = getStationData();
-        return sd.marketId;
-    }
-
-    bool setMarketId(int64_t marketId) {
-        if (!std::holds_alternative<Entity::StationData>(ext))
-            return false;
-        auto& sd = getStationData();
-        sd.marketId = marketId;
-        return true;
-    }
-
-    struct BodyData {
-        JsBodySubType subType;
-        opt_bool  tidalLock;
-        opt_float radius;
-        opt_float distanceToArrival;
-        opt_float rotationalPeriod;
-        opt_float orbitalPeriod;
-        opt_float semiMajorAxis;
-        opt_float orbitalEccentricity;
-        opt_float orbitalInclination;
-        opt_float argOfPeriapsis;
-        opt_float meanAnomaly;
-        opt_float ascendingNode;
-        opt_float surfaceTemperature;
-        opt_float axialTilt;
-    };
-    struct StarData : public BodyData {
-        opt_bool mainStar;
-        int8_t subClass {-1};
-        JsLuminosity luminosity;
-        uint32_t age {}; // in millions years
-        opt_float solarMasses;
-        opt_float absoluteMagnitude;
-    };
-    struct PlanetData : public BodyData {
-        opt_bool isLandable;
-        JsVolcanismType volcanismType;
-        JsAtmosphereType atmosphereType;
-        JsTerraformingState terraformingState;
-        JsReserveLevel reserveLevel;
-        opt_float earthMasses;
-        opt_float surfaceGravity;
-        opt_float surfacePressure;
-    };
-    struct StationData {
-        int64_t marketId {0};
-        js::symbol controllingFaction;
-        JsAllegiance allegiance;
-        JsGovernment government;
-        JsStationState state;
-        JsFactionState controllingFactionState;
-        JsEconomy primaryEconomy;
-        js::vector<std::pair<JsEconomy,float>> economies;
-        JsCarrierDockingAccess carrierDockingAccess; // Carrier only.
-        opt_float distanceToArrival;
-        opt_float latitude; // Planetary stations only.
-        opt_float longitude; // Planetary stations only.
-        LandingPads landingPads;
-        js::vector<JsServices> services;
-    };
-
-    void setType(TypeNav tp);
-
-    BodyData& getBodyData();
-    StarData& getStarData();
-    PlanetData& getPlanetData();
-    StationData& getStationData();
-
-    // StationData if: type >= TypeNav::SpaceStation
-    // PlanetData if: type == TypeNav::Planet
-    // StarData if: type == TypeNav::Star
-    // BodyData: all others (including bodies, signals, beacons, etc)
-    std::variant<BodyData, StarData, PlanetData, StationData> ext;
-};
-
-typedef std::shared_ptr<Entity> spEntity;
-
-struct StarSystem {
-    friend class StarSystemCache;
-private:
-//    static std::pmr::synchronized_pool_resource entitiesPool;
-    StarSystem(int64_t address, std::string_view name, Coords coords)
-            : systemAddress(address)
-            , systemName(name)
-            , systemCoords(coords)
-//            , entities(&entitiesPool)
-    {}
-public:
-    virtual ~StarSystem() = default;
-    const int64_t systemAddress;
-    const std::string systemName;
-    const Coords systemCoords;
-    Timestamp updated_at {};
-    Timestamp eddn_updated_at {};
-
-    struct Extra {
-        JsAllegiance allegiance;
-        JsGovernment government;
-        JsEconomy primaryEconomy {};
-        JsEconomy secondaryEconomy {};
-        JsSecurity security {};
-        uint16_t bodyCount {};
-        uint64_t population {};
-    } ext;
-
-    //std::pmr::list<spEntity> entities;
-    std::vector<spEntity> entities;
-
-    bool needCoreSave {false};
-    bool isBlobLoaded {false};
-    bool needBlobSave {false};
-    void load();
-    void save();
-
-    spEntity getMainStar();
-    spEntity getEntity(const std::string& bname);
-    spEntity getDockOrSignal(std::string_view sname);
-    spEntity getBodyById(int bodyId);
-    spEntity getBody(std::string_view bname);
-    spEntity getDock(std::string_view sname);
-    spEntity getDock(int64_t marketId);
-    void addFSSSignalDiscovered(const std::vector<std::shared_ptr<GameEvent>>& events);
-    spEntity addNavListEntry(wchar_t charOCR, const std::string& nav_icon, const std::string& name, int bodyId);
-    spEntity addStation(spGameEvent& ge);
-    spEntity addEntity(spEntity entity);
-    void addDestination();
-    void removeEntity(const spEntity& entity);
-
-private:
-    void checkType(spEntity& site, TypeNav type, Timestamp timestamp);
-    void checkName(spEntity& site, std::string_view name, Timestamp timestamp);
-    void checkNloc(spEntity& site, std::string_view nloc, Timestamp timestamp);
-};
-
-typedef std::shared_ptr<StarSystem> spStarSystem;
-
 spStarSystem getStarSystem(std::string_view name, bool blob_load, bool network_load);
+spStarSystem getStarSystem(int64_t address, bool blob_load, bool network_load);
 spStarSystem makeStarSystem(std::string_view name, int64_t address, Coords coords, bool blob_load, bool network_load);
 spStarSystem& getCurrentStarSystem();
 void setCurrentStarSystem(spStarSystem ss);
+void resetCurrentStarSystem();
 void cleanupStarSystemCache(std::chrono::seconds expired);
 
 spMarket getMarket(int64_t marketId);
@@ -195,13 +39,59 @@ void saveMarket(Market* market);
 void setMarketData(spMarket market);
 
 bool update_star_system(StarSystem* ss, db::StarSystemJS& db_ss);
-bool update_megaship(StarSystem* ss, db::MegashipJS& db_ms);
-bool fill_star_system_db(StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db::MegashipJS>& db_megaships);
+bool update_megaship(StarSystem* ss, db::MegashipJS& db_ms, spEntity& megaship);
+bool fill_star_system_for_db(const StarSystem* ss, db::StarSystemJS& db_ss, std::vector<db::MegashipJS>& db_megaships);
+bool fill_megaship_for_db(const StarSystem* ss, const Entity* ms, db::MegashipJS& db_megaships);
 
+void updateFromFSSSignalDiscovered(StarSystem* ss, const std::vector<spGameEvent>& events);
+void updateBodyFromSpace(StarSystem* ss, spGameEvent& ge);
+void updateFromDestination(StarSystem* ss, spGameEvent& ge);
 bool updateFromGameEvent(StarSystem* ss, spGameEvent& ge);
 bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge);
 bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge);
 bool updateFromMarketEvent(StarSystem* ss, spGameEvent& ge);
+
+struct GameVar {
+    TypeNav type;
+    bool prefix;
+    std::string var;
+    std::string xx;
+    std::string en;
+    std::string ru;
+    std::size_t hash;
+    GameVar(TypeNav tp, bool prf, std::string_view var_, std::string_view xx_, std::string_view en_, std::string_view ru_)
+            : type(tp), prefix(prf), var(var_), xx(xx_), en(en_), ru(ru_)
+    {
+        hash = std::hash<std::string_view>{}(var_);
+    }
+
+    struct var_hash {
+        using is_transparent = void;
+        size_t operator()(const std::string_view& sv) const noexcept {
+            return std::hash<std::string_view>{}(sv);
+        }
+        size_t operator()(const GameVar& gv) const noexcept {
+            return gv.hash;
+        }
+    };
+
+    constexpr bool operator==(std::string_view sv) const noexcept {
+        return var == sv;
+    }
+    constexpr bool operator==(const gal::GameVar& rhs) const noexcept {
+        return hash == rhs.hash && var == rhs.var;
+    }
+
+    static std::unordered_set<GameVar,var_hash,std::equal_to<void>> allVars;
+
+    static const GameVar* find(std::string_view sv);
+    static TypeNav replace_in(std::string_view sv, std::string& eng, std::string& loc);
+
+    [[nodiscard]] std::string_view get_eng() const;
+    [[nodiscard]] std::string_view get_loc() const;
+    bool match(std::string_view sname) const;
+    void localizeName(std::string_view nm, std::string& name, std::string& nloc) const;
+};
 
 struct NavType {
     // some nav types share the same charOCR
@@ -209,15 +99,18 @@ struct NavType {
     const TypeNav type;
     const std::vector<std::string> navIcons; // some nav types have common icons
     const bool name_pattern;
-    const std::vector<std::pair<Lang,std::string>> name_loc;
+    const std::vector<GameVar> name_loc;
 
-    static NavType* findNavType(TypeNav type);
-    static bool expandName(std::string_view nm, std::string& name, std::string& nloc);
-    std::string get_nloc() const;
+    static const NavType* findNavType(TypeNav type);
+    static TypeNav localizeName(TypeNav type, std::string_view nm, std::string& name, std::string& nloc);
+    static TypeNav checkCarrierName(std::string_view nm, std::string* name, std::string* nloc);
+    static TypeNav guessTypeFromName(TypeNav tp, std::string_view nm);
     bool match_name(std::string_view name) const;
     bool match_type(std::string_view type) const;
     bool match_icon(wchar_t ch, const std::string& icon) const;
 };
+
+
 
 extern NavType STAR;
 extern NavType BEACON;
@@ -239,16 +132,17 @@ extern NavType PLANETARY_CONSTR_DEPOT;
 extern NavType ODYSSEY_SETTLEMENT;
 extern NavType FLEET_CARRIER;
 extern NavType SQUADRON_CARRIER;
-extern NavType STRONGHOLD_CARRIER;
+//extern NavType STRONGHOLD_CARRIER;
 extern NavType STATION_MEGASHIP;
-//extern NavType TRAILBLAZER_DREAM;
 extern NavType COLONIZATION_SHIP;
+extern NavType ANON_MEGASHIP;
 extern NavType MEGASHIP;
 extern NavType ENGINEER;
 extern NavType UNEXPLORED;
 extern NavType SIGNAL;
 extern NavType WAR_ZONE;
 extern NavType RES_SITE;
+extern NavType CODEX;
 extern NavType STAR_SYSTEM;
 
 const wchar_t ERROR_MARK    = u'\u2047'; // ⁇
@@ -257,7 +151,7 @@ const wchar_t SHIELD1_MARK  = u'\u25C7'; // ◇
 const wchar_t SHIELD2_MARK  = u'\u2B16'; // ⬖
 const wchar_t SHIELD3_MARK  = u'\u25C6'; // ◆
 
-extern const std::vector<NavType*> ALL_NAV_TYPES;
+extern const std::vector<const NavType*> ALL_NAV_TYPES;
 
 } // namespace gal
 

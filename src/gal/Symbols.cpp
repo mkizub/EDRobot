@@ -2,7 +2,9 @@
 // Created by mkizub on 20.09.2026.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "Galaxy.h"
 
@@ -137,7 +139,11 @@ DEFINE_ENUM_INSTANCE(JsNavType) ("NavType",
     {u(TypeNav::Signal),                "~Signal~\fGeneric"},
     {u(TypeNav::WarZone),               "~WarZone~\fCombat"},
     {u(TypeNav::ResSite),               "~ResSite~\fResourceExtraction"},
+    {u(TypeNav::USS),                   "~USS~\fUSS"},
     {u(TypeNav::StarSystem),            "~StarSystem~"},
+    {u(TypeNav::NavBeacon),             "NavBeacon\fNav Beacon"},
+    {u(TypeNav::TouristBeacon),         "TouristBeacon\fTourist Beacon"},
+    {u(TypeNav::Codex),                 "Codex"},
     //bodies
     {u(TypeNav::Body),                  "~Body~"},
     {u(TypeNav::Star),                  "Star"},
@@ -145,13 +151,8 @@ DEFINE_ENUM_INSTANCE(JsNavType) ("NavType",
     {u(TypeNav::Barycenter),            "Barycentre\fBarycenter\fNull"},
     {u(TypeNav::Ring),                  "Ring\fPlanetaryRing\fStellarRing"},
     {u(TypeNav::AsteroidCluster),       "AsteroidCluster\fAsteroid Cluster\fBelt Cluster"},
-    // generic space objects
-    {u(TypeNav::SpaceThing),            "~SpaceThing~"},
-    {u(TypeNav::NavBeacon),             "NavBeacon\fNav Beacon"},
-    {u(TypeNav::TouristBeacon),         "TouristBeacon\fTourist Beacon"},
-    {u(TypeNav::Codex),                 "Codex"},
-    {u(TypeNav::SpaceStation),          "~SpaceStation~"},
     // space stations
+    {u(TypeNav::SpaceStation),          "~SpaceStation~"},
     {u(TypeNav::Orbis),                 "Orbis\fOrbis Starport\fStationONeilOrbis\fStationONeilCylinder"},
     {u(TypeNav::Ocellus),               "Ocellus\fStationBernalSphere\fOcellus Starport\fBernal"},
     {u(TypeNav::Dodec),                 "Dodec\fStationDodec\fDodec Starport"},
@@ -165,8 +166,8 @@ DEFINE_ENUM_INSTANCE(JsNavType) ("NavType",
     {u(TypeNav::StationMegaShip),       "StationMegaShip\fStation Mega ship"},
     {u(TypeNav::FleetCarrier),          "FleetCarrier\fDrake-Class Carrier\fFleet Carrier"},
     {u(TypeNav::SquadronCarrier),       "SquadronCarrier\fSquadron Carrier"},
-    {u(TypeNav::StrongholdCarrier),     "StrongholdCarrier\fStronghold Carrier"},
     {u(TypeNav::ColonisationShip),      "SystemColonisationShip\fSystem Colonisation Ship"},
+    {u(TypeNav::AnonMegaship),          "AnonMegaship\fStrongholdCarrier\fStronghold Carrier\fOperationRunner\fFrontline Runner"},
     // planetary
     {u(TypeNav::PlanetaryThing),        "~PlanetaryThing~"},
     {u(TypeNav::PlanetaryPort),         "PlanetaryPort\fCraterOutpost\fCraterPort\fPlanetary Outpost\fCrater Outpost\fPlanetary City\fPlanetary Port\fDockable Planet Station"},
@@ -519,7 +520,33 @@ DEFINE_ENUM_INSTANCE(JsLuminosity) ("Luminosity",
     {25,"Vz"},
 });
 
-void gal::init_symbols() {
+bool gal::init_symbols() {
+    if (!GameVar::allVars.empty())
+        return false;
+    LOG_INFO("Loading game vars localization");
+    js::value j = parseJsonFile(L"game-var.json5");
+    if (!j)
+        return false;
+    GameVar::allVars.reserve(2*j.as_array().size());
+    for (auto& jv : j.as_array()) {
+        auto var = jv["var"].as_string_or();
+        auto prefix = jv["prefix"].as_bool_or();
+        auto type = jv["type"].as_string_or();
+        auto xx = jv["xx"].as_string_or();
+        auto en = jv["en"].as_string_or();
+        auto ru = jv["ru"].as_string_or();
+        TypeNav tp = enum_cast<TypeNav>(type).value_or(TypeNav::Other);
+        if (!var.empty())
+            GameVar::allVars.emplace(tp, prefix, var, xx, en, ru);
+        const NavType* nt = NavType::findNavType(tp);
+        if (!nt) {
+            if (var != "INT_PANEL_module_inactive" && type != "USS")
+                LOG_ERROR("NavType for '{}' not found", enum_name(tp));
+        } else {
+            const_cast<std::vector<GameVar>&>(nt->name_loc).emplace_back(tp, prefix, var, xx, en, ru);
+        }
+    }
+
     js::symbol::DefineSymbols({
         // signals genuses
        "$Codex_Ent_Aleoids_Genus_Name;",
@@ -760,4 +787,6 @@ void gal::init_symbols() {
        "Waste",
        "Weapons",
     });
+
+    return true;
 }

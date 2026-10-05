@@ -1,0 +1,410 @@
+[
+  {
+    type:"AnonMegaship",
+    xx:"Stronghold Carrier",
+    ru:"Носитель-база"
+  },
+  {
+    type:"AnonMegaship",
+    xx:"Trailblazer Dream",
+  },
+  {
+    var:"EXT_PANEL_ColonisationShip",
+    type:"ColonisationShip",
+    prefix: true,
+    xx:"System Colonisation Ship",
+    ru:"Колонизационный корабль"
+  },
+  {
+    var:"INT_PANEL_module_inactive",
+    type:"Other",
+    en:"inactive",
+    ru:"НЕАКТИВНО"
+  },
+  {
+    var:"Operations_Runner_Name",
+    type:"AnonMegaship",
+    xx:"Frontline Runner",
+  },
+  {
+    var:"Operations_Megaship_Massacre_Megaship_Strike_name",
+    type:"AnonMegaship",
+    en:"Massacre Megaship",
+    ru:"Исследовательский корабль"
+  },
+
+  {
+    type:"NotExplored",
+    xx:"Unexplored",
+    ru:"Не исследовано"
+  },
+
+  {
+    var:"EXT_PANEL_ColonisationBeacon_DeploymentSite",
+    type:"NavBeacon",
+    en:"System Colonisation Beacon Deployment Site",
+    ru:"Место размещения маяка"
+  },
+  {
+    var:"MULTIPLAYER_SCENARIO42_TITLE",
+    type:"NavBeacon",
+    en:"Nav Beacon",
+    ru:"Нав. маяк"
+  },
+  {
+    var:"MULTIPLAYER_SCENARIO80_TITLE",
+    type:"NavBeacon",
+    en:"Compromised Navigation Beacon",
+    ru:"Навигационный маяк под угрозой"
+  },
+  {
+    var:"EXT_PANEL_ColonisationBeacon_Site",
+    type:"NavBeacon",
+    en:"System Colonisation Beacon",
+    ru:"Маяк колонизации системы"
+  },
+
+  {
+    var:"Warzone_PointRace_Low",
+    type:"WarZone",
+    en:"Conflict Zone [Low Intensity]",
+    ru:"Конфликт [низк. напряж.]"
+  },
+  {
+    var:"Warzone_PointRace_Med",
+    type:"WarZone",
+    en:"Conflict Zone [Medium Intensity]",
+    ru:"Конфликт [средн. напряж.]"
+  },
+  {
+    var:"Warzone_PointRace_High",
+    type:"WarZone",
+    en:"Conflict Zone [High Intensity]",
+    ru:"Конфликт [выс. напряж.]"
+  },
+  {
+    var:"Warzone_TG",
+    type:"WarZone",
+    en:"AX Conflict Zone",
+    ru:"Зона конфликта с иными"
+  },
+  {
+    var:"Warzone_Powerplay_Low",
+    type:"WarZone",
+    en:"Power Conflict Zone [Low Intensity]",
+    ru:"Конфликт держав [низк. напряж.]"
+  },
+  {
+    var:"Warzone_Powerplay_Med",
+    type:"WarZone",
+    en:"Power Conflict Zone [Medium Intensity]",
+    ru:"Конфликт держав [средн. напряж.]"
+  },
+  {
+    var:"Warzone_Powerplay_High",
+    type:"WarZone",
+    en:"Power Conflict Zone [High Intensity]",
+    ru:"Конфликт держав [выс. напряж.]"
+  },
+  {
+    var:"Operations_ExtremeCZ_BodySite_Name",
+    type:"WarZone",
+    ru:"Грузовой терминал под угрозой"
+  },
+  {
+    var:"Pat_controlScenarioTitle",
+    type:"WarZone",
+    ru:"Военный удар"
+  },
+  {
+    var:"Rep_controlScenarioTitle",
+    type:"WarZone",
+    ru:"Военный удар"
+  },
+  {
+    var:"Ari_controlScenarioTitle",
+    type:"WarZone",
+    ru:"Искоренение преступности"
+  },
+  {
+    var:"Gro_controlScenarioTitle",
+    type:"WarZone",
+    ru:"Вооружённое восстание"
+  },
+
+  {
+    var:"MULTIPLAYER_SCENARIO77_TITLE",
+    type:"ResSite",
+    en:"Resource Extraction Site [Low]",
+    ru:"Место добычи ресурсов [низк.]"
+  },
+  {
+    var:"MULTIPLAYER_SCENARIO78_TITLE",
+    type:"ResSite",
+    en:"Resource Extraction Site [High]",
+    ru:"Место добычи ресурсов [высок.]"
+  },
+  {
+    var:"MULTIPLAYER_SCENARIO79_TITLE",
+    type:"ResSite",
+    en:"Resource Extraction Site [Hazardous]",
+    ru:"Место добычи ресурсов [опасн.]"
+  },
+  {
+    var:"MULTIPLAYER_SCENARIO14_TITLE",
+    type:"ResSite",
+    en:"Resource Extraction Site",
+    ru:"Место добычи ресурсов"
+  },
+
+  {
+    var:"Ancient",
+    type:"PlanetaryInstallation",
+    en:"Ancient Ruins ({})",
+    ru:"Древние руины ({})"},
+  {
+    var:"Ancient_Tiny_001",
+    type:"PlanetaryInstallation",
+    en:"Guardian Structure",
+    ru:"Конструкция Стражей"
+  },
+  {
+    var:"Ancient_Small_001",
+    type:"PlanetaryInstallation",
+    en:"Guardian Structure",
+    ru:"Конструкция Стражей"
+  },
+  {var:"Ancient_Small_002",
+    type:"PlanetaryInstallation",
+    en:"Guardian Structure",
+    ru:"Конструкция Стражей"
+  },
+  {
+    var:"Ancient_Small_005",
+    type:"PlanetaryInstallation",
+    en:"Guardian Structure",
+    ru:"Конструкция Стражей"
+  },
+  {
+    var:"Ancient_Medium_002",
+    type:"PlanetaryInstallation",
+    en:"Guardian Structure",
+    ru:"Конструкция Стражей"
+  },
+
+  {
+    var:"Aftermath_Large",
+    ru:"Сигнал о помощи",
+    type:"Signal"
+  },
+  {
+    var:"AttackAftermath",
+    ru:"Сигнал о помощи",
+    type:"Signal"},
+  {
+    var:"FIXED_EVENT_CAPSHIP",
+    ru:"Линейный крейсер",
+    type:"Signal"
+  },
+  {
+    var:"FIXED_EVENT_CHECKPOINT",
+    ru:"Контрольная точка",
+    type:"Signal"
+  },
+  {
+    var:"FIXED_EVENT_CONVOY",
+    ru:"Маяк колонны",
+    type:"Signal"
+  },
+  {
+    var:"FIXED_EVENT_DEBRIS",
+    ru:"Район катастрофы",
+    type:"Signal"
+  },
+  {
+    var:"FIXED_EVENT_DISTRIBUTIONCENTRE",
+    ru:"Распределительный центр",
+    type:"Signal"
+  },
+  {
+    var:"FIXED_EVENT_HIGHTHREATSCENARIO_T5",
+    ru:"Обнаружена пиратская активность [Угроза 5]",
+    type:"Signal"
+  },
+  {
+    var:"FIXED_EVENT_HIGHTHREATSCENARIO_T6",
+    ru:"Обнаружена пиратская активность [Угроза 6]",
+    type:"Signal"},
+  {
+    var:"FIXED_EVENT_HIGHTHREATSCENARIO_T7",
+    ru:"Обнаружена пиратская активность [Угроза 7]",
+    type:"Signal"
+  },
+  {
+    var:"Fixed_Event_Life_Cloud",
+    en:"Notable stellar phenomena",
+    ru:"Примечательные звездные феномены",
+    type:"Codex"
+  },
+  {
+    var:"Fixed_Event_Life_Ring",
+    en:"Notable stellar phenomena",
+    ru:"Примечательные звездные феномены",
+    type:"Codex"
+  },
+  {
+    var:"ListeningPost",
+    ru:"Пост перехвата",
+    type:"Signal"
+  },
+  {
+    var:"MULTIPLAYER_SCENARIO81_TITLE",
+    ru:"Место катастрофы",
+    type:"Signal"
+  },
+  {
+    var:"NumberStation",
+    ru:"Незарегистрированный маяк связи",
+    type:"Signal"
+  },
+  {
+    var:"USS",
+    en:"USS",
+    ru:"USS",
+    type:"USS"
+  },
+  {
+    var:"USS_CeremonialComms",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_ConvoyDispersalPattern",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_DegradedEmissions",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_DistressCall",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_HighGradeEmissions",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_NonHumanSignalSource",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_PowerConvoy",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_PowerEmissions",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_PowerplayConvoyDistressSignal",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_PowerWeaponsFire",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_SalvageHaulageWreckage",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_TradingBeacon",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_WeaponsFire",
+    ru:"Неопознанный источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_ThreatLevel",
+    ru:"Нечеловеческий источник сигнала [Ур. опасности: {}]",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_Aftermath",
+    ru:"Последствия боя",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_Convoy",
+    ru:"Рассредоточение конвоя",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_DistressSignal",
+    ru:"Сигнал о помощи",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_MissionTarget",
+    ru:"Цель миссии",
+    type:"USS"},
+  {
+    var:"USS_Type_NonHuman",
+    ru:"Нечеловеческий источник сигнала",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_PowerConvoy",
+    ru:"Конвой одной из держав",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_PowerEmissions",
+    ru:"Сигнатура обломков, принадлежащих одной из держав",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_PowerplayConvoyDistressSignal",
+    ru:"Сигнал бедствия от конвоя одной из держав",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_PowerWeaponsFire",
+    ru:"Сигнатура огня из орудий одной из держав",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_Salvage",
+    ru:"Слабый сигнал",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_TradingBeacon",
+    ru:"Торговый маяк",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_ValuableSalvage",
+    ru:"Зашифрованный сигнал",
+    type:"USS"
+  },
+  {
+    var:"USS_Type_WeaponsFire",
+    ru:"Залп из орудий",
+    type:"USS"
+  }
+]

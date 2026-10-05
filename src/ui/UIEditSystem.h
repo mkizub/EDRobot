@@ -44,7 +44,7 @@ public:
     void on_system_selected(gal::spStarSystem starSystem);
 
     std::unique_ptr<EntityCtrl> create_ctrl(gal::spEntity& entity);
-    EntityCtrl* find_ctrl(int bodyId);
+    EntityCtrl* find_ctrl(body_id_t bodyId);
     void sort_controls();
 
     gal::spStarSystem currStarSystem;

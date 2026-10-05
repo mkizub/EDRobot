@@ -1,7 +1,10 @@
-#include "pch.h"
+#ifndef PCH_H
+#include "../pch.h"
+#endif
 
 #include "Configuration.h"
 #include "gal/Galaxy.h"
+#include "db/DB.h"
 
 #include <spdlog/sinks/ansicolor_sink.h>
 #include "spdlog/sinks/ansicolor_sink-inl.h"
@@ -107,10 +110,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
         c_sink->set_color(spdlog::level::trace, "\033[38;5;6m");
     }
 
-    auto http_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("cache/network.log", 5*1024*1024, 3, true);
+    auto http_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("cache/network.log", 50*1024*1024, 3, true);
     http_file_sink->set_level(spdlog::level::debug);
 
-    auto base_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("cache/edrobot.log", 5*1024*1024, 3, true);
+    auto base_file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("cache/edrobot.log", 50*1024*1024, 3, true);
     base_file_sink->set_level(spdlog::level::debug);
 
     auto http_logger = std::make_shared<spdlog::logger>(spdlog::logger{"http", {console_sink, http_file_sink}});
@@ -160,11 +163,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //
 //    LOG_INFO("{} {}", j_sz, j_key_sz);
 //
-//    LandingPads lp;
-//    db::StationJS st;
-//    int lp_sz = sizeof(lp);
-//    int st_sz = sizeof(st);
-//    LOG_INFO("{} {}", lp_sz, st_sz);
+//    int lp_sz = sizeof(LandingPads);
+//    int body_sz = sizeof(gal::BodyEntity);
+//    int star_sz = sizeof(gal::StarEntity);
+//    int planet_sz = sizeof(gal::PlanetEntity);
+//    int station_sz = sizeof(gal::StationEntity);
+//    LOG_INFO("{} {} {} {} {}", lp_sz, body_sz, star_sz, planet_sz, station_sz);
 //
 //    gal::Entity entity;
 //    gal::Entity::StationData stationData;
@@ -176,15 +180,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    int planetData_sz = sizeof(planetData);
 //    LOG_INFO("{} {} {} {}", entity_sz, stationData_sz, starData_sz, planetData_sz);
 
-//    {
-//        SetConsoleOutputCP(CP_UTF8);
-//        if (HWND consoleWindow = GetConsoleWindow()) {
-//            ShowWindow(consoleWindow, SW_RESTORE);
-//            BringWindowToTop(consoleWindow);
-//        }
-//        gal::spansh_systems_dump_test("D:/Work/ED/EDMapFilter/galaxy.json.gz");
-//        gal::game_logs_test("C:/Users/mkizub/Saved Games/Frontier Developments/Elite Dangerous");
-//    }
+    {
+        SetConsoleOutputCP(CP_UTF8);
+        if (HWND consoleWindow = GetConsoleWindow()) {
+            ShowWindow(consoleWindow, SW_RESTORE);
+            BringWindowToTop(consoleWindow);
+        }
+        gal::spansh_systems_dump_test("D:/Work/ED/EDMapFilter/galaxy.json.gz", false);
+        //gal::game_logs_test("C:/Users/mkizub/Saved Games/Frontier Developments/Elite Dangerous", "");
+        return 0;
+    }
 
     Master& master = Master::getInstance();
     if (master.initialize())

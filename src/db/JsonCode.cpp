@@ -2,7 +2,9 @@
 // Created by mkizub on 09.09.2026.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "DB.h"
 #include <glaze/json.hpp>
@@ -191,13 +193,13 @@ struct glz::meta<db::StationJS>
     static constexpr bool skip_if(T&& value, std::string_view key, const glz::meta_context&) {
         using V = std::decay_t<T>;
         if constexpr (std::same_as<V, Timestamp>) {
-            return value.time_since_epoch().count();
+            return *value == 0;
         }
         if constexpr (std::same_as<T, bool>) {
             return value == false;
         }
         if constexpr (std::is_floating_point_v<T>) {
-            return value.time_since_epoch().count();
+            return std::isnan(value);
         }
         if constexpr (std::is_integral_v<T>) {
             return value == 0;
@@ -248,13 +250,13 @@ struct glz::meta<db::BodyJS>
     static constexpr bool skip_if(T&& value, std::string_view key, const glz::meta_context&) {
         using V = std::decay_t<T>;
         if constexpr (std::same_as<V, Timestamp>) {
-            return value.time_since_epoch().count();
+            return *value == 0;
         }
         if constexpr (std::same_as<T, bool>) {
             return value == false;
         }
         if constexpr (std::is_floating_point_v<T>) {
-            return value.time_since_epoch().count();
+            return std::isnan(value);
         }
         if constexpr (std::is_integral_v<T>) {
             return value == 0;
@@ -332,7 +334,7 @@ struct glz::meta<db::StarSystemJS>
     static constexpr bool skip_if(T&& value, std::string_view key, const glz::meta_context&) {
         using V = std::decay_t<T>;
         if constexpr (std::same_as<V, Timestamp>) {
-            return key == "updated_at" && value.time_since_epoch().count();
+            return key == "updated_at" && *value;
         }
         return false;
     }
@@ -399,11 +401,12 @@ void checkStation(StationJS& st, bool is_planetary) {
 
 void checkBody(BodyJS& body) {
     auto type = body.type;
+    TypeNav tn = toTypeNav(type);
     if (!type.has_value()) {
         LOG_ERROR("Error: Body '{}' has no type", body.name);
         return;
     }
-    if (type.sv() == "Star") {
+    if (tn == TypeNav::Star) {
         if (!body.getStarPart()) {
             //LOG_WARNING("Body '{}' with type {} has no star info", body.name, type.sv());
         }
@@ -411,7 +414,7 @@ void checkBody(BodyJS& body) {
             LOG_ERROR("Body '{}' with type {} has planet info", body.name, type.sv());
         }
     }
-    else if (type.sv() == "Planet") {
+    else if (tn == TypeNav::Planet) {
         if (body.getStarPart()) {
             LOG_ERROR("Body '{}' with type {} has star info", body.name, type.sv());
         }
@@ -427,6 +430,11 @@ void checkBody(BodyJS& body) {
             LOG_ERROR("Body '{}' with type {} has star info", body.name, type.sv());
         }
     }
+    if (!body.bodyId.has_value())
+        LOG_ERROR("Body '{}' with type {} has no body id", body.name, type.sv());
+    if (tn == TypeNav::Barycenter || tn == TypeNav::Ring)
+        body.name.clear();
+
     for (auto& st : body.stations) {
         checkStation(st, true);
     }

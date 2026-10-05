@@ -2,7 +2,9 @@
 // Created by mkizub on 23.05.2025.
 //
 
-#include "pch.h"
+#ifndef PCH_H
+#include "../pch.h"
+#endif
 
 #include "ui/UIManager.h"
 #include "ai/AIManager.h"
@@ -403,8 +405,6 @@ std::string Master::initializeInternal() {
 
     //cv::utils::logging::internal::replaceWriteLogMessage(writeOpenCVLogMessageFunc);
     //cv::utils::logging::internal::replaceWriteLogMessageEx(writeOpenCVLogMessageFuncEx);
-
-    gal::init_symbols();
 
     LOG(INFO) << "Loading configuration";
     if (!Cfg.load() || !Cfg.start())

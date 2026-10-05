@@ -7,6 +7,13 @@
 
 typedef std::chrono::time_point<std::chrono::utc_clock> Timestamp;
 
+constexpr auto operator*(const Timestamp& tp) {
+    return tp.time_since_epoch().count();
+}
+constexpr bool operator!(const Timestamp& tp) {
+    return tp.time_since_epoch().count() == 0;
+}
+
 enum class WState : int { Unknown=-1, Normal=0, Focused=1, Active=2, Disabled=3 };
 
 enum class Lang { XX=-1, EN=0, RU=1 };
@@ -37,23 +44,23 @@ enum class TypeNav : uint8_t {
     Other                   = 0x0,
     Error                   = 0x1,
     NotExplored             = 0x2,
-    Signal                  = 0x3,
-    WarZone                 = 0x4,
-    ResSite                 = 0x5,
-    StarSystem              = 0x6,
-    // gap 0x7-0xF
-    Body                    = 0x10,   // generic type
-    Barycenter              = 0x11,
-    Ring                    = 0x12,
-    AsteroidCluster         = 0x13,
-    Star                    = 0x14,
-    Planet                  = 0x15,
-    // gap 0x16-0x1F
-    SpaceThing              = 0x20,   // generic type
-    NavBeacon               = 0x21,
-    TouristBeacon           = 0x22,
-    Codex                   = 0x24,   // notable stellar phenomena
-    // gap 0x23-0x2F
+    StarSystem              = 0x3,
+    Signal                  = 0x4,
+    WarZone                 = 0x5,
+    USS                     = 0x6,
+    // stable interesting places
+    ResSite                 = 0x11,
+    NavBeacon               = 0x12,
+    TouristBeacon           = 0x13,
+    Codex                   = 0x14,  // notable stellar phenomena
+    // gap
+    Body                    = 0x20,   // generic type
+    Barycenter              = 0x21,
+    Ring                    = 0x22,
+    AsteroidCluster         = 0x23,
+    Star                    = 0x24,
+    Planet                  = 0x25,
+    // gap
     SpaceStation            = 0x30,   // generic type
     Orbis                   = 0x31,
     Ocellus                 = 0x32,
@@ -61,41 +68,52 @@ enum class TypeNav : uint8_t {
     Coriolis                = 0x34,
     AsteroidBase            = 0x35,
     SpaceOutpost            = 0x36,
-    SpaceInstallation       = 0x37,
-    SpaceConstrDepot        = 0x38,
-    // gap 0x39-0x3F
+    // gap to add more stations (like Dodec was added)
+    SpaceInstallation       = 0x3A,
+    SpaceConstrDepot        = 0x3B,
+    // gap
     Megaship                = 0x40,   // generic type
     StationMegaShip         = 0x41,
     FleetCarrier            = 0x42,
     SquadronCarrier         = 0x43,
-    StrongholdCarrier       = 0x44,
     ColonisationShip        = 0x45,
-    // gap 0x45-0x4F
+    AnonMegaship            = 0x4A,   // all anonymouse megaships (Stronghold Carrier, Trailblazer Dream, Frontline Runner, etc)
+    // gap
     PlanetaryThing          = 0x50,   // generic type
     PlanetaryPort           = 0x51,
     EngineerPort            = 0x52,   // "StationType":"CraterOutpost", "StationGovernment":"$government_Engineer;", "StationGovernment_Localised":"Мастерская"
     Settlement              = 0x53,   // odyssey settlement
-    PlanetaryInstallation   = 0x54,
-    PlanetaryConstrDepot    = 0x55,
+    // gap
+    PlanetaryInstallation   = 0x5A,
+    PlanetaryConstrDepot    = 0x5B,
+
+    // gap
+    AnySite                 = 0x70,   // should be above SpaceStation, but put here to make both generic
 };
 
 inline constexpr bool isSignal(TypeNav type) {
     return type < TypeNav::Body;
 }
 inline constexpr bool isBody(TypeNav type) {
-    return type >= TypeNav::Body && type < TypeNav::SpaceThing; // or (std::to_underlying(type) & 0xF0) == 0x10;
+    return type >= TypeNav::Body && type < TypeNav::SpaceStation;
 }
-inline constexpr bool isSite(TypeNav type) {
-    return type >= TypeNav::SpaceThing;
+inline constexpr bool isAnySite(TypeNav type) {
+    return type >= TypeNav::SpaceStation;   // should be above AnySite, but!
+}
+inline constexpr bool isGeneric(TypeNav type) {
+    return (uint8_t(type) & 0xF) == 0;
+}
+inline constexpr bool isDatabaseSite(TypeNav type) {
+    return type >= TypeNav::SpaceStation || (type >= TypeNav::NavBeacon && type <= TypeNav::Body);
 }
 inline constexpr bool isSpaceSite(TypeNav type) {
-    return type >= TypeNav::SpaceThing && type < TypeNav::PlanetaryThing;
+    return type >= TypeNav::SpaceStation && type < TypeNav::PlanetaryThing;
 }
 inline constexpr bool isSpaceStation(TypeNav type) {
     return type >= TypeNav::SpaceStation && type <= TypeNav::SpaceOutpost;
 }
 inline constexpr bool isPlanetarySite(TypeNav type) {
-    return type >= TypeNav::PlanetaryThing; // or (std::to_underlying(type) & 0xF0) == 0x50;
+    return type >= TypeNav::PlanetaryThing;
 }
 inline constexpr bool isConstrDepot(TypeNav type) {
     return type == TypeNav::SpaceConstrDepot ||
@@ -106,7 +124,10 @@ inline constexpr bool isCarrier(TypeNav type) {
     return type == TypeNav::FleetCarrier || type == TypeNav::SquadronCarrier;
 }
 inline constexpr bool isMegaship(TypeNav type) {
-    return type >= TypeNav::Megaship && type <= TypeNav::ColonisationShip;
+    return type >= TypeNav::Megaship && type <= TypeNav::AnonMegaship;
+}
+inline constexpr bool isAnonMegaship(TypeNav type) {
+    return type == TypeNav::AnonMegaship;
 }
 
 namespace gal {
@@ -114,8 +135,8 @@ namespace gal {
     typedef std::shared_ptr<Entity> spEntity;
     class StarSystem;
     typedef std::shared_ptr<StarSystem> spStarSystem;
-    void spansh_systems_dump_test(std::string_view); // for testing
-    void game_logs_test(std::string_view); // for testing
+
+    struct TestBackdor;
 }
 
 namespace ai {
@@ -127,9 +148,9 @@ void resetCompassDetects();
 }
 
 struct Coords {
-    double x {};
-    double y {};
-    double z {};
+    double x;
+    double y;
+    double z;
 
     constexpr bool empty() const {
         return (x*x + y*y + z*z) < 1.e-7;
@@ -255,6 +276,65 @@ struct opt_float {
     float value_or(float&& default_value) const & {
         if (std::isnan(val)) return default_value;
         return val;
+    }
+};
+
+struct body_id_t {
+    short val;
+
+    constexpr body_id_t() : val(-1) {}
+    constexpr explicit body_id_t(int id) : val(id) {}
+    constexpr body_id_t(const body_id_t& value) { val = value.val; }
+    constexpr body_id_t(body_id_t&& value) { val = value.val; }
+
+    constexpr body_id_t& operator=(const body_id_t& other) noexcept {
+        val = other.val;
+        return *this;
+    }
+    constexpr body_id_t& operator=(int value) noexcept {
+        val = value;
+        return *this;
+    }
+
+    auto operator==(const body_id_t& rhs) const {
+        if (this->val < 0 || rhs.val < 0)
+            return false;
+        return this->val == rhs.val;
+    }
+    auto operator<=>(const body_id_t& rhs) const {
+        if (this->val < 0 || rhs.val < 0)
+            return std::partial_ordering::unordered;
+        if (this->val < rhs.val)
+            return std::partial_ordering::less;
+        if (this->val > rhs.val)
+            return std::partial_ordering::greater;
+        return std::partial_ordering::equivalent;
+    }
+
+    constexpr void reset() noexcept {
+        val = -1;
+    }
+
+    constexpr void emplace() noexcept {
+        val = -1;
+    }
+
+    constexpr bool emplace(int value) noexcept {
+        val = value;
+        return val;
+    }
+
+    constexpr bool has_value() const {
+        return val >= 0;
+    }
+
+    constexpr short& value() {
+        //if (val < 0) throw std::bad_optional_access();
+        return val;
+    }
+    constexpr short value() const {
+        if (val < 0) throw std::bad_optional_access();
+        return val > 0;
     }
 };
 
@@ -560,9 +640,9 @@ typedef std::shared_ptr<Bookmark> spBookmark;
 
 
 struct LandingPads {
-    int8_t large {};
-    int8_t medium {};
-    int8_t small {};
+    uint8_t large;
+    uint8_t medium;
+    uint8_t small;
     [[nodiscard]] bool empty() const { return large==0 && medium==0 && small==0; }
     [[nodiscard]] bool has_value() const { return large==0 && medium==0 && small==0; }
 };

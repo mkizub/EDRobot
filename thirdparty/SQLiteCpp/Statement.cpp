@@ -54,6 +54,15 @@ Statement::Statement(Statement&& aStatement) noexcept :
     aStatement.mbDone = false;
 }
 
+Statement::~Statement()
+{
+    if (auto prepStat = mpPreparedStatement.get()) {
+        sqlite3_reset(prepStat);
+        sqlite3_clear_bindings(prepStat);
+    }
+}
+
+
 // Reset the statement to make it ready for a new execution (see also #clearBindings() below)
 void Statement::reset()
 {

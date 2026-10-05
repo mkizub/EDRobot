@@ -2,7 +2,9 @@
 // Created by mkizub on 28.06.2025.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "Task.h"
 #include "AIManager.h"
@@ -11,7 +13,6 @@
 #include "EmergencyTasks.h"
 #include "../Keyboard.h"
 #include "../ShipStats.h"
-#include "../gal/Galaxy.h"
 #include "../widget/EDWidget.h"
 
 namespace ai {
@@ -504,8 +505,6 @@ void BaseAutopilotTask::initNavFilter(bool additive) {
     case TypeNav::AsteroidBase:
     case TypeNav::SpaceOutpost:
     case TypeNav::SpaceConstrDepot:
-    case TypeNav::StationMegaShip:
-    case TypeNav::StrongholdCarrier:
     case TypeNav::ColonisationShip:
     case TypeNav::PlanetaryConstrDepot:
         break;
@@ -514,6 +513,8 @@ void BaseAutopilotTask::initNavFilter(bool additive) {
     case TypeNav::Error:
     case TypeNav::NotExplored:
     case TypeNav::Signal:
+    case TypeNav::USS:
+    case TypeNav::AnySite:
         filters.settlement = true;
         filters.signalSource = true;
         filters.asteroidCluster = true;
@@ -522,6 +523,7 @@ void BaseAutopilotTask::initNavFilter(bool additive) {
 
     case TypeNav::WarZone:
     case TypeNav::ResSite:
+    case TypeNav::Codex:
         filters.signalSource = true;
         break;
     case TypeNav::StarSystem:
@@ -534,18 +536,21 @@ void BaseAutopilotTask::initNavFilter(bool additive) {
         filters.asteroidCluster = true;
         break;
 
-    case TypeNav::SpaceThing:
     case TypeNav::SpaceInstallation:
     case TypeNav::Megaship:
+    case TypeNav::StationMegaShip:
+    case TypeNav::AnonMegaship:
     case TypeNav::TouristBeacon:
         filters.pointOfInterest = true;
         break;
     case TypeNav::FleetCarrier:
-        if (st::autopilot.destDock->marketId() != st::cmdr.fleetCarrierId)
+        if (st::autopilot.destDock->marketId() != st::cmdr.fleetCarrierId
+            && !st::autopilot.destDock->nameEq(st::cmdr.fleetCarrierCode))
             filters.fleetCarrier = true;
         break;
     case TypeNav::SquadronCarrier:
-        if (st::autopilot.destDock->marketId() != st::cmdr.squadronCarrierId)
+        if (st::autopilot.destDock->marketId() != st::cmdr.squadronCarrierId
+            && !st::autopilot.destDock->nameEq(st::cmdr.squadronCarrierCode))
             filters.fleetCarrier = true;
         break;
     case TypeNav::PlanetaryThing:
@@ -990,6 +995,7 @@ bool DepartureStep::run() {
         case TypeNav::FleetCarrier:
         case TypeNav::SquadronCarrier:
         case TypeNav::ColonisationShip:
+        case TypeNav::AnonMegaship:
             fromSimpleMegaship = true;
         }
     }
@@ -1131,7 +1137,7 @@ bool DepartureStep::run() {
     if (!st::shipAtBody.nearBody && (!st::currentNavRoute || st::currentNavRoute->route.empty())) {
         if ((fromSimpleMegaship || fromStarPort || fromSpaceConstruction) && st::autopilot.destDock && st::autopilot.destBody) {
             auto at_dock = gal::getCurrentStarSystem()->getDock(st::space.marketId);
-            auto at_body = gal::getCurrentStarSystem()->getBodyById(at_dock ? at_dock->parentBodyId : -1);
+            auto at_body = gal::getCurrentStarSystem()->getBodyById(at_dock ? at_dock->parentBodyId : body_id_t());
             if (at_body && at_body->radius()) {
                 if (at_body == st::autopilot.destBody)
                     run_sub_step(new NavDockSelect);
@@ -1530,7 +1536,7 @@ bool HyperJumpStep::run() {
         auto star = ss->getMainStar();
         JsBodySubType starType;
         if (star)
-            starType = star->getStarData().subType;
+            starType = star->getStarData()->subType;
         if (auto sc = starType.sv(); !sc.empty()) {
             switch (sc[0]) {
             case 'L': case 'T': case 'Y': // Brown Dwarfs
@@ -1814,8 +1820,8 @@ bool BaseDockStep::canDock() {
     case TypeNav::StationMegaShip:
     case TypeNav::FleetCarrier:
     case TypeNav::SquadronCarrier:
-    case TypeNav::StrongholdCarrier:
     case TypeNav::ColonisationShip:
+    case TypeNav::AnonMegaship:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
     case TypeNav::Settlement:
@@ -1973,6 +1979,7 @@ void DockSpaceStation::updateSafeDist() {
         case TypeNav::FleetCarrier:
         case TypeNav::SquadronCarrier:
         case TypeNav::ColonisationShip:
+        case TypeNav::AnonMegaship:
         case TypeNav::Megaship:
         case TypeNav::SpaceConstrDepot:
             LOG_DEBUG("DockSpaceStation: safe dist 6500");
@@ -1985,7 +1992,8 @@ void DockSpaceStation::updateSafeDist() {
         }
     }
     if (st::space.stationType == "SpaceConstructionDepot" ||
-        st::space.stationType == "FleetCarrier")
+        st::space.stationType == "FleetCarrier" ||
+        st::space.stationType == "SquadronCarrier")
     {
         LOG_DEBUG("DockSpaceStation: safe dist 6500 for type ", st::space.stationType);
         safe_dist = 6500_m;
@@ -4265,7 +4273,7 @@ bool CruiseAndDock::run() {
     // check fast travel path (travel at local body)
     if (!at_dest_dock && !st::ship.flags.cruise && !toPort && !fromPort && st::space.marketId && st::autopilot.destDock && st::autopilot.destBody) {
         auto at_dock = gal::getCurrentStarSystem()->getDock(st::space.marketId);
-        auto at_body = gal::getCurrentStarSystem()->getBodyById(at_dock ? at_dock->parentBodyId : -1);
+        auto at_body = gal::getCurrentStarSystem()->getBodyById(at_dock ? at_dock->parentBodyId : body_id_t());
         if (at_body && at_body->radius() && at_body == st::autopilot.destBody) {
             if (!run_sub_step(new NavDockSelect))
                 goto full_path;
@@ -4414,11 +4422,11 @@ full_path:
                 throw_trouble("Cannot cruise to dock/body");
         }
 
-        if (!st::autopilot.destBody && st::autopilot.destDock->parentBodyId < 0) {
+        if (!st::autopilot.destBody && !st::autopilot.destDock->parentBodyId.has_value()) {
             if (task->nl.focusDockBody()) {
                 if (task->nl.selectFocused(st::autopilot.destDock.get())) {
                     sleep(1000); // wait for Status.json
-                    int bodyId = st::destination.bodyId;
+                    body_id_t bodyId = st::destination.bodyId;
                     st::autopilot.destDock->parentBodyId = bodyId;
                     auto starSystem = gal::getCurrentStarSystem();
                     starSystem->needBlobSave = true;
@@ -4608,7 +4616,7 @@ bool TaskTravel::setDestDockAndBody(bool required, bool additive) {
         return false;
     }
 
-    if (required && st::autopilot.destDock->parentBodyId < 0) {
+    if (required && !st::autopilot.destDock->parentBodyId.has_value()) {
         initNavFilter(additive);
         if (!run_sub_step(new NavDockSelect)) {
             throw_trouble("Cannot select destination dock");
@@ -4616,14 +4624,14 @@ bool TaskTravel::setDestDockAndBody(bool required, bool additive) {
         sendUiBack();
     }
 
-    int bodyId = st::autopilot.destDock->parentBodyId;
-    if (bodyId >= 0) {
+    body_id_t bodyId = st::autopilot.destDock->parentBodyId;
+    if (bodyId.has_value()) {
         auto body = starSystem->getBodyById(bodyId);
         if (!body) {
-            LOG_ERROR("Cannot find body id: {0} in system {1}" , bodyId, starSystem->systemName);
+            LOG_ERROR("Cannot find body id: {0} in system {1}" , bodyId.val, starSystem->systemName);
             st::autopilot.destDock->parentBodyId = -1;
         } else if (!isBody(body->type)) {
-            LOG_ERROR("Not a star/planet body id: {0} in system {1}" , bodyId, starSystem->systemName);
+            LOG_ERROR("Not a star/planet body id: {0} in system {1}" , bodyId.val, starSystem->systemName);
             st::autopilot.destDock->parentBodyId = -1;
         } else {
             st::autopilot.setDestBody(body);
@@ -4713,7 +4721,7 @@ bool Autopilot::run() {
         if (dest) {
             if (isBody(dest->type))
                 st::autopilot.setDestBody(dest);
-            else if (isSite(dest->type))
+            else if (isAnySite(dest->type))
                 st::autopilot.setDestDock(dest);
         } else {
             nl.discoverSelected();
@@ -4721,25 +4729,25 @@ bool Autopilot::run() {
             if (dest) {
                 if (isBody(dest->type))
                     st::autopilot.setDestBody(dest);
-                else if (isSite(dest->type))
+                else if (isAnySite(dest->type))
                     st::autopilot.setDestDock(dest);
             }
         }
 
-        int destBodyId = st::destination.bodyId;
+        body_id_t destBodyId = st::destination.bodyId;
         if (dest && isBody(dest->type))
             assert(dest->bodyId == destBodyId);
         else if (dest && isSpaceStation(dest->type))
             destBodyId = dest->parentBodyId;
-        if (destBodyId >= 0) {
+        if (destBodyId.has_value()) {
             auto body = starSystem->getBodyById(destBodyId);
             if (!body) {
-                LOG_ERROR("Cannot find body id: {0} in system {1}" , destBodyId, starSystem->systemName);
-                if (dest && isSite(dest->type))
+                LOG_ERROR("Cannot find body id: {0} in system {1}" , destBodyId.val, starSystem->systemName);
+                if (dest)
                     dest->parentBodyId = -1;
             } else if (!isBody(body->type)) {
-                LOG_ERROR("Not a star/planet body id: {0} in system {1}" , destBodyId, starSystem->systemName);
-                if (dest && isSite(dest->type))
+                LOG_ERROR("Not a star/planet body id: {0} in system {1}" , destBodyId.val, starSystem->systemName);
+                if (dest)
                     dest->parentBodyId = -1;
             } else {
                 st::autopilot.setDestBody(body);

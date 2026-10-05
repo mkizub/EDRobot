@@ -46,7 +46,7 @@ public:
     void on_command_show_bookmarks();
     void on_command_edit_star_system();
 
-    void update_curr_task();
+    void update_control();
 
     NOTIFYICONDATA mNotifyIconData;
     wl::font font;

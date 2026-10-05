@@ -30,12 +30,14 @@ inline msgpack::packer<Stream>& pack_key(const char*, msgpack::packer<Stream>& m
 template <typename T>
 inline bool need_value(const T& val) {
     if constexpr (std::same_as<T, Timestamp>)
-        return val.time_since_epoch().count() != 0;
+        return *val != 0;
     else if constexpr (std::same_as<T, bool>)
         return val;
     else if constexpr (std::same_as<T, opt_bool>)
         return val.has_value();
     else if constexpr (std::same_as<T, opt_float>)
+        return val.has_value();
+    else if constexpr (std::same_as<T, body_id_t>)
         return val.has_value();
     else if constexpr (std::is_floating_point_v<T>)
         return !std::isnan(val);
@@ -146,6 +148,23 @@ struct convert<opt_float> {
             v = opt_float{};
         else
             v = o.as<float>();
+        return o;
+    }
+};
+
+template<>
+struct pack<body_id_t> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const body_id_t& v) const {
+        o.pack_short(v.val);
+        return o;
+    }
+};
+
+template<>
+struct convert<body_id_t> {
+    msgpack::object const& operator()(msgpack::object const& o, body_id_t& v) const {
+        v.val = o.as<short>();
         return o;
     }
 };
@@ -432,6 +451,9 @@ struct pack<LandingPads> {
     using T = LandingPads;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
+        assert (v.large >= 0 && v.large < 10);
+        assert (v.medium >= 0 && v.medium < 10);
+        assert (v.small >= 0 && v.small < 10);
         o.pack_array(3);
         o.pack_unsigned_int(v.large);
         o.pack_unsigned_int(v.medium);
@@ -445,9 +467,12 @@ struct convert<LandingPads> {
     msgpack::object const& operator()(msgpack::object const& o, LandingPads& v) const {
         if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
         if (o.via.array.size != 3) { throw msgpack::type_error(); }
-        v.large = o.via.array.ptr[0].as<decltype(v.large)>();
-        v.medium = o.via.array.ptr[1].as<decltype(v.medium)>();
-        v.small = o.via.array.ptr[2].as<decltype(v.small)>();
+        v.large = o.via.array.ptr[0].as<unsigned>();
+        v.medium = o.via.array.ptr[1].as<unsigned>();
+        v.small = o.via.array.ptr[2].as<unsigned>();
+        assert (v.large >= 0 && v.large < 10);
+        assert (v.medium >= 0 && v.medium < 10);
+        assert (v.small >= 0 && v.small < 10);
         return o;
     }
 };
@@ -548,6 +573,38 @@ struct convert<db::MarketJS> {
 };
 
 template<>
+struct pack<db::SignalJS> {
+    template <typename Stream>
+    msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const db::SignalJS& v) const {
+        o.pack_array(3);
+        o.pack(v.type);
+        o.pack(v.name);
+        PK_MAP_START(o)
+            PK_IF("sg", 1, v.latitude);
+            PK_IF("sg", 2, v.longitude);
+        PK_MAP_END(o)
+        return o;
+    }
+};
+
+template<>
+struct convert<db::SignalJS> {
+    msgpack::object const& operator()(msgpack::object const& o, db::SignalJS& v) const {
+        if (o.type != msgpack::type::ARRAY) { throw msgpack::type_error(); }
+        if (o.via.array.size != 3) { throw msgpack::type_error(); }
+        v.type = o.via.array.ptr[0].as<decltype(v.type)>();
+        v.name = o.via.array.ptr[1].as<decltype(v.name)>();
+
+        auto& m = o.via.array.ptr[2].via.map;
+        UN_MAP_START(m)
+            UN_PK("sg", 1, v.latitude);
+            UN_PK("sg", 2, v.longitude);
+        UN_MAP_END()
+        return o;
+    }
+};
+
+template<>
 struct pack<db::StationJS> {
 
     template <typename Stream>
@@ -561,8 +618,8 @@ struct pack<db::StationJS> {
             o.pack("");   // megaships are stored in a separate table and already have name
         PK_MAP_START(o)
             PK_IF("st", 1, v.updated_at);
-            if (v.bodyId > 0) { PK_IF("st", 2, v.bodyId); }
-            if (v.parentId >= 0) { PK_IF("st", 3, v.parentId); }
+            if (v.bodyId.val > 0) { PK_IF("st", 2, v.bodyId); }
+            if (v.parentId.val >= 0) { PK_IF("st", 3, v.parentId); }
             PK_IF("st", 4, v.controllingFaction);
             PK_IF("st", 5, v.controllingFactionState);
             PK_IF("st", 6, v.primaryEconomy);
@@ -631,7 +688,7 @@ struct pack<db::BodyJS> {
         }
         o.pack_array(4);
         o.pack(v.type);
-        o.pack_int(v.bodyId);
+        o.pack(v.bodyId);
 
         TypeNav tn = toTypeNav(v.type);
         std::string v_name = v.name;
@@ -804,17 +861,18 @@ struct pack<db::StarSystemJS> {
             PK_IF("ss", 9, v.controllingFaction);
             PK_IF("ss", 10, v.bodies);
             PK_IF("ss", 11, v.stations);
+            PK_IF("ss", 12, v.signals);
             if (tlDumpFull) {
-                PK_IF("ss", 12, v.factions);
-                PK_IF("ss", 13, v.powerState);
-                PK_IF("ss", 14, v.powerConflictProgress);
-                PK_IF("ss", 15, v.powers);
-                PK_IF("ss", 16, v.controllingPower);
-                PK_IF("ss", 17, v.powerStateControlProgress);
-                PK_IF("ss", 18, v.powerStateReinforcement);
-                PK_IF("ss", 19, v.powerStateUndermining);
-                PK_IF("ss", 20, v.thargoidWar);
-                PK_IF("ss", 21, v.timestamps);
+                PK_IF("ss", 15, v.factions);
+                PK_IF("ss", 16, v.powerState);
+                PK_IF("ss", 17, v.powerConflictProgress);
+                PK_IF("ss", 18, v.powers);
+                PK_IF("ss", 19, v.controllingPower);
+                PK_IF("ss", 20, v.powerStateControlProgress);
+                PK_IF("ss", 21, v.powerStateReinforcement);
+                PK_IF("ss", 22, v.powerStateUndermining);
+                PK_IF("ss", 23, v.thargoidWar);
+                PK_IF("ss", 24, v.timestamps);
             }
         PK_MAP_END(o)
         return o;
@@ -847,15 +905,18 @@ struct convert<db::StarSystemJS> {
             UN_PK("ss", 9, v.controllingFaction);
             UN_PK("ss", 10, v.bodies);
             UN_PK("ss", 11, v.stations);
-            UN_PK("ss", 12, v.factions);
-            UN_PK("ss", 13, v.powerState);
-            UN_PK("ss", 14, v.powerConflictProgress);
-            UN_PK("ss", 15, v.powers);
-            UN_PK("ss", 16, v.controllingPower);
-            UN_PK("ss", 17, v.powerStateControlProgress);
-            UN_PK("ss", 18, v.powerStateReinforcement);
-            UN_PK("ss", 19, v.powerStateUndermining);
-            UN_PK("ss", 20, v.thargoidWar);
+            UN_PK("ss", 12, v.signals);
+            // currently we don't store these
+            UN_PK("ss", 15, v.factions);
+            UN_PK("ss", 16, v.powerState);
+            UN_PK("ss", 17, v.powerConflictProgress);
+            UN_PK("ss", 18, v.powers);
+            UN_PK("ss", 19, v.controllingPower);
+            UN_PK("ss", 20, v.powerStateControlProgress);
+            UN_PK("ss", 21, v.powerStateReinforcement);
+            UN_PK("ss", 22, v.powerStateUndermining);
+            UN_PK("ss", 23, v.thargoidWar);
+            UN_PK("ss", 24, v.timestamps);
         UN_MAP_END()
         return o;
     }
@@ -868,35 +929,37 @@ struct convert<db::StarSystemJS> {
 
 namespace db {
 
-std::ofstream dbg_cbor;
-
-void test_cbor_start() {
-    dbg_cbor.open("cache/dbg.cbor", std::ios::out | std::ios::trunc | std::ios::binary);
-}
-
-void test_cbor_end() {
-    dbg_cbor.close();
-}
-
-int test_cbor(StarSystemJS &ss_js) {
-    tlStarSystemName = ss_js.name;
-    tlDumpFull = true;
-    try {
-        msgpack::sbuffer buffer;
-        msgpack::pack(buffer, ss_js);
-
-        if (dbg_cbor.is_open())
-            dbg_cbor.write(buffer.data(), buffer.size());
-
-        StarSystemJS ss_back;
-        auto obj = msgpack::unpack(buffer.data(), buffer.size());
-        obj->convert(ss_back);
-
-        return (int) buffer.size();
-    } catch (const std::exception &e) {
-        LOG_ERROR("Packing error");
-        return 0;
+bool verifyStarSystem(StarSystemJS& ss) {
+    std::map<int,std::string> used;
+    for (auto& body : ss.bodies) {
+        if (body.name.empty() && !(body.type == toJsNavType(TypeNav::Barycenter) || body.type == toJsNavType(TypeNav::Ring))) {
+            LOG_ERROR("Serialized body of type '{}' with empty name", body.type.sv());
+        }
+        if (!body.bodyId.has_value()) {
+            LOG_ERROR("Serialized body without bodyId");
+            return false;
+        }
+        if (used.contains(body.bodyId.val)) {
+            LOG_ERROR("Duplicated bodyId[{}]: {} and body {}", body.bodyId.val, used[body.bodyId.val], body.name);
+            return false;
+        }
+        used[body.bodyId.val] = body.name;
     }
+    for (auto& st : ss.stations) {
+        if (st.name.empty()) {
+            LOG_ERROR("Serialized station of type '{}' with empty name", st.type.sv());
+        }
+        if (st.bodyId.has_value() && used.contains(st.bodyId.val)) {
+            LOG_ERROR("Duplicated bodyId[{}]: {} and station {}", st.bodyId.val, used[st.bodyId.val], st.name);
+            return false;
+        }
+        if (st.parentId.has_value()) {
+            if (!used.contains(st.parentId.val)) {
+                LOG_ERROR("Unknown parent body id[{}] for station {}", st.parentId.val, st.name);
+            }
+        }
+    }
+    return true;
 }
 
 bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_t address, const void* data, int size) {
@@ -907,6 +970,7 @@ bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_
     try {
         auto obj = msgpack::unpack((const char*)data, (size_t)size);
         obj->convert(ss);
+        verifyStarSystem(ss);
         return ss.address == address && ss.name == system_name;
     } catch (const std::exception &e) {
         LOG_ERROR("decode_system_blob error");
@@ -921,6 +985,7 @@ bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_
     tlStarSystemName = system_name;
     tlDumpFull = false;
     try {
+        verifyStarSystem(ss);
         msgpack::pack(buffer, ss);
         ss.address = address;
         ss.name = system_name;
@@ -945,6 +1010,9 @@ bool decode_megaship_blob(StationJS& ss, const void* data, int size) {
 }
 bool encode_megaship_blob(StationJS& ss, std::stringstream& buffer) {
     try {
+        ss.marketId = 0;
+        ss.name.clear();
+        ss.updated_at = {};
         msgpack::pack(buffer, ss);
         return true;
     } catch (const std::exception &e) {

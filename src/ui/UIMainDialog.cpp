@@ -2,7 +2,9 @@
 // Created by mkizub on 28.06.2025.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "UIMainDialog.h"
 #include "UIControl.h"
@@ -410,7 +412,7 @@ API key can be found on login dialog of ravencolonial.com)"));
         return 0;
     });
     this->base_msg_pubm::on_message(WM_TIMER, [this](wl::params p){
-        update_curr_task();
+        update_control();
         return 0;
     });
     on_message(WM_DPICHANGED, [this](wl::params params) {
@@ -427,7 +429,7 @@ API key can be found on login dialog of ravencolonial.com)"));
                 hide(true);
         } else {
             relayout();
-            update_curr_task();
+            update_control();
         }
         return 0;
     });
@@ -468,7 +470,7 @@ void UIMainDialog::initialize() {
     btn_pause_resume.create(hwnd(), IDC_BUTTON_PAUSE_RESUME, "task-repeat", S(LO_ICN_S), {344,32}, {24,24});
 
     relayout();
-    update_curr_task();
+    update_control();
     initializing = false;
 }
 
@@ -505,7 +507,7 @@ bool UIMainDialog::show_startup(const std::string &message, const std::string& l
 
 bool UIMainDialog::show_task_status() {
     if (control && dynamic_cast<UIShowTask*>(control.get())) {
-        update_curr_task();
+        update_control();
     } else {
         on_command_show_task();
     }
@@ -523,7 +525,7 @@ bool UIMainDialog::show() {
     ShowWindow(this->hwnd(), SW_RESTORE);
     SetForegroundWindow(this->hwnd());
     BringWindowToTop(this->hwnd());
-    update_curr_task();
+    update_control();
     return true;
 }
 
@@ -609,7 +611,7 @@ void UIMainDialog::on_command_task_new() {
 void UIMainDialog::on_command_task_stop() {
     try {
         ai::stop();
-        update_curr_task();
+        update_control();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -620,7 +622,7 @@ void UIMainDialog::on_command_task_resume() {
     try {
         ai::resume();
         hide(false);
-        update_curr_task();
+        update_control();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -637,7 +639,7 @@ void UIMainDialog::on_command_task_repeat() {
                     return;
             }
         }
-        update_curr_task();
+        update_control();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -650,7 +652,7 @@ void UIMainDialog::on_command_task_pause() {
         if (task) {
             ai::interrupt(ai::InterruptReason::UNKNOWN);
         }
-        update_curr_task();
+        update_control();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -687,7 +689,7 @@ void UIMainDialog::on_command_show_task() {
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
         menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 5, IDM_SHOW_TASK_STATUS);
-        update_curr_task();
+        update_control();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -762,6 +764,7 @@ void UIMainDialog::on_command_edit_star_system() {
         control->create(hwnd(), 0, {10,10}, {400,400});
         relayout();
         menu.set_item_radio_by_id(IDM_SHOW_TASK_STATUS, 5, IDM_SHOW_STAR_SYSTEM);
+        update_control();
     } catch (const std::system_error& ex) {
         LOG(ERROR) << "System error: code " << ex.code() << ": " << getErrorMessage(ex.code().value()) << ": " << ex.what();
     } catch (const std::exception& ex) {
@@ -769,7 +772,7 @@ void UIMainDialog::on_command_edit_star_system() {
     }
 }
 
-void UIMainDialog::update_curr_task() {
+void UIMainDialog::update_control() {
     ai::spTask task = ai::curr_task();
     if (!task) {
         lbl_curr_task.set_text(toUtf16(_gt("No active task")).c_str());

@@ -2,7 +2,10 @@
 // Created by mkizub on 25.06.2025.
 //
 
-#include "pch.h"
+#ifndef PCH_H
+#include "../pch.h"
+#endif
+
 #include "Configuration.h"
 #include "CargoManager.h"
 #include "ShipStats.h"
@@ -38,6 +41,40 @@ ShipAtBody shipAtBody {};
 spNavRoute currentNavRoute;
 CompassInfo compass;
 Autopilot autopilot;
+
+enum CleanupReason {
+    FILEHEADER, DEATH
+};
+void cleanup(CleanupReason reason) {
+    if (reason == FILEHEADER) {
+        auto &cmdr = const_cast<st::Commander &>(st::cmdr);
+        cmdr = {};
+        auto &client = const_cast<st::GameClient &>(st::client);
+        client = {};
+    }
+
+    guiFocus = GuiFocus::None;
+    isDead = false;
+    isNeedRebootRepair = false;
+
+    eddnStarSystem = {};
+    gal::resetCurrentStarSystem();
+
+    auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
+    shipInfo = {};
+
+    shipStats = {};
+    dockedAt = {};
+    space = {};
+    navFilters = {};
+    destination = {};
+    ship = {};
+    shipAtBody = {};
+
+    currentNavRoute.reset();
+    compass = {};
+    autopilot = {};
+}
 
 void Autopilot::setDestBody(gal::spEntity body) {
     if (destBody == body)
@@ -155,6 +192,9 @@ void parseEvent_Undocked(spGameEvent& ge);
 void parseEvent_Docking(spGameEvent& ge);
 void parseEvent_StartJump(spGameEvent& ge);
 void parseEvent_FSDJump(spGameEvent& ge);
+void parseEvent_CarrierBuy(spGameEvent& ge);
+void parseEvent_CarrierNameChange(spGameEvent& ge);
+void parseEvent_CarrierStats(spGameEvent& ge);
 void parseEvent_CarrierJump(spGameEvent& ge);
 void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge);
 void parseEvent_ApproachSettlement(spGameEvent& ge);
@@ -202,6 +242,9 @@ std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"DockingTimeout", parseEvent_Docking},
         {"StartJump", parseEvent_StartJump},
         {"FSDJump", parseEvent_FSDJump},
+        {"CarrierBuy", parseEvent_CarrierBuy},
+        {"CarrierNameChange", parseEvent_CarrierNameChange},
+        {"CarrierStats", parseEvent_CarrierStats},
         {"CarrierJump", parseEvent_CarrierJump},
         {"SupercruiseDestinationDrop", parseEvent_SupercruiseDestinationDrop},
         {"ApproachSettlement", parseEvent_ApproachSettlement},
@@ -242,13 +285,17 @@ spGameEvent Configuration::parseEvent(Timestamp& latest_log_timestamp, const std
     }
 
     auto& event = gameEvent->event;
-    LOG_DEBUG("Journal event: {}", event);
+    //LOG_DEBUG("Journal event: {}", event);
 
     try {
         if (fssSignalSystemAddress) {
             if (event != "FSSSignalDiscovered") {
                 spGameEvent empty;
-                parseEvent_FSSSignalDiscovered(empty);
+                try {
+                    parseEvent_FSSSignalDiscovered(empty);
+                } catch (...) {
+                    LOG_ERROR("Uncatched exception in events: FSSSignalDiscovered");
+                }
             }
         }
         auto it = eventMap.find(event);
@@ -368,15 +415,13 @@ bool Configuration::loadGameStatus() {
                 name = jd["Name_Localised"].as_string();
             else
                 name = jd["Name"].as_string_or();
-            int bodyId = jd["Body"].as_int_or();
-            if (systemAddress != st::destination.systemAddress || name != st::destination.name ||
-                bodyId != st::destination.bodyId) {
+            body_id_t bodyId(jd["Body"].as_int_or(-1));
+            if (systemAddress != st::destination.systemAddress || name != st::destination.name || bodyId != st::destination.bodyId) {
                 st::destination.systemAddress = systemAddress;
                 st::destination.name = name;
                 st::destination.bodyId = bodyId;
-                auto &ss = gal::getCurrentStarSystem();
-                if (ss)
-                    ss->addDestination();
+                gal::spStarSystem ss = gal::getStarSystem(systemAddress, true, false);
+                gal::updateFromDestination(ss.get(), ge);
             }
             if (st::autopilot.destBody && st::autopilot.destBody->nameEq(st::destination.name)) {
                 st::autopilot.isDestBodyTargeted = true;
@@ -404,12 +449,21 @@ bool Configuration::loadGameStatus() {
 void setGameVersion(spGameEvent& ge) {
     auto& je = ge->data;
     auto& client = const_cast<st::GameClient&>(st::client);
+    client.majorVersion = 0;
     if (je["Odyssey"].is_bool())
         client.isOdyssey = je["Odyssey"].as_bool();
     if (je["Horizons"].is_bool())
         client.isHorizons = je["Horizons"].as_bool();
-    client.gameversion = je["gameversion"].as_string_or();
-    client.build = je["build"].as_string_or();
+    if (je["gameversion"].is_string()) {
+        client.gameversion = je["gameversion"].as_string();
+        auto spl = split(client.gameversion, '.');
+        if (spl.size() >= 2) {
+            client.majorVersion = atoi(spl[0].c_str());
+            client.minorVersion = atoi(spl[1].c_str());
+        }
+    }
+    if (je["build"].is_string())
+        client.build = je["build"].as_string();
 
     if (je["language"].is_string()) {
         client.language = *je["language"].as_string();
@@ -431,6 +485,7 @@ void setGameVersion(spGameEvent& ge) {
 }
 
 void parseEvent_Fileheader(spGameEvent& ge) {
+    st::cleanup(st::FILEHEADER);
     setGameVersion(ge);
 }
 
@@ -492,7 +547,7 @@ void parseEvent_LoadGame(spGameEvent& ge) {
     set(shipInfo.shipUserName, je["ShipName"]);
     set(shipInfo.shipIdent, je["ShipIdent"]);
     shipInfo.shipId = je["ShipID"].as_int_or();
-    LOG(INFO) << "Ship: " << shipInfo.shipType;
+    LOG_INFO("Ship: {} ({}) {}", shipInfo.shipTypeLocalised, shipInfo.shipType, shipInfo.shipUserName);
 
     UIManager::updateCommander();
 }
@@ -501,19 +556,43 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
     auto& je = ge->data;
 
     auto& cmdr = const_cast<st::Commander&>(st::cmdr);
-    const auto type = je["CarrierType"].as_string_or();
+    const auto type = je["CarrierType"].as_string_or("FleetCarrier");
     if (gal::FLEET_CARRIER.match_type(type)) {
         cmdr.fleetCarrierId = je["CarrierID"].as_int_or();
         cmdr.fleetCarrierInSystem = je["StarSystem"].as_string_or();
         cmdr.fleetCarrierAtBodyId = je["BodyID"].as_int_or(-1);
-        LOG(INFO) << "Fleet Carrier: " << cmdr.fleetCarrierId << " in system " << cmdr.fleetCarrierInSystem;
+        auto starSystem = gal::getStarSystem(cmdr.fleetCarrierInSystem, true, false);
+        if (starSystem) {
+            auto body = starSystem->getBodyById(cmdr.fleetCarrierAtBodyId);
+            if (body)
+                cmdr.fleetCarrierAtBody = body->name;
+            auto carrier = starSystem->moveMegashipHere(cmdr.fleetCarrierId, cmdr.fleetCarrierCode, cmdr.fleetCarrierName, cmdr.fleetCarrierAtBodyId, true);
+            if (carrier) {
+                cmdr.fleetCarrierCode = carrier->name;
+                cmdr.fleetCarrierName = carrier->nloc;
+            }
+        }
+        LOG_INFO("Fleet Carrier Location: {}[{}]({}) in system '{}' at '{}' ({})", cmdr.fleetCarrierCode, cmdr.fleetCarrierId, cmdr.fleetCarrierName,
+                 cmdr.fleetCarrierInSystem, cmdr.fleetCarrierAtBody, cmdr.fleetCarrierAtBodyId.val);
         CM.loadCarrierCargo();
     }
     if (gal::SQUADRON_CARRIER.match_type(type)) {
         cmdr.squadronCarrierId = je["CarrierID"].as_int_or();
         cmdr.squadronCarrierInSystem = je["StarSystem"].as_string_or();
         cmdr.squadronCarrierAtBodyId = je["BodyID"].as_int_or(-1);
-        LOG(INFO) << "Squadron Carrier: " << cmdr.squadronCarrierId << " in system " << cmdr.squadronCarrierInSystem;
+        auto starSystem = gal::getStarSystem(cmdr.squadronCarrierInSystem, true, false);
+        if (starSystem) {
+            auto body = starSystem->getBodyById(cmdr.squadronCarrierAtBodyId);
+            if (body)
+                cmdr.squadronCarrierAtBody = body->name;
+            auto carrier = starSystem->moveMegashipHere(cmdr.squadronCarrierId, cmdr.squadronCarrierCode, cmdr.squadronCarrierName, cmdr.squadronCarrierAtBodyId, true);
+            if (carrier) {
+                cmdr.squadronCarrierCode = carrier->name;
+                cmdr.squadronCarrierName = carrier->nloc;
+            }
+        }
+        LOG_INFO("Squadron Carrier Location: {}[{}]({}) in system '{}' at '{}' ({})", cmdr.squadronCarrierCode, cmdr.squadronCarrierId, cmdr.squadronCarrierName,
+                 cmdr.squadronCarrierInSystem, cmdr.squadronCarrierAtBody, cmdr.squadronCarrierAtBodyId.val);
     }
     UIManager::updateCommander();
 }
@@ -527,13 +606,13 @@ void parseEvent_Location(spGameEvent& ge) {
         st::dockedAt.marketId = je["MarketID"].as_int_or();
         set(st::dockedAt.stationName, je["StationName"]);
         set(st::dockedAt.stationType, je["StationType"]);
-        gal::getCurrentStarSystem()->addStation(ge);
         st::space = {};
     } else {
         if (je["Body"].is_string()) {
-            st::space.bodyId = je["BodyID"].as_int_or();
+            st::space.bodyId = je["BodyID"].as_int_or(-1);
             set(st::space.bodyName, je["Body"]);
             set(st::space.bodyType, je["BodyType"]);
+            gal::updateBodyFromSpace(starSystem.get(), ge);
         } else {
             st::space = {};
         }
@@ -588,12 +667,14 @@ void parseEvent_Loadout(spGameEvent& ge) {
 }
 
 void parseEvent_Died(spGameEvent& ge) {
+    st::cleanup(st::DEATH);
     st::isDead = true;
     if (!ge->expired)
         ai::interrupt(ai::InterruptReason::DEATH);
 }
 
 void parseEvent_Resurrect(spGameEvent& ge) {
+    st::cleanup(st::DEATH);
     st::isDead = false;
 }
 
@@ -648,7 +729,6 @@ void parseEvent_Docked(spGameEvent& ge) {
     st::dockedAt.marketId = je["MarketID"].as_int_or();
     set(st::dockedAt.stationName, je["StationName"]);
     set(st::dockedAt.stationType, je["StationType"]);
-    gal::getCurrentStarSystem()->addStation(ge);
     st::space = {};
 
     if (!ge->expired) {
@@ -680,11 +760,11 @@ void parseEvent_Docking(spGameEvent& ge) {
     if (!dock)
         dock = ss->getDock(st::space.stationName);
     auto dt = toTypeNav(JsNavType::get(st::space.stationType));
-    if (dock && isSite(dt) && dock->type != dt) {
-        dock->setType(dt);
-        dock->setMarketId(st::space.marketId);
-        ss->needBlobSave = true;
-    }
+    //if (dock && isSite(dt) && dock->type != dt) {
+    //    dock->setType(dt);
+    //    dock->setMarketId(st::space.marketId);
+    //    ss->needBlobSave = true;
+    //}
     if (dock && dock->marketId() != st::space.marketId) {
         dock->setMarketId(st::space.marketId);
         ss->needBlobSave = true;
@@ -730,6 +810,8 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
+    gal::updateBodyFromSpace(starSystem.get(), ge);
+
     st::autopilot.isDestDockTargeted = false;
     st::autopilot.isDestBodyTargeted = false;
     st::autopilot.isDestDockFocused = false;
@@ -742,45 +824,245 @@ void parseEvent_FSDJump(spGameEvent& ge) {
     }
 }
 
+void parseEvent_CarrierBuy(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    auto& cmdr = const_cast<st::Commander&>(st::cmdr);
+    auto stype = je["CarrierType"].as_string_or("FleetCarrier");
+    TypeNav type = toTypeNav(JsNavType::get(stype));
+    if (type == TypeNav::FleetCarrier) {
+        cmdr.fleetCarrierId = je["CarrierID"].as_int();
+        cmdr.fleetCarrierCode = je["Callsign"].as_string();
+        cmdr.fleetCarrierName = cmdr.fleetCarrierCode;
+        cmdr.fleetCarrierInSystem = je["Location"].as_string();
+        cmdr.fleetCarrierAtBody = {};
+        cmdr.fleetCarrierAtBodyId = -1;
+    }
+    else if (type == TypeNav::SquadronCarrier) {
+        cmdr.squadronCarrierId = je["CarrierID"].as_int();
+        cmdr.squadronCarrierCode = je["Callsign"].as_string();
+        cmdr.squadronCarrierName = cmdr.squadronCarrierName;
+        cmdr.squadronCarrierInSystem = je["Location"].as_string();
+        cmdr.squadronCarrierAtBody = {};
+        cmdr.squadronCarrierAtBodyId = -1;
+    }
+    else {
+        LOG_ERROR("Bought carrier of unknown type {}", stype);
+        return;
+    }
+
+    auto starSystem = gal::makeStarSystem(je["Location"].as_string(), je["SystemAddress"].as_int(), {}, true, false);
+    if (starSystem) {
+        gal::spEntity carrier;
+        if (type == TypeNav::FleetCarrier)
+            carrier = starSystem->addEntity(type, cmdr.fleetCarrierCode, "", {.market_id=cmdr.fleetCarrierId, .ts=ge->timestamp});
+        else
+            carrier = starSystem->addEntity(type, cmdr.squadronCarrierCode, "", {.market_id=cmdr.squadronCarrierId, .ts=ge->timestamp});
+        carrier->setMarketId(je["CarrierID"].as_int());
+        starSystem->save();
+    }
+}
+
+void parseEvent_CarrierNameChange(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    auto ss = gal::getCurrentStarSystem();
+    if (!ss || !ss->systemAddress)
+        return;
+
+    auto& cmdr = const_cast<st::Commander&>(st::cmdr);
+    auto stype = je["CarrierType"].as_string_or("FleetCarrier");
+    int64_t carrierId = je["CarrierID"].as_int_or();
+    auto carrierCode = je["Callsign"].as_string_or();
+    auto carrierName = je["Name"].as_string_or();
+    TypeNav type = toTypeNav(JsNavType::get(stype));
+    if (type == TypeNav::FleetCarrier) {
+        if (cmdr.fleetCarrierId && cmdr.fleetCarrierId != carrierId) {
+            LOG_ERROR("CarrierStats event: carrier id {} != {}", cmdr.fleetCarrierId, carrierId);
+            return;
+        }
+        if (!cmdr.fleetCarrierCode.empty() && cmdr.fleetCarrierCode != carrierCode) {
+            LOG_ERROR("CarrierStats event: carrier callsign {} != {}", cmdr.fleetCarrierCode, carrierCode);
+            return;
+        }
+        if (!cmdr.fleetCarrierId)
+            cmdr.fleetCarrierId = carrierId;
+        if (cmdr.fleetCarrierCode.empty())
+            cmdr.fleetCarrierCode = carrierCode;
+        auto nloc = *carrierName +" "+ *cmdr.fleetCarrierCode;
+        if (nloc != cmdr.fleetCarrierName)
+            cmdr.fleetCarrierName = nloc;
+        auto carrier = ss->getDock(carrierId);
+        if (!carrier)
+            carrier = ss->getDock(carrierCode);
+        if (!carrier)
+            carrier = ss->moveMegashipHere(carrierId, cmdr.fleetCarrierCode, cmdr.fleetCarrierName, body_id_t{}, true);
+        if (!carrier)
+            carrier = ss->addEntity(TypeNav::FleetCarrier, cmdr.fleetCarrierCode, cmdr.fleetCarrierName,
+                                    {.market_id=cmdr.fleetCarrierId, .ts=ge->timestamp});
+        else
+            carrier = ss->checkTypeAndName(carrier, TypeNav::FleetCarrier, cmdr.fleetCarrierCode, cmdr.fleetCarrierName,
+                                           {.market_id=cmdr.fleetCarrierId, .ts=ge->timestamp});
+        if (carrier && carrier->marketId() != carrierId) {
+            carrier->setMarketId(carrierId);
+            ss->needBlobSave = true;
+        }
+    }
+    else if (type == TypeNav::SquadronCarrier) {
+        if (cmdr.squadronCarrierId && cmdr.squadronCarrierId != carrierId) {
+            LOG_ERROR("CarrierStats event: carrier id {} != {}", cmdr.squadronCarrierId, carrierId);
+            return;
+        }
+        if (!cmdr.squadronCarrierCode.empty() && cmdr.squadronCarrierCode != carrierCode) {
+            LOG_ERROR("CarrierStats event: carrier callsign {} != {}", cmdr.squadronCarrierCode, carrierCode);
+            return;
+        }
+        if (!cmdr.squadronCarrierId)
+            cmdr.squadronCarrierId = carrierId;
+        if (cmdr.squadronCarrierCode.empty())
+            cmdr.squadronCarrierCode = carrierCode;
+        auto nloc = *carrierName +" | "+ *cmdr.squadronCarrierCode;
+        if (nloc != cmdr.squadronCarrierName)
+            cmdr.squadronCarrierName = nloc;
+        auto carrier = ss->getDock(carrierId);
+        if (!carrier)
+            carrier = ss->getDock(carrierCode);
+        if (!carrier)
+            carrier = ss->moveMegashipHere(carrierId, cmdr.squadronCarrierCode, cmdr.squadronCarrierName, body_id_t{}, true);
+        if (!carrier)
+            carrier = ss->addEntity(TypeNav::SquadronCarrier, cmdr.squadronCarrierCode, cmdr.squadronCarrierName,
+                                    {.market_id=cmdr.squadronCarrierId, .ts=ge->timestamp});
+        else
+            carrier = ss->checkTypeAndName(carrier, TypeNav::SquadronCarrier, cmdr.squadronCarrierCode, cmdr.squadronCarrierName,
+                                           {.market_id=cmdr.squadronCarrierId, .ts=ge->timestamp});
+        if (carrier && carrier->marketId() != carrierId) {
+            carrier->setMarketId(carrierId);
+            ss->needBlobSave = true;
+        }
+    }
+    else {
+        LOG_ERROR("CarrierStats of unknown type {}", stype);
+        return;
+    }
+    ss->save();
+}
+
+void parseEvent_CarrierStats(spGameEvent& ge) {
+    auto& je = ge->data;
+
+    auto ss = gal::getCurrentStarSystem();
+    if (!ss || !ss->systemAddress)
+        return;
+
+    auto& cmdr = const_cast<st::Commander&>(st::cmdr);
+    auto stype = je["CarrierType"].as_string_or("FleetCarrier");
+    int64_t carrierId = je["CarrierID"].as_int_or();
+    auto carrierCode = je["Callsign"].as_string_or();
+    auto carrierName = je["Name"].as_string_or();
+    TypeNav type = toTypeNav(JsNavType::get(stype));
+    if (type == TypeNav::FleetCarrier) {
+        if (cmdr.fleetCarrierId && cmdr.fleetCarrierId != carrierId) {
+            LOG_ERROR("CarrierStats event: carrier id {} != {}", cmdr.fleetCarrierId, carrierId);
+            return;
+        }
+        if (!cmdr.fleetCarrierCode.empty() && cmdr.fleetCarrierCode != carrierCode) {
+            LOG_ERROR("CarrierStats event: carrier callsign {} != {}", cmdr.fleetCarrierCode, carrierCode);
+            return;
+        }
+        if (!cmdr.fleetCarrierId)
+            cmdr.fleetCarrierId = carrierId;
+        if (cmdr.fleetCarrierCode.empty())
+            cmdr.fleetCarrierCode = carrierCode;
+        auto nloc = *carrierName +" "+ *cmdr.fleetCarrierCode;
+        if (nloc != cmdr.fleetCarrierName)
+            cmdr.fleetCarrierName = nloc;
+        auto carrier = ss->getDock(carrierId);
+        if (!carrier)
+            carrier = ss->getDock(carrierCode);
+        if (!carrier)
+            carrier = ss->moveMegashipHere(carrierId, cmdr.fleetCarrierCode, cmdr.fleetCarrierName, body_id_t{}, true);
+        if (!carrier)
+            carrier = ss->addEntity(TypeNav::FleetCarrier, cmdr.fleetCarrierCode, cmdr.fleetCarrierName,
+                                    {.market_id=cmdr.fleetCarrierId, .ts=ge->timestamp});
+        else
+            carrier = ss->checkTypeAndName(carrier, TypeNav::FleetCarrier, cmdr.fleetCarrierCode, cmdr.fleetCarrierName,
+                                           {.market_id=cmdr.fleetCarrierId, .ts=ge->timestamp});
+        if (carrier && carrier->marketId() != carrierId) {
+            carrier->setMarketId(carrierId);
+            ss->needBlobSave = true;
+        }
+    }
+    else if (type == TypeNav::SquadronCarrier) {
+        if (cmdr.squadronCarrierId && cmdr.squadronCarrierId != carrierId) {
+            LOG_ERROR("CarrierStats event: carrier id {} != {}", cmdr.squadronCarrierId, carrierId);
+            return;
+        }
+        if (!cmdr.squadronCarrierCode.empty() && cmdr.squadronCarrierCode != carrierCode) {
+            LOG_ERROR("CarrierStats event: carrier callsign {} != {}", cmdr.squadronCarrierCode, carrierCode);
+            return;
+        }
+        if (!cmdr.squadronCarrierId)
+            cmdr.squadronCarrierId = carrierId;
+        if (cmdr.squadronCarrierCode.empty())
+            cmdr.squadronCarrierCode = carrierCode;
+        auto nloc = *carrierName +" | "+ *cmdr.squadronCarrierCode;
+        if (nloc != cmdr.squadronCarrierName)
+            cmdr.squadronCarrierName = nloc;
+        auto carrier = ss->getDock(carrierId);
+        if (!carrier)
+            carrier = ss->getDock(carrierCode);
+        if (!carrier)
+            carrier = ss->moveMegashipHere(carrierId, cmdr.squadronCarrierCode, cmdr.squadronCarrierName, body_id_t{}, true);
+        if (!carrier)
+            carrier = ss->addEntity(TypeNav::SquadronCarrier, cmdr.squadronCarrierCode, cmdr.squadronCarrierName,
+                                    {.market_id=cmdr.squadronCarrierId, .ts=ge->timestamp});
+        else
+            carrier = ss->checkTypeAndName(carrier, TypeNav::SquadronCarrier, cmdr.squadronCarrierCode, cmdr.squadronCarrierName,
+                                           {.market_id=cmdr.squadronCarrierId, .ts=ge->timestamp});
+        if (carrier && carrier->marketId() != carrierId) {
+            carrier->setMarketId(carrierId);
+            ss->needBlobSave = true;
+        }
+    }
+    else {
+        LOG_ERROR("CarrierStats of unknown type {}", stype);
+        return;
+    }
+    ss->save();
+}
+
 void parseEvent_CarrierJump(spGameEvent& ge) {
     auto& je = ge->data;
 
-    gal::spEntity carrier;
-    if (!st::dockedAt.stationName.empty()) {
-        auto ss = gal::getCurrentStarSystem();
-        if (ss) {
-            carrier = ss->getDock(st::dockedAt.marketId);
-            if (!carrier)
-                carrier = ss->getDock(st::dockedAt.stationName);
-        }
-        if (carrier && isCarrier(carrier->type)) {
-            carrier->parentBodyId = -1;
-            ss->removeEntity(carrier);
-            ss->needBlobSave = true;
-            ss->save();
-        } else {
-            carrier.reset();
-        }
-    }
     st::shipAtBody.approachBody = false;
     st::shipAtBody.nearBody = false;
 
     auto starSystem = setEddnStarSystem(ge);
 
-    st::space.bodyId = je["BodyID"].as_int_or(-1);
-    set(st::space.bodyName, je["Body"]);
-    set(st::space.bodyType, je["BodyType"]);
-    if (carrier) {
-        auto ss = gal::getCurrentStarSystem();
-        std::erase_if(ss->entities, [carrier](auto& st)->bool {
-            if (st->marketId() == carrier->marketId())
-                return true;
-            return isCarrier(st->type) && (st->nameEq(carrier->name) || st->nameEq(carrier->nloc));
-        });
-        ss->addEntity(carrier);
-        carrier->parentBodyId = st::space.bodyId;
-        ss->needBlobSave = true;
-        ss->save();
+    auto& cmdr = const_cast<st::Commander&>(st::cmdr);
+    if (!cmdr.fleetCarrierId && je["Docked"].as_bool_or()) {
+        cmdr.fleetCarrierId = je["MarketID"].as_int();
+        cmdr.fleetCarrierCode = je["StationName"].as_string();
+    }
+    cmdr.fleetCarrierInSystem = st::eddnStarSystem.name;
+    cmdr.fleetCarrierAtBody = je["Body"].as_string_or();
+    cmdr.fleetCarrierAtBodyId = je["BodyID"].as_int_or(-1);
+
+    if (cmdr.fleetCarrierId) {
+        auto carrier = starSystem->moveMegashipHere(cmdr.fleetCarrierId, cmdr.fleetCarrierCode, "", st::space.bodyId, false);
+        if (carrier) {
+            cmdr.fleetCarrierName = carrier->nloc;
+        }
+    }
+
+    LOG_INFO("Fleet Carrier Jump: now {}[{}]({}) in system '{}' at '{}' ({})", cmdr.fleetCarrierCode, cmdr.fleetCarrierId, cmdr.fleetCarrierName,
+             cmdr.fleetCarrierInSystem, cmdr.fleetCarrierAtBody, cmdr.fleetCarrierAtBodyId.val);
+
+    if (je["Docked"].as_bool_or()) {
+        st::space.bodyId = je["BodyID"].as_int_or(-1);
+        set(st::space.bodyName, je["Body"]);
+        set(st::space.bodyType, je["BodyType"]);
+        gal::updateBodyFromSpace(starSystem.get(), ge);
     }
 
     if (!ge->expired) {
@@ -802,12 +1084,18 @@ void parseEvent_SupercruiseDestinationDrop(spGameEvent& ge) {
     st::space.stationType.clear();
     if (st::space.stationType.empty() && st::space.stationName.starts_with("Orbital Construction Site"))
         st::space.stationType = "SpaceConstructionDepot";
-    if (auto ss = gal::getCurrentStarSystem())
-        ss->addStation(ge);
+    if (auto ss = gal::getCurrentStarSystem(); ss && ss->systemAddress) {
+        gal::updateFromDockEvent(ss.get(), ge);
+        auto dock = ss->getDock(st::space.marketId);
+        if (dock && !isGeneric(dock->type))
+            st::space.stationType = toJsNavType(dock->type).sv();
+    }
     ai::resetCompassDetects();
 }
 
 void parseEvent_ApproachSettlement(spGameEvent& ge) {
+    if (!st::eddnStarSystem.addr)
+        return;
     // "Name":"Planetary Construction Site: Long Defence Enterprise", "MarketID":4304174851,
     // "SystemAddress":2381282543995, "BodyID":3, "BodyName":"Col 285 Sector XK-O d6-69 A 1", "Latitude":48.513012, "Longitude":119.000992 }
     auto& je = ge->data;
@@ -823,32 +1111,32 @@ void parseEvent_ApproachSettlement(spGameEvent& ge) {
         st::space.marketId = marketId;
         set(st::space.stationName, je["Name"]);
         st::space.stationType.clear();
-        st::space.bodyId = je["BodyID"].as_int_or();
+        st::space.bodyId = je["BodyID"].as_int_or(-1);
         set(st::space.bodyName, je["BodyName"]);
         set(st::space.bodyType, "Planet");
+        gal::updateBodyFromSpace(gal::getCurrentStarSystem().get(), ge);
     }
 
-    if (st::space.stationType.empty() && st::space.stationName.starts_with("Planetary Construction Site"))
-        st::space.stationType = "PlanetaryConstructionDepot";
-    if (auto ss = gal::getCurrentStarSystem())
-        ss->addStation(ge);
+    gal::updateFromDockEvent(gal::getCurrentStarSystem().get(), ge);
 }
 
 void parseEvent_SupercruiseExit(spGameEvent& ge) {
     auto& je = ge->data;
 
+    auto starSystem = gal::getCurrentStarSystem();
+
     st::dockedAt = {};
-    st::space.bodyId = je["BodyID"].as_int_or();
+    st::space.bodyId = je["BodyID"].as_int_or(-1);
     set(st::space.bodyName, je["Body"]);
     set(st::space.bodyType, je["BodyType"]);
+    gal::updateBodyFromSpace(starSystem.get(), ge);
     if (st::space.bodyType == "Station") {
-        auto ss = gal::getCurrentStarSystem();
-        auto dock = ss->getDock(st::space.bodyName);
-        if (dock && dock->bodyId < 0) {
+        auto dock = starSystem->getDock(st::space.bodyName);
+        if (dock && !dock->bodyId.has_value()) {
             dock->bodyId = st::space.bodyId;
             dock->updated = ge->timestamp;
-            ss->needBlobSave = true;
-            ss->save();
+            starSystem->needBlobSave = true;
+            starSystem->save();
         }
     }
     ai::resetCompassDetects();
@@ -859,12 +1147,13 @@ void parseEvent_FSSSignalDiscovered(spGameEvent& ge) {
         // stop FSSSignalDiscovered chain
         gal::spStarSystem ss = gal::getCurrentStarSystem();
         if (ss && fssSignalSystemAddress && ss->systemAddress == fssSignalSystemAddress && !allFSSSignalEvents.empty()) {
-            ss->addFSSSignalDiscovered(allFSSSignalEvents);
+            gal::updateFromFSSSignalDiscovered(ss.get(), allFSSSignalEvents);
             EDDN::event_FSSSignalDiscovered(allFSSSignalEvents);
         }
         allFSSSignalEvents.clear();
         fssSignalSystemAddress = 0;
-    } else {
+    }
+    else if (!ge->expired) {
         auto& je = ge->data;
 
         int64_t address = je["SystemAddress"].as_int_or();
@@ -982,7 +1271,7 @@ void parseEvent_ApproachBody(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::shipAtBody.approachBody = true;
-    st::shipAtBody.bodyId = je["BodyID"].as_int_or();
+    st::shipAtBody.bodyId = je["BodyID"].as_int_or(-1);
     set(st::shipAtBody.bodyName, je["Body"]);
 }
 
@@ -990,7 +1279,7 @@ void parseEvent_LeaveBody(spGameEvent& ge) {
     auto& je = ge->data;
 
     st::shipAtBody.approachBody = false;
-    st::shipAtBody.bodyId = je["BodyID"].as_int_or();
+    st::shipAtBody.bodyId = je["BodyID"].as_int_or(-1);
     set(st::shipAtBody.bodyName, je["Body"]);
 }
 

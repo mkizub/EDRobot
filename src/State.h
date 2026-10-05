@@ -31,12 +31,21 @@ extern struct Commander {
     std::string name;
     std::string fid;
     std::string uploaderId;
-    int64_t fleetCarrierId;
+
+    int64_t     fleetCarrierId;
     std::string fleetCarrierInSystem;
-    int fleetCarrierAtBodyId;
-    int64_t squadronCarrierId;
+    std::string fleetCarrierCode;
+    std::string fleetCarrierName;
+    std::string fleetCarrierAtBody;
+    body_id_t   fleetCarrierAtBodyId;
+
+    int64_t     squadronCarrierId;
     std::string squadronCarrierInSystem;
-    int squadronCarrierAtBodyId;
+    std::string squadronCarrierCode;
+    std::string squadronCarrierName;
+    std::string squadronCarrierAtBody;
+    body_id_t   squadronCarrierAtBodyId;
+
     std::string ravenKey;
 } const cmdr;
 
@@ -46,6 +55,8 @@ extern struct GameClient {
     std::string language;
     std::string gameversion;
     std::string build;
+    int majorVersion;
+    int minorVersion;
 } const client;
 
 extern struct ShipInfo {
@@ -81,7 +92,7 @@ extern struct Space {
     std::string stationName;
     std::string stationType;
     // nearest body
-    int bodyId;
+    body_id_t bodyId;
     std::string bodyName;
     std::string bodyType;
 } space;
@@ -108,7 +119,7 @@ extern union NavPanelFilters {
 
 extern struct Destination {
     int64 systemAddress;
-    int bodyId;
+    body_id_t bodyId;
     std::string name;
 } destination;
 
@@ -196,7 +207,7 @@ extern struct ShipStatus {
 extern struct ShipAtBody {
     // "ApproachBody"/"LeaveBody" events
     bool approachBody;
-    int bodyId;
+    body_id_t bodyId;
     std::string bodyName; // both event and Status.json
     // if on or near a planet
     bool nearBody;

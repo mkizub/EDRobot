@@ -327,7 +327,7 @@ BaseColonizationTask::MarketInfo BaseColonizationTask::checkMarketCanBuy(
     case TypeNav::StationMegaShip:
     case TypeNav::FleetCarrier:
     case TypeNav::SquadronCarrier:
-    case TypeNav::StrongholdCarrier:
+    case TypeNav::AnonMegaship:
     case TypeNav::PlanetaryPort:
     case TypeNav::Settlement:
         break;

@@ -15,9 +15,117 @@
 
 namespace gal {
 
-void test_json_system(std::string& strbuf) {
-    db::StarSystemJS db_ss;
+namespace fs = std::filesystem;
+
+struct TestBackdor {
+    static fs::path initCfgForTests(std::string_view dirPath);
+    static spGameEvent parseEvent(Timestamp ts_now, std::string& line);
+};
+
+fs::path TestBackdor::initCfgForTests(std::string_view dirPath) {
+    Cfg.load();
+    Cfg.loadCommodityDatabase();
+    Cfg.mNetworkDisabled = true;
+
+    fs::path dir;
+    if (!dirPath.empty()) {
+        dir = dirPath;
+        Cfg.mEDLogsPath = dir.native();
+    } else {
+        dir = Cfg.mEDLogsPath;
+    }
+
+    if (!db::init()) {
+        LOG_ERROR("Cannot init database");
+        return "";
+    }
+
+    return dir;
+}
+
+spGameEvent TestBackdor::parseEvent(Timestamp ts_now, std::string& line) {
+    return Cfg.parseEvent(ts_now, line);
+}
+
+
+bool verifyStarSystem(db::StarSystemJS& ss) {
+
+    std::string carrier_code;
+    std::string carrier_name;
+    TypeNav tp = NavType::checkCarrierName(ss.name, &carrier_code, &carrier_name);
+    if (tp != TypeNav::Other)
+        LOG_ERROR("Star system '{}' looks like carrier name '{}' / '{}'", ss.name, carrier_code, carrier_name);
+
+    std::map<int,std::string> used;
+    for (auto& body : ss.bodies) {
+        TypeNav tn = toTypeNav(body.type);
+        if (tn == TypeNav::Star && !body.name.starts_with(ss.name))
+            LOG_ERROR(R"({{ star:"{}", id:{}, system:"{}" }}, // unique star name)", body.name, body.bodyId.val, ss.name);
+        if (tn == TypeNav::Planet) {
+            if (body.name == ss.name)
+                LOG_ERROR(R"({{ planet:"{}", id:{}, system:"{}" }}, // same as system)", body.name, body.bodyId.val, ss.name);
+            else if (body.name.size() < 2+ss.name.size() || !body.name.starts_with(ss.name) || body.name[ss.name.size()] != ' ')
+                LOG_ERROR(R"({{ planet:"{}", id:{}, system:"{}" }}, // unique planet name)", body.name, body.bodyId.val, ss.name);
+            for (auto& star : ss.bodies) {
+                if (toTypeNav(star.type) == TypeNav::Star && body.name == star.name) {
+                    LOG_ERROR(R"({{ star:"{}", id:{}, system:"{}" }}, // same as planet id:{})",
+                              star.name, star.bodyId.val, ss.name, body.bodyId.val);
+                    LOG_ERROR(R"({{ planet:"{}", id:{}, system:"{}" }}, // same as star id:{})",
+                              body.name, body.bodyId.val, ss.name, star.bodyId.val);
+                }
+            }
+        }
+        if (tn == TypeNav::Barycenter || tn == TypeNav::Ring)
+            body.name.clear();
+        if (!body.bodyId.has_value()) {
+            LOG_ERROR("Serializing body without bodyId");
+            return false;
+        }
+        if (used.contains(body.bodyId.val)) {
+            LOG_ERROR("Duplicated bodyId[{}]: {} and body {}", body.bodyId.val, used[body.bodyId.val], body.name);
+            return false;
+        }
+        used[body.bodyId.val] = body.name;
+
+        tp = NavType::checkCarrierName(body.name, &carrier_code, &carrier_name);
+        if (tp != TypeNav::Other)
+            LOG_ERROR("Body name '{}' looks like carrier name '{}' / '{}'", body.name, carrier_code, carrier_name);
+
+        for (auto& st : body.stations) {
+            tp = toTypeNav(st.type);
+            if (tp != TypeNav::FleetCarrier && tp != TypeNav::SquadronCarrier) {
+                tp = NavType::checkCarrierName(st.name, &carrier_code, &carrier_name);
+                if (tp != TypeNav::Other)
+                    LOG_ERROR("Station name '{}' looks like carrier name '{}' / '{}'", st.name, carrier_code, carrier_name);
+            }
+        }
+    }
+
+    for (auto& st : ss.stations) {
+        if (st.bodyId.has_value() && used.contains(st.bodyId.val)) {
+            LOG_ERROR("Duplicated bodyId[{}]: {} and station {}", st.bodyId.val, used[st.bodyId.val], st.name);
+            return false;
+        }
+        if (st.parentId.has_value()) {
+            if (!used.contains(st.parentId.val)) {
+                LOG_ERROR("Unknown parent body id[{}] for station {}", st.parentId.val, st.name);
+            }
+        }
+
+        tp = toTypeNav(st.type);
+        if (tp != TypeNav::FleetCarrier && tp != TypeNav::SquadronCarrier) {
+            tp = NavType::checkCarrierName(st.name, &carrier_code, &carrier_name);
+            if (tp != TypeNav::Other)
+                LOG_ERROR("Station name '{}' looks like carrier name '{}' / '{}'", st.name, carrier_code, carrier_name);
+        }
+    }
+    return true;
+}
+
+void test_json_system(std::string& strbuf, bool saveDbBlob) {
+    db::StarSystemJS db_ss {};
     if (db::parseSpanshSystemEntry(db_ss, strbuf)) {
+        verifyStarSystem(db_ss);
         // clear markets
         for (auto& st : db_ss.stations)
             st.market.reset();
@@ -28,6 +136,9 @@ void test_json_system(std::string& strbuf) {
         auto ss = gal::makeStarSystem(db_ss.name, db_ss.address, db_ss.coords, true, false);
         if (ss) {
             gal::update_star_system(ss.get(), db_ss);
+            if (!saveDbBlob) {
+                ss->needBlobSave = false;
+            }
             ss->save();
         }
     }
@@ -100,16 +211,16 @@ struct Reader {
     }
 };
 
-void spansh_systems_dump_test(std::string_view filePath) {
+bool spansh_systems_dump_test(std::string_view filePath, bool saveDbBlob) {
     std::string strbuf;
 
     Reader rd(filePath);
     if (!rd.open())
-        return;
+        return false;
 
-    Cfg.load();
-    Cfg.mNetworkDisabled = true;
-    db::init();
+    auto dir = TestBackdor::initCfgForTests("");
+    if (dir.empty())
+        return false;
 
     // Buffer to hold chunks of uncompressed data
     char buffer[4096];
@@ -133,7 +244,7 @@ void spansh_systems_dump_test(std::string_view filePath) {
                     strbuf.clear();
                     continue;
                 }
-                test_json_system(strbuf);
+                test_json_system(strbuf, saveDbBlob);
                 systemsRead += 1;
                 strbuf.clear();
                 at_system_start = true;
@@ -148,7 +259,7 @@ void spansh_systems_dump_test(std::string_view filePath) {
                     continue;
                 if (buffer[i] == ']') {
                     LOG_ERROR("Parsed galaxy file completely");
-                    test_json_system(strbuf);
+                    test_json_system(strbuf, saveDbBlob);
                     systemsRead += 1;
                     strbuf.clear();
                     break;
@@ -159,6 +270,7 @@ void spansh_systems_dump_test(std::string_view filePath) {
         if (systemsRead - reported_ss > 1000) {
             reported_ss = systemsRead;
             gal::cleanupStarSystemCache({});
+            //db::checkpoint(db::CheckPoint::PASSIVE);
         }
         int pc = rd.totalBytesRead*1000 / rd.fizeSize;
         if (pc != reported_pc) {
@@ -167,6 +279,7 @@ void spansh_systems_dump_test(std::string_view filePath) {
             LOG_INFO(">>>>>>> Parsed galaxy file {}.{}%, {} systems", pc/10, pc%10, systemsRead);
             spdlog::default_logger_raw()->flush();
             gal::cleanupStarSystemCache({});
+            //db::checkpoint(db::CheckPoint::PASSIVE);
         }
     }
     strbuf.clear();
@@ -175,9 +288,9 @@ void spansh_systems_dump_test(std::string_view filePath) {
     if (bytesRead < 0) {
         LOG_ERROR("Error reading file: {}", rd.error());
     }
-}
 
-namespace fs = std::filesystem;
+    return true;
+}
 
 std::vector<std::pair<fs::file_time_type,std::string>> get_log_files(fs::path dir) {
     std::vector<std::pair<fs::file_time_type,std::string>> files;
@@ -198,38 +311,38 @@ std::vector<std::pair<fs::file_time_type,std::string>> get_log_files(fs::path di
     return files;
 }
 
-void game_logs_test(std::string_view dirPath) {
-    Cfg.load();
-    Cfg.loadCommodityDatabase();
-    Cfg.mNetworkDisabled = true;
-
-    fs::path dir;
-    if (dirPath.empty()) {
-        dir = dirPath;
-        Cfg.mEDLogsPath = dir.native();
-    } else {
-        dir = Cfg.mEDLogsPath;
-    }
-
-    db::init();
+bool game_logs_test(std::string_view dirPath, std::string_view firstFile) {
+    fs::path dir = TestBackdor::initCfgForTests(dirPath);
+    if (dir.empty())
+        return false;
 
     auto log_files = get_log_files(dirPath);
 
+    int counter = 0;
     Timestamp ts_now {};
     for (auto& [ts,nm] : log_files) {
-        LOG_INFO(">>>>>>>>>>>> Processing: {}", nm);
+        counter += 1;
+        if (!firstFile.empty()) {
+            if (nm != firstFile)
+                continue;
+            firstFile = {};
+        }
+        LOG_INFO(">>>>>>>>>>>> Processing: {} ({} of {})", nm, counter, log_files.size());
         fs::path fname = dir / nm;
         std::ifstream inp(fname);
         std::string line;
         while (std::getline(inp, line)) {
-            auto ge = Cfg.parseEvent(ts_now, line);
+            auto ge = TestBackdor::parseEvent(ts_now, line);
             if (!ge || ge->event == "Shutdown") {
                 inp.close();
                 break;
             }
         }
         gal::cleanupStarSystemCache({});
+        db::checkpoint(db::CheckPoint::PASSIVE);
     }
+
+    return true;
 }
 
 } // namespace gal

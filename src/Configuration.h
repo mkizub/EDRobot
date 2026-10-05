@@ -114,8 +114,7 @@ private:
     friend class Master;
     friend class CargoManager;
     friend void setGameVersion(spGameEvent& ge); // for updateLanguage
-    friend void gal::game_logs_test(std::string_view); // for testing
-    friend void gal::spansh_systems_dump_test(std::string_view); // for testing
+    friend struct gal::TestBackdor;
 
     void parseShortcutConfig(Command command, const std::string& name, js::value cfg);
     GameKey parseGameKey(XMLNode *rootNode, bool has_modifiers, bool axis);

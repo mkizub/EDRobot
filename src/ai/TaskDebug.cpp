@@ -2,7 +2,9 @@
 // Created by mkizub on 02.07.2025.
 //
 
+#ifndef PCH_H
 #include "../pch.h"
+#endif
 
 #include "TaskDebug.h"
 #include "AIManager.h"
@@ -860,8 +862,8 @@ int TaskDebugFindAllNavPoints::guessBestStation(std::string& text, const gal::Na
     case TypeNav::StationMegaShip:
     case TypeNav::FleetCarrier:
     case TypeNav::SquadronCarrier:
-    case TypeNav::StrongholdCarrier:
     case TypeNav::ColonisationShip:
+    case TypeNav::AnonMegaship:
     case TypeNav::PlanetaryThing:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
@@ -1011,10 +1013,10 @@ void TaskDebugFindAllNavPoints::saveOcrNavigationRow(
     if (nle.portDanger == 3) nameOCR += gal::SHIELD3_MARK;
     if (nle.isMarked)
         nameOCR += gal::LOCATION_MARK;
-    gal::NavType* nt = nle.item ? gal::NavType::findNavType(nle.item->type) : nullptr;
+    const gal::NavType* nt = nle.item ? gal::NavType::findNavType(nle.item->type) : nullptr;
     if (nt) {
         if (nle.item->type == TypeNav::Planet) {
-            if (nle.item->getPlanetData().isLandable.value_or())
+            if (nle.item->getPlanetData()->isLandable.value_or())
                 nameOCR = gal::LAND.charOCR + (L" " + nameOCR);
             else
                 nameOCR = gal::BODY.charOCR + (L" " + nameOCR);

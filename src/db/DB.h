@@ -19,10 +19,10 @@ struct StationJS;
 struct MegashipJS;
 struct MarketJS;
 
-//enum class CheckPoint {
-//    PASSIVE, FULL, RESTART, TRUNCATE, NOOP
-//};
-//bool checkpoint(CheckPoint mode);
+enum class CheckPoint {
+    PASSIVE, FULL, RESTART, TRUNCATE, NOOP
+};
+bool checkpoint(CheckPoint mode);
 
 bool init();
 bool shutdown();
@@ -31,9 +31,10 @@ StarSystem loadStarSystem(int64_t address);
 bool loadStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address);
 bool saveStarSystem(const StarSystem& starSystem);
 bool saveStarSystemBlob(StarSystemJS& ss, const std::string& system_name, int64_t address);
-bool loadMegaShips(int64_t address, std::vector<MegashipJS> megaships);
-bool loadMegaShip(MegashipJS& megaship);
+bool loadMegaShips(int64_t address, std::vector<MegashipJS>& megaships);
+bool loadMegaShip(MegashipJS& megaship, bool silent=false);
 bool saveMegaShip(MegashipJS& megaship);
+bool removeMegaShip(MegashipJS& megaship);
 bool loadMarket(MarketJS& market);
 bool saveMarket(MarketJS& market);
 
@@ -79,25 +80,32 @@ struct StarSystem {
 };
 
 struct RavenCmdrInfoJS {
-    Timestamp timestamp {}; // contribution timestamp
-    int deliveries {}; // number of deliveries
-    int contributed {}; // total cargo contributed
+    Timestamp timestamp; // contribution timestamp
+    int deliveries; // number of deliveries
+    int contributed; // total cargo contributed
     js::vector<int64_t> assigned; // commodities assigned to this commander
 };
 
+struct SignalJS {
+    JsNavType type;
+    std::string name;
+    opt_float latitude; // Planetary signals only.
+    opt_float longitude; // Planetary signals only.
+};
+
 struct MarketLineJS {
-    int64_t commodityId {};
-    unsigned demand {};
-    unsigned supply {};
-    unsigned buyPrice {};
-    unsigned sellPrice {};
+    int64_t commodityId;
+    unsigned demand;
+    unsigned supply;
+    unsigned buyPrice;
+    unsigned sellPrice;
     opt_bool isConsumer;
     opt_bool isProducer;
 };
 
 struct MarketJS {
-    int64_t marketId {};
-    int64_t systemId {};
+    int64_t marketId;
+    int64_t systemId;
     Timestamp updated;
     std::string stationName;
     std::string stationType;
@@ -112,8 +120,8 @@ struct MarketJS {
 struct StationJS {
     int64_t marketId; // market id
     JsNavType type;
-    int bodyId {-1};  // space stations have bodyId
-    int parentId {-1};  // space stations parent bodyId
+    body_id_t bodyId;  // space stations have bodyId
+    body_id_t parentId;  // space stations parent bodyId
     std::string name;
     Timestamp updated_at;
     std::string realName; // Real name of the station, for colonisation stations.
@@ -151,6 +159,7 @@ struct MegashipJS {
     int64_t systemId;
     int64_t marketId;
     std::string code;
+    bool anon;
     std::string name;
     Timestamp updated;
     StationJS blob;
@@ -201,7 +210,7 @@ struct PlanetPartJS {
 
 struct BodyJS {
     JsNavType type;
-    int bodyId {-1};
+    body_id_t bodyId;
     std::string name;
     JsBodySubType subType;
     opt_bool tidalLock;
@@ -354,30 +363,31 @@ private:
 };
 
 struct StarSystemJS {
-    int64_t address {};
+    int64_t address;
     std::string name;
-    Coords coords {};
+    Coords coords;
     JsAllegiance allegiance;
     JsGovernment government;
-    JsEconomy primaryEconomy {};
-    JsEconomy secondaryEconomy {};
-    JsSecurity security {};
-    uint16_t bodyCount {};
-    uint64_t population {};
-    Timestamp updated_at {};
+    JsEconomy primaryEconomy;
+    JsEconomy secondaryEconomy;
+    JsSecurity security;
+    uint16_t bodyCount;
+    uint64_t population;
+    Timestamp updated_at;
     std::unique_ptr<FactionJS> controllingFaction;
     js::vector<FactionJS> factions;
-    JsPowerState powerState {};
+    JsPowerState powerState;
     js::vector<PowerConflictJS> powerConflictProgress;
     js::vector<JsPower> powers;
-    JsPower controllingPower {};
+    JsPower controllingPower;
     opt_float powerStateControlProgress;
     opt_float powerStateReinforcement;
     opt_float powerStateUndermining;
-    std::unique_ptr<ThargoidWarJS> thargoidWar {};
+    std::unique_ptr<ThargoidWarJS> thargoidWar;
     js::small_map<JsTimestamps,Timestamp> timestamps;
     js::vector<BodyJS> bodies;
     js::vector<StationJS> stations;
+    js::vector<SignalJS> signals;
 };
 
 } // namespace db
