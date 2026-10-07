@@ -27,20 +27,20 @@ static void update_body_id_and_parents(gal::StarSystem* ss, gal::spEntity &entit
             p_id = jp.bodyId;
             if (!isBody(p_type) || !p_id.has_value())
                 break;
-            if (b->parentBodyId != p_id) {
+            if (b && b->parentBodyId != p_id) {
                 b->parentBodyId = p_id;
                 ss->needBlobSave = true;
             }
             auto p = ss->getBodyById(p_id);
-            if (!p) {
-                std::string name;
-                if (p_type == TypeNav::Star)
-                    name = std::format("\tStar#{}", p_id.val);
-                else if (p_type == TypeNav::Planet)
-                    name = std::format("\tPlanet#{}", p_id.val);
-                p = ss->addEntity(p_type, name, "", {.body_id=p_id, .ts=db_body.updated_at});
-                p->bodyId = p_id;
-            }
+            //if (!p) {
+            //    std::string name;
+            //    if (p_type == TypeNav::Star)
+            //        name = std::format("\tStar#{}", p_id.val);
+            //    else if (p_type == TypeNav::Planet)
+            //        name = std::format("\tPlanet#{}", p_id.val);
+            //    p = ss->addEntity(p_type, name, "", {.body_id=p_id, .ts=db_body.updated_at});
+            //    p->bodyId = p_id;
+            //}
             b = p;
         }
     }
@@ -159,15 +159,24 @@ bool update_signal(StarSystem* ss, db::SignalJS& db_sig) {
     if (!isSignal(tp))
         return false;
 
-    spEntity sig = ss->getSignal(db_sig.name, "");
+    spEntity sig = ss->getSignal(db_sig.name);
 
     if (!sig) {
-        ss->addEntity(tp, db_sig.name, "", {});
+        if (!db_sig.var.empty())
+            ss->addEntity(tp, db_sig.var, "", {});
+        else
+            ss->addEntity(tp, db_sig.name, "", {});
     }
     else if (sig->type != tp) {
         LOG_ERROR("Missmatch signal type: old {}, net/db {} for signal '{}'",
                   enum_name(sig->type), enum_name(tp), db_sig.name);
-        ss->checkTypeAndName(sig, tp, db_sig.name, "", {.ts=sig->updated});
+        if (!db_sig.var.empty())
+            ss->checkTypeAndName(sig, tp, db_sig.var, db_sig.name, {.ts=sig->updated});
+        else
+            ss->checkTypeAndName(sig, tp, db_sig.name, "", {.ts=sig->updated});
+    }
+    else if (!db_sig.var.empty() && db_sig.var != sig->getUnexpandedName()) {
+        ss->checkTypeAndName(sig, tp, db_sig.var, db_sig.name, {.ts=sig->updated});
     }
     else if (sig->name.empty()) {
         LOG_ERROR("Empty signal name for type: {}", enum_name(sig->type));
@@ -200,18 +209,26 @@ bool update_station(StarSystem* ss, db::StationJS& db_st, spEntity& st) {
         st = ss->getBodyById(db_st.bodyId);
 
     if (!st) {
-        st = ss->addEntity(tp, db_st.name, "", {.market_id=db_st.marketId, .ts=db_st.updated_at});
+        if (!db_st.var.empty())
+            st = ss->addEntity(tp, db_st.var, db_st.name, {.market_id=db_st.marketId, .ts=db_st.updated_at});
+        else
+            st = ss->addEntity(tp, db_st.name, "", {.market_id=db_st.marketId, .ts=db_st.updated_at});
         st->bodyId = db_st.bodyId;
         if (db_st.marketId != st->marketId())
             st->setMarketId(db_st.marketId);
     }
     else if (st->type != tp) {
-        //if (isSignal(st->type) || st->type == TypeNav::SpaceStation || st->type == TypeNav::PlanetaryThing)
-            st = ss->checkTypeAndName(st, tp, db_st.name, "", {.market_id=st->marketId(), .ts=st->updated});
+        st = ss->checkTypeAndName(st, tp, db_st.name, "", {.market_id=st->marketId(), .ts=st->updated});
+    }
+    if (db_st.var != st->getUnexpandedName()) {
+        st = ss->checkTypeAndName(st, tp, db_st.var, db_st.name, {.market_id=st->marketId(), .ts=st->updated});
     }
     if (st->name.empty()) {
         LOG_ERROR("Missing name for station '{}' in '{}'", enum_name(st->type), ss->systemName);
-        st = ss->checkTypeAndName(st, tp, db_st.name, "", {.market_id=st->marketId(), .ts=st->updated});
+        if (!db_st.var.empty())
+            st = ss->checkTypeAndName(st, tp, db_st.var, db_st.name, {.market_id=st->marketId(), .ts=st->updated});
+        else
+            st = ss->checkTypeAndName(st, tp, db_st.name, "", {.market_id=st->marketId(), .ts=st->updated});
     }
     if (db_st.bodyId.has_value() && db_st.bodyId != st->bodyId) {
         if (!st->bodyId.has_value()) {
@@ -456,29 +473,7 @@ void updateFromFSSSignalDiscovered(StarSystem* ss, const std::vector<spGameEvent
         else
             tn = NavType::guessTypeFromName(tn, sname);
 
-        std::string sname_xx, sname_ru;
-        if (sname.find('$') != std::string_view::npos) {
-            TypeNav tp_guess = NavType::localizeName(tn, sname, sname_xx, sname_ru);
-            if (tp_guess != TypeNav::Other) {
-                if (tp_guess != tn)
-                    tn = tp_guess;
-                sname = sname_xx;
-            }
-        }
-
         if (tn == TypeNav::USS) {
-//            auto uss_type = data["USSType"].as_string_or();
-//            auto uss_tloc = data["USSType_Localised"].as_string();
-//            spEntity uss = getSignal(snloc, uss_tloc);
-//            if (!uss) {
-//                uss = addEntity(SignalUUSEntity::create(TypeNav::USS, sname, snloc, uss_type, uss_tloc));
-//            } else {
-//                if (snloc.empty())
-//                    snloc = sname;
-//                if (uss_tloc.empty())
-//                    uss_tloc = uss_type;
-//                uss = checkTypeAndName(uss, typeNav, snloc, uss_tloc, ge->timestamp);
-//            }
             continue;
         }
 
@@ -488,9 +483,9 @@ void updateFromFSSSignalDiscovered(StarSystem* ss, const std::vector<spGameEvent
             if (!site)
                 site = ss->getDock(snloc);
             if (!site)
-                site = ss->getSignal(sname, snloc);
+                site = ss->getSignal(sname);
         } else {
-            site = ss->getSignal(sname, snloc);
+            site = ss->getSignal(sname);
             if (!site)
                 site = ss->getDock(sname);
             if (!site)
@@ -544,6 +539,8 @@ void updateBodyFromSpace(StarSystem* ss, spGameEvent& ge) {
     ss->save();
 }
 
+std::unordered_multimap<std::string,UniqueBody> allUniqueBodies;
+
 void updateFromDestination(StarSystem* ss, spGameEvent& ge) {
     if (!ss || !ss->systemAddress || ss->systemAddress != st::destination.systemAddress)
         return;
@@ -572,7 +569,7 @@ void updateFromDestination(StarSystem* ss, spGameEvent& ge) {
             case TypeNav::SquadronCarrier:
                 // destination contains full name of the targeted carrier,
                 // so s->name==xx_name and s->nloc==ru_name
-                if (e->nloc != dname) {
+                if (e->getLocalisedName() != dname) {
                     e = ss->checkTypeAndName(e, e->type, xx_name, ru_name, {.ts=ge->timestamp});
                 }
                 // fall through
@@ -611,12 +608,19 @@ void updateFromDestination(StarSystem* ss, spGameEvent& ge) {
         }
     }
 
+    for (auto[it, rangeEnd] = allUniqueBodies.equal_range(dname); it != rangeEnd; ++it) {
+        assert (dname == it->first);
+        const UniqueBody& ub = it->second;
+        if (ub.bodyId == st::destination.bodyId.val && ub.systemName == ss->systemName) {
+            ss->addEntity(ub.type, dname, "", {.body_id=st::destination.bodyId, .ts=ge->timestamp});
+            ss->save();
+            return;
+        }
+    }
+
     if (dname == ss->systemName) {
-        // most likely it's the main star, but sometimes a planet has the same name as the system/star
-        // TODO - make the list of such planets
-        spEntity star = ss->addEntity(TypeNav::Star, dname, "", {.ts=ge->timestamp});
-        star->bodyId = st::destination.bodyId;
-        star->updated = ge->timestamp;
+        // not in unique stars list, so it's a main star name
+        spEntity star = ss->addEntity(TypeNav::Star, dname, "", {.body_id=st::destination.bodyId, .ts=ge->timestamp});
     }
     else if (dname.size() > ss->systemName.size() && dname.starts_with(ss->systemName)) {
         auto suffix = dname.substr(ss->systemName.size());
@@ -637,9 +641,7 @@ void updateFromDestination(StarSystem* ss, spGameEvent& ge) {
                     tn = TypeNav::Planet;
             }
         }
-        spEntity body = ss->addEntity(tn, dname, "", {.ts=ge->timestamp});
-        body->bodyId = st::destination.bodyId;
-        body->updated = ge->timestamp;
+        ss->addEntity(tn, dname, "", {.body_id=st::destination.bodyId, .ts=ge->timestamp});
     }
     else {
         TypeNav tn = NavType::guessTypeFromName(TypeNav::Other, dname);
@@ -846,20 +848,20 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
                 p_id = map.begin()->second.as_int_or(-1);
                 if (!isBody(p_type) || !p_id.has_value())
                     break;
-                if (b->parentBodyId != p_id) {
+                if (b && b->parentBodyId != p_id) {
                     b->parentBodyId = p_id;
                     ss->needBlobSave = true;
                 }
                 auto p = ss->getBodyById(p_id);
-                if (!p) {
-                    std::string name;
-                    if (p_type == TypeNav::Star)
-                        name = std::format("\tStar#{}", p_id.val);
-                    else if (p_type == TypeNav::Planet)
-                        name = std::format("\tPlanet#{}", p_id.val);
-                    p = ss->addEntity(p_type, name, "", {.body_id=p_id, .ts=ge->timestamp});
-                    p->bodyId = p_id;
-                }
+                //if (!p) {
+                //    std::string name;
+                //    if (p_type == TypeNav::Star)
+                //        name = std::format("\tStar#{}", p_id.val);
+                //    else if (p_type == TypeNav::Planet)
+                //        name = std::format("\tPlanet#{}", p_id.val);
+                //    p = ss->addEntity(p_type, name, "", {.body_id=p_id, .ts=ge->timestamp});
+                //    p->bodyId = p_id;
+                //}
                 b = p;
             }
         }
@@ -937,7 +939,7 @@ bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
 
 
     if (!(ge->event=="ApproachSettlement" || ge->event=="Docked" || (ge->event=="Location") && ge->data["Docked"]))
-        return {};
+        return false;
 
     body_id_t stationBodyId;
     if (ge->event == "Location") {
@@ -981,17 +983,11 @@ bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
         stype = je["StationType"].as_string_or();
     }
 
+    if (sname == "Clayton Hydroponics Holdings")
+        LOG_WARNING(sname);
+
     TypeNav typeNav = toTypeNav(JsNavType::get(stype));
     typeNav = NavType::guessTypeFromName(typeNav, sname);
-    std::string sname_xx, sname_ru;
-    if (sname.find('$') != std::string_view::npos) {
-        TypeNav tp_guess = NavType::localizeName(typeNav, sname, sname_xx, sname_ru);
-        if (tp_guess != TypeNav::Other) {
-            if (tp_guess != typeNav)
-                typeNav = tp_guess;
-            sname = sname_xx;
-        }
-    }
 
     spEntity dock = ss->getDock(marketId);
     if (!dock) {
@@ -999,7 +995,7 @@ bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
         if (!dock && !snloc.empty())
             dock = ss->getDock(snloc);
         if (!dock)
-            dock = ss->getSignal(sname, snloc);
+            dock = ss->getSignal(sname);
         if (dock && !isAnonMegaship(dock->type)) {
             if (dock->marketId()) {
                 assert (dock->marketId() != marketId);
@@ -1012,10 +1008,10 @@ bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
         }
     }
 
+    if (typeNav == TypeNav::Other && marketId)
+        typeNav = TypeNav::AnySite;
     if (isSignal(typeNav) || isBody(typeNav)) // like "ApproachSettlement" for TouristBeacon
         return false;
-    if (typeNav == TypeNav::Other)
-        typeNav = TypeNav::AnySite;
 
     if (!dock && isMegaship(typeNav)) {
         db::MegashipJS db_ms {};
@@ -1333,13 +1329,14 @@ bool fill_star_system_for_db(const StarSystem* ss, db::StarSystemJS& db_ss, std:
         s.updated_at = site->updated;
 
         s.name = site->name;
-        if (!site->nloc.empty() && isCarrier(site->type))
-            s.name = site->nloc;
+        if (!site->getLocalisedName().empty() && isCarrier(site->type))
+            s.name = site->getLocalisedName();
 
         const auto* ext = site->getStationData();
         assert (ext);
         if (!ext)
             return false;
+        s.var = ext->unexpanded_name;
         s.controllingFaction = ext->controllingFaction;
         s.allegiance = ext->allegiance;
         s.government = ext->government;
@@ -1365,7 +1362,9 @@ bool fill_megaship_for_db(const StarSystem* ss, const Entity* megaship, db::Mega
     db_ms.updated = megaship->updated;
     if (isCarrier(megaship->type)) {
         db_ms.code = megaship->name;
-        db_ms.name = megaship->nloc;
+        db_ms.name = megaship->getLocalisedName();
+        if (db_ms.name.empty())
+            db_ms.name = db_ms.code;
         db_ms.marketId = megaship->marketId();
     }
     else if (isAnonMegaship(megaship->type)) {
@@ -1395,6 +1394,7 @@ bool fill_megaship_for_db(const StarSystem* ss, const Entity* megaship, db::Mega
     assert (ext);
     if (!ext)
         return false;
+    db_ms.blob.var = ext->unexpanded_name;
     db_ms.blob.controllingFaction = ext->controllingFaction;
     db_ms.blob.allegiance = ext->allegiance;
     db_ms.blob.government = ext->government;

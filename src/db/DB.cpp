@@ -558,6 +558,7 @@ bool saveMegaShip(MegashipJS& megaship) {
 
     static std::string syst_sql = "SELECT rowid FROM Megaships WHERE name=? AND systemId = ? AND anon=1";
     static std::string name_sql = "SELECT rowid FROM Megaships WHERE name=? AND anon=0";
+    static std::string code_sql = "SELECT rowid FROM Megaships WHERE code=?";
     static std::string mkid_sql = "SELECT rowid FROM Megaships WHERE marketId=?";
 
     static std::string insert_sql = "INSERT INTO Megaships(systemId,marketId,code,anon,name,updated,data) VALUES (?,?,?,?,?,?,?);";
@@ -582,6 +583,15 @@ bool saveMegaShip(MegashipJS& megaship) {
         StatRef stmt = getStat(name_sql);
         if (stmt) {
             stmt->bind(1, megaship.name);
+            found = stmt->executeStep();
+            if (found)
+                rowid = stmt->getColumn(0).getInt64();
+        }
+    }
+    if (!found && !megaship.code.empty()) {
+        StatRef stmt = getStat(code_sql);
+        if (stmt) {
+            stmt->bind(1, megaship.code);
             found = stmt->executeStep();
             if (found)
                 rowid = stmt->getColumn(0).getInt64();

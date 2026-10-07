@@ -89,6 +89,7 @@ struct RavenCmdrInfoJS {
 struct SignalJS {
     JsNavType type;
     std::string name;
+    std::string var;
     opt_float latitude; // Planetary signals only.
     opt_float longitude; // Planetary signals only.
 };
@@ -123,6 +124,7 @@ struct StationJS {
     body_id_t bodyId;  // space stations have bodyId
     body_id_t parentId;  // space stations parent bodyId
     std::string name;
+    std::string var;
     Timestamp updated_at;
     std::string realName; // Real name of the station, for colonisation stations.
     std::string carrierName; // Player given name of the station, for fleet carriers.

@@ -524,6 +524,7 @@ void BaseAutopilotTask::initNavFilter(bool additive) {
     case TypeNav::WarZone:
     case TypeNav::ResSite:
     case TypeNav::Codex:
+    case TypeNav::Titan:
         filters.signalSource = true;
         break;
     case TypeNav::StarSystem:
@@ -2628,8 +2629,8 @@ bool NavDockSelect::run() {
 std::string NavDockSelect::getTitle() {
     std::string name;
     if (dock) {
-        if (!dock->nloc.empty())
-            name = dock->nloc;
+        if (!dock->getLocalisedName().empty())
+            name = dock->getLocalisedName();
         else
             name = dock->name;
     }
@@ -2996,8 +2997,8 @@ bool CruiseToDistStep::run() {
     }
     else if (st::autopilot.destDock) {
         destIsDock = true;
-        if (!st::autopilot.destDock->nloc.empty())
-            destName = st::autopilot.destDock->nloc;
+        if (!st::autopilot.destDock->getLocalisedName().empty())
+            destName = st::autopilot.destDock->getLocalisedName();
         else
             destName = st::autopilot.destDock->name;
         LOG_INFO("CruiseToDist: destination is dock {}", destName);
@@ -3685,8 +3686,8 @@ bool DiveUnderPlanetStep::fly_dive(float pitchGoal) {
 std::string DiveUnderPlanetStep::getTitle() {
     std::string name;
     if (st::autopilot.destDock) {
-        if (!st::autopilot.destDock->nloc.empty())
-            name = st::autopilot.destDock->nloc;
+        if (!st::autopilot.destDock->getLocalisedName().empty())
+            name = st::autopilot.destDock->getLocalisedName();
         else
             name = st::autopilot.destDock->name;
     }
@@ -3864,8 +3865,8 @@ bool ExitCruiseToSpace::run() {
 std::string ExitCruiseToSpace::getTitle() {
     std::string name;
     if (st::autopilot.destDock) {
-        if (!st::autopilot.destDock->nloc.empty())
-            name = st::autopilot.destDock->nloc;
+        if (!st::autopilot.destDock->getLocalisedName().empty())
+            name = st::autopilot.destDock->getLocalisedName();
         else
             name = st::autopilot.destDock->name;
     }
@@ -4031,8 +4032,8 @@ bool ExitCruiseToPlanet::run() {
 std::string ExitCruiseToPlanet::getTitle() {
     std::string name;
     if (st::autopilot.destDock) {
-        if (!st::autopilot.destDock->nloc.empty())
-            name = st::autopilot.destDock->nloc;
+        if (!st::autopilot.destDock->getLocalisedName().empty())
+            name = st::autopilot.destDock->getLocalisedName();
         else
             name = st::autopilot.destDock->name;
     }
@@ -4494,8 +4495,8 @@ std::string CruiseAndDock::getTitle() {
     std::string name;
     auto dock = st::autopilot.destDock;
     if (dock) {
-        if (!dock->nloc.empty())
-            name = dock->nloc;
+        if (!dock->getLocalisedName().empty())
+            name = dock->getLocalisedName();
         else
             name = dock->name;
     }

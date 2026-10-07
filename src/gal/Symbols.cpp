@@ -144,6 +144,7 @@ DEFINE_ENUM_INSTANCE(JsNavType) ("NavType",
     {u(TypeNav::NavBeacon),             "NavBeacon\fNav Beacon"},
     {u(TypeNav::TouristBeacon),         "TouristBeacon\fTourist Beacon"},
     {u(TypeNav::Codex),                 "Codex"},
+    {u(TypeNav::Titan),                 "Titan"},
     //bodies
     {u(TypeNav::Body),                  "~Body~"},
     {u(TypeNav::Star),                  "Star"},
@@ -545,6 +546,29 @@ bool gal::init_symbols() {
         } else {
             const_cast<std::vector<GameVar>&>(nt->name_loc).emplace_back(tp, prefix, var, xx, en, ru);
         }
+    }
+
+    LOG_INFO("Loading unique bodies");
+    j = parseJsonFile(L"unique-bodies.json5");
+    gal::allUniqueBodies.reserve(j.as_array().size());
+    for (auto& jv : j.as_array()) {
+        std::string bodyName;
+        TypeNav tp = TypeNav::Other;
+        if (auto nm = jv["star"].as_string_or(); !nm.empty()) {
+            tp = TypeNav::Star;
+            bodyName = *nm;
+        }
+        else if (auto nm = jv["planet"].as_string_or(); !nm.empty()) {
+            tp = TypeNav::Planet;
+            bodyName = *nm;
+        }
+        auto bodyId = jv["id"].as_int_or(-1);
+        auto systemName = jv["system"].as_string_or();
+        if (bodyId < 0 || bodyId > 200 || systemName.empty() || bodyName.empty()) {
+            LOG_ERROR("Bad body record: {}", jv.stringify());
+            continue;
+        }
+        gal::allUniqueBodies.emplace(bodyName, UniqueBody{tp, short(bodyId), *systemName});
     }
 
     js::symbol::DefineSymbols({

@@ -128,24 +128,25 @@ spEntity StarSystem::getEntity(const std::string& nm) const {
     return {};
 }
 
-spEntity StarSystem::getSignal(std::string_view sig_name, std::string_view uss_name) const {
+spEntity StarSystem::getSignal(std::string_view sig_name) const {
     if (!systemAddress) {
         LOG_ERROR("dummy StarSystem::getSignal()");
         return {};
     }
-    if (sig_name.empty() && uss_name.empty())
+    if (sig_name.empty())
         return {};
-    std::string xx_sig, xx_uss;
-    std::string ru_sig, ru_uss;
-    TypeNav tn = NavType::localizeName(TypeNav::Signal, sig_name, xx_sig, ru_sig);
-    NavType::localizeName(TypeNav::Signal, uss_name, xx_uss, ru_uss);
     EntitiesLocker lock(this);
-    for (auto& s : this->entities) {
-        if (s && isSignal(s->type)) {
-            if (s->type == TypeNav::NavBeacon && tn == TypeNav::NavBeacon)
+    if (BEACON.match_name(sig_name)) {
+        for (auto& s : this->entities) {
+            if (s && s->type == TypeNav::NavBeacon)
                 return s;
-            if (s->nameEq(xx_sig) || s->nameEq(ru_sig) || s->nameEq(xx_uss) || s->nameEq(ru_uss))
-                return s;
+        }
+    } else {
+        for (auto& s : this->entities) {
+            if (s && isSignal(s->type)) {
+                if (s->nameEq(sig_name))
+                    return s;
+            }
         }
     }
     return {};
@@ -279,10 +280,10 @@ spEntity StarSystem::moveMegashipHere(db::MegashipJS& db_ms, body_id_t parentId)
 
     // prevent recursive addMegashipEntity->update_megaship->addEntity->addMegashipEntity
     TypeNav tp = toTypeNav(JsNavType::get(db_ms.blob.type));
-    if (db_ms.code.empty())
-        megaship = addEntity(spEntity(new MegashipEntity(tp, db_ms.name, "", db_ms.marketId)));
+    if (db_ms.code.empty() || db_ms.name == db_ms.code)
+        megaship = addEntity(spEntity(new MegashipEntity(tp, "", db_ms.name, "", db_ms.marketId)));
     else
-        megaship = addEntity(spEntity(new MegashipEntity(tp, db_ms.code, db_ms.name, db_ms.marketId)));
+        megaship = addEntity(spEntity(new MegashipEntity(tp, "", db_ms.code, db_ms.name, db_ms.marketId)));
     megaship->updated = db_ms.updated;
     db_ms.systemId = systemAddress;
     db_ms.blob.parentId = parentId;
@@ -302,18 +303,20 @@ spEntity StarSystem::checkTypeAndName(spEntity entity, TypeNav tp, std::string_v
         return entity;
     }
 
-    EntitiesLocker lock(this);
+    {
+        EntitiesLocker lock(this);
 
-    decltype(entities)::iterator entityIt = entities.end();
-    for (auto it=entities.begin(); it != entities.end(); it++) {
-        if (it->get() == entity.get()) {
-            entityIt = it;
-            break;
+        decltype(entities)::iterator entityIt = entities.end();
+        for (auto it = entities.begin(); it != entities.end(); it++) {
+            if (it->get() == entity.get()) {
+                entityIt = it;
+                break;
+            }
         }
-    }
-    if (entityIt == entities.end()) {
-        LOG_ERROR("StarSystem::checkTypeAndName on entity that is not in this system");
-        return entity;
+        if (entityIt == entities.end()) {
+            LOG_ERROR("StarSystem::checkTypeAndName on entity that is not in this system");
+            return entity;
+        }
     }
 
     // special care needed to convert from->to megaships, because we need to check names
@@ -335,13 +338,19 @@ spEntity StarSystem::checkTypeAndName(spEntity entity, TypeNav tp, std::string_v
         if (entity->type == TypeNav::Other) {
             // TypeNav::Other can be upgraded to any other type
             removeEntity(entity);
-            entity = addEntity(tp, entity->name, entity->nloc, args);
+            if (!entity->getUnexpandedName().empty())
+                entity = addEntity(tp, entity->getUnexpandedName(), snloc, args);
+            else
+                entity = addEntity(tp, entity->name, snloc, args);
             needBlobSave = true;
         }
         else if (entity->type == TypeNav::AnySite && isAnySite(tp)) {
             if (isMegaship(tp)) {
                 removeEntity(entity);
-                entity = addMegashipEntity(tp, entity->name, entity->nloc, args.market_id, args.ts);
+                if (!entity->getUnexpandedName().empty())
+                    entity = addEntity(tp, entity->getUnexpandedName(), snloc, args);
+                else
+                    entity = addMegashipEntity(tp, entity->name, snloc, args.market_id, args.ts);
             } else {
                 const_cast<TypeNav&>(entity->type) = tp;
             }
@@ -362,7 +371,10 @@ spEntity StarSystem::checkTypeAndName(spEntity entity, TypeNav tp, std::string_v
         else if (entity->type == TypeNav::AnySite && isSignal(tp)) {
             // AnySite -> TouristBeacon, for example
             removeEntity(entity);
-            entity = addEntity(tp, entity->name, entity->nloc, args);
+            if (!entity->getUnexpandedName().empty())
+                entity = addEntity(tp, entity->getUnexpandedName(), snloc, args);
+            else
+                entity = addEntity(tp, entity->name, entity->getLocalisedName(), args);
             needBlobSave = true;
         }
         else if (!isGeneric(tp)) {
@@ -371,97 +383,80 @@ spEntity StarSystem::checkTypeAndName(spEntity entity, TypeNav tp, std::string_v
         }
     }
 
-    // try set both name and nloc
-    if (entity->name != sname || (!snloc.empty() && entity->nloc != snloc)) {
-        if ((entity->type == TypeNav::Star || entity->type == TypeNav::Planet) && entity->name.empty() || entity->name[0] == '\t') {
-            if (entity->setName(sname, snloc)) {
-                if (*args.ts) {
-                    entity->updated = args.ts;
-                    this->updated_at = std::max(this->updated_at, args.ts);
-                }
-                needBlobSave = true;
+    if (isBody(entity->type)) {
+        if (entity->name != sname && BodyEntity::setBodyName(entity, sname)) {
+            if (*args.ts) {
+                entity->updated = args.ts;
+                this->updated_at = std::max(this->updated_at, args.ts);
             }
+            needBlobSave = true;
         }
-        else if (entity->type == TypeNav::NavBeacon) {
-            if (entity->setName(sname, snloc)) {
-                if (*args.ts) {
-                    entity->updated = args.ts;
-                    this->updated_at = std::max(this->updated_at, args.ts);
-                }
-                needBlobSave = true;
-            }
-        }
-        else if (isCarrier(entity->type)) {
-            std::string code, full;
-            TypeNav res;
-            if (!snloc.empty())
-                res = NavType::checkCarrierName(snloc, &code, &full);
-            else
-                res = NavType::checkCarrierName(sname, &code, &full);
-            if (isCarrier(res)) {
-                if (entity->name != code) {
-                    LOG_WARNING("StarSystem::checkTypeAndName attempt to change carrier callsign '{}' != '{}'", code, entity->name);
-                    return entity;
-                }
-                if (!snloc.empty() && entity->nloc != full) {
-                    entity->setName(code, full);
-                }
-                return entity;
-            } else {
-                LOG_WARNING("StarSystem::checkTypeAndName bad carrier name '{}'/'{}'", sname, snloc);
-                return entity;
-            }
-        }
-        else {
-            std::string en_name, ru_name;
-            NavType::localizeName(entity->type, sname, en_name, ru_name);
-            if (entity->name != en_name) {
-                // Planetary Construction Site: Foo -> Foo
-                // or user renames a station in his colonized system
-                if (sname == en_name && snloc.empty() && ru_name.empty()) {
-                    if (entity->setName(sname, snloc)) {
-                        if (*args.ts) {
-                            entity->updated = args.ts;
-                            this->updated_at = std::max(this->updated_at, args.ts);
-                        }
-                        needBlobSave = true;
-                    }
-                } else {
-                    LOG_WARNING("StarSystem::checkTypeAndName name '{}' != '{}'", sname, entity->name);
-                    //return entity;
-                }
-            }
-        }
-    }
-    // check correct snloc if game localization changed
-    if (!snloc.empty() && entity->nloc != snloc) {
-        if (isBody(entity->type)) {
-            LOG_ERROR("StarSystem::checkTypeAndName bydy cannot can localized name '{}'", snloc);
-            return entity;
-        }
-        else if (isCarrier(entity->type) && snloc.empty()) {
-            // entity->nloc assigned with entity->name
-        }
-        else {
-            std::string en_name, ru_name;
-            NavType::localizeName(entity->type, snloc, en_name, ru_name);
-            if (st::lng != Lang::EN && !en_name.empty() && ru_name.empty())
-                std::swap(en_name, ru_name);
-            if (entity->nloc != ru_name) {
-                if (entity->nloc.empty() || entity->name == en_name) {
-                    if (entity->setName(entity->name, ru_name)) {
-                        entity->updated = std::max(entity->updated, args.ts);
-                        this->updated_at = std::max(this->updated_at, args.ts);
-                        needBlobSave = true;
-                    }
-                } else {
-                    LOG_ERROR("StarSystem::checkTypeAndName localized name '{}' != '{}'", snloc, entity->nloc);
-                    return entity;
-                }
-            }
-        }
+        return entity;
     }
 
+    // try set both name and nloc
+    if (entity->name == sname && entity->getLocalisedName() == snloc)
+        return entity;
+
+    if (isSignal(entity->type)) {
+        if (SignalEntity::setSignalName(entity, sname, snloc)) {
+            if (*args.ts) {
+                entity->updated = args.ts;
+                this->updated_at = std::max(this->updated_at, args.ts);
+            }
+            needBlobSave = true;
+        }
+        return entity;
+    }
+    else if (isCarrier(entity->type)) {
+        std::string code, full;
+        TypeNav res;
+        if (!snloc.empty())
+            res = NavType::checkCarrierName(snloc, &code, &full);
+        else
+            res = NavType::checkCarrierName(sname, &code, &full);
+        if (isCarrier(res)) {
+            if (entity->name != code) {
+                LOG_WARNING("StarSystem::checkTypeAndName attempt to change carrier callsign '{}' != '{}'", code, entity->name);
+                return entity;
+            }
+            if (!snloc.empty() && entity->getLocalisedName() != full) {
+                if (MegashipEntity::setCarrierName(entity, code, full)) {
+                    if (*args.ts) {
+                        entity->updated = args.ts;
+                        this->updated_at = std::max(this->updated_at, args.ts);
+                    }
+                    needBlobSave = true;
+                }
+            }
+            return entity;
+        } else {
+            LOG_WARNING("StarSystem::checkTypeAndName bad carrier name '{}'/'{}'", sname, snloc);
+            return entity;
+        }
+    }
+    else if (isMegaship(entity->type)) {
+        if (MegashipEntity::setMegashipName(entity, sname, snloc)) {
+            if (*args.ts) {
+                entity->updated = args.ts;
+                this->updated_at = std::max(this->updated_at, args.ts);
+            }
+            needBlobSave = true;
+        }
+        return entity;
+    }
+    else if (isAnySite(entity->type)) {
+        if (StationEntity::setStationName(entity, sname, snloc)) {
+            if (*args.ts) {
+                entity->updated = args.ts;
+                this->updated_at = std::max(this->updated_at, args.ts);
+            }
+            needBlobSave = true;
+        }
+        return entity;
+    }
+
+    LOG_WARNING("StarSystem::checkTypeAndName on unknown entity type '{}'", entity->type);
     return entity;
 }
 
@@ -506,15 +501,6 @@ spEntity StarSystem::getDock(std::string_view sname) const {
         if (!s || s->type < TypeNav::SpaceStation)
             continue;
         if (s->nameEq(sname))
-            return s;
-    }
-    std::string xx_name;
-    std::string ru_name;
-    NavType::localizeName(TypeNav::SpaceStation, sname, xx_name, ru_name);
-    for (auto& s : this->entities) {
-        if (!s || s->type < TypeNav::SpaceStation)
-            continue;
-        if (s->nameEq(xx_name) || s->nameEq(ru_name))
             return s;
     }
     return {};
@@ -884,24 +870,19 @@ spEntity StarSystem::addEntity(TypeNav tp, std::string_view name, std::string_vi
         return addEntity(makeSignalEntity(tp, name, nloc));
     }
     if (isBody(tp)) {
+        if (!nloc.empty())
+            LOG_ERROR("BodyEntity '{}' created with localized name '{}'", name, nloc);
         if (tp == TypeNav::Star) {
             if (name.empty())
                 LOG_ERROR("StarEntity created with empty name");
-            if (!nloc.empty())
-                LOG_ERROR("StarEntity created with localized name '{}'", nloc);
             return addEntity(spEntity{new StarEntity(*name, args.body_id)});
         }
         if (tp == TypeNav::Planet) {
             if (name.empty())
                 LOG_ERROR("PlanetEntity created with empty name");
-            if (!nloc.empty())
-                LOG_ERROR("PlanetEntity created with localized name '{}'", nloc);
             return addEntity(spEntity{new PlanetEntity(*name, args.body_id)});
         }
-
-        if (!nloc.empty())
-            LOG_ERROR("BodyEntity '{}' created with localized name '{}'", name, nloc);
-        return addEntity(spEntity{new BodyEntity(tp, *name, *nloc, args.body_id)});
+        return addEntity(spEntity{new BodyEntity(tp, *name, args.body_id)});
     }
 
     assert (isAnySite(tp));
@@ -919,22 +900,7 @@ spEntity StarSystem::addEntity(TypeNav tp, std::string_view name, std::string_vi
     if (isAnySite(tp)) {
         if (name.empty())
             LOG_ERROR("StationEntity created with empty name");
-
-        std::string xx_name;
-        std::string ru_name;
-        if (name.find('$') != std::string_view::npos)
-            NavType::localizeName(tp, name, xx_name, ru_name);
-        else
-            xx_name = name;
-        if (nloc.find('$') != std::string_view::npos)
-            NavType::localizeName(tp, nloc, xx_name, ru_name);
-        else if (!nloc.empty())
-            ru_name = nloc;
-
-        if (!ru_name.empty() && name != "Guardian Structure" && !name.starts_with("Ancient Ruins")) {
-            LOG_WARNING("StationEntity created with localized name '{}'", nloc);
-        }
-        return addEntity(spEntity{new StationEntity(tp, xx_name, ru_name, args.market_id)});
+        return addEntity(makeStationEntity(tp, name, nloc, args.market_id, args.ts));
     }
 
     LOG_ERROR("Unknown system entity type '{}' with name '{}'", enum_name(tp), name);
@@ -942,24 +908,121 @@ spEntity StarSystem::addEntity(TypeNav tp, std::string_view name, std::string_vi
     return makeSignalEntity(tp, name, nloc);
 }
 
-spEntity StarSystem::makeSignalEntity(TypeNav tp, std::string_view name, std::string_view nloc) {
-    if (!isSignal(tp))
-        LOG_ERROR("SignalEntity created with bad type {}", tp);
-    std::string xx_name;
-    std::string ru_name;
-    if (name.find('$') != std::string_view::npos)
-        NavType::localizeName(tp, name, xx_name, ru_name);
-    else
-        xx_name = name;
-    if (nloc.find('$') != std::string_view::npos)
-        NavType::localizeName(tp, nloc, xx_name, ru_name);
-    else if (!nloc.empty())
-        ru_name = nloc;
-    else if (ru_name.empty()) {
-        std::string dummy;
-        NavType::localizeName(tp, xx_name, dummy, ru_name);
+spEntity StarSystem::makeStationEntity(TypeNav tp, std::string_view nm, std::string_view nl, int64_t marketId, Timestamp ts) {
+    assert (isAnySite(tp) && !isMegaship(tp));
+
+    if (nm.find('$') != std::string::npos) {
+        std::string xx_name, ru_name;
+        TypeNav tn = GameVar::replace_in(nm, xx_name, ru_name);
+        if (tn != tp) {
+            LOG_ERROR("Creating station '{}' with wrong type {}, must be {}", nm, enum_name(tp), enum_name(tn));
+        }
+        spEntity station(new StationEntity(tp, *nm, xx_name, ru_name, marketId));
+        station->updated = ts;
+        return station;
     }
-    spEntity entity(new SignalEntity(tp, std::move(xx_name), std::move(ru_name)));
+
+    for (auto nt: ALL_NAV_TYPES) {
+        if (!nt->name_loc.empty()) {
+            for (auto &p: nt->name_loc) {
+                if (p.match(nm) || p.match(nl)) {
+                    if (p.type != tp) {
+                        LOG_ERROR("Creating station '{}'/'{}' with wrong type {}, must be {}", nm, nl, enum_name(tp), enum_name(p.type));
+                    }
+                    std::string var;
+                    if (!p.var.empty())
+                        var = "$" + p.var + ";";
+                    std::string eng = *p.get_eng();
+                    std::string loc = *p.get_loc();
+                    spEntity station(new StationEntity(tp, var, eng, loc, marketId));
+                    station->updated = ts;
+                    return station;
+                }
+            }
+        }
+    }
+
+    spEntity station;
+    if (!nm.empty() && nl.empty()) {
+        station.reset(new StationEntity(tp, *nm, marketId));
+        station->updated = ts;
+        return station;
+    }
+
+    LOG_ERROR("Creating station '{}'/'{}' of type {} with unknown localization", nm, nl, enum_name(tp));
+    if (nl.empty()) {
+        bool ascii = true;
+        for (auto ch : toUtf16(nm)) {
+            if (ch > 255)
+                ascii = false;
+        }
+        if (ascii)
+            station.reset(new StationEntity(tp, "", *nm, "", marketId));
+        else
+            station.reset(new StationEntity(tp, "", "", *nm, marketId));
+    } else {
+        station.reset(new StationEntity(tp, *nm, marketId));
+    }
+    station->updated = ts;
+    return station;
+}
+
+spEntity StarSystem::makeSignalEntity(TypeNav tp, std::string_view name, std::string_view nloc) {
+    assert (isSignal(tp));
+    if (!isSignal(tp)) {
+        LOG_ERROR("SignalEntity '{}'/'{}' created with non-signal type: {}", name, nloc, enum_name(tp));
+        return nullptr;
+    }
+
+    if (name.find('$') != std::string::npos) {
+        std::string xx_name, ru_name;
+        TypeNav tn = GameVar::replace_in(name, xx_name, ru_name);
+        if (tn != tp) {
+            LOG_ERROR("Creating signal '{}' with wrong type {}, must be {}", name, enum_name(tp), enum_name(tn));
+        }
+        if (!nloc.empty())
+            ru_name = nloc;
+        spEntity entity(new SignalEntity(tp, *name, *xx_name, *ru_name));
+        return entity;
+    }
+
+    for (auto nt: ALL_NAV_TYPES) {
+        if (!nt->name_loc.empty()) {
+            for (auto &p: nt->name_loc) {
+                if (p.match(name) || p.match(nloc)) {
+                    if (p.type != tp) {
+                        LOG_ERROR("Creating signal '{}'/'{}' with wrong type {}, must be {}", name, nloc, enum_name(tp), enum_name(p.type));
+                    }
+                    std::string var;
+                    if (!p.var.empty())
+                        var = "$" + p.var + ";";
+                    std::string eng = *p.get_eng();
+                    std::string loc = *p.get_loc();
+                    spEntity entity(new SignalEntity(tp, var, eng, loc));
+                    return entity;
+                }
+            }
+        }
+
+    }
+
+    if (tp != TypeNav::TouristBeacon && tp != TypeNav::Titan
+        && (st::client.majorVersion * 100 + st::client.minorVersion) >= 401)
+        LOG_ERROR("Creating signal '{}'/'{}' with unknown localization", name, nloc, enum_name(tp));
+    spEntity entity;
+    if (nloc.empty()) {
+        bool ascii = true;
+        for (auto ch : toUtf16(name)) {
+            if (ch > 255)
+                ascii = false;
+        }
+        if (ascii)
+            entity.reset(new SignalEntity(tp, "", *name, *nloc));
+        else
+            entity.reset(new SignalEntity(tp, "", "", *name));
+    } else {
+        entity.reset(new SignalEntity(tp, "", *name, *nloc));
+    }
     return entity;
 }
 
@@ -1002,8 +1065,9 @@ spEntity StarSystem::addMegashipEntity(TypeNav tp, std::string_view name, std::s
     spEntity megaship;
     assert (isMegaship(tp));
 
-    std::string xx_name, ru_name;
+    std::string var_name, xx_name, ru_name;
     if (name.starts_with("$")) {
+        var_name = name;
         TypeNav tp_guess = NavType::localizeName(tp, name, xx_name, ru_name);
         if (tp_guess != TypeNav::Other && tp_guess != tp)
             tp = tp_guess;
@@ -1051,17 +1115,19 @@ spEntity StarSystem::addMegashipEntity(TypeNav tp, std::string_view name, std::s
                 return megaship;
         } else {
             // prevent recursive addMegashipEntity->update_megaship->addEntity->addMegashipEntity
-            if (db_ms.code.empty())
-                megaship = addEntity(spEntity(new MegashipEntity(tp, db_ms.name, "", marketId)));
+            if (db_ms.code.empty() || db_ms.name == db_ms.code)
+                megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.name, "", marketId)));
             else
-                megaship = addEntity(spEntity(new MegashipEntity(tp, db_ms.code, db_ms.name, marketId)));
+                megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.code, db_ms.name, marketId)));
             db_ms.updated = std::max(db_ms.updated, ts);
             update_megaship(this, db_ms, megaship);
             db::saveMegaShip(db_ms);
             return megaship;
         }
     }
-    megaship.reset(new MegashipEntity(tp, *name, *nloc, marketId));
+    if (nloc == name)
+        nloc = "";
+    megaship.reset(new MegashipEntity(tp, var_name, *name, *nloc, marketId));
     megaship->updated = ts;
     addEntity(megaship);
     gal::fill_megaship_for_db(this, megaship.get(), db_ms);
@@ -1069,10 +1135,9 @@ spEntity StarSystem::addMegashipEntity(TypeNav tp, std::string_view name, std::s
     return megaship;
 }
 
-Entity::Entity(TypeNav tp, std::string nm, std::string nl)
+Entity::Entity(TypeNav tp, std::string nm)
     : type(tp)
     , name(std::move(nm))
-    , nloc(std::move(nl))
 {
     if (isBody(tp))
         LOG_ERROR("Body entity of type '{}' must be added with another constructor", enum_name(tp));
@@ -1080,18 +1145,13 @@ Entity::Entity(TypeNav tp, std::string nm, std::string nl)
         if (!name.empty())
             LOG_WARNING("Non-empty name '{}' for type: {}", name, enum_name(type));
     }
-    else if (isSignal(type)) {
-        if (name.empty() && nloc.empty())
-            LOG_WARNING("Empty signal name for type: {}", name, enum_name(type));
-    }
-    else if (name.empty())
+    else if (name.empty() && !isSignal(type))
         LOG_WARNING("Empty name for type: {}", enum_name(type));
 }
 
-Entity::Entity(TypeNav tp, std::string nm, std::string nl, body_id_t bId)
+Entity::Entity(TypeNav tp, std::string nm, body_id_t bId)
         : type(tp)
         , name(std::move(nm))
-        , nloc(std::move(nl))
         , bodyId(std::move(bId))
 {
     if (!isBody(tp))
@@ -1100,323 +1160,243 @@ Entity::Entity(TypeNav tp, std::string nm, std::string nl, body_id_t bId)
         if (!name.empty())
             LOG_WARNING("Non-empty name '{}' for type: {}", name, enum_name(type));
     }
-    else if (isSignal(type)) {
-        if (name.empty() && nloc.empty())
-            LOG_WARNING("Empty signal name for type: {}", name, enum_name(type));
-    }
     else if (name.empty())
         LOG_WARNING("Empty name for type: {}", enum_name(type));
     if (!bodyId.has_value())
         LOG_WARNING("Body '{}' of type {} added without body id", name, enum_name(type));
 }
 
-//bool Entity::setTypeAndName(TypeNav tn_js, std::string_view sname, std::string_view snloc) {
-//    if (tn_js != type) {
-//        LOG_ERROR("Cannot change type from {} to {}", enum_name(type), enum_name(tn_js));
-//    }
-//
-//    TypeNav tn_nm = TypeNav::Other;
-//    TypeNav tp = TypeNav::Other;
-//    if (!sname.empty()) {
-//        for (auto nt: ALL_NAV_TYPES) {
-//            if (nt->match_name(sname)) {
-//                tn_nm = nt->type;
-//                break;
-//            }
-//        }
-//    }
-//    if (tp == TypeNav::Other) {
-//        if (tn_nm != TypeNav::Other)
-//            tp = tn_nm;
-//        else if (tn_js != TypeNav::Other)
-//            tp = tn_js;
-//    }
-//
-//    bool changed = false;
-//
-//    if (tp != TypeNav::Other && tp != this->type) {
-//        setType(tp);
-//        changed = true;
-//    }
-//
-//    if (!sname.empty()) {
-//        std::string xx_name;
-//        std::string ru_name;
-//        NavType::localizeName(type, sname, xx_name, ru_name);
-//        if (ru_name.empty())
-//            ru_name = snloc;
-//        if (this->name != xx_name) {
-//            const_cast<std::string &>(this->name) = xx_name;
-//            changed = true;
-//        }
-//        if (isCarrier(type)) {
-//            if (this->nloc != ru_name && ru_name != this->name) {
-//                const_cast<std::string &>(this->nloc) = ru_name;
-//                changed = true;
-//            }
-//        } else {
-//            if (this->nloc != ru_name) {
-//                const_cast<std::string &>(this->nloc) = ru_name;
-//                changed = true;
-//            }
-//        }
-//    }
-//
-//    return changed;
-//}
-
-
-//void Entity::setType(TypeNav tp) {
-//    if (tp == type)
-//        return;
-//
-//    TypeNav old_type = this->type;
-//    TypeNav& new_type = const_cast<TypeNav&>(this->type);
-//    new_type = tp;
-//
-//    if (new_type >= TypeNav::SpaceStation) {
-//        if (!std::holds_alternative<Entity::StationData>(ext)) {
-//            ext.emplace<Entity::StationData>();
-//        }
-//        return;
-//    }
-//
-//    Entity::BodyData body_ext {};
-//    if (old_type == TypeNav::Star)
-//        body_ext = std::get<Entity::StarData>(ext);
-//    else if (old_type == TypeNav::Planet)
-//        body_ext = std::get<Entity::PlanetData>(ext);
-//    else if (std::holds_alternative<Entity::BodyData>(ext))
-//        body_ext = std::get<Entity::BodyData>(ext);
-//
-//    if (new_type == TypeNav::Star) {
-//        Entity::StarData s_ext;
-//        static_cast<Entity::BodyData &>(s_ext) = body_ext;
-//        ext.emplace<Entity::StarData>(s_ext);
-//    }
-//    else if (new_type == TypeNav::Planet) {
-//        Entity::PlanetData p_ext;
-//        static_cast<Entity::BodyData &>(p_ext) = body_ext;
-//        ext.emplace<Entity::PlanetData>(p_ext);
-//    }
-//    else {
-//        ext.emplace<Entity::BodyData>(body_ext);
-//    }
-//}
-
 bool Entity::nameEq(std::string_view nm) const {
     if (nm.empty())
         return false;
-    if (name == nm)
-        return true;
-    if (!nloc.empty() && nloc == nm)
-        return true;
-
-    NavType* navType = nullptr;
-    switch (type) {
-    case TypeNav::Other:
-    case TypeNav::Error:
-    case TypeNav::Signal:
-    case TypeNav::USS:
-    case TypeNav::StarSystem:
-    case TypeNav::Body:
-    case TypeNav::Barycenter:
-    case TypeNav::Ring:
-    case TypeNav::AsteroidCluster:
-    case TypeNav::Star:
-    case TypeNav::Planet:
-    case TypeNav::TouristBeacon:
-    case TypeNav::AnySite:
-    case TypeNav::SpaceStation:
-    case TypeNav::Orbis:
-    case TypeNav::Ocellus:
-    case TypeNav::Dodec:
-    case TypeNav::Coriolis:
-    case TypeNav::AsteroidBase:
-    case TypeNav::SpaceOutpost:
-    case TypeNav::SpaceInstallation:
-    case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryPort:
-    case TypeNav::EngineerPort:
-    case TypeNav::Settlement:
-    case TypeNav::PlanetaryInstallation:
-    case TypeNav::SpaceConstrDepot:
-    case TypeNav::PlanetaryConstrDepot:
-    case TypeNav::Megaship:
-    case TypeNav::FleetCarrier:
-    case TypeNav::SquadronCarrier:
-        return false;
-    case TypeNav::NotExplored:
-        navType = &UNEXPLORED;
-        break;
-    case TypeNav::WarZone:
-        navType = &WAR_ZONE;
-        break;
-    case TypeNav::ResSite:
-        navType = &RES_SITE;
-        break;
-    case TypeNav::Codex:
-        navType = &CODEX;
-        break;
-    case TypeNav::NavBeacon:
-        navType = &BEACON;
-        break;
-    case TypeNav::AnonMegaship:
-        navType = &ANON_MEGASHIP;
-        break;
-    case TypeNav::StationMegaShip:
-        return false;
-    case TypeNav::ColonisationShip: {
-        if (name == nm || nloc == nm)
-            return true;
-        if (nm.starts_with("$EXT_PANEL_ColonisationShip")) {
-            std::string xx_name;
-            std::string ru_name;
-            NavType::localizeName(type, nm, xx_name, ru_name);
-            return name == xx_name || nloc == ru_name;
-        }
-        return false;
-    }
-    }
-    if (navType) {
-        for (auto &p: navType->name_loc) {
-            if ((p.match(name) || p.match(nloc)))
-                return p.match(nm);
-        }
-    }
-    return false;
+    return name == nm;
 }
 
-bool Entity::setName(std::string_view sname, std::string_view snloc) {
-    if (name == sname && nloc == snloc)
-        return false;
-
-    std::string xx_name;
-    std::string ru_name;
-    NavType* navType = nullptr;
-    switch (type) {
-    case TypeNav::Barycenter:
-        LOG_ERROR("Cannot set name for TypeNav::Barycenter");
-        return false;
-    case TypeNav::Ring:
-        LOG_ERROR("Cannot set name for TypeNav::Ring");
-        return false;
-    case TypeNav::AsteroidCluster:
-        if (!sname.contains("Belt Cluster")) {
-            LOG_ERROR("Bad name for TypeNav::AsteroidCluster: '{}'", sname);
-            return false;
-        }
-        if (!snloc.empty()) {
-            LOG_ERROR("Bad localized name for TypeNav::AsteroidCluster: '{}'", snloc);
-        }
-        const_cast<std::string&>(name) = *sname;
-        const_cast<std::string&>(nloc) = "";
-        return false;
-    case TypeNav::Star:
-    case TypeNav::Planet:
-        if (!snloc.empty()) {
-            LOG_ERROR("Bad localized name for TypeNav::{}: '{}'", enum_name(type), snloc);
-        }
-        const_cast<std::string&>(name) = *sname;
-        const_cast<std::string&>(nloc) = "";
-        return false;
-    case TypeNav::Other:
-    case TypeNav::Error:
-    case TypeNav::Signal:
-    case TypeNav::USS:
-    case TypeNav::Codex:
-    case TypeNav::StarSystem:
-    case TypeNav::Body:
-    case TypeNav::TouristBeacon:
-    case TypeNav::AnySite:
-    case TypeNav::SpaceStation:
-    case TypeNav::Orbis:
-    case TypeNav::Ocellus:
-    case TypeNav::Dodec:
-    case TypeNav::Coriolis:
-    case TypeNav::AsteroidBase:
-    case TypeNav::SpaceOutpost:
-    case TypeNav::SpaceInstallation:
-    case TypeNav::SpaceConstrDepot:
-    case TypeNav::PlanetaryThing:
-    case TypeNav::PlanetaryPort:
-    case TypeNav::EngineerPort:
-    case TypeNav::Settlement:
-    case TypeNav::PlanetaryInstallation:
-    case TypeNav::PlanetaryConstrDepot:
-        const_cast<std::string&>(name) = sname;
-        const_cast<std::string&>(nloc) = snloc;
-        return true;
-    case TypeNav::Megaship:
-    case TypeNav::StationMegaShip:
-    case TypeNav::FleetCarrier:
-    case TypeNav::SquadronCarrier:
-    case TypeNav::ColonisationShip:
-    case TypeNav::AnonMegaship:
-        // handled on overriden method
-        assert(false);
-        return false;
-
-    case TypeNav::NotExplored:
-        navType = &UNEXPLORED;
-        break;
-    case TypeNav::WarZone:
-        navType = &WAR_ZONE;
-        break;
-    case TypeNav::ResSite:
-        navType = &RES_SITE;
-        break;
-    case TypeNav::NavBeacon:
-        navType = &BEACON;
-        break;
-    }
-
-    for (auto& p : navType->name_loc) {
-        if (p.match(sname)) {
-            p.localizeName(sname, xx_name, ru_name);
-            if (name == xx_name && nloc == ru_name)
-                return false;
-            if (!snloc.empty() && snloc != ru_name) {
-                if (!(st::lng == Lang::EN && snloc == xx_name && ru_name.empty()))
-                    LOG_ERROR("Cannot set localized name '{}' to entity type {}", snloc, enum_name(type));
-            }
-            const_cast<std::string&>(name) = xx_name;
-            const_cast<std::string&>(nloc) = ru_name;
-            return true;
-        }
-    }
-    LOG_ERROR("Cannot set name '{}'/'{}' to entity type {}", sname, snloc, enum_name(type));
-    return false;
-}
-
-
-//spEntity StationEntity::create(TypeNav tp, std::string_view sname, std::string_view snloc) {
-//    if (!isAnySite(tp) || isMegaship(tp))
-//        LOG_ERROR("StationEntity created with bad type {}", tp);
-//    if (sname.empty())
-//        LOG_ERROR("StationEntity created with empty name");
+//bool Entity::setName(std::string_view sname, std::string_view snloc) {
+//    if (name == sname && nloc == snloc)
+//        return false;
 //
 //    std::string xx_name;
 //    std::string ru_name;
-//    if (sname.find('$') != std::string_view::npos)
-//        NavType::localizeName(tp, sname, xx_name, ru_name);
-//    else
-//        xx_name = sname;
-//    if (snloc.find('$') != std::string_view::npos)
-//        NavType::localizeName(tp, snloc, xx_name, ru_name);
-//    else if (!snloc.empty())
-//        ru_name = snloc;
+//    NavType* navType = nullptr;
+//    switch (type) {
+//    case TypeNav::Barycenter:
+//        LOG_ERROR("Cannot set name for TypeNav::Barycenter");
+//        return false;
+//    case TypeNav::Ring:
+//        LOG_ERROR("Cannot set name for TypeNav::Ring");
+//        return false;
+//    case TypeNav::AsteroidCluster:
+//        if (!sname.contains("Belt Cluster")) {
+//            LOG_ERROR("Bad name for TypeNav::AsteroidCluster: '{}'", sname);
+//            return false;
+//        }
+//        if (!snloc.empty()) {
+//            LOG_ERROR("Bad localized name for TypeNav::AsteroidCluster: '{}'", snloc);
+//        }
+//        const_cast<std::string&>(name) = *sname;
+//        const_cast<std::string&>(nloc) = "";
+//        return false;
+//    case TypeNav::Star:
+//    case TypeNav::Planet:
+//        if (!snloc.empty()) {
+//            LOG_ERROR("Bad localized name for TypeNav::{}: '{}'", enum_name(type), snloc);
+//        }
+//        const_cast<std::string&>(name) = *sname;
+//        const_cast<std::string&>(nloc) = "";
+//        return false;
+//    case TypeNav::Other:
+//    case TypeNav::Error:
+//    case TypeNav::Signal:
+//    case TypeNav::USS:
+//    case TypeNav::Codex:
+//    case TypeNav::StarSystem:
+//    case TypeNav::Body:
+//    case TypeNav::TouristBeacon:
+//    case TypeNav::AnySite:
+//    case TypeNav::SpaceStation:
+//    case TypeNav::Orbis:
+//    case TypeNav::Ocellus:
+//    case TypeNav::Dodec:
+//    case TypeNav::Coriolis:
+//    case TypeNav::AsteroidBase:
+//    case TypeNav::SpaceOutpost:
+//    case TypeNav::SpaceInstallation:
+//    case TypeNav::SpaceConstrDepot:
+//    case TypeNav::PlanetaryThing:
+//    case TypeNav::PlanetaryPort:
+//    case TypeNav::EngineerPort:
+//    case TypeNav::Settlement:
+//    case TypeNav::PlanetaryInstallation:
+//    case TypeNav::PlanetaryConstrDepot:
+//        const_cast<std::string&>(name) = sname;
+//        const_cast<std::string&>(nloc) = snloc;
+//        return true;
+//    case TypeNav::Megaship:
+//    case TypeNav::StationMegaShip:
+//    case TypeNav::FleetCarrier:
+//    case TypeNav::SquadronCarrier:
+//    case TypeNav::ColonisationShip:
+//    case TypeNav::AnonMegaship:
+//        // handled on overriden method
+//        assert(false);
+//        return false;
 //
-//    if (!ru_name.empty() && sname.find('$') == std::string_view::npos) {
-//        LOG_ERROR("StationEntity created with localized name '{}'", snloc);
+//    case TypeNav::NotExplored:
+//        navType = &UNEXPLORED;
+//        break;
+//    case TypeNav::WarZone:
+//        navType = &WAR_ZONE;
+//        break;
+//    case TypeNav::ResSite:
+//        navType = &RES_SITE;
+//        break;
+//    case TypeNav::NavBeacon:
+//        navType = &BEACON;
+//        break;
 //    }
-//    spEntity entity(new StationEntity(tp, xx_name, ru_name));
-//    return entity;
+//
+//    for (auto& p : navType->name_loc) {
+//        if (p.match(sname)) {
+//            p.localizeName(sname, xx_name, ru_name);
+//            if (name == xx_name && nloc == ru_name)
+//                return false;
+//            if (!snloc.empty() && snloc != ru_name) {
+//                if (!(st::lng == Lang::EN && snloc == xx_name && ru_name.empty()))
+//                    LOG_ERROR("Cannot set localized name '{}' to entity type {}", snloc, enum_name(type));
+//            }
+//            const_cast<std::string&>(name) = xx_name;
+//            const_cast<std::string&>(nloc) = ru_name;
+//            return true;
+//        }
+//    }
+//    LOG_ERROR("Cannot set name '{}'/'{}' to entity type {}", sname, snloc, enum_name(type));
+//    return false;
 //}
 
-StationEntity::StationEntity(TypeNav tp, std::string nm, std::string nl, int64_t market_id)
-        : Entity(tp, std::move(nm), std::move(nl))
+
+SignalEntity::SignalEntity(TypeNav tp, std::string var, std::string nm, std::string nloc)
+    : Entity(tp, std::move(nm))
 {
+    if (!isSignal(type))
+        LOG_ERROR("SignalEntity '{}'/'{}'/'{}' created with non-signal type: {}", var, name, nloc, enum_name(type));
+    if (name.empty() && nloc.empty())
+        LOG_WARNING("Empty signal name and localised name for: '{}' type {}", var, enum_name(type));
+    signal_ext.unexpanded_name = js::symbol(var);
+    signal_ext.localised_name = js::symbol(nloc);
+    if (!signal_ext.localised_name.empty())
+        signal_ext.localised = true;
+}
+
+bool SignalEntity::nameEq(std::string_view nm) const {
+    if (!signal_ext.localised) {
+        if (!signal_ext.unexpanded_name.empty()) {
+            std::string eng, loc;
+            NavType::localizeName(type, signal_ext.unexpanded_name.sv(), eng, loc);
+            const_cast<js::symbol&>(signal_ext.localised_name) = js::symbol(loc);
+            const_cast<bool&>(signal_ext.localised) = true;
+        } else {
+            for (auto nt: ALL_NAV_TYPES) {
+                for (auto &p: nt->name_loc) {
+                    if (p.match(name)) {
+                        if (!p.var.empty()) {
+                            std::string var = "$" + p.var + ";";
+                            const_cast<js::symbol&>(signal_ext.localised_name) = js::symbol(var);
+                        }
+                        const_cast<js::symbol&>(signal_ext.localised_name) = js::symbol(*p.get_loc());
+                        const_cast<bool&>(signal_ext.localised) = true;
+                        goto localized;
+                    }
+                }
+            }
+        }
+    }
+localized:
+    return name == nm || signal_ext.localised_name == nm || signal_ext.unexpanded_name == nm;
+}
+
+bool SignalEntity::setSignalName(spEntity& entity, std::string_view nm, std::string_view nl) {
+    TypeNav type = entity->type;
+    if (type == TypeNav::USS)
+        return false;
+    assert (isSignal(type));
+    SignalEntity* signal = (SignalEntity*)entity.get();
+
+    std::string var_name, xx_name, ru_name;
+    if (nm.starts_with("$")) {
+        var_name = nm;
+        TypeNav tp_guess = NavType::localizeName(type, nm, xx_name, ru_name);
+        if (tp_guess != TypeNav::Other && tp_guess != type)
+            type = tp_guess;
+        if (nl.empty() && st::lng == Lang::RU) nl = ru_name;
+        nm = xx_name;
+    }
+    if (xx_name.empty()) {
+        for (auto nt: ALL_NAV_TYPES) {
+            for (auto& p : nt->name_loc) {
+                if (p.match(nm) || p.match(nl)) {
+                    var_name = "$" + p.var + ";";
+                    xx_name = p.get_eng();
+                    if (xx_name.empty())
+                        xx_name = var_name;
+                    if (nl.empty())
+                        ru_name = p.get_loc();
+                    else
+                        ru_name = nl;
+                    goto localized;
+                }
+            }
+        }
+    }
+
+    localized:
+    if (signal->name == nm && signal->signal_ext.unexpanded_name == var_name && signal->signal_ext.localised_name == nl)
+        return false;
+
+    if (signal->name != xx_name)
+        const_cast<std::string &>(signal->name) = xx_name;
+    if (signal->signal_ext.localised_name != ru_name) {
+        const_cast<js::symbol&>(signal->signal_ext.localised_name) = js::symbol(ru_name);
+        const_cast<bool&>(signal->signal_ext.localised) = true;
+    }
+    return true;
+}
+
+bool BodyEntity::setBodyName(spEntity& entity, std::string_view nm) {
+    TypeNav type = entity->type;
+    assert (isBody(type));
+    BodyEntity* body = (BodyEntity*)entity.get();
+    if (body->name == nm)
+        return false;
+    if (type == TypeNav::Barycenter || type == TypeNav::Ring) {
+        if (!nm.empty())
+            LOG_ERROR("Attempt to set name '{}' for body type {}", nm, enum_name(type));
+        return false;
+    }
+    if (nm.empty()) {
+        LOG_ERROR("Set empty name for body type {}", enum_name(type));
+        return false;
+    }
+    if (body->name[0] == '\t' && (type == TypeNav::Star || type == TypeNav::Planet)) {
+        const_cast<std::string&>(body->name) = *nm;
+        return true;
+    }
+    LOG_ERROR("Change name from '{}' to '{}' for body type {}", body->name, nm, enum_name(type));
+    const_cast<std::string&>(body->name) = *nm;
+    return true;
+}
+
+StationEntity::StationEntity(TypeNav tp, std::string nm, int64_t market_id)
+        : Entity(tp, std::move(nm))
+{
+    station_ext.localised = true;
+}
+
+StationEntity::StationEntity(TypeNav tp, std::string var, std::string nm, std::string nl, int64_t market_id)
+        : Entity(tp, std::move(nm))
+{
+    station_ext.unexpanded_name = js::symbol(var);
+    station_ext.localised_name = js::symbol(nl);
 }
 
 bool StationEntity::setMarketId(int64_t marketId) {
@@ -1424,28 +1404,111 @@ bool StationEntity::setMarketId(int64_t marketId) {
     return true;
 }
 
+bool StationEntity::nameEq(std::string_view nm) const {
+    if (!station_ext.localised) {
+        if (!station_ext.unexpanded_name.empty()) {
+            std::string eng, loc;
+            NavType::localizeName(type, station_ext.unexpanded_name.sv(), eng, loc);
+            const_cast<js::symbol&>(station_ext.localised_name) = js::symbol(loc);
+            const_cast<bool&>(station_ext.localised) = true;
+        } else {
+            for (auto nt: ALL_NAV_TYPES) {
+                for (auto &p: nt->name_loc) {
+                    if (p.match(name)) {
+                        if (!p.var.empty()) {
+                            std::string var = "$" + p.var + ";";
+                            const_cast<js::symbol&>(station_ext.localised_name) = js::symbol(var);
+                        }
+                        const_cast<js::symbol&>(station_ext.localised_name) = js::symbol(*p.get_loc());
+                        const_cast<bool&>(station_ext.localised) = true;
+                        goto localized;
+                    }
+                }
+            }
+        }
+    }
+localized:
+    return name == nm || station_ext.localised_name == nm || station_ext.unexpanded_name == nm;
+}
 
-MegashipEntity::MegashipEntity(TypeNav tp, std::string nm, std::string nl, int64_t market_id)
-    : StationEntity(tp, std::move(nm), std::move(nl), isAnonMegaship(type) ? 0 : market_id)
+bool StationEntity::setStationName(spEntity& entity, std::string_view nm, std::string_view nl) {
+    TypeNav type = entity->type;
+    assert (isAnySite(type) && !isMegaship(type));
+    StationEntity* station = (StationEntity*)entity.get();
+
+    std::string var_name, xx_name, ru_name;
+    if (nm.starts_with("$")) {
+        var_name = nm;
+        TypeNav tp_guess = NavType::localizeName(type, nm, xx_name, ru_name);
+        if (tp_guess != TypeNav::Other && tp_guess != type)
+            type = tp_guess;
+        nm = xx_name;
+        if (nl.empty() && st::lng == Lang::RU)
+            nl = ru_name;
+    }
+    if (nm.empty()) {
+        for (auto nt: ALL_NAV_TYPES) {
+            for (auto& p : nt->name_loc) {
+                if (p.match(nm) || p.match(nl)) {
+                    var_name = "$" + p.var + ";";
+                    nm = p.get_eng();
+                    if (nm.empty())
+                        nm = var_name;
+                    if (nl.empty() && st::lng == Lang::RU)
+                        nl = p.get_loc();
+                    goto localized;
+                }
+            }
+        }
+    }
+
+    localized:
+
+    if (nm.empty()) {
+        LOG_ERROR("Empty station name");
+        return false;
+    }
+
+    if (station->name == nm && station->station_ext.unexpanded_name == var_name && station->station_ext.localised_name == nl)
+        return false;
+
+    if (station->name != nm)
+        const_cast<std::string &>(station->name) = nm;
+    if (station->station_ext.localised_name != nl) {
+        const_cast<js::symbol&>(station->station_ext.localised_name) = js::symbol(nl);
+        const_cast<bool&>(station->station_ext.localised) = true;
+    }
+    return true;
+}
+
+
+MegashipEntity::MegashipEntity(TypeNav tp, std::string var, std::string nm, std::string nl, int64_t market_id)
+    : StationEntity(tp, std::move(var), std::move(nm), std::move(nl), isAnonMegaship(type) ? 0 : market_id)
 {
     if (tp == TypeNav::FleetCarrier) {
+        assert (var.empty());
         assert (name.size() == 7);
-        assert ((nloc.size() == 7 && nloc == name) || (nloc.size() > 8 && nloc.ends_with(name)));
+        auto full = station_ext.localised_name;
+        assert (full.empty() || (full.size() > 8 && full.sv().ends_with(name)));
     }
     else if (tp == TypeNav::SquadronCarrier) {
+        assert (var.empty());
         assert (name.size() == 4);
-        assert ((nloc.size() == 4 && nloc == name) || (nloc.size() > 7 && nloc.ends_with(" | " + name)));
+        auto full = station_ext.localised_name;
+        assert (full.empty() || (full.size() > 7 && full.sv().ends_with(" | " + name)));
     }
     else if (isAnonMegaship(tp)) {
         assert (!name.empty() && tp == NavType::guessTypeFromName(TypeNav::Other,name));
-        assert (nloc.empty() || tp == NavType::guessTypeFromName(TypeNav::Other,nloc));
+        assert (station_ext.localised_name.empty() || tp == NavType::guessTypeFromName(TypeNav::Other,station_ext.localised_name));
     }
     else if (tp == TypeNav::ColonisationShip || name == "System Colonisation Ship") {
-        assert (nloc.empty() || nloc.starts_with("System Colonisation Ship") || nloc.starts_with("Колонизационный корабль"));
+        assert (name.starts_with("System Colonisation Ship"));
+        assert (station_ext.localised_name.empty() || station_ext.localised_name.sv().starts_with("Колонизационный корабль"));
     }
     else {
         assert (!name.empty());
-        assert (nloc.empty());
+        assert (station_ext.unexpanded_name.empty());
+        assert (station_ext.localised_name.empty());
     }
 }
 
@@ -1456,9 +1519,124 @@ bool MegashipEntity::setMarketId(int64_t marketId) {
     return true;
 }
 
+bool MegashipEntity::setCarrierName(spEntity& entity, std::string_view code, std::string_view full) {
+    TypeNav type = entity->type;
+    assert (isCarrier(type));
+    MegashipEntity* carrier = (MegashipEntity*)entity.get();
+    if (carrier->name == code && carrier->station_ext.localised_name == full)
+        return false;
 
-bool MegashipEntity::setName(std::string_view nm, std::string_view nl) {
-    if (name == nm && nloc == nl)
+    if (type == TypeNav::FleetCarrier) {
+        if (code.empty() && full.empty())
+            return false;
+        if (code.empty()) {
+            code = full;
+            full = "";
+        }
+        if (NavType::checkCarrierName(code, nullptr, nullptr) != TypeNav::FleetCarrier) {
+            LOG_ERROR("Set wrong fleet carrier name as: '{}'", code);
+            return false;
+        }
+        if (!full.empty() && !full.ends_with(code)) {
+            LOG_ERROR("Set wrong fleet carrier name as: '{}'", full);
+            return false;
+        }
+        if (!full.empty() && NavType::checkCarrierName(full, nullptr, nullptr) != TypeNav::FleetCarrier) {
+            LOG_ERROR("Set wrong fleet carrier name as: {}", full);
+            return false;
+        }
+        if (code.size() != 7) {
+            if (full.empty())
+                full = code;
+            code = full.substr(full.size()-7);
+        }
+    }
+    else if (type == TypeNav::SquadronCarrier) {
+        if (code.empty() && full.empty())
+            return false;
+        if (code.empty()) {
+            code = full;
+            full = "";
+        }
+        if (NavType::checkCarrierName(code, nullptr, nullptr) != TypeNav::SquadronCarrier) {
+            LOG_ERROR("Set wrong squadron carrier name as: '{}'", code);
+            return false;
+        }
+        if (!full.empty() && !full.ends_with(code)) {
+            LOG_ERROR("Set wrong squadron carrier name as: '{}'", full);
+            return false;
+        }
+        if (!full.empty() && NavType::checkCarrierName(full, nullptr, nullptr) != TypeNav::SquadronCarrier) {
+            LOG_ERROR("Set wrong squadron carrier name as: {}", full);
+            return false;
+        }
+        if (code.size() != 4) {
+            if (full.empty())
+                full = code;
+            code = full.substr(full.size()-4);
+        }
+
+    }
+    else
+        return false;
+
+    bool changed = false;
+    if (carrier->name.empty()) {
+        const_cast<std::string&>(carrier->name) = *code;
+        changed = true;
+    }
+    if (!full.empty() && carrier->station_ext.localised_name != full) {
+        const_cast<js::symbol&>(carrier->station_ext.localised_name) = js::symbol(*full);
+        const_cast<bool&>(carrier->station_ext.localised) = true;
+        changed = true;
+    }
+    return changed;
+}
+
+
+bool MegashipEntity::setMegashipName(spEntity& entity, std::string_view nm, std::string_view nl) {
+    TypeNav type = entity->type;
+    assert (isMegaship(type) && !isCarrier(type));
+    MegashipEntity* megaship = (MegashipEntity*)entity.get();
+
+    std::string var_name, xx_name, ru_name;
+    if (nm.starts_with("$")) {
+        var_name = nm;
+        TypeNav tp_guess = NavType::localizeName(type, nm, xx_name, ru_name);
+        if (tp_guess != TypeNav::Other && tp_guess != type)
+            type = tp_guess;
+        nm = xx_name;
+        if (nl.empty())
+            nl = ru_name;
+    }
+    if (xx_name.empty()) {
+        for (auto nt: ALL_NAV_TYPES) {
+            for (auto& p : nt->name_loc) {
+                if (p.match(nm) || p.match(nl)) {
+                    if (!p.var.empty())
+                        var_name = "$" + p.var + ";";
+                    if (type == TypeNav::ColonisationShip) {
+                        xx_name = p.get_eng();
+                    } else {
+                        xx_name = p.get_eng();
+                        if (xx_name.empty())
+                            xx_name = var_name;
+                    }
+                    if (nl.empty())
+                        nl = nm;
+                    nm = xx_name;
+                    if (nl.empty())
+                        nl = p.get_loc();
+                    goto localized;
+                }
+            }
+        }
+    }
+
+localized:
+    if (nl == nm)
+        nl = "";
+    if (megaship->name == nm && megaship->station_ext.unexpanded_name == var_name && megaship->station_ext.localised_name == nl)
         return false;
 
     if (type == TypeNav::Megaship || type == TypeNav::StationMegaShip) {
@@ -1466,121 +1644,29 @@ bool MegashipEntity::setName(std::string_view nm, std::string_view nl) {
             LOG_ERROR("TypeNav::Megaship and TypeNav::StationMegaShip cannot have localized name: '{}'", nl);
             nl = {};
         }
-        if (name == nm)
+        if (megaship->name == nm)
             return false;
-        const_cast<std::string &>(name) = *nm;
+        const_cast<std::string&>(megaship->name) = *nm;
         return true;
     }
 
-    if (type == TypeNav::FleetCarrier) {
-        if (nm.empty() && nl.empty())
-            return false;
-        if (nm.empty())
-            nm = nl;
-        if (NavType::checkCarrierName(nm, nullptr, nullptr) != TypeNav::FleetCarrier) {
-            LOG_ERROR("Set wrong fleet carrier name as: '{}'", nm);
-            return false;
-        }
-        if (!nl.empty() && !nl.ends_with(nm)) {
-            LOG_ERROR("Set wrong fleet carrier name as: '{}'", nl);
-            return false;
-        }
-        if (!nl.empty() && NavType::checkCarrierName(nl, nullptr, nullptr) != TypeNav::FleetCarrier) {
-            LOG_ERROR("Set wrong fleet carrier name as: {}", nl);
-            return false;
-        }
-        if (nm.size() != 7) {
-            if (nl.empty())
-                nl = nm;
-            nm = nl.substr(nl.size()-7);
-        }
-
-        bool changed = false;
-        if (name.empty()) {
-            const_cast<std::string &>(name) = *nm;
-            changed = true;
-        }
-        if (!nl.empty() && nloc != nl) {
-            const_cast<std::string &>(nloc) = *nl;
-            changed = true;
-        }
-        return changed;
+    if (megaship->name != nm)
+        const_cast<std::string &>(megaship->name) = nm;
+    if (!var_name.empty() && megaship->station_ext.unexpanded_name != var_name)
+        const_cast<js::symbol&>(megaship->station_ext.unexpanded_name) = js::symbol(var_name);
+    if (megaship->station_ext.localised_name != nl) {
+        const_cast<js::symbol&>(megaship->station_ext.localised_name) = js::symbol(nl);
+        const_cast<bool&>(megaship->station_ext.localised) = true;
     }
-
-    if (type == TypeNav::SquadronCarrier) {
-        if (nm.empty() && nl.empty())
-            return false;
-        if (nm.empty())
-            nm = nl;
-        if (NavType::checkCarrierName(nm, nullptr, nullptr) != TypeNav::SquadronCarrier) {
-            LOG_ERROR("Set wrong squadron carrier name as: '{}'", nm);
-            return false;
-        }
-        if (!nl.empty() && !nl.ends_with(nm)) {
-            LOG_ERROR("Set wrong squadron carrier name as: '{}'", nl);
-            return false;
-        }
-        if (!nl.empty() && NavType::checkCarrierName(nl, nullptr, nullptr) != TypeNav::SquadronCarrier) {
-            LOG_ERROR("Set wrong squadron carrier name as: {}", nl);
-            return false;
-        }
-        if (nm.size() != 4) {
-            if (nl.empty())
-                nl = nm;
-            nm = nl.substr(nl.size()-4);
-        }
-
-        bool changed = false;
-        if (name.empty()) {
-            const_cast<std::string &>(name) = *nm;
-            changed = true;
-        }
-        if (!nl.empty() && nloc != nl) {
-            const_cast<std::string &>(nloc) = *nloc;
-            changed = true;
-        }
-        return changed;
-    }
-
-    if (type == TypeNav::ColonisationShip) {
-        std::string xx_name;
-        std::string ru_name;
-        NavType::localizeName(type, nm, xx_name, ru_name);
-        bool changed = false;
-        if (this->name != xx_name) {
-            const_cast<std::string &>(this->name) = xx_name;
-            changed = true;
-        }
-        if (ru_name.empty())
-            ru_name = nl;
-        if (this->nloc != ru_name) {
-            const_cast<std::string &>(this->nloc) = ru_name;
-            changed = true;
-        }
-        return changed;
-    }
-
-    if (isAnonMegaship(type)) {
-        std::string xx_name;
-        std::string ru_name;
-        for (auto& p : ANON_MEGASHIP.name_loc) {
-            if (p.match(nm) || p.match(nl)) {
-                p.localizeName(nm, xx_name, ru_name);
-                if (name == xx_name && nloc == ru_name)
-                    return false;
-                const_cast<std::string&>(name) = xx_name;
-                const_cast<std::string&>(nloc) = ru_name;
-                return true;
-            }
-        }
-        LOG_ERROR("Set wrong operation runner name as: '{}'/'{}' ", nm, nl);
-        return false;
-    }
-
-    LOG_ERROR("Unknown megaship type {}", enum_name(type));
-    return false;
+    return true;
 }
 
+bool MegashipEntity::nameEq(std::string_view nm) const {
+    if (isCarrier(type)) {
+        return name == nm || station_ext.localised_name == nm;
+    }
+    return StationEntity::nameEq(nm);
+}
 
 
 } // namespace gal

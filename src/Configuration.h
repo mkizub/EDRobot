@@ -167,7 +167,7 @@ private:
     std::map<std::string,std::string> mRavenColonialKeys;
     std::string mCurlProxyUrl;
     std::string mSqliteSynchronous = "NORMAL";
-    std::string mSqliteJournalMode = "PERSIST";
+    std::string mSqliteJournalMode = "WAL";
     int         mSqliteJournalSize = 16777216;
     std::wstring mEDSettingsPath;
     std::wstring mEDLogsPath;

@@ -17,6 +17,8 @@ inline std::string operator*(std::string_view sv) {
     return std::string(sv);
 }
 
+std::u8string_view as_u8(std::string_view sv);
+
 extern std::string getErrorMessage();
 extern std::string getErrorMessage(unsigned errorCode);
 extern void pasteToClipboard(const std::string& text);

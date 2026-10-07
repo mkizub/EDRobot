@@ -108,7 +108,7 @@ public:
 
     spEntity getMainStar() const;
     spEntity getEntity(const std::string& bname) const;
-    spEntity getSignal(std::string_view sig_name, std::string_view uss_name) const;
+    spEntity getSignal(std::string_view sig_name) const;
     spEntity getBodyById(body_id_t bodyId) const;
     spEntity getBody(std::string_view bname) const;
     spEntity getDock(std::string_view sname) const;
@@ -122,14 +122,16 @@ public:
 
 private:
     spEntity moveMegashipHere(db::MegashipJS& db_ms, body_id_t parentId);
+    spEntity makeStationEntity(TypeNav tp, std::string_view name, std::string_view nloc, int64_t marketId, Timestamp ts);
     spEntity makeSignalEntity(TypeNav tp, std::string_view name, std::string_view nloc);
-//    spEntity makeStation(spGameEvent& ge); // TODO: remove, use gal::updateFrom{}Event
     spEntity addMegashipEntity(TypeNav tp, std::string_view name, std::string_view nloc, int64_t marketId, Timestamp ts);
     spEntity addEntity(spEntity entity); // TODO: rename, public api is addEntity(type,name);
-    //spEntity convertEntity(spEntity entity, TypeNav to_type);
 };
 
 struct SignalData {
+    js::symbol unexpanded_name; // "$MULTIPLAYER_SCENARIO42_TITLE;"
+    js::symbol localised_name; // "Нав. маяк"
+    bool localised; // whether unexpanded_name was localised or not
     int count {}; // how many signals of this type in this system or on this planet
     //opt_float distanceToArrival; // space signals
     opt_float latitude; // planetary signals
@@ -172,7 +174,10 @@ struct PlanetData {
 };
 struct StationData {
     int64_t marketId {0};
+    js::symbol unexpanded_name; // "$Ancient:#index=3;" or "$EXT_PANEL_ColonisationShip; Chretien Depot"
+    js::symbol localised_name; // full name for carriers, or localised name from unexpanded_name or from Entity::name
     js::symbol controllingFaction;
+    bool localised; // whether unexpanded_name was localised or not
     JsAllegiance allegiance;
     JsGovernment government;
     JsStationState state;
@@ -190,17 +195,16 @@ struct StationData {
 class Entity {
     friend StarSystem;
 protected:
-    Entity(TypeNav tp, std::string name, std::string nloc);
-    Entity(TypeNav tp, std::string name, std::string nloc, body_id_t bId);
+    Entity(TypeNav tp, std::string name);
+    Entity(TypeNav tp, std::string name, body_id_t bId);
 public:
     virtual ~Entity() = default;
-    [[nodiscard]] bool nameEq(std::string_view nm) const;
+    [[nodiscard]] virtual bool nameEq(std::string_view nm) const; // check name, unexpanded_name and localised_name
     const TypeNav type {TypeNav::Other};
     body_id_t bodyId;
     body_id_t parentBodyId; // planet for planetary stations, or on orbit of body
     Timestamp updated {};
     const std::string name; // english name, code for carriers
-    const std::string nloc; // localized name, full name for carriers
 
     [[nodiscard]] float radius() const {
         if (!isBody(type))
@@ -217,6 +221,9 @@ public:
     virtual bool setMarketId(int64_t marketId) {
         return false;
     }
+
+    virtual std::string_view getUnexpandedName() const { return name; }
+    virtual std::string_view getLocalisedName() const { return ""; }
 
     //virtual bool setTypeAndName(TypeNav js_nt, std::string_view name, std::string_view nloc = {});
 
@@ -237,26 +244,28 @@ public:
     [[nodiscard]] virtual const StationData* getStationData() const { return nullptr; }
 
 private:
-    //void setType(TypeNav tp);
-    virtual bool setName(std::string_view nm, std::string_view nl);
+    // only StarSystem can set name (and localized name)
+    //virtual bool setName(std::string_view nm, std::string_view nl);
 };
 
 class SignalEntity : public Entity {
     friend StarSystem;
 protected:
-    SignalEntity(TypeNav tp, std::string nm, std::string nl)
-        : Entity(tp, std::move(nm), std::move(nl))
-    {}
+    SignalEntity(TypeNav tp, std::string var, std::string name, std::string nloc);
 protected:
     SignalData signal_ext;
     [[nodiscard]] SignalData* getSignalData() override { return &signal_ext; }
     [[nodiscard]] const SignalData* getSignalData() const override { return &signal_ext; }
+    [[nodiscard]] bool nameEq(std::string_view nm) const override;
+    std::string_view getUnexpandedName() const { return signal_ext.unexpanded_name.sv(); }
+    std::string_view getLocalisedName() const { return signal_ext.localised_name.sv(); }
+    static bool setSignalName(spEntity& entity, std::string_view nm, std::string_view nl);
 };
 
 class SignalUUSEntity : public SignalEntity {
     friend StarSystem;
     SignalUUSEntity(std::string nm, std::string nl)
-        : SignalEntity(TypeNav::USS, std::move(nm), std::move(nl))
+        : SignalEntity(TypeNav::USS, "", std::move(nm), std::move(nl))
     {}
 public:
 };
@@ -264,8 +273,8 @@ public:
 class BodyEntity : public Entity {
     friend StarSystem;
 protected:
-    BodyEntity(TypeNav tp, std::string nm, std::string nl, body_id_t id)
-        : Entity(tp, std::move(nm), std::move(nl), std::move(id))
+    BodyEntity(TypeNav tp, std::string nm, body_id_t id)
+        : Entity(tp, std::move(nm), std::move(id))
     {}
 public:
 //    static spEntity create(TypeNav tp, std::string_view sname, std::string_view snloc = {});
@@ -273,12 +282,13 @@ protected:
     BodyData body_ext;
     [[nodiscard]] BodyData* getBodyData() override { return &body_ext; }
     [[nodiscard]] const BodyData* getBodyData() const override { return &body_ext; }
+    static bool setBodyName(spEntity& entity, std::string_view nm);
 };
 
 class StarEntity : public BodyEntity {
     friend StarSystem;
     StarEntity(std::string nm, body_id_t id)
-        : BodyEntity(TypeNav::Star, std::move(nm), "", std::move(id))
+        : BodyEntity(TypeNav::Star, std::move(nm), std::move(id))
     {}
 protected:
     StarData star_ext;
@@ -289,7 +299,7 @@ protected:
 class PlanetEntity : public BodyEntity {
     friend StarSystem;
     PlanetEntity(std::string nm, body_id_t id)
-        : BodyEntity(TypeNav::Planet, std::move(nm), "", std::move(id))
+        : BodyEntity(TypeNav::Planet, std::move(nm), std::move(id))
     {}
 protected:
     PlanetData planet_ext;
@@ -300,20 +310,27 @@ protected:
 class StationEntity : public Entity {
     friend StarSystem;
 protected:
-    StationEntity(TypeNav tp, std::string name, std::string snloc, int64_t market_id);
+    StationEntity(TypeNav tp, std::string nm, int64_t market_id);
+    StationEntity(TypeNav tp, std::string var, std::string nm, std::string nl, int64_t market_id);
 protected:
     bool setMarketId(int64_t marketId) override;
     StationData station_ext;
     [[nodiscard]] StationData* getStationData() override { return &station_ext; }
     [[nodiscard]] const StationData* getStationData() const override { return &station_ext; }
+    [[nodiscard]] bool nameEq(std::string_view nm) const override;
+    std::string_view getUnexpandedName() const { return station_ext.unexpanded_name.sv(); }
+    std::string_view getLocalisedName() const { return station_ext.localised_name.sv(); }
+    static bool setStationName(spEntity& entity, std::string_view nm, std::string_view nl);
 };
 
 class MegashipEntity : public StationEntity {
     friend StarSystem;
 protected:
-    MegashipEntity(TypeNav tp, std::string nm, std::string nl, int64_t market_id);
+    MegashipEntity(TypeNav tp, std::string var, std::string nm, std::string nl, int64_t market_id);
     bool setMarketId(int64_t marketId) override;
-    bool setName(std::string_view nm, std::string_view nl) override;
+    static bool setCarrierName(spEntity& entity, std::string_view code, std::string_view full);
+    static bool setMegashipName(spEntity& entity, std::string_view nm, std::string_view nl);
+    [[nodiscard]] bool nameEq(std::string_view nm) const override;
 };
 
 

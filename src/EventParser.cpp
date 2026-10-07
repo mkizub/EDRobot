@@ -11,6 +11,7 @@
 #include "ShipStats.h"
 #include "gal/Galaxy.h"
 #include "ai/AIManager.h"
+#include "db/DB.h"
 #include "net/RavenColonial.h"
 #include "net/EDDN.h"
 #include "ui/UIManager.h"
@@ -43,10 +44,10 @@ CompassInfo compass;
 Autopilot autopilot;
 
 enum CleanupReason {
-    FILEHEADER, DEATH
+    FILEHEADER, DEATH, SHUTDOWN
 };
 void cleanup(CleanupReason reason) {
-    if (reason == FILEHEADER) {
+    if (reason == FILEHEADER || reason == SHUTDOWN) {
         auto &cmdr = const_cast<st::Commander &>(st::cmdr);
         cmdr = {};
         auto &client = const_cast<st::GameClient &>(st::client);
@@ -157,17 +158,23 @@ std::ostream& operator<<(std::ostream& os, const st::ShipStatus& st) {
 static int64_t fssSignalSystemAddress;
 static std::vector<spGameEvent> allFSSSignalEvents;
 
-inline void set(std::string& field, const js::value& value) {
+inline bool set(std::string& field, const js::value& value) {
+    bool changed = false;
     if (!value.is_string()) {
-        field.clear();
-        return;
+        if (!field.empty()) {
+            changed = true;
+            field.clear();
+        }
+        return changed;
     }
     if (field == value.as_string())
-        return;
+        return false;
     field = value.as_string();
+    return true;
 }
 
 void parseEvent_Fileheader(spGameEvent& ge);
+void parseEvent_Shutdown(spGameEvent& ge);
 void parseEvent_Commander(spGameEvent& ge);
 void parseEvent_LoadGame(spGameEvent& ge);
 void parseEvent_CarrierLocation(spGameEvent& ge);
@@ -212,6 +219,7 @@ void parseEvent_LeaveBody(spGameEvent& ge);
 
 std::unordered_map<std::string,void(*)(spGameEvent& ge)> eventMap {
         {"Fileheader", parseEvent_Fileheader},
+        {"Shutdown", parseEvent_Shutdown},
         {"Commander", parseEvent_Commander},
         {"LoadGame", parseEvent_LoadGame},
         {"CarrierLocation", parseEvent_CarrierLocation},
@@ -479,14 +487,25 @@ void setGameVersion(spGameEvent& ge) {
             LOG(ERROR) << "Unsupported game language: " << client.language;
             lng = Lang::XX;
         }
-        LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(lng);
-        Cfg.updateLanguage(lng);
+        if (lng != st::lng) {
+            LOG(INFO) << "Game language: " << client.language << ": " << enum_name<Lang>(lng);
+            Cfg.updateLanguage(lng);
+        }
     }
 }
 
 void parseEvent_Fileheader(spGameEvent& ge) {
     st::cleanup(st::FILEHEADER);
     setGameVersion(ge);
+}
+
+void parseEvent_Shutdown(spGameEvent& ge) {
+    LOG_INFO("Game shutdown");
+    ai::stop();
+    st::cleanup(st::SHUTDOWN);
+    gal::resetCurrentStarSystem();
+    gal::cleanupStarSystemCache({});
+    db::checkpoint(db::CheckPoint::FULL);
 }
 
 static void setCommander(std::string_view name, std::string_view fid) {
@@ -527,6 +546,17 @@ void parseEvent_Commander(spGameEvent& ge) {
     UIManager::updateCommander();
 }
 
+void printShipInfo() {
+    std::string str = "Ship: ";
+    if (st::shipInfo.shipTypeLocalised == st::shipInfo.shipType)
+        str.append(st::shipInfo.shipType).append(" ");
+    else
+        str.append(st::shipInfo.shipTypeLocalised).append(" (").append(st::shipInfo.shipType).append(") ");
+    if (!st::shipInfo.shipUserName.empty())
+        str.append(st::shipInfo.shipUserName).append(" ");
+    str.append("(id ").append(std::to_string(st::shipInfo.shipId)).append(")");
+}
+
 void parseEvent_LoadGame(spGameEvent& ge) {
     {
         // for relogin
@@ -541,13 +571,15 @@ void parseEvent_LoadGame(spGameEvent& ge) {
 
     setGameVersion(ge);
 
+    bool shipChanged = false;
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
-    set(shipInfo.shipType, je["Ship"]);
-    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
-    set(shipInfo.shipUserName, je["ShipName"]);
-    set(shipInfo.shipIdent, je["ShipIdent"]);
+    shipChanged |= set(shipInfo.shipType, je["Ship"]);
+    shipChanged |= set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
+    shipChanged |= set(shipInfo.shipUserName, je["ShipName"]);
+    shipChanged |= set(shipInfo.shipIdent, je["ShipIdent"]);
     shipInfo.shipId = je["ShipID"].as_int_or();
-    LOG_INFO("Ship: {} ({}) {}", shipInfo.shipTypeLocalised, shipInfo.shipType, shipInfo.shipUserName);
+    if (shipChanged)
+        printShipInfo();
 
     UIManager::updateCommander();
 }
@@ -569,10 +601,10 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
             auto carrier = starSystem->moveMegashipHere(cmdr.fleetCarrierId, cmdr.fleetCarrierCode, cmdr.fleetCarrierName, cmdr.fleetCarrierAtBodyId, true);
             if (carrier) {
                 cmdr.fleetCarrierCode = carrier->name;
-                cmdr.fleetCarrierName = carrier->nloc;
+                cmdr.fleetCarrierName = carrier->getLocalisedName();
             }
         }
-        LOG_INFO("Fleet Carrier Location: {}[{}]({}) in system '{}' at '{}' ({})", cmdr.fleetCarrierCode, cmdr.fleetCarrierId, cmdr.fleetCarrierName,
+        LOG_INFO("Fleet Carrier: {}[{}]({}) in system '{}' at '{}' ({})", cmdr.fleetCarrierCode, cmdr.fleetCarrierId, cmdr.fleetCarrierName,
                  cmdr.fleetCarrierInSystem, cmdr.fleetCarrierAtBody, cmdr.fleetCarrierAtBodyId.val);
         CM.loadCarrierCargo();
     }
@@ -588,10 +620,10 @@ void parseEvent_CarrierLocation(spGameEvent& ge) {
             auto carrier = starSystem->moveMegashipHere(cmdr.squadronCarrierId, cmdr.squadronCarrierCode, cmdr.squadronCarrierName, cmdr.squadronCarrierAtBodyId, true);
             if (carrier) {
                 cmdr.squadronCarrierCode = carrier->name;
-                cmdr.squadronCarrierName = carrier->nloc;
+                cmdr.squadronCarrierName = carrier->getLocalisedName();
             }
         }
-        LOG_INFO("Squadron Carrier Location: {}[{}]({}) in system '{}' at '{}' ({})", cmdr.squadronCarrierCode, cmdr.squadronCarrierId, cmdr.squadronCarrierName,
+        LOG_INFO("Squad Carrier: {}[{}]({}) in system '{}' at '{}' ({})", cmdr.squadronCarrierCode, cmdr.squadronCarrierId, cmdr.squadronCarrierName,
                  cmdr.squadronCarrierInSystem, cmdr.squadronCarrierAtBody, cmdr.squadronCarrierAtBodyId.val);
     }
     UIManager::updateCommander();
@@ -630,13 +662,15 @@ void parseEvent_Location(spGameEvent& ge) {
 void parseEvent_Loadout(spGameEvent& ge) {
     auto& je = ge->data;
 
+    bool shipChanged = false;
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
-    set(shipInfo.shipType, je["Ship"]);
-    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
-    set(shipInfo.shipUserName, je["ShipName"]);
-    set(shipInfo.shipIdent, je["ShipIdent"]);
+    shipChanged |= set(shipInfo.shipType, je["Ship"]);
+    shipChanged |= set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
+    shipChanged |= set(shipInfo.shipUserName, je["ShipName"]);
+    shipChanged |= set(shipInfo.shipIdent, je["ShipIdent"]);
     shipInfo.shipId = je["ShipID"].as_int_or();
-    LOG(INFO) << "Ship: " << shipInfo.shipType;
+    if (shipChanged)
+        printShipInfo();
 
     {
         auto& ss = st::shipStats;
@@ -657,8 +691,10 @@ void parseEvent_Loadout(spGameEvent& ge) {
             const auto item_name = m["Item"].as_string_or();
             if (slot_name == "FrameShiftDrive" || item_name == "int_dockingcomputer_advanced") {
                 auto health = m["Health"].as_real_or(1.0);
-                if (health < 0.05)
+                if (health < 0.05) {
                     st::isNeedRebootRepair = true;
+                    LOG_WARNING("Slot '{}' item '{}' health {:.2f} - need repair", slot_name, item_name, health);
+                }
             }
         }
         ss->updateStats();
@@ -709,12 +745,12 @@ void parseEvent_ShipyardSwap(spGameEvent& ge) {
 
     auto& shipInfo = const_cast<st::ShipInfo&>(st::shipInfo);
     shipInfo = {};
-    set(shipInfo.shipType, je["Ship"]);
-    set(shipInfo.shipTypeLocalised, je.at("Ship_Localised", shipInfo.shipType));
-    set(shipInfo.shipUserName, je["ShipName"]);
-    set(shipInfo.shipIdent, je["ShipIdent"]);
+    set(shipInfo.shipType, je["ShipType"]);
+    set(shipInfo.shipTypeLocalised, je.at("ShipType_Localised", shipInfo.shipType));
+    shipInfo.shipUserName.clear();
+    shipInfo.shipIdent.clear();
     shipInfo.shipId = je["ShipID"].as_int_or();
-    LOG(INFO) << "Ship: " << shipInfo.shipType;
+    printShipInfo();
 }
 
 void parseEvent_Docked(spGameEvent& ge) {
@@ -1051,7 +1087,7 @@ void parseEvent_CarrierJump(spGameEvent& ge) {
     if (cmdr.fleetCarrierId) {
         auto carrier = starSystem->moveMegashipHere(cmdr.fleetCarrierId, cmdr.fleetCarrierCode, "", st::space.bodyId, false);
         if (carrier) {
-            cmdr.fleetCarrierName = carrier->nloc;
+            cmdr.fleetCarrierName = carrier->getLocalisedName();
         }
     }
 

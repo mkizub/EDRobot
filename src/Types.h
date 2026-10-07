@@ -53,6 +53,7 @@ enum class TypeNav : uint8_t {
     NavBeacon               = 0x12,
     TouristBeacon           = 0x13,
     Codex                   = 0x14,  // notable stellar phenomena
+    Titan                   = 0x15,
     // gap
     Body                    = 0x20,   // generic type
     Barycenter              = 0x21,
@@ -104,7 +105,7 @@ inline constexpr bool isGeneric(TypeNav type) {
     return (uint8_t(type) & 0xF) == 0;
 }
 inline constexpr bool isDatabaseSite(TypeNav type) {
-    return type >= TypeNav::SpaceStation || (type >= TypeNav::NavBeacon && type <= TypeNav::Body);
+    return type >= TypeNav::SpaceStation || (type == TypeNav::NavBeacon || type == TypeNav::Codex || type == TypeNav::Titan);
 }
 inline constexpr bool isSpaceSite(TypeNav type) {
     return type >= TypeNav::SpaceStation && type < TypeNav::PlanetaryThing;

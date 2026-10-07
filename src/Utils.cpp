@@ -13,6 +13,10 @@
 
 #include "Keyboard.h"
 
+std::u8string_view as_u8(std::string_view sv) {
+    return std::u8string_view((char8_t*)sv.data(), sv.size());
+}
+
 std::string getErrorMessage() {
     return getErrorMessage(GetLastError());
 }

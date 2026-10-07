@@ -477,6 +477,7 @@ bool NavType::match_name(std::string_view sname) const {
         case TypeNav::ResSite:
         case TypeNav::USS:
         case TypeNav::Codex:
+        case TypeNav::Titan:
             break;
         default:
             LOG_WARNING("Unknown name pattern for NavType {}", enum_name(this->type));
@@ -568,9 +569,8 @@ TypeNav NavType::localizeName(TypeNav type, std::string_view nm, std::string& na
         else
             nloc = repl_en;
         if (type == TypeNav::ColonisationShip) {
-            if (repl_en.ends_with(" [INACTIVE]") || repl_en.ends_with(" [inactive]")) {
-                name = repl_en.substr(0, repl_en.size() - 11);
-            }
+            if (auto pos = name.find('['); pos != std::string::npos)
+                name = trim(name.substr(0, pos));
         }
         return tn;
     }
@@ -592,6 +592,8 @@ TypeNav NavType::localizeName(TypeNav type, std::string_view nm, std::string& na
 }
 
 TypeNav NavType::guessTypeFromName(TypeNav tp, std::string_view nm) {
+    if (const GameVar* gv = GameVar::find(nm); gv && gv->type != TypeNav::Other)
+        return gv->type;
     for (auto nt: ALL_NAV_TYPES) {
         if (nt->match_name(nm))
             return nt->type;

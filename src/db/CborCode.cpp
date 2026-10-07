@@ -620,10 +620,10 @@ struct pack<db::StationJS> {
             PK_IF("st", 1, v.updated_at);
             if (v.bodyId.val > 0) { PK_IF("st", 2, v.bodyId); }
             if (v.parentId.val >= 0) { PK_IF("st", 3, v.parentId); }
-            PK_IF("st", 4, v.controllingFaction);
-            PK_IF("st", 5, v.controllingFactionState);
-            PK_IF("st", 6, v.primaryEconomy);
-            //PK_IF("st", 7, v.secondaryEconomy);
+            PK_IF("st", 4, v.var);
+            PK_IF("st", 5, v.controllingFaction);
+            PK_IF("st", 6, v.controllingFactionState);
+            PK_IF("st", 7, v.primaryEconomy);
             PK_IF("st", 8, v.economies);
             PK_IF("st", 9, v.allegiance);
             PK_IF("st", 10, v.government);
@@ -653,10 +653,10 @@ struct convert<db::StationJS> {
             UN_PK("st", 1, v.updated_at);
             UN_PK("st", 2, v.bodyId);      // space stations have bodyId
             UN_PK("st", 3, v.parentId);    // planet/star bodyId
-            UN_PK("st", 4, v.controllingFaction);
-            UN_PK("st", 5, v.controllingFactionState);
-            UN_PK("st", 6, v.primaryEconomy);
-            //UN_PK("st", 7, v.secondaryEconomy);
+            UN_PK("st", 4, v.var);
+            UN_PK("st", 5, v.controllingFaction);
+            UN_PK("st", 6, v.controllingFactionState);
+            UN_PK("st", 7, v.primaryEconomy);
             UN_PK("st", 8, v.economies);
             UN_PK("st", 9, v.allegiance);
             UN_PK("st", 10, v.government);
@@ -955,7 +955,7 @@ bool verifyStarSystem(StarSystemJS& ss) {
         }
         if (st.parentId.has_value()) {
             if (!used.contains(st.parentId.val)) {
-                LOG_ERROR("Unknown parent body id[{}] for station {}", st.parentId.val, st.name);
+                LOG_WARNING("Unknown parent body id[{}] for station {}", st.parentId.val, st.name);
             }
         }
     }
@@ -970,7 +970,9 @@ bool decode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_
     try {
         auto obj = msgpack::unpack((const char*)data, (size_t)size);
         obj->convert(ss);
+#ifndef NDEBUG
         verifyStarSystem(ss);
+#endif
         return ss.address == address && ss.name == system_name;
     } catch (const std::exception &e) {
         LOG_ERROR("decode_system_blob error");
@@ -985,7 +987,9 @@ bool encode_system_blob(StarSystemJS& ss, const std::string& system_name, int64_
     tlStarSystemName = system_name;
     tlDumpFull = false;
     try {
+#ifndef NDEBUG
         verifyStarSystem(ss);
+#endif
         msgpack::pack(buffer, ss);
         ss.address = address;
         ss.name = system_name;

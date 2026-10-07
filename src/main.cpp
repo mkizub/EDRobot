@@ -180,16 +180,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //    int planetData_sz = sizeof(planetData);
 //    LOG_INFO("{} {} {} {}", entity_sz, stationData_sz, starData_sz, planetData_sz);
 
-    {
-        SetConsoleOutputCP(CP_UTF8);
-        if (HWND consoleWindow = GetConsoleWindow()) {
-            ShowWindow(consoleWindow, SW_RESTORE);
-            BringWindowToTop(consoleWindow);
-        }
-        gal::spansh_systems_dump_test("D:/Work/ED/EDMapFilter/galaxy.json.gz", false);
-        //gal::game_logs_test("C:/Users/mkizub/Saved Games/Frontier Developments/Elite Dangerous", "");
-        return 0;
-    }
+//    {
+//        SetConsoleOutputCP(CP_UTF8);
+//        if (HWND consoleWindow = GetConsoleWindow()) {
+//            ShowWindow(consoleWindow, SW_RESTORE);
+//            BringWindowToTop(consoleWindow);
+//        }
+//        //gal::spansh_systems_dump_test("D:/Work/ED/EDMapFilter/galaxy.json.gz", false, false);
+//        //gal::game_logs_test("C:/Users/mkizub/Saved Games/Frontier Developments/Elite Dangerous", "");
+//        return 0;
+//    }
 
     Master& master = Master::getInstance();
     if (master.initialize())

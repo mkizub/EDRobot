@@ -295,8 +295,8 @@ gal::spEntity NavList::guessNavItem(int idx) {
             auto* nt = gal::NavType::findNavType(s->type);
             bool typeMatch = nt && nt->charOCR == nle.icon;
             double match = fm.ratio(fm.toOCR(toUtf16(s->name)), nle.name);
-            if (!s->nloc.empty())
-                match = std::max(match, fm.ratio(fm.toOCR(toUtf16(s->nloc)), nle.name));
+            if (!s->getLocalisedName().empty())
+                match = std::max(match, fm.ratio(fm.toOCR(toUtf16(s->getLocalisedName())), nle.name));
             if (!typeMatch)
                 match -= 10;
             if (match >= 60 && match > bestMatch) {

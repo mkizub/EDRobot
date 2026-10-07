@@ -355,10 +355,13 @@ EntityCtrl::EntityCtrl(UIEditSystem *ui, gal::spEntity &entity)
     : ui(ui)
     , entity(entity)
 {
-    if (entity->type == TypeNav::USS /*&& !entity->name.empty() && !entity->nloc.empty()*/)
-        entity_name = entity->name + " / " + entity->nloc;
-    else if (!entity->nloc.empty())
-        entity_name = entity->nloc;
+    if (entity->type == TypeNav::USS /*&& !entity->name.empty() && !entity->nloc.empty()*/) {
+        entity_name = entity->name;
+        if (!entity->getLocalisedName().empty())
+            entity_name.append(" / ").append(entity->getLocalisedName());
+    }
+    else if (!entity->getLocalisedName().empty())
+        entity_name = entity->getLocalisedName();
     else
         entity_name = entity->name;
     if (auto ss = ui->currStarSystem.get()) {
@@ -563,8 +566,8 @@ void EntityDialog::initialize() {
 
     auto& entity = ctrl->entity;
     std::string name = entity->name;
-    if (!entity->nloc.empty())
-        name = entity->nloc;
+    if (!entity->getLocalisedName().empty())
+        name = entity->getLocalisedName();
     else
         name = entity->name;
     if (auto ss = ctrl->ui->currStarSystem.get()) {
@@ -686,8 +689,8 @@ void EntityDialog::initialize() {
         info += std::format("Signal type: {}\r\n", toJsNavType(entity->type).sv());
         if (!entity->name.empty())
             info += std::format("Signal name: {}\r\n", entity->name);
-        if (!entity->nloc.empty())
-            info += std::format("Signal name: {}\r\n", entity->nloc);
+        if (!entity->getLocalisedName().empty())
+            info += std::format("Signal name: {}\r\n", entity->getLocalisedName());
     }
     if (isBody(entity->type)) {
         if (!(entity->type == TypeNav::Star || entity->type == TypeNav::Planet)) {
@@ -835,7 +838,8 @@ void EntityDialog::on_save() {
         if (t_idx >= 0 && t_idx < typeNavEntries.size())
             tp = typeNavEntries[t_idx].first;
         if (tp != ctrl->entity->type) {
-            ctrl->ui->currStarSystem->checkTypeAndName(ctrl->entity, tp, ctrl->entity->name, ctrl->entity->nloc, {.ts=Timestamp::clock::now()});
+            ctrl->ui->currStarSystem->checkTypeAndName(ctrl->entity, tp, ctrl->entity->name, ctrl->entity->getLocalisedName(),
+                                                       {.ts=Timestamp::clock::now()});
             ctrl->ui->currStarSystem->needBlobSave = true;
             ctrl->icon_site.set_icon(ctrl->icon_name());
             UILayout lo(ctrl->ui->hwnd());

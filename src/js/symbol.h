@@ -42,7 +42,10 @@ public:
 
     symbol() = default;
     symbol(const std::string& str) {
-        ptr = &(*getSymbolSet().emplace(str).first);
+        if (str.empty())
+            ptr = nullptr;
+        else
+            ptr = &(*getSymbolSet().emplace(str).first);
     }
     symbol(const std::string_view& sv) : symbol(std::string(sv)) {
     }
@@ -52,7 +55,10 @@ public:
     constexpr symbol& operator=(const symbol& str) noexcept = default;
 
     symbol& operator=(const std::string_view& sv) noexcept {
-        ptr = &(*getSymbolSet().emplace(std::string(sv)).first);
+        if (sv.empty())
+            ptr = nullptr;
+        else
+            ptr = &(*getSymbolSet().emplace(std::string(sv)).first);
         return *this;
     }
     symbol& operator=(std::nullptr_t) noexcept {
@@ -61,11 +67,13 @@ public:
     }
 
     const char& operator[](uint32_t pos) const {
+        if (!ptr) return ""[0];
         return ptr->operator[](pos);
     }
 
     constexpr bool empty() const {
-        return ptr ? ptr->empty() : true;
+        if (!ptr) return true;
+        return ptr->empty();
     }
     constexpr const uint32_t size() const {
         return ptr ? ptr->size() : 0;
@@ -121,10 +129,7 @@ constexpr bool operator==(const symbol& lhs, const symbol& rhs) {
     return (lhs.ptr == rhs.ptr);
 }
 constexpr bool operator==(const symbol& lhs, std::string_view& rhs) {
-    return lhs.sv()== rhs;
-}
-constexpr bool operator==(const std::string_view& lhs, symbol& rhs) {
-    return lhs == rhs.sv();
+    return lhs.sv() == rhs;
 }
 constexpr std::strong_ordering operator<=>(const symbol& lhs, const symbol& rhs) {
     return std::operator<=>(lhs.sv(), rhs.sv());

@@ -47,6 +47,11 @@ spGameEvent TestBackdor::parseEvent(Timestamp ts_now, std::string& line) {
     return Cfg.parseEvent(ts_now, line);
 }
 
+struct MegashipInfo {
+    TypeNav tp;
+    int64_t marketId;
+};
+std::map<std::string,MegashipInfo> allMegaships;
 
 bool verifyStarSystem(db::StarSystemJS& ss) {
 
@@ -54,14 +59,15 @@ bool verifyStarSystem(db::StarSystemJS& ss) {
     std::string carrier_name;
     TypeNav tp = NavType::checkCarrierName(ss.name, &carrier_code, &carrier_name);
     if (tp != TypeNav::Other)
-        LOG_ERROR("Star system '{}' looks like carrier name '{}' / '{}'", ss.name, carrier_code, carrier_name);
+        LOG_ERROR(R"({{ system:"{}" }}, // like carrier name)", ss.name);
 
+    TypeNav tp_check;
     std::map<int,std::string> used;
     for (auto& body : ss.bodies) {
-        TypeNav tn = toTypeNav(body.type);
-        if (tn == TypeNav::Star && !body.name.starts_with(ss.name))
+        tp = toTypeNav(body.type);
+        if (tp == TypeNav::Star && !body.name.starts_with(ss.name))
             LOG_ERROR(R"({{ star:"{}", id:{}, system:"{}" }}, // unique star name)", body.name, body.bodyId.val, ss.name);
-        if (tn == TypeNav::Planet) {
+        if (tp == TypeNav::Planet) {
             if (body.name == ss.name)
                 LOG_ERROR(R"({{ planet:"{}", id:{}, system:"{}" }}, // same as system)", body.name, body.bodyId.val, ss.name);
             else if (body.name.size() < 2+ss.name.size() || !body.name.starts_with(ss.name) || body.name[ss.name.size()] != ' ')
@@ -75,7 +81,7 @@ bool verifyStarSystem(db::StarSystemJS& ss) {
                 }
             }
         }
-        if (tn == TypeNav::Barycenter || tn == TypeNav::Ring)
+        if (tp == TypeNav::Barycenter || tp == TypeNav::Ring)
             body.name.clear();
         if (!body.bodyId.has_value()) {
             LOG_ERROR("Serializing body without bodyId");
@@ -87,16 +93,26 @@ bool verifyStarSystem(db::StarSystemJS& ss) {
         }
         used[body.bodyId.val] = body.name;
 
-        tp = NavType::checkCarrierName(body.name, &carrier_code, &carrier_name);
-        if (tp != TypeNav::Other)
-            LOG_ERROR("Body name '{}' looks like carrier name '{}' / '{}'", body.name, carrier_code, carrier_name);
+        tp_check = NavType::checkCarrierName(body.name, &carrier_code, &carrier_name);
+        if (tp_check != TypeNav::Other) {
+            if (tp == TypeNav::Planet)
+                LOG_ERROR(R"({{ planet:"{}", id:{}, system:"{}" }}, // not a carrier)", body.name, body.bodyId.val, ss.name);
+            else if (tp == TypeNav::Star)
+                LOG_ERROR(R"({{ star:"{}", id:{}, system:"{}" }}, // not a carrier)", body.name, body.bodyId.val, ss.name);
+        }
 
         for (auto& st : body.stations) {
             tp = toTypeNav(st.type);
             if (tp != TypeNav::FleetCarrier && tp != TypeNav::SquadronCarrier) {
-                tp = NavType::checkCarrierName(st.name, &carrier_code, &carrier_name);
-                if (tp != TypeNav::Other)
+                tp_check = NavType::checkCarrierName(st.name, &carrier_code, &carrier_name);
+                if (tp_check != TypeNav::Other) {
                     LOG_ERROR("Station name '{}' looks like carrier name '{}' / '{}'", st.name, carrier_code, carrier_name);
+                }
+            }
+            if (tp == TypeNav::Megaship || tp == TypeNav::StationMegaShip) {
+                if (!allMegaships.contains(st.name)) {
+                    allMegaships.emplace(st.name, MegashipInfo{tp, st.marketId});
+                }
             }
         }
     }
@@ -108,21 +124,26 @@ bool verifyStarSystem(db::StarSystemJS& ss) {
         }
         if (st.parentId.has_value()) {
             if (!used.contains(st.parentId.val)) {
-                LOG_ERROR("Unknown parent body id[{}] for station {}", st.parentId.val, st.name);
+                LOG_WARNING("Unknown parent body id[{}] for station {}", st.parentId.val, st.name);
             }
         }
 
         tp = toTypeNav(st.type);
         if (tp != TypeNav::FleetCarrier && tp != TypeNav::SquadronCarrier) {
-            tp = NavType::checkCarrierName(st.name, &carrier_code, &carrier_name);
-            if (tp != TypeNav::Other)
+            tp_check = NavType::checkCarrierName(st.name, &carrier_code, &carrier_name);
+            if (tp_check != TypeNav::Other)
                 LOG_ERROR("Station name '{}' looks like carrier name '{}' / '{}'", st.name, carrier_code, carrier_name);
+        }
+        if (tp == TypeNav::Megaship || tp == TypeNav::StationMegaShip) {
+            if (!allMegaships.contains(st.name)) {
+                allMegaships.emplace(st.name, MegashipInfo{tp, st.marketId});
+            }
         }
     }
     return true;
 }
 
-void test_json_system(std::string& strbuf, bool saveDbBlob) {
+void test_json_system(std::string& strbuf, bool makeSystems, bool saveSystemsBlob) {
     db::StarSystemJS db_ss {};
     if (db::parseSpanshSystemEntry(db_ss, strbuf)) {
         verifyStarSystem(db_ss);
@@ -133,13 +154,15 @@ void test_json_system(std::string& strbuf, bool saveDbBlob) {
             for (auto& st : body.stations)
                 st.market.reset();
         }
-        auto ss = gal::makeStarSystem(db_ss.name, db_ss.address, db_ss.coords, true, false);
-        if (ss) {
-            gal::update_star_system(ss.get(), db_ss);
-            if (!saveDbBlob) {
-                ss->needBlobSave = false;
+        if (makeSystems) {
+            auto ss = gal::makeStarSystem(db_ss.name, db_ss.address, db_ss.coords, true, false);
+            if (ss) {
+                gal::update_star_system(ss.get(), db_ss);
+                if (!saveSystemsBlob) {
+                    ss->needBlobSave = false;
+                }
+                ss->save();
             }
-            ss->save();
         }
     }
     strbuf.clear();
@@ -211,7 +234,7 @@ struct Reader {
     }
 };
 
-bool spansh_systems_dump_test(std::string_view filePath, bool saveDbBlob) {
+bool spansh_systems_dump_test(std::string_view filePath, bool makeSystems, bool saveSystemsBlob) {
     std::string strbuf;
 
     Reader rd(filePath);
@@ -244,7 +267,7 @@ bool spansh_systems_dump_test(std::string_view filePath, bool saveDbBlob) {
                     strbuf.clear();
                     continue;
                 }
-                test_json_system(strbuf, saveDbBlob);
+                test_json_system(strbuf, makeSystems, saveSystemsBlob);
                 systemsRead += 1;
                 strbuf.clear();
                 at_system_start = true;
@@ -259,7 +282,7 @@ bool spansh_systems_dump_test(std::string_view filePath, bool saveDbBlob) {
                     continue;
                 if (buffer[i] == ']') {
                     LOG_ERROR("Parsed galaxy file completely");
-                    test_json_system(strbuf, saveDbBlob);
+                    test_json_system(strbuf, makeSystems, saveSystemsBlob);
                     systemsRead += 1;
                     strbuf.clear();
                     break;
@@ -287,6 +310,13 @@ bool spansh_systems_dump_test(std::string_view filePath, bool saveDbBlob) {
     // Check for errors before closing
     if (bytesRead < 0) {
         LOG_ERROR("Error reading file: {}", rd.error());
+    }
+
+    for (auto& [nm,info] : allMegaships) {
+        if (info.tp == TypeNav::Megaship)
+            LOG_ERROR(R"({{ megaship:"{}", id:{} }},)", nm, info.marketId);
+        else
+            LOG_ERROR(R"({{ 'station-megaship':"{}", id:{} }},)", nm, info.marketId);
     }
 
     return true;
@@ -338,8 +368,8 @@ bool game_logs_test(std::string_view dirPath, std::string_view firstFile) {
                 break;
             }
         }
-        gal::cleanupStarSystemCache({});
-        db::checkpoint(db::CheckPoint::PASSIVE);
+        //gal::cleanupStarSystemCache({});
+        //db::checkpoint(db::CheckPoint::PASSIVE);
     }
 
     return true;

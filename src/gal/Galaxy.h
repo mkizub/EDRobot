@@ -21,7 +21,7 @@ struct StarSystem;
 namespace gal {
 
 bool init_symbols();
-bool spansh_systems_dump_test(std::string_view filePath, bool saveDbBlob);
+bool spansh_systems_dump_test(std::string_view filePath, bool makeSystems, bool saveSystemsBlob);
 bool game_logs_test(std::string_view dirPath, std::string_view firstFile);
 
 class StarSystemCache;
@@ -152,6 +152,14 @@ const wchar_t SHIELD2_MARK  = u'\u2B16'; // ⬖
 const wchar_t SHIELD3_MARK  = u'\u25C6'; // ◆
 
 extern const std::vector<const NavType*> ALL_NAV_TYPES;
+
+struct UniqueBody {
+    TypeNav type;
+    short bodyId;
+    std::string systemName;
+    //std::string bodyName; // in map key
+};
+extern std::unordered_multimap<std::string,UniqueBody> allUniqueBodies;
 
 } // namespace gal
 
