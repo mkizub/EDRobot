@@ -2815,16 +2815,18 @@ void BaseCruiseStep::checkExitSCO(bool exitSCO) {
 
 bool CruiseToSignal::run() {
     LOG_DEBUG("CruiseToSignal run");
-    // select destination dock or body
-    if (st::destination.name.empty())
-        return false;
     if (!requiredDist)
         return false;
 
-    destName = st::destination.name;
-    int focusIdx;
-    if (!task->nl.focusDestination(focusIdx))
-        return false;
+    // select destination dock or body
+    if (destName.empty()) {
+        if (st::destination.name.empty())
+            return false;
+        destName = st::destination.name;
+        int focusIdx;
+        if (!task->nl.focusDestination(focusIdx))
+            return false;
+    }
 
     failCount = 0;
     if (st::guiFocus == GuiFocus::None) {
@@ -2833,7 +2835,10 @@ bool CruiseToSignal::run() {
     } else {
         dist_t dist = task->nl.getFocusedDist(3);
         gotDistance(dist);
+        sendUiBack();
     }
+
+    task->orientTowardTarget(5);
 
     if (currentDist <= requiredDist) {
         LOG_DEBUG("CruiseToSignal stop");
@@ -2856,7 +2861,11 @@ bool CruiseToSignal::run() {
 
     notify_info("Fly towards");
     useNavList = false;
-    task->orientTowardTarget(5);
+
+    if (!st::ship.flags.cruise) {
+        if (!run_sub_step(new EnterCruiseStep(true)))
+            return false;
+    }
 
     failCount = 0;
     int noCompassCount = 0;
@@ -4711,6 +4720,7 @@ bool Autopilot::run() {
             throw_trouble("Cannot reach destination system");
     }
 
+try_dock_again:
     if (!st::autopilot.destDock && !st::autopilot.destBody) {
         if (destName.empty() && st::destination.name.empty())
             throw_failed("No destination dock selected");
@@ -4724,8 +4734,11 @@ bool Autopilot::run() {
                 st::autopilot.setDestBody(dest);
             else if (isAnySite(dest->type))
                 st::autopilot.setDestDock(dest);
-        } else {
-            nl.discoverSelected();
+        }
+        if (!dest || isSignal(dest->type)) {
+            int focusIdx;
+            if (nl.focusDestination(focusIdx))
+                nl.discoverSelected();
             dest = starSystem->getEntity(destName);
             if (dest) {
                 if (isBody(dest->type))
@@ -4764,6 +4777,8 @@ bool Autopilot::run() {
         if (destName.empty())
             throw_failed("No destination dock selected");
         nl.discoverSelected();
+        if (auto dest = gal::getCurrentStarSystem()->getEntity(destName); dest && isAnySite(dest->type))
+            goto try_dock_again;
         LOG_INFO("Autopilot, done");
         return true;
     }

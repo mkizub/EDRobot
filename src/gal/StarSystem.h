@@ -104,6 +104,7 @@ public:
         int64_t market_id;
         body_id_t body_id;
         Timestamp ts;
+        bool manual;
     };
 
     spEntity getMainStar() const;
@@ -125,6 +126,7 @@ private:
     spEntity makeStationEntity(TypeNav tp, std::string_view name, std::string_view nloc, int64_t marketId, Timestamp ts);
     spEntity makeSignalEntity(TypeNav tp, std::string_view name, std::string_view nloc);
     spEntity addMegashipEntity(TypeNav tp, std::string_view name, std::string_view nloc, int64_t marketId, Timestamp ts);
+    spEntity addMegashipEntity(TypeNav tp, db::MegashipJS& db_ms, std::string_view nloc);
     spEntity addEntity(spEntity entity); // TODO: rename, public api is addEntity(type,name);
 };
 

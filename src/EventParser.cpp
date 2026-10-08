@@ -492,6 +492,8 @@ void setGameVersion(spGameEvent& ge) {
             Cfg.updateLanguage(lng);
         }
     }
+
+    Cfg.loadPlayerOptions(false);
 }
 
 void parseEvent_Fileheader(spGameEvent& ge) {

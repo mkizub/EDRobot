@@ -645,7 +645,7 @@ struct LandingPads {
     uint8_t medium;
     uint8_t small;
     [[nodiscard]] bool empty() const { return large==0 && medium==0 && small==0; }
-    [[nodiscard]] bool has_value() const { return large==0 && medium==0 && small==0; }
+    [[nodiscard]] bool has_value() const { return !empty(); }
 };
 
 #define JS_ENUM_DECL(NAME) struct NAME : public js::Enum<NAME> {};

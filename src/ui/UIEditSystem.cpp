@@ -73,7 +73,7 @@ bool compareBodyIDbyPath(const std::vector<body_id_t>& p1, const std::vector<bod
         auto b1 = p1[i];
         auto b2 = p2[i];
         if (b1 != b2)
-            return b1 < b2;
+            return unsigned(b1.val) < unsigned(b2.val);
     }
     return false;
 }
@@ -145,7 +145,7 @@ void UIEditSystem::clear() {
 void UIEditSystem::init_systems_list() {
     cb_system.remove_all();
 
-    if (gal::getCurrentStarSystem() && !contains(starSystems, gal::getCurrentStarSystem()->systemName))
+    if (gal::getCurrentStarSystem()->systemAddress && !contains(starSystems, gal::getCurrentStarSystem()->systemName))
         starSystems.insert(starSystems.begin(), gal::getCurrentStarSystem()->systemName);
     if (currStarSystem && !contains(starSystems, currStarSystem->systemName))
         starSystems.push_back(currStarSystem->systemName);
@@ -217,9 +217,25 @@ EntityCtrl* UIEditSystem::find_ctrl(body_id_t bodyId) {
 
 void UIEditSystem::sort_controls() {
     for (auto& ctrl : controls)
+        ctrl->pathBodyID.clear();
+    for (auto& ctrl : controls)
         ctrl->update_path();
     std::stable_sort(controls.begin(), controls.end(), [](const std::unique_ptr<EntityCtrl>& c1, const std::unique_ptr<EntityCtrl>& c2)->bool {
-        return compareBodyIDbyPath(c1->pathBodyID, c2->pathBodyID);
+        const std::vector<body_id_t>& p1 = c1->pathBodyID;
+        const std::vector<body_id_t>& p2 = c2->pathBodyID;
+        for (int i=0; i < 100; i++) {
+            if (p1.size() <= i && p2.size() <= i)
+                return false;
+            if (p1.size() <= i)
+                return true;
+            if (p2.size() <= i)
+                return false;
+            auto b1 = p1[i];
+            auto b2 = p2[i];
+            if (b1 != b2)
+                return b1.val < b2.val;
+        }
+        return c1->entity->type < c2->entity->type;
     });
     std::vector<gal::Entity*> parents;
     parents.reserve(16);
@@ -429,10 +445,12 @@ js::value EntityCtrl::value() {
 }
 
 void EntityCtrl::update_path() {
+    if (!this->pathBodyID.empty())
+        return;
     EntityCtrl* pc = ui->find_ctrl(entity->parentBodyId);
-    if (!pc)
+    if (!pc || pc == this) {
         this->pathBodyID.clear();
-    if (pc) {
+    } else {
         pc->update_path();
         this->pathBodyID.reserve(pc->pathBodyID.size()+1);
         this->pathBodyID = pc->pathBodyID;
@@ -736,6 +754,8 @@ void EntityDialog::initialize() {
         info += toJsNavType(entity->type).sv();
         if (entity->bodyId.has_value())
             info += std::format(" (body id {})\r\n", entity->bodyId.val);
+        else
+            info += "\r\n";
         if (!entity->parentBodyId.has_value()) {
             info += std::format("Parent body not known\r\n");
         } else {
@@ -839,7 +859,7 @@ void EntityDialog::on_save() {
             tp = typeNavEntries[t_idx].first;
         if (tp != ctrl->entity->type) {
             ctrl->ui->currStarSystem->checkTypeAndName(ctrl->entity, tp, ctrl->entity->name, ctrl->entity->getLocalisedName(),
-                                                       {.ts=Timestamp::clock::now()});
+                                                       {.ts=Timestamp::clock::now(), .manual=true});
             ctrl->ui->currStarSystem->needBlobSave = true;
             ctrl->icon_site.set_icon(ctrl->icon_name());
             UILayout lo(ctrl->ui->hwnd());

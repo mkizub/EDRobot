@@ -22,20 +22,15 @@ void StarSystem::load() {
     if (db::loadStarSystemBlob(db_ss, systemName, systemAddress)) {
         auto saved_needBlobSave = needBlobSave;
         update_star_system(this, db_ss);
-        needBlobSave = saved_needBlobSave;
         std::vector<db::MegashipJS> megaships;
         if (db::loadMegaShips(systemAddress, megaships)) {
             for (auto& db_ms : megaships) {
                 assert (db_ms.systemId == this->systemAddress);
-                spEntity megaship;
                 TypeNav tp = toTypeNav(JsNavType::get(db_ms.blob.type));
-                if (isCarrier(tp))
-                    megaship = addMegashipEntity(tp, db_ms.code, db_ms.name, db_ms.marketId, db_ms.updated);
-                else
-                    megaship = addMegashipEntity(tp, db_ms.name, "", db_ms.marketId, db_ms.updated);
-                update_megaship(this, db_ms, megaship);
+                addMegashipEntity(tp, db_ms, "");
             }
         }
+        needBlobSave = saved_needBlobSave;
     }
     isBlobLoaded = true;
 }
@@ -342,6 +337,20 @@ spEntity StarSystem::checkTypeAndName(spEntity entity, TypeNav tp, std::string_v
                 entity = addEntity(tp, entity->getUnexpandedName(), snloc, args);
             else
                 entity = addEntity(tp, entity->name, snloc, args);
+            needBlobSave = true;
+        }
+        else if (isBody(tp) && (entity->type == TypeNav::Body || args.manual && isBody(entity->type))) {
+            BodyData bodyData {};
+            if (auto* bd = entity->getBodyData()) {
+                bodyData = *bd;
+            }
+            if (!args.body_id.has_value())
+                args.body_id = entity->bodyId;
+            removeEntity(entity);
+            entity = addEntity(tp, entity->name, "", args);
+            *entity->getBodyData() = bodyData;
+            entity->updated = std::max(entity->updated, args.ts);
+            this->updated_at = std::max(this->updated_at, args.ts);
             needBlobSave = true;
         }
         else if (entity->type == TypeNav::AnySite && isAnySite(tp)) {
@@ -763,12 +772,19 @@ spEntity StarSystem::addEntity(spEntity entity) {
 
     // check for duplicated unique entities
     if (entity->type == TypeNav::NavBeacon) {
+        body_id_t mainStarBodyId;
         for (auto& item : entities) {
-            if (item && item->type == TypeNav::NavBeacon) {
+            if (!item)
+                continue;
+            if (item->type == TypeNav::NavBeacon) {
                 LOG_WARNING("Attempt to add second NavBeacon");
                 return item;
             }
+            if (item->type == TypeNav::Star && item->getStarData()->mainStar.value_or())
+                mainStarBodyId = item->bodyId;
         }
+        if (!entity->parentBodyId.has_value())
+            entity->parentBodyId = mainStarBodyId;
     }
     if (entity->type == TypeNav::AnonMegaship) {
         for (auto& item : entities) {
@@ -1066,8 +1082,9 @@ spEntity StarSystem::addMegashipEntity(TypeNav tp, std::string_view name, std::s
     assert (isMegaship(tp));
 
     std::string var_name, xx_name, ru_name;
-    if (name.starts_with("$")) {
-        var_name = name;
+    if (!isCarrier(tp)) {
+        if (name.starts_with("$"))
+            var_name = name;
         TypeNav tp_guess = NavType::localizeName(tp, name, xx_name, ru_name);
         if (tp_guess != TypeNav::Other && tp_guess != tp)
             tp = tp_guess;
@@ -1090,11 +1107,8 @@ spEntity StarSystem::addMegashipEntity(TypeNav tp, std::string_view name, std::s
         db_ms.marketId = marketId;
     }
     else if (isAnonMegaship(tp)) {
-        NavType::localizeName(tp, name, xx_name, ru_name);
-        db_ms.name = xx_name;
+        db_ms.name = name;
         db_ms.anon = true;
-        if (nloc.empty() && st::lng == Lang::RU) nloc = ru_name;
-        name = xx_name;
         marketId = 0;
     }
     else if (name == "Trailblazer Dream" ||
@@ -1107,24 +1121,17 @@ spEntity StarSystem::addMegashipEntity(TypeNav tp, std::string_view name, std::s
         db_ms.name = name;
         db_ms.marketId = marketId;
     }
+
     if (db::loadMegaShip(db_ms, true)) {
-        if (db_ms.systemId != systemAddress) {
-            db_ms.updated = std::max(db_ms.updated, ts);
-            megaship = moveMegashipHere(db_ms, body_id_t());
-            if (megaship)
-                return megaship;
-        } else {
-            // prevent recursive addMegashipEntity->update_megaship->addEntity->addMegashipEntity
-            if (db_ms.code.empty() || db_ms.name == db_ms.code)
-                megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.name, "", marketId)));
-            else
-                megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.code, db_ms.name, marketId)));
-            db_ms.updated = std::max(db_ms.updated, ts);
-            update_megaship(this, db_ms, megaship);
-            db::saveMegaShip(db_ms);
-            return megaship;
-        }
+        if (!isAnonMegaship(tp) && marketId && !db_ms.marketId)
+            db_ms.marketId = marketId;
+        if (!var_name.empty() && db_ms.blob.var.empty())
+            db_ms.blob.var = var_name;
+        db_ms.updated = std::max(db_ms.updated, ts);
+        return addMegashipEntity(tp, db_ms, nloc);
     }
+    if (nloc.empty() && !var_name.empty())
+        nloc = ru_name;
     if (nloc == name)
         nloc = "";
     megaship.reset(new MegashipEntity(tp, var_name, *name, *nloc, marketId));
@@ -1134,6 +1141,60 @@ spEntity StarSystem::addMegashipEntity(TypeNav tp, std::string_view name, std::s
     db::saveMegaShip(db_ms);
     return megaship;
 }
+
+spEntity StarSystem::addMegashipEntity(TypeNav tp, db::MegashipJS& db_ms, std::string_view nloc) {
+    spEntity megaship;
+    assert (isMegaship(tp));
+
+    if (db_ms.systemId != systemAddress) {
+        megaship = moveMegashipHere(db_ms, body_id_t());
+        if (megaship) {
+            update_megaship(this, db_ms, megaship);
+            if (!nloc.empty())
+                megaship->getStationData()->localised_name = nloc;
+            return megaship;
+        }
+    }
+
+    std::string_view name = db_ms.name;
+    std::string var_name, xx_name, ru_name;
+    if (!isCarrier(tp)) {
+        if (!db_ms.blob.var.empty()) {
+            var_name = db_ms.blob.var;
+            TypeNav tp_guess = NavType::localizeName(tp, db_ms.blob.var, xx_name, ru_name);
+            if (tp_guess != TypeNav::Other && tp_guess != tp)
+                tp = tp_guess;
+            if (nloc.empty() && st::lng == Lang::RU)
+                nloc = ru_name;
+            name = xx_name;
+        } else {
+            TypeNav tp_guess = NavType::localizeName(tp, db_ms.name, xx_name, ru_name);
+            if (tp_guess != TypeNav::Other && tp_guess != tp)
+                tp = tp_guess;
+            if (nloc.empty() && st::lng == Lang::RU)
+                nloc = ru_name;
+            name = xx_name;
+        }
+    }
+
+    // prevent recursive addMegashipEntity->update_megaship->addEntity->addMegashipEntity
+    if (isCarrier(tp)) {
+        if (db_ms.code.empty() || db_ms.name == db_ms.code)
+            megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.name, "", db_ms.marketId)));
+        else
+            megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.code, db_ms.name, db_ms.marketId)));
+    }
+    else if (!nloc.empty()) {
+        if (nloc == name)
+            nloc = "";
+        megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.name, *nloc, db_ms.marketId)));
+    }
+    else
+        megaship = addEntity(spEntity(new MegashipEntity(tp, var_name, db_ms.name, "", db_ms.marketId)));
+    update_megaship(this, db_ms, megaship);
+    return megaship;
+}
+
 
 Entity::Entity(TypeNav tp, std::string nm)
     : type(tp)
@@ -1289,6 +1350,8 @@ SignalEntity::SignalEntity(TypeNav tp, std::string var, std::string nm, std::str
 }
 
 bool SignalEntity::nameEq(std::string_view nm) const {
+    if (nm.empty())
+        return false;
     if (!signal_ext.localised) {
         if (!signal_ext.unexpanded_name.empty()) {
             std::string eng, loc;
@@ -1405,6 +1468,8 @@ bool StationEntity::setMarketId(int64_t marketId) {
 }
 
 bool StationEntity::nameEq(std::string_view nm) const {
+    if (nm.empty())
+        return false;
     if (!station_ext.localised) {
         if (!station_ext.unexpanded_name.empty()) {
             std::string eng, loc;
@@ -1662,6 +1727,8 @@ localized:
 }
 
 bool MegashipEntity::nameEq(std::string_view nm) const {
+    if (nm.empty())
+        return false;
     if (isCarrier(type)) {
         return name == nm || station_ext.localised_name == nm;
     }

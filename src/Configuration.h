@@ -113,7 +113,7 @@ public:
 private:
     friend class Master;
     friend class CargoManager;
-    friend void setGameVersion(spGameEvent& ge); // for updateLanguage
+    friend void setGameVersion(spGameEvent& ge); // for updateLanguage and loadPlayerOptions
     friend struct gal::TestBackdor;
 
     void parseShortcutConfig(Command command, const std::string& name, js::value cfg);

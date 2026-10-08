@@ -41,6 +41,8 @@ static void update_body_id_and_parents(gal::StarSystem* ss, gal::spEntity &entit
             //    p = ss->addEntity(p_type, name, "", {.body_id=p_id, .ts=db_body.updated_at});
             //    p->bodyId = p_id;
             //}
+            if (!p && (p_type == TypeNav::Barycenter || p_type == TypeNav::Ring))
+                p = ss->addEntity(p_type, "", "", {.body_id=p_id, .ts=db_body.updated_at});
             b = p;
         }
     }
@@ -611,10 +613,12 @@ void updateFromDestination(StarSystem* ss, spGameEvent& ge) {
     for (auto[it, rangeEnd] = allUniqueBodies.equal_range(dname); it != rangeEnd; ++it) {
         assert (dname == it->first);
         const UniqueBody& ub = it->second;
-        if (ub.bodyId == st::destination.bodyId.val && ub.systemName == ss->systemName) {
-            ss->addEntity(ub.type, dname, "", {.body_id=st::destination.bodyId, .ts=ge->timestamp});
-            ss->save();
-            return;
+        if (ub.type == TypeNav::Star || ub.type == TypeNav::Planet) {
+            if (ub.bodyId == st::destination.bodyId.val && ub.systemName == ss->systemName) {
+                ss->addEntity(ub.type, dname, "", {.body_id=st::destination.bodyId, .ts=ge->timestamp});
+                ss->save();
+                return;
+            }
         }
     }
 
@@ -629,9 +633,9 @@ void updateFromDestination(StarSystem* ss, spGameEvent& ge) {
             auto spl = split(suffix.substr(1), ' ');
             if (spl.size() == 1) {
                 auto& nm = spl[0];
-                if (nm.size() == 1 && nm[0] >= 'A' && nm[0] <= 'Z')
+                if (nm.size() >= 1 && nm[0] >= 'A' && nm[0] <= 'Z')
                     tn = TypeNav::Star;
-                else if (nm.size() == 1 && nm[0] >= '0' && nm[0] <= '1')
+                else if (nm.size() >= 1 && nm[0] >= '0' && nm[0] <= '9')
                     tn = TypeNav::Planet;
             }
             else if (spl.size() > 1) {
@@ -862,6 +866,8 @@ bool updateFromScanEvent(StarSystem* ss, spGameEvent& ge) {
                 //    p = ss->addEntity(p_type, name, "", {.body_id=p_id, .ts=ge->timestamp});
                 //    p->bodyId = p_id;
                 //}
+                if (!p && (p_type == TypeNav::Barycenter || p_type == TypeNav::Ring))
+                    p = ss->addEntity(p_type, "", "", {.body_id=p_id, .ts=ge->timestamp});
                 b = p;
             }
         }
@@ -938,7 +944,7 @@ bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
     }
 
 
-    if (!(ge->event=="ApproachSettlement" || ge->event=="Docked" || (ge->event=="Location") && ge->data["Docked"]))
+    if (!(ge->event=="ApproachSettlement" || ge->event=="Docked" || ge->event=="DockingRequested" || (ge->event=="Location") && ge->data["Docked"]))
         return false;
 
     body_id_t stationBodyId;
@@ -982,9 +988,6 @@ bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
         snloc = je["StationName_Localised"].as_string_or();
         stype = je["StationType"].as_string_or();
     }
-
-    if (sname == "Clayton Hydroponics Holdings")
-        LOG_WARNING(sname);
 
     TypeNav typeNav = toTypeNav(JsNavType::get(stype));
     typeNav = NavType::guessTypeFromName(typeNav, sname);
@@ -1066,8 +1069,8 @@ bool updateFromDockEvent(StarSystem* ss, spGameEvent& ge) {
     ge_ext.longitude =            je["Longitude"].as_real_or(std::numeric_limits<float>::quiet_NaN());
     if (je["LandingPads"].is_object()) {
         ge_ext.landingPads.large = je["LandingPads"]["Large"].as_int_or();
-        ge_ext.landingPads.large = je["LandingPads"]["Medium"].as_int_or();
-        ge_ext.landingPads.large = je["LandingPads"]["Small"].as_int_or();
+        ge_ext.landingPads.medium = je["LandingPads"]["Medium"].as_int_or();
+        ge_ext.landingPads.small = je["LandingPads"]["Small"].as_int_or();
     }
     if (auto& arr = je["StationServices"].as_array_or(); !arr.empty()) {
         ge_ext.services.reserve(arr.size());

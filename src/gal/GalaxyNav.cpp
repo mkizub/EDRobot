@@ -288,6 +288,10 @@ TypeNav GameVar::replace_in(std::string_view sv, std::string& eng, std::string& 
         auto start = sv.find('$', pos);
         if (start == std::string_view::npos)
             break;
+        if (start > pos) {
+            eng.append(sv, pos, start - pos);
+            loc.append(sv, pos, start - pos);
+        }
         start += 1;
         auto end = sv.find(';', start+1);
         if (end == std::string_view::npos)
@@ -568,7 +572,7 @@ TypeNav NavType::localizeName(TypeNav type, std::string_view nm, std::string& na
             nloc = repl_ru;
         else
             nloc = repl_en;
-        if (type == TypeNav::ColonisationShip) {
+        if (tn == TypeNav::ColonisationShip) {
             if (auto pos = name.find('['); pos != std::string::npos)
                 name = trim(name.substr(0, pos));
         }

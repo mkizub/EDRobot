@@ -720,7 +720,7 @@ bool NavList::focusDestination(int& focusIdx) {
         if (list[idx].isTarget) {
             destSignalNavIdx = idx;
             parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-            return true;
+            break;
         }
     }
     if (destSignalNavIdx == focusIdx)
@@ -763,7 +763,7 @@ bool NavList::focusDestination(int& focusIdx) {
             if (list[idx].isTarget) {
                 destSignalNavIdx = idx;
                 parseNavDist(grayImage, ai::rEnv, *rows[idx], idx);
-                return true;
+                break;
             }
         }
         if (destSignalNavIdx == focusIdx)

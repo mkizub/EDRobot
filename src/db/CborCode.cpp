@@ -451,9 +451,9 @@ struct pack<LandingPads> {
     using T = LandingPads;
     template <typename Stream>
     msgpack::packer<Stream>& operator()(msgpack::packer<Stream>& o, const T& v) const {
-        assert (v.large >= 0 && v.large < 10);
-        assert (v.medium >= 0 && v.medium < 10);
-        assert (v.small >= 0 && v.small < 10);
+        assert (v.large >= 0 && v.large < 20);
+        assert (v.medium >= 0 && v.medium < 30);
+        assert (v.small >= 0 && v.small < 30);
         o.pack_array(3);
         o.pack_unsigned_int(v.large);
         o.pack_unsigned_int(v.medium);
