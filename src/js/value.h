@@ -888,25 +888,38 @@ public:
      */
     bool operator==(const value& other) const
     {
-        if (type != other.type)
-            return false;
         switch (type) {
         case TYPE::NIL:
-            return true;
+            return other.type==TYPE::NIL;
         case TYPE::BOOL:
-            return content.boolean == other.content.boolean;
+            return other.type==TYPE::BOOL && content.boolean == other.content.boolean;
         case TYPE::INT:
-            return content.integer == other.content.integer;
+            if (other.type==TYPE::INT)
+                return content.integer == other.content.integer;
+            if (other.type==TYPE::REAL) {
+                double intpart;
+                return modf(other.content.real, &intpart) == 0.0 && content.integer == int64_t(intpart);
+            }
+            return false;
+            return other.type==TYPE::INT && content.integer == other.content.integer;
         case TYPE::REAL:
-            return content.real == other.content.real;
+            if (other.type==TYPE::REAL)
+                return content.real == other.content.real;
+            if (other.type==TYPE::INT) {
+                double intpart;
+                return modf(content.real, &intpart) == 0.0 && other.content.integer == int64_t(intpart);
+            }
+            return false;
         case TYPE::STR_BUF:
         case TYPE::STR_EXT:
         case TYPE::STR_OWN:
-            return content.str == other.content.str;
+            if (other.type==TYPE::STR_BUF || other.type==TYPE::STR_EXT || other.type==TYPE::STR_OWN)
+                return content.str == other.content.str;
+            return false;
         case TYPE::ARR:
-            return content.array == other.content.array;
+            return other.type==TYPE::ARR && content.array == other.content.array;
         case TYPE::OBJ:
-            return *content.object == *other.content.object;
+            return other.type==TYPE::OBJ && *content.object == *other.content.object;
         }
         return false;
     }

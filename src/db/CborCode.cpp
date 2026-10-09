@@ -470,9 +470,9 @@ struct convert<LandingPads> {
         v.large = o.via.array.ptr[0].as<unsigned>();
         v.medium = o.via.array.ptr[1].as<unsigned>();
         v.small = o.via.array.ptr[2].as<unsigned>();
-        assert (v.large >= 0 && v.large < 10);
-        assert (v.medium >= 0 && v.medium < 10);
-        assert (v.small >= 0 && v.small < 10);
+        assert (v.large >= 0 && v.large < 20);
+        assert (v.medium >= 0 && v.medium < 30);
+        assert (v.small >= 0 && v.small < 30);
         return o;
     }
 };
