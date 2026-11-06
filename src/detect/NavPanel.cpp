@@ -87,8 +87,10 @@ static cv::Line2f rotateAround(cv::Line2f line, cv::Point2f anchor, float angle,
 }
 
 static bool checkAnchors(ClassifyEnv &env, double thr, AnchorDetector *lan, AnchorDetector *ran, cv::Point& offset) {
-    lan->extendLT = offset;
-    lan->extendRB = offset;
+    if (lan->extendLT == cv::Point())
+        lan->extendLT = offset;
+    if (lan->extendRB == cv::Point())
+        lan->extendRB = offset;
     lan->withRefRect = lan->refEvalRect->calcReferenceRect(env);
     lan->withRefRect += offset;
     double match = lan->match(env);
@@ -96,8 +98,10 @@ static bool checkAnchors(ClassifyEnv &env, double thr, AnchorDetector *lan, Anch
         return false;
     if (!ran)
         return true;
-    ran->extendLT = offset;
-    ran->extendRB = offset;
+    if (ran->extendLT == cv::Point())
+        ran->extendLT = offset;
+    if (ran->extendRB == cv::Point())
+        ran->extendRB = offset;
     ran->withRefRect = ran->refEvalRect->calcReferenceRect(env);
     ran->withRefRect += offset;
     match = ran->match(env);
@@ -157,7 +161,7 @@ double NavPanelDetector::match(ClassifyEnv &env) {
     {
         // rotate for anchor detection
         const int roughExtW = 300;
-        const int roughExtH = 120;
+        const int roughExtH = 160;
         float refRoughW = topRefLine.length() + roughExtW;
         float captRoughW = topCaptLine.length() + roughExtW*env.getScale();
         float captRoughH = roughExtH*env.getScale();
@@ -191,8 +195,13 @@ double NavPanelDetector::match(ClassifyEnv &env) {
                 lan = getAnchorDetector("nav-left");
                 ran = nullptr;
                 if (checkAnchors(roughEnv, 0.2, lan, ran, offset))
-                    if (match_dialog(roughEnv, roughAngle, lan, debugImage))
+                    if (match_dialog(roughEnv, roughAngle, lan, debugImage)) {
+                        if (lan->lastMatchResult.im) {
+                            std::string name = "nav_select_icon:" + lan->lastMatchResult.im->name;
+                            env.classified.emplace_back(ClsDetType::Detected, name, cv::Rect());
+                        }
                         return fillResult(env);
+                    }
                 return 0;
             }
         } else {
@@ -371,7 +380,7 @@ bool NavPanelDetector::match_flt_line(const char* lineName, cv::Line& detectedLi
     fltAltLine = rotateAround(fltAltLine, cv::Point(), -roughAngle, 1);
     fltAltLine += env.scaleToReference(lan->captureRect.tl()) - lan->refEvalRect->calcReferenceRect(env).tl();
     if (strcmp(lineName, "flt-line2") == 0)
-        fltAltLine += cv::Point(0,38*env.getScale());
+        fltAltLine += cv::Point(0, 38*env.getScale());
 
 #ifdef DEBUG_DETECTOR
     auto captAltLine = env.scaleToCaptured(fltAltLine);
@@ -418,7 +427,7 @@ bool NavPanelDetector::match_dialog(ClassifyEnv& env, float roughAngle, AnchorDe
     if (lan->name == "flt-left")
         lastSelectedTab = getTab("filters");
     else if (lan->name == "nav-left")
-        lastSelectedTab = getTab("select");
+        lastSelectedTab = getTab("nav-select");
 
     cv::Line detectedLine;
     if (!match_flt_line("flt-line", detectedLine, env, roughAngle, lan, debugRough)) {

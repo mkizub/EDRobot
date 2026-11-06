@@ -997,8 +997,8 @@ bool NavList::discoverSelected() {
             cv::Mat grayImage;
             ai::detectEDStateGrayIm(DetectLevel::Buttons, grayImage);
             for (auto &cr: ai::rEnv.classified) {
-                if (cr.cdt == ClsDetType::LineDetected && cr.text.starts_with("nav-line:")) {
-                    nav_icon = cr.text.substr(7);
+                if (cr.cdt == ClsDetType::Detected && cr.text.starts_with("nav_select_icon:")) {
+                    nav_icon = cr.text.substr(16);
                     LOG_INFO("NavType icon: '{}", nav_icon);
                     break;
                 }

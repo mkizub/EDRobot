@@ -424,6 +424,9 @@ js::value META(const char* meta) {
 #define FACTORY(TYPE) [](const TaskTemplate &templ) { return new TYPE(templ); }
 
 void initTemplates() {
+    (void)_lc("Debug");
+    (void)_lc("Exploration");
+    (void)_lc("Trade");
     typedef std::vector<Param> P;
     const js::value OPT {{"optional", true}};
     std::list<TaskTemplate> templates;

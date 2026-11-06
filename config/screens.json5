@@ -561,7 +561,7 @@
             method:'corr', filter: { grad: { scale: 2 } }
           },{
             name: "nav-left", img: "left/nav_select_icon_*.png", anchor: [-186,-30, 56.249], rect: [25,3,60,60, 56.249], t: [0.3, 0.8],
-            method:'corr', filter: { grad: { scale: 2 } }
+            method:'corr', filter: { grad: { scale: 2 } }, ext: [50,80,250,80]
           }
         ],
         lines: [

@@ -612,16 +612,19 @@ bool NavType::match_type(std::string_view stype) const {
     return type == toTypeNav(JsNavType::get(stype));
 }
 
-bool NavType::match_icon(wchar_t ch, const std::string& icon) const {
+bool NavType::match_icon(const std::string& icon) const {
     if (!icon.empty()) {
         for (auto& ni: navIcons) {
             if (icon == ni)
                 return true;
         }
     }
-    if (ch && ch != ERROR_MARK) {
+    return false;
+}
+
+bool NavType::match_char_ocr(wchar_t ch) const {
+    if (ch && ch != ERROR_MARK)
         return ch == charOCR;
-    }
     return false;
 }
 

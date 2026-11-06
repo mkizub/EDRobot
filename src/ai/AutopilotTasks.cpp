@@ -1144,8 +1144,10 @@ bool DepartureStep::run() {
                     run_sub_step(new NavDockSelect);
                 else
                     run_sub_step(new NavBodySelect);
-                sendUiBack();
+            } else {
+                run_sub_step(new NavBodySelect);
             }
+            sendUiBack();
         }
     }
     ai::detectEDState(DetectLevel::Screen);
@@ -1296,9 +1298,11 @@ bool EnterCruiseStep::run() {
             task->orientAwayFromTarget(10);
         } else if (st::autopilot.destBody && (wasDestBodyFocused || !wasDestDockFocused)) {
             run_sub_step(new NavBodySelect);
+            sendUiBack();
             task->orientTowardTarget(10);
         } else if (st::autopilot.destDock) {
             run_sub_step(new NavDockSelect);
+            sendUiBack();
             task->orientTowardTarget(10);
         }
     }
@@ -1810,6 +1814,7 @@ bool BaseDockStep::canDock() {
     if (!st::autopilot.destDock)
         return false;
     switch (st::autopilot.destDock->type) {
+    case TypeNav::AnySite:
     case TypeNav::SpaceStation:
     case TypeNav::Orbis:
     case TypeNav::Ocellus:
@@ -1823,6 +1828,7 @@ bool BaseDockStep::canDock() {
     case TypeNav::SquadronCarrier:
     case TypeNav::ColonisationShip:
     case TypeNav::AnonMegaship:
+    case TypeNav::PlanetaryThing:
     case TypeNav::PlanetaryPort:
     case TypeNav::EngineerPort:
     case TypeNav::Settlement:

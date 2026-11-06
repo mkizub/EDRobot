@@ -372,10 +372,14 @@ spEntity StarSystem::checkTypeAndName(spEntity entity, TypeNav tp, std::string_v
                  isMegaship(entity->type) && isMegaship(tp) ||
                  isSignal(entity->type) && isSignal(tp))
         {
-            const_cast<TypeNav&>(entity->type) = tp;
-            entity->updated = std::max(entity->updated, args.ts);
-            this->updated_at = std::max(this->updated_at, args.ts);
-            needBlobSave = true;
+            if (args.manual || (!isGeneric(tp) && isGeneric(entity->type)) ||
+                entity->type == TypeNav::PlanetaryConstrDepot)
+            {
+                const_cast<TypeNav &>(entity->type) = tp;
+                entity->updated = std::max(entity->updated, args.ts);
+                this->updated_at = std::max(this->updated_at, args.ts);
+                needBlobSave = true;
+            }
         }
         else if (entity->type == TypeNav::AnySite && isSignal(tp)) {
             // AnySite -> TouristBeacon, for example
@@ -540,25 +544,26 @@ spEntity StarSystem::addNavListEntry(wchar_t charOCR, const std::string& nav_ico
     }
 
     TypeNav typeNav = NavType::guessTypeFromName(TypeNav::Other, sname);
+    if (typeNav == TypeNav::Other && !nav_icon.empty()) {
+        for (auto nt: ALL_NAV_TYPES) {
+            if (nt->match_icon(nav_icon)) {
+                typeNav = nt->type;
+                break;
+            }
+        }
+    }
+    if (typeNav == TypeNav::Other && charOCR && charOCR != ERROR_MARK) {
+        for (auto nt: ALL_NAV_TYPES) {
+            if (nt->match_char_ocr(charOCR)) {
+                typeNav = nt->type;
+                break;
+            }
+        }
+    }
+
     spEntity entity = getEntity(sname);
     if (!entity) {
         entity = addEntity(typeNav, sname, "", {});
-    }
-
-    if (typeNav == TypeNav::Other) {
-        TypeNav tp = TypeNav::Other;
-        for (auto nt: ALL_NAV_TYPES) {
-            if (nt->match_icon(charOCR, nav_icon)) {
-                if (entity->type == TypeNav::Other || nt->type == entity->type) {
-                    typeNav = nt->type;
-                    break;
-                }
-                if (tp == TypeNav::Other)
-                    tp = nt->type;
-            }
-        }
-        if (typeNav != entity->type && tp != TypeNav::Other)
-            typeNav = tp;
     }
 
     if (typeNav != TypeNav::Other && entity->type != typeNav || entity->name.empty() || !entity->nameEq(sname)) {
@@ -795,10 +800,10 @@ spEntity StarSystem::addEntity(spEntity entity) {
         }
     }
     // do not add generic signals
-    //if (isSignal(entity->type)) {
-    //    LOG_WARNING("Attempt to add signal: {}", enum_name(entity->type));
-    //    return entity;
-    //}
+    if (isSignal(entity->type) && !isDatabaseSite(entity->type)) {
+        LOG_WARNING("Attempt to add signal: {}", enum_name(entity->type));
+        return entity;
+    }
     for (auto &e: this->entities) {
         if (e && e.get() == entity.get())
             return entity;

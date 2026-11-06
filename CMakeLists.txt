@@ -288,6 +288,7 @@ install(FILES
         config/default-configuration.json5
         config/screens.json5
         config/game-var.json5
+        config/unique-bodies.json5
         DESTINATION ".")
 install(FILES EDRobot.cmd.in DESTINATION "." RENAME EDRobot.cmd)
 install(FILES README.md DESTINATION ".")

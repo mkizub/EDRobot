@@ -58,6 +58,7 @@ void extractLine(const cv::Mat& lineImage, int& y0, int& x0, int& x1, int minWid
                 if (!isLineNoise(lineImage, x, true)) {
                     x0 = x;
                     x += minWidth;
+                    x1 = x;
                 }
                 continue;
             } else {

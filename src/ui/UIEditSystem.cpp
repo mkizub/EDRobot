@@ -478,6 +478,7 @@ const char* EntityCtrl::icon_name() {
     case TypeNav::NavBeacon:
     case TypeNav::TouristBeacon:
     case TypeNav::Codex:
+    case TypeNav::Titan:
     case TypeNav::AnySite:
     case TypeNav::SpaceStation:     break;
     case TypeNav::Orbis:            icon_scale = 200;   return "site-orbis";
@@ -488,7 +489,7 @@ const char* EntityCtrl::icon_name() {
     case TypeNav::SpaceOutpost:                         return "site-outpost";
     case TypeNav::SpaceInstallation:                    return "site-space-installation";
     case TypeNav::SpaceConstrDepot:                     return "site-construction";
-    case TypeNav::Megaship:                             return "site-megaship";
+    case TypeNav::Megaship:
     case TypeNav::StationMegaShip:                      return "site-megaship";
     case TypeNav::FleetCarrier:                         return "site-carrier";
     case TypeNav::SquadronCarrier:  icon_scale = 200;   return "site-carrier";
@@ -532,6 +533,7 @@ EntityDialog::EntityDialog(EntityCtrl *ctrl)
 
     typeNavEntries = {
             {TypeNav::Other, pgettext("TypeNav","Other")},
+            {TypeNav::Body, pgettext("TypeNav","Body")},
             {TypeNav::Barycenter, pgettext("TypeNav","Barycenter")},
             {TypeNav::Ring, pgettext("TypeNav","Ring")},
             {TypeNav::AsteroidCluster, pgettext("TypeNav","Asteroid Cluster")},
@@ -539,6 +541,8 @@ EntityDialog::EntityDialog(EntityCtrl *ctrl)
             {TypeNav::Planet, pgettext("TypeNav","Planet")},
             {TypeNav::NavBeacon, pgettext("TypeNav","Navigation Beacon")},
             {TypeNav::TouristBeacon, pgettext("TypeNav","Tourist Beacon")},
+            {TypeNav::AnySite, pgettext("TypeNav","Unspecified Site")},
+            {TypeNav::SpaceStation, pgettext("TypeNav","Unspecified Station")},
             {TypeNav::Orbis, pgettext("TypeNav","Orbis")},
             {TypeNav::Ocellus, pgettext("TypeNav","Ocellus")},
             {TypeNav::Dodec, pgettext("TypeNav","Dodec")},
@@ -553,6 +557,7 @@ EntityDialog::EntityDialog(EntityCtrl *ctrl)
             {TypeNav::SquadronCarrier, pgettext("TypeNav","Squadron Carrier")},
             {TypeNav::ColonisationShip, pgettext("TypeNav","Colonisation Ship")},
             {TypeNav::AnonMegaship, pgettext("TypeNav","Anonymouse Megaship")},
+            {TypeNav::PlanetaryThing, pgettext("TypeNav","Unspecified Port")},
             {TypeNav::PlanetaryPort, pgettext("TypeNav","Planetary Port")},
             {TypeNav::EngineerPort, pgettext("TypeNav","Engineer Port")},
             {TypeNav::Settlement, pgettext("TypeNav","Settlement")},

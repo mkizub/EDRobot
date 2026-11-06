@@ -107,7 +107,8 @@ struct NavType {
     static TypeNav guessTypeFromName(TypeNav tp, std::string_view nm);
     bool match_name(std::string_view name) const;
     bool match_type(std::string_view type) const;
-    bool match_icon(wchar_t ch, const std::string& icon) const;
+    bool match_icon(const std::string& icon) const;
+    bool match_char_ocr(wchar_t ch) const;
 };
 
 

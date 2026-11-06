@@ -108,7 +108,7 @@ bool Screen::detect(DetectParams& params) {
         params.warpedEnv->init(frameImage, unWarpMat);
         DetectParams wared_params{*params.warpedEnv, nullptr, params.uiState, params.level};
         for (auto& cr : params.env.classified) {
-            if (cr.cdt == ClsDetType::Detected && cr.text.starts_with("nav_panel:")) {
+            if (cr.cdt == ClsDetType::Detected && (cr.text.starts_with("nav_panel:") || cr.text.starts_with("nav_select_icon:"))) {
                 params.warpedEnv->classified.push_back(cr);
             }
         }
